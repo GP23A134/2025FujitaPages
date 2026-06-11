@@ -5,55 +5,39 @@
  */
 
 window.addEventListener('DOMContentLoaded', () => {
-    // 💡 19万行の巨大JSONファイルを非同期で読み込む
-    fetch('./output_CCO4KG.json')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`JSONファイルの取得に失敗しました (Status: ${response.status})`);
-            }
-            return response.json();
-        })
-        .then(jsonData => {
-            // 💡 読み込んだデータをグローバル変数としてセット（後続の処理と互換性を保つため）
-            window.output_json_data = jsonData;
-
-            console.log("[CCO4KG Loader] 非同期JSONデータの読み込みに成功しました。");
-            console.log("[CCO4KG Loader] オン/オフ条件完全分離プロセスを読み込みました。");
-            
-            initDocIdDropdown();
-            setupAccordion("headerOutput", "contentOutput");
-            setupAccordion("headerColor", "contentColor");
-            
-            // --- 設定変更時のリアルタイムUI連動イベント登録 ---
-            document.getElementById("enableSubject").addEventListener("change", updateUIControls);
-            document.getElementById("enableObject").addEventListener("change", updateUIControls);
-            document.getElementById("enablePredicate").addEventListener("change", updateUIControls);
-            document.getElementById("enableSClass").addEventListener("change", updateUIControls);
-            document.getElementById("enableOClass").addEventListener("change", updateUIControls);
-            document.getElementById("enableClassLink").addEventListener("change", updateUIControls);
-            document.getElementById("enableStakeholder").addEventListener("change", updateUIControls);
-            document.getElementById("enableStClass").addEventListener("change", updateUIControls);
-            document.getElementById("enableEvidence").addEventListener("change", updateUIControls);
-            
-            document.getElementsByName("shColorMode").forEach(radio => {
-                radio.addEventListener("change", updateUIControls);
-            });
-            
-            document.getElementById("execBtn").addEventListener("click", splitAndProcessData);
-
-            updateUIControls();
-            document.getElementById("execBtn").disabled = false;
-        })
-        .catch(error => {
-            // 💡 万が一読み込めなかった場合のエラー表示
-            console.error("[CCO4KG Loader] エラー:", error);
-            const statusEl = document.getElementById("statusMessage");
-            if (statusEl) {
-                statusEl.className = "status-panel error";
-                statusEl.style.display = "block";
-                statusEl.textContent = `[エラー] データの読み込みに失敗しました。ファイル名が 'output_CCO4KG.json' かどうか、または配置場所を確認してください。詳細: ${error.message}`;
-            }
+    if (typeof window.output_json_data !== 'undefined' && window.output_json_data !== null) {
+        console.log("[CCO4KG Loader] オン/オフ条件完全分離プロセスを読み込みました。");
+        
+        initDocIdDropdown();
+        setupAccordion("headerOutput", "contentOutput");
+        setupAccordion("headerColor", "contentColor");
+        
+        // --- 設定変更時のリアルタイムUI連動イベント登録 ---
+        document.getElementById("enableSubject").addEventListener("change", updateUIControls);
+        document.getElementById("enableObject").addEventListener("change", updateUIControls);
+        document.getElementById("enablePredicate").addEventListener("change", updateUIControls);
+        document.getElementById("enableSClass").addEventListener("change", updateUIControls);
+        document.getElementById("enableOClass").addEventListener("change", updateUIControls);
+        document.getElementById("enableClassLink").addEventListener("change", updateUIControls);
+        document.getElementById("enableStakeholder").addEventListener("change", updateUIControls);
+        document.getElementById("enableStClass").addEventListener("change", updateUIControls);
+        document.getElementById("enableEvidence").addEventListener("change", updateUIControls);
+        
+        document.getElementsByName("shColorMode").forEach(radio => {
+            radio.addEventListener("change", updateUIControls);
         });
+        
+        document.getElementById("execBtn").addEventListener("click", splitAndProcessData);
+
+        updateUIControls();
+        document.getElementById("execBtn").disabled = false;
+    } else {
+        console.error("[CCO4KG Loader] エラー: データが見つかりません。");
+        const statusEl = document.getElementById("statusMessage");
+        statusEl.className = "status-panel error";
+        statusEl.style.display = "block";
+        statusEl.textContent = "[エラー] output_CCO4KG.js からデータが見つかりません。";
+    }
 });
 
 function setupAccordion(headerId, contentId) {
