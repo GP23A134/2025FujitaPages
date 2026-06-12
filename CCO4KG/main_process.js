@@ -1,3 +1,9 @@
+/**
+ * ========================================================================
+ * CCO4KG 変換・特定ID指定抽出ツール メインロジック（オン/オフ完全分離・決定版・修正済）
+ * ========================================================================
+ */
+
 window.addEventListener('DOMContentLoaded', () => {
     if (typeof window.output_json_data !== 'undefined' && window.output_json_data !== null) {
         console.log("[CCO4KG Loader] オン/オフ条件完全分離プロセスを読み込みました。");
@@ -10,6 +16,7 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById("enableSubject").addEventListener("change", updateUIControls);
         document.getElementById("enableObject").addEventListener("change", updateUIControls);
         document.getElementById("enablePredicate").addEventListener("change", updateUIControls);
+        document.getElementById("enableSubjectObjectNumbering").addEventListener("change", updateUIControls); // ✨修正1: 登録漏れを追加
         document.getElementById("enableSClass").addEventListener("change", updateUIControls);
         document.getElementById("enableOClass").addEventListener("change", updateUIControls);
         document.getElementById("enableClassLink").addEventListener("change", updateUIControls);
@@ -228,7 +235,7 @@ function splitAndProcessData() {
         stClass: shEnabledRaw && document.getElementById("enableStClass").checked,
         soNum: document.getElementById("enableSubjectObjectNumbering").checked,
         targetId: document.getElementById("targetDocId").value,
-        shColorMode: document.querySelector('input[name="shColorMode"]:checked').value,
+        shColorMode: document.querySelector('input[name="shColorMode"]:checked')?.value || "random", // ✨修正3: 安全な取得に変更
         cSubj: document.getElementById("cpSubject").value,
         cObj: document.getElementById("cpObject").value,
         cPred: document.getElementById("cpPredicate").value,
@@ -260,6 +267,10 @@ function splitAndProcessData() {
 
     for (let groupKey in docGroups) {
         let wrappedBindings = docGroups[groupKey];
+        
+        // ✨修正2: trCounter と comboToTrMap をドキュメント（グループ）の直下に移動し、スコープを適正化
+        const comboToTrMap = {};           
+        let trCounter = 0;                 
         
         const wordAppearanceMap = {}; 
         const uniqueStakeholdersInDoc = new Set(); 
@@ -311,8 +322,6 @@ function splitAndProcessData() {
 
         const classLinkSet = new Set();    
         const metadataLinkSet = new Set(); 
-        const comboToTrMap = {};           
-        let trCounter = 0;                
         let docOutputBuffer = "";          
         const stakeholderLabelMap = {}; 
         const stClassLabelMap = {};
@@ -397,7 +406,6 @@ function splitAndProcessData() {
                     docOutputBuffer += `${prefix}${trId}\t主語\t${displaySLabel}\t${config.cDefaultEdge}\t${config.cSubj}\t${config.cSubj}\n`;
                 } else {
                     if (config.sClassEnabled && sClassId !== "") {
-                        // 💡 直接接続（オフ）の時は「トリプルID（trId）」を混ぜて重複を許容する
                         let directSClassKey = `${currentDocId}_${trId}_direct_sClass_${sClassId}`;
                         if (!classLinkSet.has(directSClassKey)) {
                             classLinkSet.add(directSClassKey);
@@ -411,7 +419,6 @@ function splitAndProcessData() {
                     docOutputBuffer += `${prefix}${trId}\t目的語\t${displayOLabel}\t${config.cDefaultEdge}\t${config.cObj}\t${config.cObj}\n`;
                 } else {
                     if (config.oClassEnabled && oClassId !== "") {
-                        // 💡 直接接続（オフ）の時は「トリプルID（trId）」を混ぜて重複を許容する
                         let directOClassKey = `${currentDocId}_${trId}_direct_oClass_${oClassId}`;
                         if (!classLinkSet.has(directOClassKey)) {
                             classLinkSet.add(directOClassKey);
@@ -423,7 +430,6 @@ function splitAndProcessData() {
 
             // --- 本体がONのときだけ出力されるクラス所属エッジ（補助出力） ---
             if (config.sEnabled && config.sClassEnabled && sClassId !== "") {
-                // 💡 通常接続（オン）の時は「displaySLabel」ベースで重複を削る（trIdを混ぜない！）
                 let sClassKey = `${currentDocId}_${displaySLabel}_to_sClass_${sClassId}`;
                 if (!classLinkSet.has(sClassKey)) {
                     classLinkSet.add(sClassKey);
@@ -431,7 +437,6 @@ function splitAndProcessData() {
                 }
             }
             if (config.oEnabled && config.oClassEnabled && oClassId !== "") {
-                // 💡 通常接続（オン）の時は「displayOLabel」ベースで重複を削る（trIdを混ぜない！）
                 let oClassKey = `${currentDocId}_${displayOLabel}_to_oClass_${oClassId}`;
                 if (!classLinkSet.has(oClassKey)) {
                     classLinkSet.add(oClassKey);
@@ -525,10 +530,20 @@ function createDocumentSection(docId, textContent, tripleCount, stakeholderCount
     const copyBtn = document.createElement("button");
     copyBtn.className = "btn-small btn-copy-small";
     copyBtn.textContent = "このデータをコピー";
+    
+    // ✨修正4: 現代的で安全なクリップボードAPI（Async Clipboard API）に修正
     copyBtn.onclick = () => {
-        textarea.select();
-        document.execCommand("copy");
-        alert(`${docId} のデータをコピーしました。`);
+        navigator.clipboard.writeText(textContent)
+            .then(() => {
+                alert(`${docId} のデータをコピーしました。`);
+            })
+            .catch(err => {
+                console.error("コピー失敗: ", err);
+                // フォールバック（古いブラウザ用）
+                textarea.select();
+                document.execCommand("copy");
+                alert(`${docId} のデータをコピーしました。`);
+            });
     };
 
     actions.appendChild(copyBtn);
