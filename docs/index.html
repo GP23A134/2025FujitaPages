@@ -1,19 +1,197 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-	<meta charset="UTF-8">
-	<title>GitHubPages Sample</title>
+    <meta charset="UTF-8">
+    <title>CCO4KG 変換・特定ID指定抽出ツール</title>
+    <link rel="stylesheet" href="css/style_custom.css">
+    
+    <script src="output_CCO4KG.js"></script>
+    <script src="js/main_process.js" defer></script>
 </head>
 <body>
-	<h1>〇〇のサンプルページ</h1>
-	<hr>
-	
-	GitHubPagesのテスト用に作成したページです
-	<a href="https://oecu-kozaki-lab.github.io/2025FujitaPages/KGS4WD/list.html">〇〇の検索</a>
-    <br>
-	GitHubPagesのテスト用に作成したページです
-	<a href="https://oecu-kozaki-lab.github.io/2025FujitaPages/CCO4KG/index.html">絞り込みの検索</a>
-	<br>
-    なんで動かない
+
+<div class="container">
+    <h2>CCO4KG Output Converter (ID Specified Loader)</h2>
+    
+    <div class="config-panel" style="margin-bottom: 35px;"> 
+        <div class="config-row">
+            <div class="config-group">
+                <label for="targetDocId">対象ドキュメントID：</label>
+                <select id="targetDocId" class="select-doc-id">
+                    <option value="">すべてのドキュメント（一括出力）</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="custom-panel">
+        <div id="headerOutput" class="toggle-header">
+            <span>出力設定</span>
+            <span class="toggle-icon">▼</span>
+        </div>
+        <div id="contentOutput" class="panel-content">
+            <div class="panel-section">
+                <div class="section-title">基本構造オプション</div>
+                <div class="panel-flex-column">
+                    <div class="detail-item">
+                        <label class="config-group">
+                            <input type="checkbox" id="enableSubject" checked>
+                            主語ノード(s)を出力する（OFFにするとsClassが直接になります）
+                        </label>
+                    </div>
+                    <div class="detail-item">
+                        <label class="config-group">
+                            <input type="checkbox" id="enablePredicate" checked>
+                            述語(s-p-o)の関係行を出力する
+                        </label>
+                    </div>
+                    <div class="detail-item">
+                        <label class="config-group">
+                            <input type="checkbox" id="enableObject" checked>
+                            目的語ノード(o)を出力する（OFFにするとoClassが直接になります）
+                        </label>
+                    </div>
+                    <div class="detail-item">
+                        <label class="config-group">
+                            <input type="checkbox" id="enableSubjectObjectNumbering" checked>
+                            主語(s)・目的語(o)にトリプルIDで連番を付与する（重複ノードの分離）
+                        </label>
+                    </div>
+                    <hr style="border: 0; border-top: 1px dashed #ddd; margin: 8px 0;">
+                    <div class="detail-item">
+                        <label class="config-group">
+                            <input type="checkbox" id="enableSClass" checked>
+                            主語のクラス名(sClass)を出力する
+                        </label>
+                    </div>
+                    <div class="detail-item">
+                        <label class="config-group">
+                            <input type="checkbox" id="enableClassLink" checked>
+                            <strong>クラス間の直結エッジ（sClass - oClass）を出力する</strong>
+                        </label>
+                    </div>
+                    <div class="detail-item">
+                        <label class="config-group">
+                            <input type="checkbox" id="enableOClass" checked>
+                            目的語のクラス名(oClass)を出力する
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="panel-section">
+                <div class="section-title">ステークホルダー設定</div>
+                <div class="panel-flex-column">
+                    <div class="detail-item">
+                        <label class="config-group">
+                            <input type="checkbox" id="enableStakeholder"> ステークホルダー・意見の出力
+                        </label>
+                    </div>
+                    <div class="detail-item">
+                        <label class="config-group">
+                            <input type="checkbox" id="enableStakeholderNumbering"> ステークホルダーに連番を付与する（重複ノードの分離）
+                        </label>
+                    </div>
+                    <div class="detail-item">
+                        <label class="config-group">
+                            <input type="checkbox" id="enableStClass"> stClass 出力
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section" style="border-bottom: none; padding-bottom: 0;">
+                <div class="section-title">根拠の設定</div>
+                <div class="detail-item">
+                    <label class="config-group">
+                        <input type="checkbox" id="enableEvidence"> <strong>根拠（evidence）を出力する</strong>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="custom-panel">
+        <div class="panel-header toggle-header" id="headerColor">
+            <span>色設定 (Color Customization)</span>
+            <span class="toggle-icon">▼</span>
+        </div>
+        
+        <div class="panel-content" id="contentColor">
+            <div class="panel-section">
+                <div class="section-title">基本要素の色</div>
+                
+                <div class="custom-inline-row">
+                    <div class="color-picker-item">
+                        <label for="cpSubject">主語ノード (s):</label>
+                        <input type="color" id="cpSubject" value="#a1f979">
+                    </div>
+                    <div class="color-picker-item">
+                        <label for="cpPredicate">述語 (p):</label>
+                        <input type="color" id="cpPredicate" value="#fd7777">
+                    </div>
+                    <div class="color-picker-item">
+                        <label for="cpObject">目的語ノード (o):</label>
+                        <input type="color" id="cpObject" value="#a1f979">
+                    </div>
+                    <div class="color-picker-item">
+                        <label for="cpSClass">主語クラス (sClass):</label>
+                        <input type="color" id="cpSClass" value="#fd3e3e">
+                    </div>
+                    <div class="color-picker-item">
+                        <label for="cpSClassEdge">クラス間線 ( - ) の色:</label>
+                        <input type="color" id="cpSClassEdge" value="#e91e63">
+                    </div>
+                    <div class="color-picker-item">
+                        <label for="cpOClass">目的語クラス (oClass):</label>
+                        <input type="color" id="cpOClass" value="#fcc58f">
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section" id="secShColor">
+                <div class="section-title">ステークホルダー・意見の色</div>
+                
+                <div class="color-picker-item" style="margin-bottom: 12px;">
+                    <label>色指定モード:</label>
+                    <div class="radio-group" style="display: flex; flex-direction: column; gap: 6px; margin-top: 5px;">
+                        <label><input type="radio" name="shColorMode" id="shColorRandom" value="random" checked> 自動（個人単位でランダム割り当て）</label>
+                        <label><input type="radio" name="shColorMode" id="shColorGroup" value="group"> 自動（分類 stClass ごとにグループ色を統一）</label>
+                        <label><input type="radio" name="shColorMode" id="shColorSelect" value="select"> 色一括固定指定</label>
+                    </div>
+                </div>
+
+                <div class="color-picker-grid">
+                    <div class="color-picker-item" id="shFixedColorRow">
+                        <label for="cpStakeholder">ステークホルダー一括色:</label>
+                        <input type="color" id="cpStakeholder" value="#69c3ff">
+                    </div>
+                    <div class="color-picker-item" id="stClassColorRow">
+                        <label for="cpStClass">stClass表示色:</label>
+                        <input type="color" id="cpStClass" value="#ffae58">
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section" id="secEvColor" style="border-bottom: none; padding-bottom: 0;">
+                <div class="section-title">根拠の色</div>
+                <div class="color-picker-grid">
+                    <div class="color-picker-item">
+                        <label for="cpEvidence">根拠（evidence）色:</label>
+                        <input type="color" id="cpEvidence" value="#ffae58">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="statusMessage" class="status-panel" style="display: none;"></div>
+
+    <div class="actions" style="margin-top: 25px;">
+        <button id="execBtn" class="btn-execute" disabled>ファイルを解析して自動分割</button>
+    </div>
+
+    <div id="outputContainer" class="output-container"></div>
+</div>
+
 </body>
 </html>
