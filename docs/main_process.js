@@ -1,12 +1,12 @@
 /**
  * ========================================================================
- * CCO4KG 変換・特定ID指定抽出ツール メインロジック（オン/オフ完全分離・決定版）
+ * CCO4KG 変換・特定ID指定抽出ツール メインロジック（統計・スクロール凡例統合版）
  * ========================================================================
  */
 
 window.addEventListener('DOMContentLoaded', () => {
     if (typeof window.output_json_data !== 'undefined' && window.output_json_data !== null) {
-        console.log("[CCO4KG Loader] オン/オフ条件完全分離プロセスを読み込みました。");
+        console.log("[CCO4KG Loader] 統計・カラー完全統合プロセスを読み込みました。");
         
         initDocIdDropdown();
         setupAccordion("headerOutput", "contentOutput");
@@ -68,12 +68,7 @@ function updateUIControls() {
     const shEnabled = document.getElementById("enableStakeholder").checked;
     const stClassEnabled = document.getElementById("enableStClass").checked;
     const evEnabled = document.getElementById("enableEvidence").checked;
-    
-    const selectedMode = document.querySelector('input[name="shColorMode"]:checked')?.value || "random";
-    const isFixed = (selectedMode === "select");
-    const isRandom = (selectedMode === "random");
 
-    // 【連動ルール1】主語 または 目的語 のどちらかがOFFなら、述語は強制OFF＆非活性化
     const cbPredicate = document.getElementById("enablePredicate");
     if (!sEnabled || !oEnabled) {
         cbPredicate.disabled = true;
@@ -83,7 +78,6 @@ function updateUIControls() {
         cbPredicate.disabled = false;
     }
 
-    // 【連動ルール2】sClass または oClass のどちらかがOFFなら、クラス間エッジは強制OFF＆非活性化
     const cbClassLink = document.getElementById("enableClassLink");
     if (!sClassEnabled || !oClassEnabled) {
         cbClassLink.disabled = true;
@@ -129,6 +123,10 @@ function updateUIControls() {
     document.getElementById("enableStClass").disabled = !shEnabled;
     document.getElementById("secShColor").style.opacity = shEnabled ? "1.0" : "0.3";
     document.getElementsByName("shColorMode").forEach(r => r.disabled = !shEnabled);
+
+    const selectedMode = document.querySelector('input[name="shColorMode"]:checked')?.value || "random";
+    const isFixed = (selectedMode === "select");
+    const isRandom = (selectedMode === "random");
 
     const cpSh = document.getElementById("cpStakeholder");
     const fixedRow = document.getElementById("shFixedColorRow");
@@ -215,7 +213,6 @@ function splitAndProcessData() {
     document.getElementById("outputContainer").innerHTML = ""; 
 
     const shEnabledRaw = document.getElementById("enableStakeholder").checked;
-    
     const sEnabled = document.getElementById("enableSubject").checked;
     const oEnabled = document.getElementById("enableObject").checked;
     const sClassEnabled = document.getElementById("enableSClass").checked;
@@ -268,11 +265,18 @@ function splitAndProcessData() {
         let wrappedBindings = docGroups[groupKey];
         
         const wordAppearanceMap = {}; 
-        const uniqueStakeholdersInDoc = new Set(); 
         const localSpeakerColorMap = {}; 
         const localStClassColorMap = {}; 
         const finalSpeakerColorMap = {}; 
         const finalStClassColorMap = {}; 
+
+        const uniqueSubjects = new Set();
+        const uniqueObjects = new Set();
+        const uniqueSClasses = new Set();
+        const uniqueOClasses = new Set();
+        const uniqueStakeholders = new Set();
+        const uniqueOpinions = new Set();
+        const uniqueEvidences = new Set();
 
         function getIndividualSpeakerColor(shId) {
             if (localSpeakerColorMap[shId]) return localSpeakerColorMap[shId];
@@ -354,13 +358,21 @@ function splitAndProcessData() {
             let sClassLabel = "sc_" + clean(getValueFromBinding(b, "sClassLabel"));
             let pLabel      = clean(getValueFromBinding(b, "pLabel")); 
             let oLabel      = "o_" + clean(getValueFromBinding(b, "oLabel"));
-            let oClassLabel = "oc_" + clean(getValueFromBinding(b, "oClassLabel"));
+            let ocLabel     = "oc_" + clean(getValueFromBinding(b, "oClassLabel"));
             let shLabel     = "sh_" + clean(getValueFromBinding(b, "stakeholderLabel"));
             let stClassLabel= "stc_" + clean(getValueFromBinding(b, "stClassLabel"));
             let opContent   = "op_" + clean(getValueFromBinding(b, "opinionContent"));
             let evContent   = "ev_" + clean(getValueFromBinding(b, "evidence"));
 
             if (sId === "" || oId === "") continue;
+
+            if (sId !== "") uniqueSubjects.add(sId);
+            if (oId !== "") uniqueObjects.add(oId);
+            if (sClassId !== "") uniqueSClasses.add(sClassId);
+            if (oClassId !== "") uniqueOClasses.add(oClassId);
+            if (shId !== "") uniqueStakeholders.add(shId);
+            if (opId !== "") uniqueOpinions.add(opId);
+            if (evContent !== "") uniqueEvidences.add(evContent);
 
             let displaySLabel = sLabel;
             let displayOLabel = oLabel;
@@ -383,7 +395,6 @@ function splitAndProcessData() {
             let speakerColor = config.cFixedSH;
             if (shId !== "") {
                 shNodeName = shLabel;
-                uniqueStakeholdersInDoc.add(shId);
                 let stCount = (wordAppearanceMap[shId] || 0) + 1;
                 wordAppearanceMap[shId] = stCount;
                 if (config.shNum) shNodeName = `${shNodeName}_${stCount}`; 
@@ -392,19 +403,16 @@ function splitAndProcessData() {
 
             let prefix = (config.targetId === "") ? `${currentDocId}\t` : "";
             
-            // --- ① トリプル基本構造出力セクション ---
             if (isFirstTimeTr) {
                 if (config.pEnabled) {
                     docOutputBuffer += `${prefix}${displaySLabel}\t${pLabel}\t${displayOLabel}\t${config.cSubj}\t${config.cObj}\t${config.cPred}\n`;
                 }
 
-                // 【主語側の接続制御】
                 if (config.sEnabled) {
                     docOutputBuffer += `${prefix}${trId}\t主語\t${displaySLabel}\t${config.cDefaultEdge}\t${config.cSubj}\t${config.cSubj}\n`;
                 } else {
                     if (config.sClassEnabled && sClassId !== "") {
-                        // 💡 直接接続（オフ）の時は「トリプルID（trId）」を混ぜて重複を許容する
-                        let directSClassKey = `${currentDocId}_${trId}_direct_sClass_${sClassId}`;
+                        let directSClassKey = `${currentDocId}_trId_direct_sClass_${sClassId}`;
                         if (!classLinkSet.has(directSClassKey)) {
                             classLinkSet.add(directSClassKey);
                             docOutputBuffer += `${prefix}${trId}\tsClass\t${sClassLabel}\t${config.cDefaultEdge}\t${config.cSClass}\t${config.cSClass}\n`;
@@ -412,24 +420,20 @@ function splitAndProcessData() {
                     }
                 }
 
-                // 【目的語側の接続制御】
                 if (config.oEnabled) {
                     docOutputBuffer += `${prefix}${trId}\t目的語\t${displayOLabel}\t${config.cDefaultEdge}\t${config.cObj}\t${config.cObj}\n`;
                 } else {
                     if (config.oClassEnabled && oClassId !== "") {
-                        // 💡 直接接続（オフ）の時は「トリプルID（trId）」を混ぜて重複を許容する
-                        let directOClassKey = `${currentDocId}_${trId}_direct_oClass_${oClassId}`;
+                        let directOClassKey = `${currentDocId}_trId_direct_oClass_${oClassId}`;
                         if (!classLinkSet.has(directOClassKey)) {
                             classLinkSet.add(directOClassKey);
-                            docOutputBuffer += `${prefix}${trId}\toClass\t${oClassLabel}\t${config.cDefaultEdge}\t${config.cOClass}\t${config.cOClass}\n`;
+                            docOutputBuffer += `${prefix}${trId}\toClass\t${ocLabel}\t${config.cDefaultEdge}\t${config.cOClass}\t${config.cOClass}\n`;
                         }
                     }
                 }
             }
 
-            // --- 本体がONのときだけ出力されるクラス所属エッジ（補助出力） ---
             if (config.sEnabled && config.sClassEnabled && sClassId !== "") {
-                // 💡 通常接続（オン）の時は「displaySLabel」ベースで重複を削る（trIdを混ぜない！）
                 let sClassKey = `${currentDocId}_${displaySLabel}_to_sClass_${sClassId}`;
                 if (!classLinkSet.has(sClassKey)) {
                     classLinkSet.add(sClassKey);
@@ -437,24 +441,21 @@ function splitAndProcessData() {
                 }
             }
             if (config.oEnabled && config.oClassEnabled && oClassId !== "") {
-                // 💡 通常接続（オン）の時は「displayOLabel」ベースで重複を削る（trIdを混ぜない！）
                 let oClassKey = `${currentDocId}_${displayOLabel}_to_oClass_${oClassId}`;
                 if (!classLinkSet.has(oClassKey)) {
                     classLinkSet.add(oClassKey);
-                    docOutputBuffer += `${prefix}${displayOLabel}\toClass\t${oClassLabel}\t${config.cObj}\t${config.cOClass}\t${config.cOClass}\n`;
+                    docOutputBuffer += `${prefix}${displayOLabel}\toClass\t${ocLabel}\t${config.cObj}\t${config.cOClass}\t${config.cOClass}\n`;
                 }
             }
 
-            // --- ② クラス間直結エッジ出力 ---
             if (config.classLinkEnabled && sClassId !== "" && oClassId !== "") {
                 let sToOClassKey = `${currentDocId}_${sClassId}_to_${oClassId}`;
                 if (!classLinkSet.has(sToOClassKey)) {
                     classLinkSet.add(sToOClassKey);
-                    docOutputBuffer += `${prefix}${sClassLabel}\t-\t${oClassLabel}\t${config.cSClass}\t${config.cOClass}\t${config.cSClassEdge}\n`;
+                    docOutputBuffer += `${prefix}${sClassLabel}\t-\t${ocLabel}\t${config.cSClass}\t${config.cOClass}\t${config.cSClassEdge}\n`;
                 }
             }
 
-            // --- ③ 根拠(evidence) 出力 ---
             if (config.evEnabled && evContent !== "") {
                 let safeEvContent = evContent.replace(/\n/g, " ");
                 let trToEvidenceKey = `${currentDocId}_${trId}_evidence_${safeEvContent}`;
@@ -464,7 +465,6 @@ function splitAndProcessData() {
                 }
             }
 
-            // --- ④ ステークホルダー・意見出力 ---
             if (config.shEnabled && opId !== "") {
                 let opinionNodeName = opContent;
                 let opinionColor = darkenColor(speakerColor, 0.80); 
@@ -484,7 +484,7 @@ function splitAndProcessData() {
 
                     if (config.stClass && stClassId !== "") {
                         let currentStClassColor = finalStClassColorMap[stClassId] || config.cStClass;
-                        let stClassKey = `${currentDocId}_${shNodeName}_stClass_${stClassId}`;
+                        let stClassKey = `${currentDocId}_shNodeName_stClass_${stClassId}`;
                         
                         if (!classLinkSet.has(stClassKey)) {
                             classLinkSet.add(stClassKey);
@@ -495,24 +495,68 @@ function splitAndProcessData() {
             }
         }
         
-        const readableLegendColorMap = {};
-        if (config.shColorMode === "group") {
-            Object.keys(finalStClassColorMap).forEach(stClassId => {
-                const className = stClassLabelMap[stClassId] || "不明な分類";
-                readableLegendColorMap[`【原色】${className}`] = finalStClassColorMap[stClassId];
-            });
-        } else {
-            Object.keys(finalSpeakerColorMap).forEach(shId => {
-                const shName = stakeholderLabelMap[shId] || "不明なステークホルダー";
-                readableLegendColorMap[`【個人】${shName}`] = finalSpeakerColorMap[shId];
-            });
+        // ---統計エリアの動的配信用内訳リストを作成 ---
+        const customColorList = [];
+
+        if (config.shEnabled) {
+            if (config.shColorMode === "group") {
+                Object.keys(finalStClassColorMap).forEach(stClassId => {
+                    const className = stClassLabelMap[stClassId] || "不明な分類";
+                    customColorList.push({ name: `【分類】${className}`, color: finalStClassColorMap[stClassId] });
+                });
+                Object.keys(finalSpeakerColorMap).forEach(shId => {
+                    const shName = stakeholderLabelMap[shId] || "不明なステークホルダー";
+                    customColorList.push({ name: `【個人】${shName}`, color: finalSpeakerColorMap[shId] });
+                });
+            } else {
+                Object.keys(finalSpeakerColorMap).forEach(shId => {
+                    const shName = stakeholderLabelMap[shId] || "不明なステークホルダー";
+                    customColorList.push({ name: `【個人】${shName}`, color: finalSpeakerColorMap[shId] });
+                });
+            }
         }
-        let displayTitleId = (groupKey === "ALL_DOCUMENTS") ? "すべてのドキュメント（一括出力）" : groupKey;
-        createDocumentSection(displayTitleId, docOutputBuffer, trCounter, uniqueStakeholdersInDoc.size, readableLegendColorMap);
+
+        // タイトル文字を現在の配色モードから動的に決定
+        let dynamicTitle = "ステークホルダー配色";
+        if (config.shEnabled && config.shColorMode === "group") {
+            dynamicTitle = "stClass配色";
+        } else if (config.shEnabled && config.shColorMode === "select") {
+            dynamicTitle = "単一固定指定配色";
+        }
+
+        const statsSummary = {
+            titleName: dynamicTitle,
+            tripleCount: trCounter,
+            subjectCount: uniqueSubjects.size,
+            objectCount: uniqueObjects.size,
+            sClassCount: uniqueSClasses.size,
+            oClassCount: uniqueOClasses.size,
+            stakeholderCount: uniqueStakeholders.size,
+            opinionCount: uniqueOpinions.size,
+            evidenceCount: uniqueEvidences.size,
+            
+            sEnabled: config.sEnabled,
+            oEnabled: config.oEnabled,
+            sClassEnabled: config.sClassEnabled,
+            oClassEnabled: config.oClassEnabled,
+            shEnabled: config.shEnabled,
+            evEnabled: config.evEnabled,
+
+            cSubj: config.cSubj,
+            cObj: config.cObj,
+            cPred: config.cPred,
+            cSClass: config.cSClass,
+            cOClass: config.cOClass,
+            cEv: config.cEv,
+            dynamicColors: customColorList
+        };
+
+        let displayTitleId = (groupKey === "ALL_DOCUMENTS") ? "ALL_DOCUMENTS" : groupKey;
+        createDocumentSection(displayTitleId, docOutputBuffer, statsSummary);
     }
 }
 
-function createDocumentSection(docId, textContent, tripleCount, stakeholderCount, speakerColorMap) {
+function createDocumentSection(docId, textContent, stats) {
     const container = document.getElementById("outputContainer");
 
     const section = document.createElement("div");
@@ -523,7 +567,7 @@ function createDocumentSection(docId, textContent, tripleCount, stakeholderCount
 
     const title = document.createElement("div");
     title.className = "doc-title";
-    title.textContent = `出力モード: ${docId}`;
+    title.textContent = (docId === "ALL_DOCUMENTS") ? "出力モード: すべてのドキュメント（一括出力）" : `出力モード: ${docId}`;
 
     const actions = document.createElement("div");
     actions.className = "doc-actions";
@@ -550,48 +594,59 @@ function createDocumentSection(docId, textContent, tripleCount, stakeholderCount
 
     const metaBadge = document.createElement("div");
     metaBadge.className = "doc-meta-badge";
-    metaBadge.innerHTML = `総トリプル数: ${tripleCount}<br>総ステークホルダー数: ${stakeholderCount}`;
-    sidePanel.appendChild(metaBadge);
 
-    const innerLegend = document.createElement("div");
-    innerLegend.className = "doc-inner-legend";
+    // --- 解析結果統計のテーブル構造を構築 ---
+    let tableHtml = `<b class="badge-main-title">解析結果統計</b>`;
+    tableHtml += `<table class="stats-table">`;
 
-    const legendTitle = document.createElement("div");
-    legendTitle.className = "doc-inner-legend-title";
-    legendTitle.textContent = "配色凡例サンプル";
-    innerLegend.appendChild(legendTitle);
+    // カラーボックス用ヘルパー（ALL_DOCUMENTS時は非表示）
+    const getBox = (color) => {
+        if (docId === "ALL_DOCUMENTS") return "";
+        return `<span class="legend-color-box" style="background-color:${color};"></span>`;
+    };
 
-    const legendContainer = document.createElement("div");
-    legendContainer.className = "doc-inner-legend-container";
+    // 基本カウント要素
+    tableHtml += `<tr><td>${getBox("#adadad")}・総トリプル数</td><td>${stats.tripleCount}</td></tr>`;
+    
+    if (stats.sEnabled) {
+        tableHtml += `<tr><td>${getBox(stats.cSubj)}・主語数</td><td>${stats.subjectCount}</td></tr>`;
+    }
+    if (stats.oEnabled) {
+        tableHtml += `<tr><td>${getBox(stats.cObj)}・目的語数</td><td>${stats.objectCount}</td></tr>`;
+    }
+    if (stats.sClassEnabled) {
+        tableHtml += `<tr><td>${getBox(stats.cSClass)}・主語クラス数</td><td>${stats.sClassCount}</td></tr>`;
+    }
+    if (stats.oClassEnabled) {
+        tableHtml += `<tr><td>${getBox(stats.cOClass)}・目的語クラス数</td><td>${stats.oClassCount}</td></tr>`;
+    }
+    if (stats.shEnabled) {
+        tableHtml += `<tr><td>${getBox("#adadad")}・ステークホルダー数</td><td>${stats.stakeholderCount}</td></tr>`;
+        tableHtml += `<tr><td>${getBox("#adadad")}・意見数</td><td>${stats.opinionCount}</td></tr>`;
+    }
+    if (stats.evEnabled) {
+        tableHtml += `<tr><td>${getBox(stats.cEv)}・根拠数</td><td>${stats.evidenceCount}</td></tr>`;
+    }
+    tableHtml += `</table>`;
 
-    const speakerKeys = Object.keys(speakerColorMap);
-    if (speakerKeys.length > 0) {
-        speakerKeys.forEach(name => {
-            const color = speakerColorMap[name];
-            
-            const item = document.createElement("div");
-            item.className = "doc-legend-item";
-
-            const colorBox = document.createElement("div");
-            colorBox.className = "doc-legend-color";
-            colorBox.style.backgroundColor = color; 
-
-            const text = document.createElement("span");
-            text.textContent = `${name}`;
-
-            item.appendChild(colorBox);
-            item.appendChild(text);
-            legendContainer.appendChild(item);
+    // ② 動的配色セクション
+    if (docId !== "ALL_DOCUMENTS" && stats.dynamicColors.length > 0) {
+        tableHtml += `<hr class="badge-divider">`;
+        tableHtml += `<b class="badge-sub-title">${stats.titleName}</b>`;
+        
+        tableHtml += `<div class="legend-scroll-container">`;
+        tableHtml += `<table class="dynamic-legend-table">`;
+        
+        stats.dynamicColors.forEach(item => {
+            tableHtml += `<tr><td>${getBox(item.color)}<span class="legend-item-name">${item.name}</span></td></tr>`;
         });
-    } else {
-        const noDataText = document.createElement("span");
-        noDataText.className = "no-data-text";
-        noDataText.textContent = "対象 of 未検出";
-        legendContainer.appendChild(noDataText);
+        
+        tableHtml += `</table>`;
+        tableHtml += `</div>`;
     }
 
-    innerLegend.appendChild(legendContainer);
-    sidePanel.appendChild(innerLegend);
+    metaBadge.innerHTML = tableHtml;
+    sidePanel.appendChild(metaBadge);
     mainContent.appendChild(sidePanel);
 
     const textPanel = document.createElement("div");
