@@ -1,9 +1,3 @@
-/**
- * ========================================================================
- * CCO4KG 変換・特定ID指定抽出ツール メインロジック（オン/オフ完全分離・決定版）
- * ========================================================================
- */
-
 window.addEventListener('DOMContentLoaded', () => {
     if (typeof window.output_json_data !== 'undefined' && window.output_json_data !== null) {
         console.log("[CCO4KG Loader] オン/オフ条件完全分離プロセスを読み込みました。");
@@ -16,9 +10,10 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById("enableSubject").addEventListener("change", updateUIControls);
         document.getElementById("enableObject").addEventListener("change", updateUIControls);
         document.getElementById("enablePredicate").addEventListener("change", updateUIControls);
+        document.getElementById("enableSubjectObjectNumbering").addEventListener("change", updateUIControls); // ✨ココを追加！
         document.getElementById("enableSClass").addEventListener("change", updateUIControls);
-        document.getElementById("enableOClass").addEventListener("change", updateUIControls);
         document.getElementById("enableClassLink").addEventListener("change", updateUIControls);
+        document.getElementById("enableOClass").addEventListener("change", updateUIControls);
         document.getElementById("enableStakeholder").addEventListener("change", updateUIControls);
         document.getElementById("enableStClass").addEventListener("change", updateUIControls);
         document.getElementById("enableEvidence").addEventListener("change", updateUIControls);
