@@ -229,7 +229,7 @@ button:disabled {
    ▼ フォーム要素（カラーピッカー・ラジオボタン・横並び）
    -------------------------------------------------------- */
 
-/* 💡 基本要素の色（6つ）を「横3つ × 2行」の綺麗な2列構成にする */
+/*  基本要素の色（6つ）を「横3つ × 2行」の綺麗な2列構成にする */
 .custom-inline-row {
     display: grid !important;
     grid-template-columns: repeat(3, 1fr) !important; /* 横に3等分（s・p・o で1行目） */
@@ -238,7 +238,7 @@ button:disabled {
     box-sizing: border-box;
 }
 
-/* 💡 2列配置内のアイテム：ラベルの幅を揃えてピッカーと綺麗に横並び */
+/*  2列配置内のアイテム：ラベルの幅を揃えてピッカーと綺麗に横並び */
 .custom-inline-row .color-picker-item {
     display: flex !important;
     flex-direction: row !important;  /* ラベルとピッカーを横並びに */
@@ -246,7 +246,7 @@ button:disabled {
     justify-content: flex-start !important;
 }
 
-/* 💡 ラベルの幅を固定して、右側のピッカーの縦ラインをきれいに揃える */
+/*  ラベルの幅を固定して、右側のピッカーの縦ラインをきれいに揃える */
 .custom-inline-row .color-picker-item label {
     width: 170px !important;         /* 下のステークホルダー設定の幅と完全一致 */
     white-space: nowrap !important;
@@ -255,7 +255,7 @@ button:disabled {
     color: #475569;
 }
 
-/* 💡 ピッカーのサイズを他のエリアと一貫性を持たせる */
+/*  ピッカーのサイズを他のエリアと一貫性を持たせる */
 .custom-inline-row .color-picker-item input[type="color"] {
     width: 50px !important;
     height: 28px !important;
@@ -265,7 +265,7 @@ button:disabled {
     background: #fff;
 }
 
-/* 💡 下のセクション（ステークホルダー・根拠）で使う標準の3列グリッド定義（修復維持） */
+/*  下のセクション（ステークホルダー・根拠）で使う標準の3列グリッド定義（修復維持） */
 .color-picker-grid {
     display: grid !important;
     grid-template-columns: repeat(3, 1fr) !important;
@@ -314,7 +314,7 @@ button:disabled {
 .doc-side-panel {
     flex: 0 0 320px; 
     width: 320px;
-    height: 450px;
+    height: 520px;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -384,7 +384,7 @@ button:disabled {
 }
 .doc-text-panel textarea {
     width: 100%;
-    height: 450px !important;
+    height: 580px !important;
     box-sizing: border-box;
     font-family: 'Courier New', Courier, monospace;
     font-size: 12px;
@@ -414,4 +414,130 @@ button:disabled {
     .custom-inline-row {
         flex-wrap: wrap !important;
     }
+}
+
+/* 配色サンプルのスクロールエリアの設定 */
+.legend-scroll-container {
+    max-height: 140px;       /* 横スクロールが出ないよう、少し高さを広げる調整もOK */
+    overflow-y: auto;        /* 縦方向に溢れたらスクロールバーを表示 */
+    overflow-x: hidden;      /* 横スクロールは強制非表示（はみ出しは...で省略） */
+    padding-right: 4px;
+    margin-top: 5px;
+    border: 1px solid #eee;  /* 薄い枠線をつけるとスクロールエリアだと分かりやすくなります */
+    border-radius: 4px;
+    background-color: #fafafa; /* 背景をわずかにグレーにして独立したエリアに見せる */
+}
+
+/* スクロールバー自体をスタイリッシュに細くする（モダンブラウザ対応） */
+.legend-scroll-container::-webkit-scrollbar {
+    width: 6px;
+}
+.legend-scroll-container::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+.legend-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: #b3b3b3;
+}
+
+/* ========================================================================
+   解析結果統計 および 凡例エリアの統合スタイルシート
+   ======================================================================== */
+
+/* 1. ベースカード全体 */
+.doc-meta-badge {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    padding: 14px;
+    line-height: 1.8;
+}
+
+/* 2. カラーボックス（小さな四角） */
+.legend-color-box {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-right: 6px;
+    border-radius: 3px;
+    vertical-align: middle;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
+}
+
+/* 3. メインタイトル（「解析結果統計」の文字） */
+.badge-main-title {
+    display: block;
+    font-size: 14px; /* 文字サイズを変更する場合はここを調整 */
+    font-weight: bold;
+    margin-bottom: 6px;
+    color: #333333;
+}
+
+/* 4. 上部の基本統計テーブル（トリプル数など） */
+.stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px; /* 文字サイズを変更する場合はここを調整 */
+}
+.stats-table td {
+    padding: 4px 0;
+    vertical-align: middle;
+}
+.stats-table td:last-child {
+    text-align: right;
+    font-weight: bold;
+    padding-left: 10px;
+}
+
+/* 5. 区切り線 */
+.badge-divider {
+    border: none;
+    border-top: 1px dashed #cccccc;
+    margin: 8px 0;
+}
+
+/* 6. 配色のサブタイトル（「ステークホルダー配色」など） */
+.badge-sub-title {
+    display: block;
+    font-size: 13px; /* 文字サイズを変更する場合はここを調整 */
+    margin-bottom: 4px;
+    color: #555555;
+    font-weight: bold;
+}
+
+/* 7. スクロール可能なコンテナボックス */
+.legend-scroll-container {
+    max-height: 240px; /* 縦幅を変更する場合はここを調整 */
+    overflow-y: auto;
+    padding-right: 4px;
+    background-color: #fafafa;
+    border: 1px solid #eeeeee;
+    border-radius: 4px;
+}
+
+/* 8. スクロール内の一覧リスト（ステークホルダー名など） */
+.dynamic-legend-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.dynamic-legend-table td {
+    padding: 8px 6px;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.legend-item-name {
+    font-size: 13px; /* 文字サイズを変更する場合はここを調整 */
+    color: #444444;
+}
+
+/* スクロールバーのカスタマイズ */
+.legend-scroll-container::-webkit-scrollbar {
+    width: 5px;
+}
+.legend-scroll-container::-webkit-scrollbar-thumb {
+    background: #cccccc;
+    border-radius: 3px;
 }
