@@ -224,6 +224,12 @@ button:disabled {
     gap: 15px;
     align-items: center;
 }
+/* パネル内のドロップダウン（セレクトボックス）の配置調整 */
+.panel-section select {
+    margin-bottom: 12px;  /* ★これで下側に少し空白（要素間の隙間）が生まれます */
+    padding-bottom: 4px;  /* 必要に応じて文字の下側の内側余白も調整 */
+    display: inline-block;
+}
 
 /* --------------------------------------------------------
    ▼ フォーム要素（カラーピッカー・ラジオボタン・横並び）
