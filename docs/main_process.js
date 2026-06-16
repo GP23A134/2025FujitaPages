@@ -928,12 +928,12 @@ function createDocumentSection(docId, textContent, stats) {
     if (stats.oClassEnabled) {
         tableHtml += `<tr>
             <td>${getBox(stats.cOClass)}${isAllDoc ? '目的語クラス数' : `<button class="stats-toggle-btn" data-target="oClass" data-doc="${docId}" style="font-size: 1em;">目的語クラス数</button>`}</td>
-            <td>${stats.oClassCount}</td>
+            <td>stats.oClassCount</td>
         </tr>`;
     }
     if (stats.shEnabled) {
         tableHtml += `<tr>
-            <td>${getBox("#adadad")}${isAllDoc ? 'ステークホルダー数' : `<button class="stats-toggle-btn" data-target="stakeholder" data-doc="${docId}" style="font-size: 1em;">ステークホルダー数</button>`}</td>
+            <td>${getBox("#adadad")}${isAllDoc ? 'ステークホルダー数' : `<button class="stats-toggle-btn" data-target="stakeholder" data-doc="${docId}" style="font-size: 1em;">${stats.titleName || 'ステークホルダー'}数</button>`}</td>
             <td>${stats.stakeholderCount}</td>
         </tr>`;
         tableHtml += `<tr>
@@ -995,7 +995,7 @@ function createDocumentSection(docId, textContent, stats) {
                 if (targetKey === "triple") {
                     noticeEl.textContent = "※行をクリックで本文をトリプル番号（T1など）で絞り込み";
                 } else {
-                    noticeEl.textContent = "※行をクリックで該当要素のURIをコンソールに出力";
+                    noticeEl.textContent = "※行をクリックでグラフ上の該当ノード（重複分離分含む）を一括ハイライト";
                 }
             }
             
@@ -1026,9 +1026,9 @@ function createDocumentSection(docId, textContent, stats) {
                         const idx = parseInt(row.getAttribute("data-index"), 10);
                         const item = currentList[idx];
 
-                        //  タブ切り替え時、選択中アイテムがあればグレー状態を復元（トリプル・その他共通）
+                        // タブ切り替え時、選択中アイテムがあればグレー状態を復元
                         if (currentFilterTarget === clickedValue) {
-                            row.style.backgroundColor = "rgba(0,0,0,0.08)";
+                            row.style.backgroundColor = "#e0e0e0";
                             row.querySelector(".legend-item-name").style.fontWeight = "bold";
                         }
 
@@ -1047,7 +1047,7 @@ function createDocumentSection(docId, textContent, stats) {
                                         r.style.backgroundColor = "";
                                         r.querySelector(".legend-item-name").style.fontWeight = "normal";
                                     });
-                                    row.style.backgroundColor = "rgba(0,0,0,0.08)";
+                                    row.style.backgroundColor = "#e0e0e0";
                                     row.querySelector(".legend-item-name").style.fontWeight = "bold";
 
                                     const trPrefix = clickedValue.split('_')[0]; 
@@ -1058,24 +1058,49 @@ function createDocumentSection(docId, textContent, stats) {
                                     textarea.value = filteredLines.join("\n");
                                 }
                             } else {
-                                // --- 2. トリプル以外（主語・意見など）の場合の処理 ---
+                                //2. トリプル以外（主語・ステークホルダー等）の場合の連動処理 
+                                if (window.cy) {
+                                    window.cy.elements().removeClass("highlighted-node dimmed-node");
+                                }
+
                                 if (currentFilterTarget === clickedValue) {
-                                    // すでに選択済みならトグルで解除
+                                    // すでに選択済みなら解除
                                     currentFilterTarget = null;
                                     row.style.backgroundColor = "";
                                     row.querySelector(".legend-item-name").style.fontWeight = "normal";
                                     console.log(`[解除] 名称: ${item.name}`);
                                 } else {
-                                    // 新しく選択されたら他をクリアしてグレーに固定
+                                    // 新しく選択された場合
                                     currentFilterTarget = clickedValue;
                                     rows.forEach(r => {
                                         r.style.backgroundColor = "";
                                         r.querySelector(".legend-item-name").style.fontWeight = "normal";
                                     });
-                                    row.style.backgroundColor = "rgba(0,0,0,0.08)";
+                                    // 指定のグレー反転と太字の適用
+                                    row.style.backgroundColor = "#e0e0e0"; 
                                     row.querySelector(".legend-item-name").style.fontWeight = "bold";
 
-                                    // コンソールへURIを出力
+                                    // Cytoscape.jsグラフ上のノード・エッジの抽出とハイライト
+                                    if (window.cy) {
+                                        const clickedName = item.name;
+                                        // カテゴリごとのID接頭辞を判定
+                                        let prefix = "";
+                                        if (targetKey === "stakeholder") prefix = "st_";
+                                        else if (targetKey === "subject") prefix = "s_";
+                                        else if (targetKey === "object") prefix = "o_";
+
+                                        // 全体を一旦薄くする
+                                        window.cy.elements().addClass("dimmed-node");
+
+                                        // 重複分離されたノード（例: st_Aさん_1, st_Aさん_2）を前方一致で一括ヒットさせる
+                                        window.cy.nodes().forEach(node => {
+                                            const nodeId = node.id();
+                                            if (nodeId === clickedName || nodeId.startsWith(prefix + clickedName)) {
+                                                node.removeClass("dimmed-node").addClass("highlighted-node");
+                                                node.connectedEdges().removeClass("dimmed-node");
+                                            }
+                                        });
+                                    }
                                     console.log(`[${labelText.replace('数', '')}] 名称: ${item.name} | URI:`, item.uri || "URIが存在しません");
                                 }
                             }
@@ -1091,7 +1116,7 @@ function createDocumentSection(docId, textContent, stats) {
 
         if (stats.shEnabled) {
             defaultKey = "stakeholder";
-            defaultLabel = "ステークホルダー";
+            defaultLabel = stats.titleName || "ステークホルダー";
         }
 
         updateLegendTable(defaultKey, defaultLabel);
@@ -1109,9 +1134,12 @@ function createDocumentSection(docId, textContent, stats) {
                 const targetKey = e.target.getAttribute("data-target");
                 const labelText = e.target.textContent;
                 
-                // タブが切り替わったら選択状態は全リセットして原本に戻す
+                // タブが切り替わったら選択状態・グラフハイライトは全リセットして原本に戻す
                 currentFilterTarget = null;
                 textarea.value = textContent; 
+                if (window.cy) {
+                    window.cy.elements().removeClass("highlighted-node dimmed-node");
+                }
                 
                 updateLegendTable(targetKey, labelText);
             };
