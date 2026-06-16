@@ -1,6 +1,6 @@
 /**
  * ========================================================================
- * CCO4KG 変換・特定ID指定抽出ツール メインロジック（統計・スクロール凡例統合版）
+ * CCO4KG 変換・特定ID指定抽出ツール メインロジック（統計・スクロール凡例統合・バグ修正版）
  * ========================================================================
  */
 
@@ -408,27 +408,25 @@ function splitAndProcessData() {
                     docOutputBuffer += `${prefix}${displaySLabel}\t${pLabel}\t${displayOLabel}\t${config.cSubj}\t${config.cObj}\t${config.cPred}\n`;
                 }
 
+                // 💡【修正ポイント】主語(s)とsClassの接続関係を、他と切り離して独立判定化
                 if (config.sEnabled) {
                     docOutputBuffer += `${prefix}${trId}\t主語\t${displaySLabel}\t${config.cDefaultEdge}\t${config.cSubj}\t${config.cSubj}\n`;
-                } else {
-                    if (config.sClassEnabled && sClassId !== "") {
-                        let directSClassKey = `${currentDocId}_trId_direct_sClass_${sClassId}`;
-                        if (!classLinkSet.has(directSClassKey)) {
-                            classLinkSet.add(directSClassKey);
-                            docOutputBuffer += `${prefix}${trId}\tsClass\t${sClassLabel}\t${config.cDefaultEdge}\t${config.cSClass}\t${config.cSClass}\n`;
-                        }
+                } else if (config.sClassEnabled && sClassId !== "") {
+                    let directSClassKey = `${currentDocId}_${trId}_direct_sClass_${sClassId}`;
+                    if (!classLinkSet.has(directSClassKey)) {
+                        classLinkSet.add(directSClassKey);
+                        docOutputBuffer += `${prefix}${trId}\tsClass\t${sClassLabel}\t${config.cDefaultEdge}\t${config.cSClass}\t${config.cSClass}\n`;
                     }
                 }
 
+                // 💡【修正ポイント】目的語(o)とoClassの接続関係も、完全に切り離して独立判定化
                 if (config.oEnabled) {
                     docOutputBuffer += `${prefix}${trId}\t目的語\t${displayOLabel}\t${config.cDefaultEdge}\t${config.cObj}\t${config.cObj}\n`;
-                } else {
-                    if (config.oClassEnabled && oClassId !== "") {
-                        let directOClassKey = `${currentDocId}_trId_direct_oClass_${oClassId}`;
-                        if (!classLinkSet.has(directOClassKey)) {
-                            classLinkSet.add(directOClassKey);
-                            docOutputBuffer += `${prefix}${trId}\toClass\t${ocLabel}\t${config.cDefaultEdge}\t${config.cOClass}\t${config.cOClass}\n`;
-                        }
+                } else if (config.oClassEnabled && oClassId !== "") {
+                    let directOClassKey = `${currentDocId}_${trId}_direct_oClass_${oClassId}`;
+                    if (!classLinkSet.has(directOClassKey)) {
+                        classLinkSet.add(directOClassKey);
+                        docOutputBuffer += `${prefix}${trId}\toClass\t${ocLabel}\t${config.cDefaultEdge}\t${config.cOClass}\t${config.cOClass}\n`;
                     }
                 }
             }
@@ -449,7 +447,8 @@ function splitAndProcessData() {
             }
 
             if (config.classLinkEnabled && sClassId !== "" && oClassId !== "") {
-                let sToOClassKey = `${currentDocId}_${sClassId}_to_${oClassId}`;
+                // 💡【修正ポイント】主語・目的語がない時も確実にトリプル単位で重複させず出すため、キーにtrIdをブレンド
+                let sToOClassKey = `${currentDocId}_${trId}_${sClassId}_to_${oClassId}`;
                 if (!classLinkSet.has(sToOClassKey)) {
                     classLinkSet.add(sToOClassKey);
                     docOutputBuffer += `${prefix}${sClassLabel}\t-\t${ocLabel}\t${config.cSClass}\t${config.cOClass}\t${config.cSClassEdge}\n`;
