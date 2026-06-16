@@ -456,6 +456,8 @@ function splitAndProcessData() {
                 
                 // ナンバリング（連番）適用後の名前と色を正しく紐付けるための凡例用マップ
                 const legendDisplayColorMap = {};
+                // 💡 ステークホルダー単体の純粋な出現回数を集計するための独立マップ
+                const shExactCountMap = {};
 
                 // =================================================================
                 // 【ループ第2期】メインのタブ区切りデータ変換、及び独立接続の判定
@@ -464,14 +466,14 @@ function splitAndProcessData() {
                     let b = item.binding;
                     let currentDocId = item.originalDocId; 
 
-                    // URIの生の値（コンソール出力用）を取得
+                    // URIの生の値を取得
                     let sUri      = getValueFromBinding(b, "s");
                     let sClassUri = getValueFromBinding(b, "sClass");
                     let oUri      = getValueFromBinding(b, "o");
                     let oClassUri = getValueFromBinding(b, "oClass");
                     let shUri     = getValueFromBinding(b, "stakeholder");
                     let opUri     = getValueFromBinding(b, "opinion");
-                    let evUri     = getValueFromBinding(b, "evidence"); // 根拠のURI (あれば)
+                    let evUri     = getValueFromBinding(b, "evidence");
 
                     // URIからローカル名（ID）を抽出
                     let sId      = extractIdFromUri(sUri);
@@ -483,7 +485,7 @@ function splitAndProcessData() {
                     let stClassId= extractIdFromUri(getValueFromBinding(b, "stClass") || getValueFromBinding(b, "?stClass"));
                     let opId     = extractIdFromUri(opUri);
 
-                    // 各種ラベルのクレンジングとプレフィックス付与
+                    // 各種ラベルのクレンジング
                     let sLabelRaw   = clean(getValueFromBinding(b, "sLabel"));
                     let oLabelRaw   = clean(getValueFromBinding(b, "oLabel"));
                     let shLabelRaw  = clean(getValueFromBinding(b, "stakeholderLabel"));
@@ -493,7 +495,7 @@ function splitAndProcessData() {
                     let oClassLabelRaw = clean(getValueFromBinding(b, "oClassLabel"));
                     let stClassLabelRaw = clean(getValueFromBinding(b, "stClassLabel"));
 
-                    // 【除外徹底】「【個人】」または「個人」を含むレコードの各要素を空文字化・スキップ
+                    // 【除外徹底】「【個人】」または「個人」を含むレコードはスキップ
                     if (sLabelRaw === "【個人】" || sLabelRaw === "個人") continue;
                     if (oLabelRaw === "【個人】" || oLabelRaw === "個人") continue;
                     if (shLabelRaw === "【個人】" || shLabelRaw === "個人") shLabelRaw = "";
@@ -516,16 +518,14 @@ function splitAndProcessData() {
                     // 必須である主語と目的語が欠落しているデータ行はスキップ
                     if (sId === "" || oId === "") continue;
 
-                    // 💡 【URIマッピングの保持】後段のリスト生成時にURIを紐付けるため退避
+                    // URIマッピングの保持
                     if (sId !== "") idToUriMap.subject[sLabel] = sUri;
                     if (oId !== "") idToUriMap.object[oLabel] = oUri;
                     if (sClassId !== "" && sClassLabelRaw) idToUriMap.sClass[sClassLabel] = sClassUri;
                     if (oClassId !== "" && oClassLabelRaw) idToUriMap.oClass[ocLabel] = oClassUri;
-                    if (evContentRaw !== "") idToUriMap.evidence[evContent] = evUri || "ローカルデータ(URIなし)";
+                    if (evContentRaw !== "") idToUriMap.evidence[evContent] = evUri || "ローカルデータ";
 
-                    // -------------------------------------------------------------
-                    // 【トリプル管理ロジック】トリプルIDの生成と、凡例データのカウント
-                    // -------------------------------------------------------------
+                    // トリプル管理ロジック
                     let comboKeyForId = `${currentDocId}_${sId}|${pId}|${oId}`;
                     let isFirstTimeTr = false;
                     
@@ -543,7 +543,6 @@ function splitAndProcessData() {
                     tripleLabelMap[tripleMapKey] = tripleDisplayLabel;
                     jsonCountMap.triple[tripleMapKey] = (jsonCountMap.triple[tripleMapKey] || 0) + 1;
 
-                    // 統計用のユニーク数カウント（Set型への追加による重複排除）
                     if (sId !== "") uniqueSubjects.add(sLabel);
                     if (oId !== "") uniqueObjects.add(oLabel);
                     if (sClassId !== "" && sClassLabelRaw) uniqueSClasses.add(sClassLabel);
@@ -552,7 +551,6 @@ function splitAndProcessData() {
                     if (opId !== "" && opContent) uniqueOpinions.add(opContent);
                     if (evContentRaw !== "") uniqueEvidences.add(evContent);
 
-                    // 出現数をJSONレコードベースでダイレクトにカウントアップ
                     if (sId !== "") jsonCountMap.subject[sLabel] = (jsonCountMap.subject[sLabel] || 0) + 1;
                     if (oId !== "") jsonCountMap.object[oLabel] = (jsonCountMap.object[oLabel] || 0) + 1;
                     if (sClassId !== "" && sClassLabelRaw) jsonCountMap.sClass[sClassLabel] = (jsonCountMap.sClass[sClassLabel] || 0) + 1;
@@ -562,13 +560,12 @@ function splitAndProcessData() {
                     let displaySLabel = sLabel;
                     let displayOLabel = oLabel;
 
-                    // 主語・目的語の個別ナンバリング設定時の名称書き換え
                     if (config.soNum) {
                         displaySLabel = `${sLabel}_${trId}`;
                         displayOLabel = `${oLabel}_${trId}`;
                     }
 
-                    // ステークホルダーの発言順ナンバリング処理
+                    // 💡 ステークホルダーの発言順ナンバリングと、出現数の確実なカウントアップ
                     let shNodeName = "";
                     let speakerColor = config.cFixedSH;
                     if (shId !== "" && shLabelRaw) {
@@ -581,21 +578,24 @@ function splitAndProcessData() {
 
                         speakerColor = finalSpeakerColorMap[shId] || config.cFixedSH;
 
+                        // 💡 ここで「st_名前」のキーに対して、純粋な出現数をインクリメント
+                        shExactCountMap[shLabel_cleansed] = (shExactCountMap[shLabel_cleansed] || 0) + 1;
+                        // ナンバリング付きノード名用も一応バックアップ
                         jsonCountMap.stakeholder[shNodeName] = (jsonCountMap.stakeholder[shNodeName] || 0) + 1;
+                        
                         if (opContent) jsonCountMap.opinion[opContent] = (jsonCountMap.opinion[opContent] || 0) + 1;
 
                         if (config.shColorMode === "group") {
                             const className = stClassLabelMap[stClassId] || "不明な分類";
                             legendDisplayColorMap[`stClass_${stClassId}`] = { name: `【分類】${className}`, color: finalStClassColorMap[stClassId], uri: sClassUri };
-                            legendDisplayColorMap[`sh_${shId}_${stCount}`] = { name: `${shNodeName}`, color: speakerColor, uri: shUri };
+                            legendDisplayColorMap[`sh_${shId}`] = { name: `${shLabel_cleansed}`, color: speakerColor, uri: shUri };
                         } else {
-                            legendDisplayColorMap[`sh_${shId}_${stCount}`] = { name: `${shNodeName}`, color: speakerColor, uri: shUri };
+                            legendDisplayColorMap[`sh_${shId}`] = { name: `${shLabel_cleansed}`, color: speakerColor, uri: shUri };
                         }
                     }
 
                     let prefix = (config.targetId === "") ? `${currentDocId}\t` : "";
                     
-                    // 初回出現のトリプルの場合のみ関係性リンクを出力
                     if (isFirstTimeTr) {
                         if (config.pEnabled) {
                             docOutputBuffer += `${prefix}${displaySLabel}\t${pLabel}\t${displayOLabel}\t${config.cSubj}\t${config.cObj}\t${config.cPred}\n`;
@@ -620,7 +620,6 @@ function splitAndProcessData() {
                         }
                     }
 
-                    // 追加構造マッピング
                     if (config.sEnabled && config.sClassEnabled && sClassId !== "" && sClassLabelRaw) {
                         let sClassKey = `${currentDocId}_${displaySLabel}_to_sClass_${sClassId}`;
                         if (!classLinkSet.has(sClassKey)) {
@@ -683,13 +682,11 @@ function splitAndProcessData() {
                 // =================================================================
                 // --- 5. 各種要素の一覧リストの抽出・オブジェクト組み立て ---
                 // =================================================================
-                
                 const sortByCountDesc = (a, b) => {
                     if (b.count !== a.count) return b.count - a.count; 
                     return a.name.localeCompare(b.name, 'ja'); 
                 };
 
-                // 💡 各種オブジェクト組み立てに「uri」プロパティを紐付けるよう拡張
                 const customColorList = [];
                 if (config.shEnabled) {
                     const seenNames = new Set();
@@ -699,11 +696,15 @@ function splitAndProcessData() {
         
                         if (!seenNames.has(item.name)) {
                             seenNames.add(item.name);
+                            
+                            // 💡 ここで集計した「純粋な発言出現件数」を確実にバインドします
+                            const finalExactCount = shExactCountMap[item.name] || 0;
+
                             customColorList.push({
                                 name: item.name,
                                 color: item.color,
-                                count: jsonCountMap.stakeholder[item.name] || 0,
-                                uri: item.uri // URI情報を格納
+                                count: finalExactCount, // 👈 修正：件数をダイレクトに適用
+                                uri: item.uri
                             });
                         }
                     });
@@ -738,7 +739,7 @@ function splitAndProcessData() {
                         let shId = extractIdFromUri(getValueFromBinding(b, "stakeholder"));
                         let opId = extractIdFromUri(getValueFromBinding(b, "opinion") || getValueFromBinding(b, "?opinion"));
                         let opContentRaw = clean(getValueFromBinding(b, "opinionContent"));
-                        let opUri = getValueFromBinding(b, "opinion"); // 意見の生URI
+                        let opUri = getValueFromBinding(b, "opinion");
                         
                         if (opContentRaw === "【個人】" || opContentRaw === "個人" || !opContentRaw) continue;
 
@@ -756,7 +757,7 @@ function splitAndProcessData() {
                                     name: opLabel,
                                     color: shColor,
                                     count: jsonCountMap.opinion[opLabel] || 0,
-                                    uri: opUri // URI情報を格納
+                                    uri: opUri
                                 });
                             }
                         }
@@ -764,15 +765,12 @@ function splitAndProcessData() {
                     opList.sort(sortByCountDesc);
                 }
 
-                // -------------------------------------------------------------
-                // 【トリプル一覧のリスト生成＆ID昇順ソート】
-                // -------------------------------------------------------------
                 const tripleList = Array.from(uniqueTriples)
                     .map(key => ({
                         name: tripleLabelMap[key], 
                         color: config.cPred,       
                         count: jsonCountMap.triple[key] || 0,
-                        isTriple: true // 💡 トリプルかそれ以外かをUI層で判定するための目印
+                        isTriple: true
                     }));
 
                 tripleList.sort((a, b) => {
@@ -838,6 +836,7 @@ function splitAndProcessData() {
         }
     }, 50);
 }
+
 // ------------------------------------------------------------------------
 // 6. 出力コンテナ（左右2ペイン構造）のHTMLレンダリング描画
 // ------------------------------------------------------------------------
