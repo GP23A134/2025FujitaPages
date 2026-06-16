@@ -703,7 +703,7 @@ function splitAndProcessData() {
                             customColorList.push({
                                 name: item.name,
                                 color: item.color,
-                                count: finalExactCount, // 👈 修正：件数をダイレクトに適用
+                                count: finalExactCount,
                                 uri: item.uri
                             });
                         }
@@ -903,7 +903,7 @@ function createDocumentSection(docId, textContent, stats) {
     const isAllDoc = (docId === "ALL_DOCUMENTS");
     
     tableHtml += `<tr>
-    <td>${getBox("#adadad")}${isAllDoc ? 'トリプル数' : `<button class="stats-toggle-btn" data-target="triple" data-doc="${docId}" style="font-size: 1em;">総トリプル数</button>`}</td>
+    <td>${getBox("#adadad")}${isAllDoc ? 'トリプル数' : `<button class="stats-toggle-btn" data-target="triple" data-doc="${docId}" style="font-size: 1em;">トリプル数</button>`}</td>
     <td>${stats.tripleCount}</td>
 </tr>`;
     
