@@ -364,7 +364,7 @@ function splitAndProcessData() {
 
                 const tripleLabelMap = {};
 
-                // 💡【位置修正】直線カウント用の正確な集計マップ
+                // 【位置修正】直線カウント用の正確な集計マップ
                 const jsonCountMap = {
                     stakeholder: {},
                     subject: {},
@@ -456,7 +456,7 @@ function splitAndProcessData() {
                 
                 // ナンバリング（連番）適用後の名前と色を正しく紐付けるための凡例用マップ
                 const legendDisplayColorMap = {};
-                // 💡 ステークホルダー単体の純粋な出現回数を集計するための独立マップ
+                //  ステークホルダー単体の純粋な出現回数を集計するための独立マップ
                 const shExactCountMap = {};
 
                 // =================================================================
@@ -565,7 +565,7 @@ function splitAndProcessData() {
                         displayOLabel = `${oLabel}_${trId}`;
                     }
 
-                    // 💡 ステークホルダーの発言順ナンバリングと、出現数の確実なカウントアップ
+                    //  ステークホルダーの発言順ナンバリングと、出現数の確実なカウントアップ
                     let shNodeName = "";
                     let speakerColor = config.cFixedSH;
                     if (shId !== "" && shLabelRaw) {
@@ -578,7 +578,7 @@ function splitAndProcessData() {
 
                         speakerColor = finalSpeakerColorMap[shId] || config.cFixedSH;
 
-                        // 💡 ここで「st_名前」のキーに対して、純粋な出現数をインクリメント
+                        //  ここで「st_名前」のキーに対して、純粋な出現数をインクリメント
                         shExactCountMap[shLabel_cleansed] = (shExactCountMap[shLabel_cleansed] || 0) + 1;
                         // ナンバリング付きノード名用も一応バックアップ
                         jsonCountMap.stakeholder[shNodeName] = (jsonCountMap.stakeholder[shNodeName] || 0) + 1;
@@ -697,7 +697,7 @@ function splitAndProcessData() {
                         if (!seenNames.has(item.name)) {
                             seenNames.add(item.name);
                             
-                            // 💡 ここで集計した「純粋な発言出現件数」を確実にバインドします
+                            //  ここで集計した「純粋な発言出現件数」を確実にバインドします
                             const finalExactCount = shExactCountMap[item.name] || 0;
 
                             customColorList.push({
@@ -1026,7 +1026,7 @@ function createDocumentSection(docId, textContent, stats) {
                         const idx = parseInt(row.getAttribute("data-index"), 10);
                         const item = currentList[idx];
 
-                        // 💡 タブ切り替え時、選択中アイテムがあればグレー状態を復元（トリプル・その他共通）
+                        //  タブ切り替え時、選択中アイテムがあればグレー状態を復元（トリプル・その他共通）
                         if (currentFilterTarget === clickedValue) {
                             row.style.backgroundColor = "rgba(0,0,0,0.08)";
                             row.querySelector(".legend-item-name").style.fontWeight = "bold";
