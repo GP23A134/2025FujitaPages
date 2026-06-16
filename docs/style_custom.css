@@ -547,3 +547,32 @@ button:disabled {
     background: #cccccc;
     border-radius: 3px;
 }
+
+/* 統計内の項目をボタン化するスタイル */
+.stats-toggle-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-size: inherit;
+    font-family: inherit;
+    font-weight: inherit;
+    color: #333333;       /* 通常時は現在の文字色と同じ */
+    text-align: left;
+    cursor: pointer;
+    outline: none;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+/* マウスホバー時に少し青くしてリンクだと分からせる */
+.stats-toggle-btn:hover {
+    color: #0076d6;
+    text-decoration: underline;
+}
+
+/* 現在下部に一覧が表示されているアクティブな項目のスタイル */
+.stats-toggle-btn.active {
+    color: #0076d6;       /* アクティブ時は青文字 */
+    font-weight: bold;
+}
