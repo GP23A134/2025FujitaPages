@@ -636,7 +636,7 @@ function splitAndProcessData() {
                 const oClassList = Array.from(uniqueOClasses).map(name => ({ name: name, color: config.cOClass }));
                 const evList = Array.from(uniqueEvidences).map(text => ({ name: text, color: config.cEv }));
 
-                // ✨【修正】意見（Opinion）のテキストと、その発言者の色を紐付けます
+                // 意見（Opinion）のテキストと、その発言者の色を紐付けます
                 // --- 意見（Opinion）のテキストと、その発言者の色を紐付けます ---
                 const opList = [];
                 if (config.shEnabled) {
@@ -654,7 +654,7 @@ function splitAndProcessData() {
                             if (!seenOpinions.has(opLabel)) {
                                 seenOpinions.add(opLabel);
                                 
-                                // 💡 解決済みの全カラーが格納されている「finalSpeakerColorMap」から色を引きます
+                                //  解決済みの全カラーが格納されている「finalSpeakerColorMap」から色を引きます
                                 let shColor = "#adadad"; // 見つからない場合のデフォルト
                                 
                                 if (shId && finalSpeakerColorMap && finalSpeakerColorMap[shId]) {
@@ -891,8 +891,8 @@ function createDocumentSection(docId, textContent, stats) {
                 rowsHtml = `<tr><td style="color:#888; font-style:italic; padding:5px;">データがありません</td></tr>`;
             } else {
                 currentList.forEach(item => {
-                    // 💡 リストの各行に「フィルター用クラス」と、クリック可能にするためのスタイル（cursor: pointer）を付与
-                    // 💡 選択中の項目には視覚的に分かるよう active-filter-item クラスを付与
+                    //  リストの各行に「フィルター用クラス」と、クリック可能にするためのスタイル（cursor: pointer）を付与
+                    //  選択中の項目には視覚的に分かるよう active-filter-item クラスを付与
                     const isActive = (currentFilterTarget === item.name) ? "active-filter-item" : "";
                     const activeBg = (currentFilterTarget === item.name) ? "background-color: rgba(0,0,0,0.05);" : "";
 
@@ -906,7 +906,7 @@ function createDocumentSection(docId, textContent, stats) {
             }
             legendTable.innerHTML = rowsHtml;
 
-            // 💡 一覧リストの行がクリックされたときの絞り込みイベントを設定
+            //  一覧リストの行がクリックされたときの絞り込みイベントを設定
             const rows = legendTable.querySelectorAll(".filter-trigger-row");
             rows.forEach(row => {
                 row.onclick = () => {
