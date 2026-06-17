@@ -649,14 +649,14 @@ function splitAndProcessData() {
                             docOutputBuffer += `${prefix}${opinionNodeName}\t意見\t${trId}\t${opinionColor}\t${config.cDefaultEdge}\t${config.cDefaultEdge}\n`;
                         }
 
-                        if (shId !== "" && shLabelRaw) {
+                        if (shId && shLabelRaw) {
                             let opinionToSpeakerKey = `${currentDocId}_${opId}_speaker_${shNodeName}`;
                             if (!metadataLinkSet.has(opinionToSpeakerKey)) {
                                 metadataLinkSet.add(opinionToSpeakerKey);
                                 docOutputBuffer += `${prefix}${opinionNodeName}\tステークホルダー\t${shNodeName}\t${opinionColor}\t${speakerColor}\t${speakerColor}\n`;
                             }
 
-                            if (config.stClass && stClassId !== "" && stClassLabelRaw) {
+                            if (config.stClass && stClassId && stClassLabelRaw) {
                                 let currentStClassColor = finalStClassColorMap[stClassId] || config.cStClass;
                                 let stClassKey = `${currentDocId}_${shNodeName}_stClass_${stClassId}`;
                                 if (!classLinkSet.has(stClassKey)) {
@@ -671,28 +671,21 @@ function splitAndProcessData() {
                 // =================================================================
                 // --- 5. 各種要素の一覧リストの抽出・オブジェクト組み立て ---
                 // =================================================================
-                const sortByCountDesc = (a, b) => {
-                    if (b.count !== a.count) return b.count - a.count; 
-                    return a.name.localeCompare(b.name, 'ja'); 
-                };
+                const sortByCountDesc = (a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ja');
 
                 const customColorList = [];
                 if (config.shEnabled) {
                     const seenNames = new Set();
                     Object.keys(legendDisplayColorMap).forEach(key => {
                         const item = legendDisplayColorMap[key];
-                        if (item.name === "st_" || item.name === "st_【個人】" || item.name === "st_個人" || !item.name) return;
+                        if (!item.name || /^st_(|【個人】|個人)$/.test(item.name)) return;
         
                         if (!seenNames.has(item.name)) {
                             seenNames.add(item.name);
-                            
-                            //  ここで集計した「純粋な発言出現件数」を確実にバインドします
-                            const finalExactCount = shExactCountMap[item.name] || 0;
-
                             customColorList.push({
                                 name: item.name,
                                 color: item.color,
-                                count: finalExactCount,
+                                count: shExactCountMap[item.name] || 0,
                                 uri: item.uri
                             });
                         }
@@ -700,53 +693,35 @@ function splitAndProcessData() {
                     customColorList.sort(sortByCountDesc);
                 }
 
-                const subjList = Array.from(uniqueSubjects)
-                    .map(name => ({ name: name, color: config.cSubj, count: jsonCountMap.subject[name] || 0, uri: idToUriMap.subject[name] }))
-                    .sort(sortByCountDesc);
+                const createList = (uniqueSet, color, countMap, uriMap) => 
+                    Array.from(uniqueSet).map(name => ({
+                        name, color, count: countMap[name] || 0, uri: uriMap[name]
+                    })).sort(sortByCountDesc);
 
-                const objList = Array.from(uniqueObjects)
-                    .map(name => ({ name: name, color: config.cObj, count: jsonCountMap.object[name] || 0, uri: idToUriMap.object[name] }))
-                    .sort(sortByCountDesc);
-
-                const sClassList = Array.from(uniqueSClasses)
-                    .map(name => ({ name: name, color: config.cSClass, count: jsonCountMap.sClass[name] || 0, uri: idToUriMap.sClass[name] }))
-                    .sort(sortByCountDesc);
-
-                const oClassList = Array.from(uniqueOClasses)
-                    .map(name => ({ name: name, color: config.cOClass, count: jsonCountMap.oClass[name] || 0, uri: idToUriMap.oClass[name] }))
-                    .sort(sortByCountDesc);
-
-                const evList = Array.from(uniqueEvidences)
-                    .map(text => ({ name: text, color: config.cEv, count: jsonCountMap.evidence[text] || 0, uri: idToUriMap.evidence[text] }))
-                    .sort(sortByCountDesc);
+                const subjList = createList(uniqueSubjects, config.cSubj, jsonCountMap.subject, idToUriMap.subject);
+                const objList = createList(uniqueObjects, config.cObj, jsonCountMap.object, idToUriMap.object);
+                const sClassList = createList(uniqueSClasses, config.cSClass, jsonCountMap.sClass, idToUriMap.sClass);
+                const oClassList = createList(uniqueOClasses, config.cOClass, jsonCountMap.oClass, idToUriMap.oClass);
+                const evList = createList(uniqueEvidences, config.cEv, jsonCountMap.evidence, idToUriMap.evidence);
 
                 const opList = [];
                 if (config.shEnabled) {
                     const seenOpinions = new Set();
                     for (let item of wrappedBindings) {
                         let b = item.binding;
-                        let shId = extractIdFromUri(getValueFromBinding(b, "stakeholder"));
-                        let opId = extractIdFromUri(getValueFromBinding(b, "opinion") || getValueFromBinding(b, "?opinion"));
                         let opContentRaw = clean(getValueFromBinding(b, "opinionContent"));
-                        let opUri = getValueFromBinding(b, "opinion");
-                        
-                        if (opContentRaw === "【個人】" || opContentRaw === "個人" || !opContentRaw) continue;
+                        if (!opContentRaw || /^【個人】|個人$/.test(opContentRaw)) continue;
 
-                        if (opId !== "") {
-                            let opLabel = opContentRaw; 
-                            if (!seenOpinions.has(opLabel)) {
-                                seenOpinions.add(opLabel);
-                                
-                                let shColor = "#adadad";
-                                if (shId && finalSpeakerColorMap && finalSpeakerColorMap[shId]) {
-                                    shColor = finalSpeakerColorMap[shId];
-                                }
-                                
+                        let opId = extractIdFromUri(getValueFromBinding(b, "opinion") || getValueFromBinding(b, "?opinion"));
+                        if (opId) {
+                            if (!seenOpinions.has(opContentRaw)) {
+                                seenOpinions.add(opContentRaw);
+                                let shId = extractIdFromUri(getValueFromBinding(b, "stakeholder"));
                                 opList.push({
-                                    name: opLabel,
-                                    color: shColor,
-                                    count: jsonCountMap.opinion[opLabel] || 0,
-                                    uri: opUri
+                                    name: opContentRaw,
+                                    color: (shId && finalSpeakerColorMap?.[shId]) || "#adadad",
+                                    count: jsonCountMap.opinion[opContentRaw] || 0,
+                                    uri: getValueFromBinding(b, "opinion")
                                 });
                             }
                         }
@@ -754,25 +729,19 @@ function splitAndProcessData() {
                     opList.sort(sortByCountDesc);
                 }
 
-                const tripleList = Array.from(uniqueTriples)
-                    .map(key => ({
-                        name: tripleLabelMap[key], 
-                        color: config.cPred,       
-                        count: jsonCountMap.triple[key] || 0,
-                        isTriple: true
-                    }));
-
-                tripleList.sort((a, b) => {
-                    const numA = parseInt(a.name.match(/^T(\d+)_/)[1], 10);
-                    const numB = parseInt(b.name.match(/^T(\d+)_/)[1], 10);
-                    return numA - numB; 
+                const tripleList = Array.from(uniqueTriples).map(key => ({
+                    name: tripleLabelMap[key], 
+                    color: config.cPred,       
+                    count: jsonCountMap.triple[key] || 0,
+                    isTriple: true
+                })).sort((a, b) => {
+                    return parseInt(a.name.match(/^T(\d+)_/)[1], 10) - parseInt(b.name.match(/^T(\d+)_/)[1], 10);
                 });
 
                 let dynamicTitle = "ステークホルダー";
-                if (config.shEnabled && config.shColorMode === "group") {
-                    dynamicTitle = "stClass";
-                } else if (config.shEnabled && config.shColorMode === "select") {
-                    dynamicTitle = "単一固定指定";
+                if (config.shEnabled) {
+                    if (config.shColorMode === "group") dynamicTitle = "stClass";
+                    else if (config.shColorMode === "select") dynamicTitle = "単一固定指定";
                 }
 
                 const statsSummary = {
@@ -812,8 +781,7 @@ function splitAndProcessData() {
                     }
                 };
 
-                let displayTitleId = (groupKey === "ALL_DOCUMENTS") ? "ALL_DOCUMENTS" : groupKey;
-                createDocumentSection(displayTitleId, docOutputBuffer, statsSummary);
+                createDocumentSection((groupKey === "ALL_DOCUMENTS") ? "ALL_DOCUMENTS" : groupKey, docOutputBuffer, statsSummary);
             }
 
         } catch (error) {
@@ -831,312 +799,168 @@ function splitAndProcessData() {
 // ------------------------------------------------------------------------
 function createDocumentSection(docId, textContent, stats) {
     const container = document.getElementById("outputContainer");
+    const isAllDoc = (docId === "ALL_DOCUMENTS");
 
     const section = document.createElement("div");
     section.className = "doc-section";
 
-    const header = document.createElement("div");
-    header.className = "doc-header";
-
-    const title = document.createElement("div");
-    title.className = "doc-title";
-    title.textContent = (docId === "ALL_DOCUMENTS") ? "出力モード: すべてのドキュメント（一括出力）" : `出力モード: ${docId}`;
-
-    const actions = document.createElement("div");
-    actions.className = "doc-actions";
-
-    const copyBtn = document.createElement("button");
-    copyBtn.className = "btn-small btn-copy-small";
-    copyBtn.textContent = "このデータをコピー";
-    
     const textarea = document.createElement("textarea");
     textarea.readOnly = true;
     textarea.value = textContent; 
 
-    copyBtn.onclick = () => {
+    // コピー通知の共通処理
+    const alertCopied = () => alert(`${docId} のデータをコピーしました。`);
+
+    // UIレンダリング (innerHTMLで構造をスマートに生成)
+    section.innerHTML = `
+        <div class="doc-header">
+            <div class="doc-title">${isAllDoc ? '出力モード: すべてのドキュメント（一括出力）' : `出力モード: ${docId}`}</div>
+            <div class="doc-actions"><button class="btn-small btn-copy-small">このデータをコピー</button></div>
+        </div>
+        <div class="doc-main-content">
+            <div class="doc-side-panel">
+                <div class="doc-meta-badge">
+                    <b class="badge-main-title" style="font-size: 1.1em;">解析結果統計</b>
+                    <table class="stats-table" style="font-size: 1.05em; width: 100%;">
+                        <tr><td>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="triple" style="font-size: 1em;">トリプル数</button>` : 'トリプル数'}</td><td>${stats.tripleCount}</td></tr>
+                        ${stats.sEnabled ? `<tr><td><span class="legend-color-box" style="background-color:${stats.cSubj}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;"></span>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="subject" style="font-size: 1em;">主語数</button>` : '主語数'}</td><td>${stats.subjectCount}</td></tr>` : ''}
+                        ${stats.oEnabled ? `<tr><td><span class="legend-color-box" style="background-color:${stats.cObj}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;"></span>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="object" style="font-size: 1em;">目的語数</button>` : '目的語数'}</td><td>${stats.objectCount}</td></tr>` : ''}
+                        ${stats.sClassEnabled ? `<tr><td><span class="legend-color-box" style="background-color:${stats.cSClass}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;"></span>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="sClass" style="font-size: 1em;">主語クラス数</button>` : '主語クラス数'}</td><td>${stats.sClassCount}</td></tr>` : ''}
+                        ${stats.oClassEnabled ? `<tr><td><span class="legend-color-box" style="background-color:${stats.cOClass}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;"></span>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="oClass" style="font-size: 1em;">目的語クラス数</button>` : '目的語クラス数'}</td><td>${stats.oClassCount}</td></tr>` : ''}
+                        ${stats.shEnabled ? `
+                            <tr><td>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="stakeholder" style="font-size: 1em;">${stats.titleName || 'ステークホルダー'}数</button>` : `${stats.titleName || 'ステークホルダー'}数`}</td><td>${stats.stakeholderCount}</td></tr>
+                            <tr><td>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="opinion" style="font-size: 1em;">意見数</button>` : '意見数'}</td><td>${stats.opinionCount}</td></tr>
+                        ` : ''}
+                        ${stats.evEnabled ? `<tr><td><span class="legend-color-box" style="background-color:${stats.cEv}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;"></span>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="evidence" style="font-size: 1em;">根拠数</button>` : '根拠数'}</td><td>${stats.evidenceCount}</td></tr>` : ''}
+                    </table>
+                    ${!isAllDoc ? `
+                        <hr class="badge-divider" style="border:none; border-top:1px dashed #ccc; margin:25px 0 15px 0;">
+                        <b id="legend-current-title-${docId}" class="badge-sub-title" style="display:block; margin-bottom:4px; font-size:1.05em; color:#444;"></b>
+                        <span id="legend-notice-${docId}" style="font-size:0.8em; color:#888; display:block; margin-bottom:8px;"></span>
+                        <div class="legend-scroll-container" style="overflow-y: auto; overflow-x: auto; max-height: 200px; border: 1px solid #eee; padding: 5px; background: #fff; border-radius: 4px;">
+                            <table id="dynamic-legend-table-${docId}" class="dynamic-legend-table" style="width: max-content; min-width: 100%; white-space: nowrap; border-collapse: collapse;"></table>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+            <div class="doc-text-panel"></div>
+        </div>
+    `;
+
+    // テキストエリアの挿入とコピーイベントのバインド
+    section.querySelector(".doc-text-panel").appendChild(textarea);
+    section.querySelector(".btn-copy-small").onclick = () => {
         navigator.clipboard.writeText(textarea.value)
-            .then(() => {
-                alert(`${docId} のデータをコピーしました。`);
-            })
-            .catch(err => {
-                console.error("コピーに失敗しました: ", err);
+            .then(alertCopied)
+            .catch(() => {
                 textarea.select();
                 document.execCommand("copy");
-                alert(`${docId} のデータをコピーしました。`);
+                alertCopied();
             });
     };
 
-    actions.appendChild(copyBtn);
-    header.appendChild(title);
-    header.appendChild(actions);
-    section.appendChild(header);
-
-    const mainContent = document.createElement("div");
-    mainContent.className = "doc-main-content";
-
-    // --- 【左ペイン】統計・凡例サイドパネル ---
-    const sidePanel = document.createElement("div");
-    sidePanel.className = "doc-side-panel";
-
-    const metaBadge = document.createElement("div");
-    metaBadge.className = "doc-meta-badge";
-
-    let tableHtml = `<b class="badge-main-title" style="font-size: 1.1em;">解析結果統計</b>`;
-    tableHtml += `<table class="stats-table" style="font-size: 1.05em; width: 100%;">`;
-
-    const getBox = (color) => {
-        if (docId === "ALL_DOCUMENTS") return "";
-        return `<span class="legend-color-box" style="background-color:${color}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;"></span>`;
-    };
-
-    const isAllDoc = (docId === "ALL_DOCUMENTS");
-    
-    tableHtml += `<tr>
-    <td>${getBox("#adadad")}${isAllDoc ? 'トリプル数' : `<button class="stats-toggle-btn" data-target="triple" data-doc="${docId}" style="font-size: 1em;">トリプル数</button>`}</td>
-    <td>${stats.tripleCount}</td>
-</tr>`;
-    
-    if (stats.sEnabled) {
-        tableHtml += `<tr>
-            <td>${getBox(stats.cSubj)}${isAllDoc ? '主語数' : `<button class="stats-toggle-btn" data-target="subject" data-doc="${docId}" style="font-size: 1em;">主語数</button>`}</td>
-            <td>${stats.subjectCount}</td>
-        </tr>`;
-    }
-    if (stats.oEnabled) {
-        tableHtml += `<tr>
-            <td>${getBox(stats.cObj)}${isAllDoc ? '目的語数' : `<button class="stats-toggle-btn" data-target="object" data-doc="${docId}" style="font-size: 1em;">目的語数</button>`}</td>
-            <td>${stats.objectCount}</td>
-        </tr>`;
-    }
-    if (stats.sClassEnabled) {
-        tableHtml += `<tr>
-            <td>${getBox(stats.cSClass)}${isAllDoc ? '主語クラス数' : `<button class="stats-toggle-btn" data-target="sClass" data-doc="${docId}" style="font-size: 1em;">主語クラス数</button>`}</td>
-            <td>${stats.sClassCount}</td>
-        </tr>`;
-    }
-    if (stats.oClassEnabled) {
-    tableHtml += `<tr>
-            <td>${getBox(stats.cOClass)}${isAllDoc ? '目的語クラス数' : `<button class="stats-toggle-btn" data-target="oClass" data-doc="${docId}" style="font-size: 1em;">目的語クラス数</button>`}</td>
-            <td>${stats.oClassCount}</td>
-        </tr>`;
-    }
-    if (stats.shEnabled) {
-        tableHtml += `<tr>
-            <td>${getBox("#adadad")}${isAllDoc ? 'ステークホルダー数' : `<button class="stats-toggle-btn" data-target="stakeholder" data-doc="${docId}" style="font-size: 1em;">${stats.titleName || 'ステークホルダー'}数</button>`}</td>
-            <td>${stats.stakeholderCount}</td>
-        </tr>`;
-        tableHtml += `<tr>
-            <td>${getBox("#adadad")}${isAllDoc ? '意見数' : `<button class="stats-toggle-btn" data-target="opinion" data-doc="${docId}" style="font-size: 1em;">意見数</button>`}</td>
-            <td>${stats.opinionCount}</td>
-        </tr>`;
-    }
-    if (stats.evEnabled) {
-        tableHtml += `<tr>
-            <td>${getBox(stats.cEv)}${isAllDoc ? '根拠数' : `<button class="stats-toggle-btn" data-target="evidence" data-doc="${docId}" style="font-size: 1em;">根拠数</button>`}</td>
-            <td>${stats.evidenceCount}</td>
-        </tr>`;
-    }
-    tableHtml += `</table>`;
-
-    if (!isAllDoc) {
-        tableHtml += `<hr class="badge-divider" style="border:none; border-top:1px dashed #ccc; margin:25px 0 15px 0;">`;
-        tableHtml += `<b id="legend-current-title-${docId}" class="badge-sub-title" style="display:block; margin-bottom:4px; font-size:1.05em; color:#444;"></b>`;
-        tableHtml += `<span id="legend-notice-${docId}" style="font-size:0.8em; color:#888; display:block; margin-bottom:8px;"></span>`;
-        
-        tableHtml += `<div class="legend-scroll-container" style="overflow-y: auto; overflow-x: auto; max-height: 200px; border: 1px solid #eee; padding: 5px; background: #fff; border-radius: 4px;">`;
-        tableHtml += `<table id="dynamic-legend-table-${docId}" class="dynamic-legend-table" style="width: max-content; min-width: 100%; white-space: nowrap; border-collapse: collapse;"></table>`;
-        tableHtml += `</div>`;
-    }
-
-    metaBadge.innerHTML = tableHtml;
-    sidePanel.appendChild(metaBadge);
-    mainContent.appendChild(sidePanel);
-
-    // --- 【右ペイン】テキストエリアパネル ---
-    const textPanel = document.createElement("div");
-    textPanel.className = "doc-text-panel";
-    
-    textPanel.appendChild(textarea);
-    mainContent.appendChild(textPanel);
-
-    section.appendChild(mainContent);
     container.appendChild(section);
 
-    // --- ボタンによる一覧の動的切り替え & 絞り込みロジック ---
     if (!isAllDoc) {
         const legendTable = document.getElementById(`dynamic-legend-table-${docId}`);
         const titleEl = document.getElementById(`legend-current-title-${docId}`);
         const noticeEl = document.getElementById(`legend-notice-${docId}`);
-        
-        // 選択中のフィルター状態を保持する変数
         let currentFilterTarget = null;
 
-        const updateLegendTable = (targetKey, labelText) => {
+        const updateLegendTable = (targetKey) => {
             const currentList = stats.lists[targetKey] || [];
-            let rowsHtml = "";
-            
-            if (titleEl && labelText) {
-                const cleanLabel = labelText.replace('・', '').replace('数', '');
-                titleEl.textContent = `${cleanLabel}一覧`;
-            }
-
-            if (noticeEl) {
-                if (targetKey === "triple") {
-                    noticeEl.textContent = "※行をクリックで本文をトリプル番号（T1など）で絞り込み";
-                } else {
-                    noticeEl.textContent = "※行をクリックでグラフ上の該当ノード（重複分離分含む）を一括ハイライト";
-                }
-            }
             
             if (currentList.length === 0) {
-                rowsHtml = `<tr><td style="color:#888; font-style:italic; padding:5px; font-size:1em;">データがありません</td></tr>`;
-                if (legendTable) legendTable.innerHTML = rowsHtml;
-            } else {
-                currentList.forEach((item, index) => {
-                    const listLabel = item.name; 
-                    const appearanceCount = item.count || 0;
-
-                    rowsHtml += `<tr class="filter-trigger-row" data-index="${index}" data-value="${listLabel}" style="cursor:pointer; transition: background 0.2s;">
-                        <td style="padding:6px 4px; border-bottom:1px dashed #eee; vertical-align:middle;">
-                            ${getBox(item.color)}
-                            <span class="legend-item-name" style="vertical-align:middle; font-size:1.05em; color:#333;">
-                                ${item.name} <span style="color: #d32f2f; font-size: 0.9em; margin-left: 4px; font-weight: bold;">(${appearanceCount}件)</span>
-                            </span>
-                        </td>
-                    </tr>`;
-                });
-                
-                if (legendTable) {
-                    legendTable.innerHTML = rowsHtml;
-                    
-                    const rows = legendTable.querySelectorAll(".filter-trigger-row");
-                    rows.forEach(row => {
-                        const clickedValue = row.getAttribute("data-value");
-                        const idx = parseInt(row.getAttribute("data-index"), 10);
-                        const item = currentList[idx];
-
-                        // タブ切り替え時、選択中アイテムがあればグレー状態を復元
-                        if (currentFilterTarget === clickedValue) {
-                            row.style.backgroundColor = "#e0e0e0";
-                            row.querySelector(".legend-item-name").style.fontWeight = "bold";
-                        }
-
-                        row.onclick = () => {
-                            if (item.isTriple) {
-                                // --- 1. トリプルの場合の既存処理 ---
-                                const allLines = textContent.split("\n");
-                                if (currentFilterTarget === clickedValue) {
-                                    currentFilterTarget = null;
-                                    textarea.value = textContent; 
-                                    row.style.backgroundColor = "";
-                                    row.querySelector(".legend-item-name").style.fontWeight = "normal";
-                                } else {
-                                    currentFilterTarget = clickedValue;
-                                    rows.forEach(r => {
-                                        r.style.backgroundColor = "";
-                                        r.querySelector(".legend-item-name").style.fontWeight = "normal";
-                                    });
-                                    row.style.backgroundColor = "#e0e0e0";
-                                    row.querySelector(".legend-item-name").style.fontWeight = "bold";
-
-                                    const trPrefix = clickedValue.split('_')[0]; 
-                                    const filteredLines = allLines.filter(line => {
-                                        const columns = line.split('\t');
-                                        return columns.some(col => col === trPrefix);
-                                    });
-                                    textarea.value = filteredLines.join("\n");
-                                }
-                            } else {
-                                // --- 2. トリプル以外（主語・ステークホルダー等）の場合の連動処理 ---
-                                if (window.cy) {
-                                    window.cy.elements().removeClass("highlighted-node dimmed-node");
-                                }
-
-                                if (currentFilterTarget === clickedValue) {
-                                    // すでに選択済みなら解除
-                                    currentFilterTarget = null;
-                                    row.style.backgroundColor = "";
-                                    row.querySelector(".legend-item-name").style.fontWeight = "normal";
-                                    console.log(`[解除] カテゴリ: ${targetKey} | 名称: ${item.name}`);
-                                } else {
-                                    // 新しく選択された場合
-                                    currentFilterTarget = clickedValue;
-                                    rows.forEach(r => {
-                                        r.style.backgroundColor = "";
-                                        r.querySelector(".legend-item-name").style.fontWeight = "normal";
-                                    });
-                                    // 指定のグレー反転と太字の適用
-                                    row.style.backgroundColor = "#e0e0e0"; 
-                                    row.querySelector(".legend-item-name").style.fontWeight = "bold";
-
-                                    // Cytoscape.jsグラフ上のノード・エッジの抽出とハイライト
-                                    if (window.cy) {
-                                        const clickedName = item.name;
-                                        // カテゴリごとのID接頭辞を判定
-                                        let prefix = "";
-                                        if (targetKey === "stakeholder") prefix = "st_";
-                                        else if (targetKey === "subject") prefix = "s_";
-                                        else if (targetKey === "object") prefix = "o_";
-
-                                        // 全体を一旦薄くする
-                                        window.cy.elements().addClass("dimmed-node");
-
-                                        // 重複分離されたノードを前方一致で一括ヒットさせる
-                                        window.cy.nodes().forEach(node => {
-                                            const nodeId = node.id();
-                                            if (nodeId === clickedName || nodeId.startsWith(prefix + clickedName)) {
-                                                node.removeClass("dimmed-node").addClass("highlighted-node");
-                                                node.connectedEdges().removeClass("dimmed-node");
-                                            }
-                                        });
-                                    }
-                                    
-                                    //ラベル行クリック時に、ID（URI）情報をコンソールに表示
-                                    console.log(`[選択] カテゴリ: ${targetKey} | 名称: ${item.name} | ID/URI: ${item.uri || "IDが存在しません"}`);
-                                }
-                            }
-                        };
-                    });
-                }
+                legendTable.innerHTML = `<tr><td style="color:#888; font-style:italic; padding:5px; font-size:1em;">データがありません</td></tr>`;
+                return;
             }
+
+            legendTable.innerHTML = currentList.map((item, index) => `
+                <tr class="filter-trigger-row" data-index="${index}" data-value="${item.name}" style="cursor:pointer; transition: background 0.2s; ${currentFilterTarget === item.name ? 'background-color: #e0e0e0;' : ''}">
+                    <td style="padding:6px 4px; border-bottom:1px dashed #eee; vertical-align:middle;">
+                        ${item.color ? `<span class="legend-color-box" style="background-color:${item.color}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;"></span>` : ''}
+                        <span class="legend-item-name" style="vertical-align:middle; font-size:1.05em; color:#333; ${currentFilterTarget === item.name ? 'font-weight: bold;' : ''}">
+                            ${item.name} <span style="color: #d32f2f; font-size: 0.9em; margin-left: 4px; font-weight: bold;">(${item.count || 0}件)</span>
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+
+            // 各行のクリックイベント（イベント委譲でスマートに集約可能ですが、元のトグルロジック維持のため再設定）
+            legendTable.querySelectorAll(".filter-trigger-row").forEach(row => {
+                row.onclick = () => {
+                    const clickedValue = row.getAttribute("data-value");
+                    const idx = parseInt(row.getAttribute("data-index"), 10);
+                    const item = currentList[idx];
+
+                    if (item.isTriple) {
+                        const allLines = textContent.split("\n");
+                        if (currentFilterTarget === clickedValue) {
+                            currentFilterTarget = null;
+                            textarea.value = textContent;
+                        } else {
+                            currentFilterTarget = clickedValue;
+                            const trPrefix = clickedValue.split('_')[0];
+                            // 3列目(インデックス2)にIDが入る前提として最適化（無駄なsomeを廃止）
+                            textarea.value = allLines.filter(line => line.split('\t')[2] === trPrefix).join("\n");
+                        }
+                    } else {
+                        if (window.cy) window.cy.elements().removeClass("highlighted-node dimmed-node");
+
+                        if (currentFilterTarget === clickedValue) {
+                            currentFilterTarget = null;
+                        } else {
+                            currentFilterTarget = clickedValue;
+                            if (window.cy) {
+                                let prefix = { stakeholder: "st_", subject: "s_", object: "o_" }[targetKey] || "";
+                                window.cy.elements().addClass("dimmed-node");
+                                window.cy.nodes().forEach(node => {
+                                    const nodeId = node.id();
+                                    if (nodeId === item.name || nodeId.startsWith(prefix + item.name)) {
+                                        node.removeClass("dimmed-node").addClass("highlighted-node");
+                                        node.connectedEdges().removeClass("dimmed-node");
+                                    }
+                                });
+                            }
+                            // 前のステップの要求通り、トリプル以外のID（URI）をコンソール表示
+                            console.log(`[選択] カテゴリ: ${targetKey} | 名称: ${item.name} | ID/URI: ${item.uri || "IDが存在しません"}`);
+                        }
+                    }
+                    updateLegendTable(targetKey); // 表示更新（選択背景のトグル用）
+                };
+            });
         };
 
-        // 初期選択状態の決定
-        let defaultKey = "subject";
-        let defaultLabel = "主語"; 
+        // 💡 統計数ボタンへのイベント委譲（Event Delegation）による最適化
+        const statsTable = section.querySelector(".stats-table");
+        statsTable.onclick = (e) => {
+            const btn = e.target.closest(".stats-toggle-btn");
+            if (!btn) return;
 
-        if (stats.shEnabled) {
-            defaultKey = "stakeholder";
-            defaultLabel = stats.titleName || "ステークホルダー";
-        }
+            statsTable.querySelectorAll(".stats-toggle-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
 
-        updateLegendTable(defaultKey, defaultLabel);
+            const targetKey = btn.getAttribute("data-target");
+            const labelText = btn.textContent;
 
-        const buttons = section.querySelectorAll(`.stats-toggle-btn[data-doc="${docId}"]`);
-        buttons.forEach(btn => {
-            if (btn.getAttribute("data-target") === defaultKey) {
-                btn.classList.add("active");
+            // テキスト更新系をここへ集約（無駄な連打処理の排除）
+            if (titleEl) titleEl.textContent = `${labelText.replace(/[・数]/g, '')}一覧`;
+            if (noticeEl) {
+                noticeEl.textContent = targetKey === "triple" 
+                    ? "※行をクリックで本文をトリプル番号（T1など）で絞り込み"
+                    : "※行をクリックでグラフ上の該当ノード（重複分離分含む）を一括ハイライト";
             }
 
-            btn.onclick = (e) => {
-                buttons.forEach(b => b.classList.remove("active"));
-                e.target.classList.add("active");
+            currentFilterTarget = null;
+            textarea.value = textContent;
+            if (window.cy) window.cy.elements().removeClass("highlighted-node dimmed-node");
 
-                const targetKey = e.target.getAttribute("data-target");
-                const labelText = e.target.textContent;
-                
-                // ボタン自体が押されたとき、そのターゲットキーをコンソールに表示
-                console.log(`[カテゴリ切り替え] ターゲットボタンID (targetKey): ${targetKey} (${labelText})`);
-                
-                // タブが切り替わったら選択状態・グラフハイライトは全リセットして原本に戻す
-                currentFilterTarget = null;
-                textarea.value = textContent; 
-                if (window.cy) {
-                    window.cy.elements().removeClass("highlighted-node dimmed-node");
-                }
-                
-                updateLegendTable(targetKey, labelText);
-            };
-        });
+            updateLegendTable(targetKey);
+        };
+
+        // 初期選択発火
+        let defaultKey = stats.shEnabled ? "stakeholder" : "subject";
+        const initialBtn = statsTable.querySelector(`.stats-toggle-btn[data-target="${defaultKey}"]`);
+        if (initialBtn) initialBtn.click();
     }
 }
