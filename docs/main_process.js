@@ -727,38 +727,66 @@ function createDocumentSection(docId, textContent, stats) {
             return intersected;
         };
 
-        const updateLegendTable = (targetKey) => {
-            currentActiveTab = targetKey;
-            let currentList = stats.lists[targetKey] || [];
-            
-            if (currentList.length === 0) {
-                legendTable.innerHTML = `<tr><td style="color:#888; font-style:italic; padding:5px;">データがありません</td></tr>`;
-                return;
-            }
-
+        const updateTabVisualIndicators = () => {
             const intersectedIndexes = getIntersectedIndexes();
 
-            // 表示用データを事前に計算・構築
-            const processedList = currentList.map(item => {
-                const isSelected = !!activeFiltersMap[item.name];
-                let displayCount = item.count; // デフォルトは全体件数
+            statsTable.querySelectorAll(".stats-toggle-btn").forEach(btn => {
+                const targetKey = btn.getAttribute("data-target");
+                
+                // 1. 選択バッジの更新 (✓がついている選択中アイテム数)
+                const activeCount = Object.values(activeFiltersMap).filter(item => item.category === targetKey).length;
+                const oldBadge = btn.querySelector(".tab-badge");
+                if (oldBadge) oldBadge.remove();
 
-                // 他のカテゴリで絞り込まれている場合、交差する（選択可能な）件数を計算
-                if (intersectedIndexes !== null) {
-                    if (isSelected) {
-                        displayCount = item.count;
-                    } else {
-                        // bindingIndexes のうち、intersectedIndexes に含まれる件数のみをカウント
-                        displayCount = item.bindingIndexes ? item.bindingIndexes.filter(i => intersectedIndexes.has(i)).length : 0;
-                    }
+                if (activeCount > 0) {
+                    const badge = document.createElement("span");
+                    badge.className = "tab-badge";
+                    badge.textContent = `${activeCount}`;
+                    btn.appendChild(badge);
                 }
 
-                return {
-                    ...item,
-                    isSelected: isSelected,
-                    displayCount: displayCount
-                };
+                // 2. 解析結果統計のカウント数(右側の列)を動的に変化させる
+                const row = btn.closest("tr");
+                if (row) {
+                    const murderousTd = row.cells[1]; // 右側の数値が入っている td 要素
+                    if (murderousTd) {
+                        const currentList = stats.lists[targetKey] || [];
+                        
+                        if (intersectedIndexes === null) {
+                            // 【修正】初期状態（絞り込みなし）のときは、statsから元の正しい総数を取得して表示
+                            if (targetKey === "triple") murderousTd.textContent = stats.tripleCount;
+                            else if (targetKey === "subject") murderousTd.textContent = stats.subjectCount;
+                            else if (targetKey === "object") murderousTd.textContent = stats.objectCount;
+                            else if (targetKey === "sClass") murderousTd.textContent = stats.sClassCount;
+                            else if (targetKey === "oClass") murderousTd.textContent = stats.oClassCount;
+                            else if (targetKey === "stakeholder") murderousTd.textContent = stats.stakeholderCount;
+                            else if (targetKey === "opinion") murderousTd.textContent = stats.opinionCount;
+                            else if (targetKey === "evidence") murderousTd.textContent = stats.evidenceCount;
+                            
+                            // 通常の文字色(黒)に戻す
+                            murderousTd.style.color = "#333333";
+                        } else {
+                            // 絞り込みが発生している場合：
+                            // 該当カテゴリのリスト内で、現在選択可能（共通の bindingIndexes を持つ）なアイテム数を計算
+                            let availableUniqueCount = 0;
+                            currentList.forEach(item => {
+                                const isSelected = !!activeFiltersMap[item.name];
+                                const hasIntersection = item.bindingIndexes && item.bindingIndexes.some(i => intersectedIndexes.has(i));
+                                
+                                if (isSelected || hasIntersection) {
+                                    availableUniqueCount++;
+                                }
+                            });
+                            
+                            // 計算された動的な数値を上書き
+                            murderousTd.textContent = availableUniqueCount;
+                            // 絞り込み中は赤字にする
+                            murderousTd.style.color = "#d32f2f";
+                        }
+                    }
+                }
             });
+        };
 
             // 1. 選択中を上、2. 選択可能（件数 > 0）を中、3. 選択不可（件数 == 0）を下、の順にソート
             processedList.sort((a, b) => {
