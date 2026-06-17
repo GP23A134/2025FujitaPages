@@ -383,7 +383,7 @@ button:disabled {
 /* --- 下部：高精度スクロール凡例（レジェンド） --- */
 .legend-scroll-container {
     flex-grow: 1;                                     /* 上部統計テーブルの残り縦スペースを限界まで自動で埋める */
-    max-height: 310px !important;                     /* [調整] 右側のテキストエリアと下端高さを綺麗に揃える数値 */
+    max-height: 450px !important;                     /* [調整] 右側のテキストエリアと下端高さを綺麗に揃える数値 */
     overflow-y: auto !important;                      /* 縦に項目が溢れたらスクロールバーを出す */
     overflow-x: auto !important;                      /* 名前の長い時に潰れないよう横スクロールを許可 */
     padding: 6px;
@@ -413,7 +413,7 @@ button:disabled {
 /* 凡例内テキスト・文字拡大調整 */
 .filter-trigger-row td,
 .filter-trigger-row span {
-    font-size: 13px !important;                       /* フォントサイズ*/
+    font-size: 12px !important;                       /* フォントサイズ*/
 }
 
 .legend-color-box {
@@ -441,7 +441,7 @@ button:disabled {
 }
 
 .legend-item-count {
-    font-size: 12px !important;                       /* [調整] 件数数字を少し強調 */
+    font-size: 11px !important;                       /* [調整] 件数数字を少し強調 */
     font-weight: bold;
 }
 
