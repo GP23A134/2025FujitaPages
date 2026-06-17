@@ -288,7 +288,7 @@ button:disabled {
 .doc-side-panel {
     flex: 0 0 320px;                                  /* 横幅を320pxに完全固定 */
     width: 320px;
-    height: 580px;                                    /* 右側のテキストエリアと高さを完全一致 */
+    height: 650px;                                    /* 右側のテキストエリアと高さを完全一致 */
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
