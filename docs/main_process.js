@@ -853,6 +853,7 @@ function createDocumentSection(docId, textContent, stats) {
 
             statsTable.querySelectorAll(".stats-toggle-btn").forEach(btn => {
                 const targetKey = btn.getAttribute("data-target");
+                if (!targetKey) return;
                 
                 // 1. 選択バッジの更新 (✓がついている選択中アイテム数)
                 const activeCount = Object.values(activeFiltersMap).filter(item => item.category === targetKey).length;
@@ -866,15 +867,16 @@ function createDocumentSection(docId, textContent, stats) {
                     btn.appendChild(badge);
                 }
 
-                // 2. ★新規追加：解析結果統計のカウント数(右側の列)を絞り込みに連動して動的に変化させる
+                // 2. 解析結果統計のカウント数(右側の列)を動的に変化させる
                 const row = btn.closest("tr");
                 if (row) {
-                    const murderousTd = row.cells[1]; // 右側の数値が入っている td 要素
+                    // row.cells[1] の代わりに、より安全なアプローチ
+                    const murderousTd = row.cells[1]; 
                     if (murderousTd) {
                         const currentList = stats.lists[targetKey] || [];
                         
                         if (intersectedIndexes === null) {
-                            // 絞り込みがない初期状態は、全体のユニーク件数（元の初期値）を表示
+                            // 初期状態（絞り込みなし）のときは、statsから元の正しい総数を取得して表示
                             if (targetKey === "triple") murderousTd.textContent = stats.tripleCount;
                             else if (targetKey === "subject") murderousTd.textContent = stats.subjectCount;
                             else if (targetKey === "object") murderousTd.textContent = stats.objectCount;
@@ -884,14 +886,11 @@ function createDocumentSection(docId, textContent, stats) {
                             else if (targetKey === "opinion") murderousTd.textContent = stats.opinionCount;
                             else if (targetKey === "evidence") murderousTd.textContent = stats.evidenceCount;
                             
-                            // 通常の文字色に戻す
                             murderousTd.style.color = "#333333";
                         } else {
-                            // 絞り込みが発生している場合：
-                            // 該当カテゴリのリスト内で、現在選択可能（共通の bindingIndexes を1つ以上持つ）なアイテムの総数を数える
+                            // 絞り込みが発生している場合
                             let availableUniqueCount = 0;
                             currentList.forEach(item => {
-                                // 自身がすでに選択されている、または他とのつながり（交差）がある場合
                                 const isSelected = !!activeFiltersMap[item.name];
                                 const hasIntersection = item.bindingIndexes && item.bindingIndexes.some(i => intersectedIndexes.has(i));
                                 
@@ -900,10 +899,7 @@ function createDocumentSection(docId, textContent, stats) {
                                 }
                             });
                             
-                            // 計算された動的な数値を上書き
                             murderousTd.textContent = availableUniqueCount;
-                            
-                            // 絞り込まれて数値が減っていることが視覚的にわかりやすいよう、赤字・太字にする（お好みでスタイル変更可）
                             murderousTd.style.color = "#d32f2f";
                         }
                     }
