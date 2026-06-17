@@ -762,6 +762,12 @@ function createDocumentSection(docId, textContent, stats) {
     textarea.readOnly = true;
     textarea.value = textContent; 
 
+    // 初期表示用のヘルパー関数（初期状態の総出現回数を計算する）
+    const getInitialTotalCount = (listKey) => {
+        const list = stats.lists[listKey] || [];
+        return list.reduce((sum, item) => sum + (item.bindingIndexes ? item.bindingIndexes.length : 0), 0);
+    };
+
     section.innerHTML = `
         <div class="doc-header">
             <div class="doc-title">${isAllDoc ? '出力モード: 一括出力' : `出力モード: ${docId}`}</div>
@@ -773,16 +779,16 @@ function createDocumentSection(docId, textContent, stats) {
         <div class="doc-main-content">
             <div class="doc-side-panel">
                 <div class="doc-meta-badge">
-                    <b class="badge-main-title">解析結果統計</b>
+                    <b class="badge-main-title">解析結果統計 <span style="font-size:0.8em; font-weight:normal; color:#666;">[種類数 (出現回数)]</span></b>
                     <table class="stats-table">
-                        <tr><td><button class="stats-toggle-btn" data-target="triple"><span class="cat-color-badge" style="background-color:${stats.configColors.triple};"></span>トリプル数</button></td><td class="stat-count-value" data-stat="triple">${stats.tripleCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="subject"><span class="cat-color-badge" style="background-color:${stats.configColors.subject};"></span>主語数</button></td><td class="stat-count-value" data-stat="subject">${stats.subjectCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="object"><span class="cat-color-badge" style="background-color:${stats.configColors.object};"></span>目的語数</button></td><td class="stat-count-value" data-stat="object">${stats.objectCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="sClass"><span class="cat-color-badge" style="background-color:${stats.configColors.sClass};"></span>主語クラス数</button></td><td class="stat-count-value" data-stat="sClass">${stats.sClassCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="oClass"><span class="cat-color-badge" style="background-color:${stats.configColors.oClass};"></span>目的語クラス数</button></td><td class="stat-count-value" data-stat="oClass">${stats.oClassCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="stakeholder"><span class="cat-color-badge" style="background-color:${stats.configColors.stakeholder};"></span>ステークホルダー数</button></td><td class="stat-count-value" data-stat="stakeholder">${stats.stakeholderCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="opinion"><span class="cat-color-badge" style="background-color:${stats.configColors.opinion};"></span>意見数</button></td><td class="stat-count-value" data-stat="opinion">${stats.opinionCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="evidence"><span class="cat-color-badge" style="background-color:${stats.configColors.evidence};"></span>根拠数</button></td><td class="stat-count-value" data-stat="evidence">${stats.evidenceCount}</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="triple"><span class="cat-color-badge" style="background-color:${stats.configColors.triple};"></span>トリプル数</button></td><td class="stat-count-value" data-stat="triple">${stats.tripleCount} (${getInitialTotalCount('triple')})</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="subject"><span class="cat-color-badge" style="background-color:${stats.configColors.subject};"></span>主語数</button></td><td class="stat-count-value" data-stat="subject">${stats.subjectCount} (${getInitialTotalCount('subject')})</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="object"><span class="cat-color-badge" style="background-color:${stats.configColors.object};"></span>目的語数</button></td><td class="stat-count-value" data-stat="object">${stats.objectCount} (${getInitialTotalCount('object')})</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="sClass"><span class="cat-color-badge" style="background-color:${stats.configColors.sClass};"></span>主語クラス数</button></td><td class="stat-count-value" data-stat="sClass">${stats.sClassCount} (${getInitialTotalCount('sClass')})</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="oClass"><span class="cat-color-badge" style="background-color:${stats.configColors.oClass};"></span>目的語クラス数</button></td><td class="stat-count-value" data-stat="oClass">${stats.oClassCount} (${getInitialTotalCount('oClass')})</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="stakeholder"><span class="cat-color-badge" style="background-color:${stats.configColors.stakeholder};"></span>ステークホルダー数</button></td><td class="stat-count-value" data-stat="stakeholder">${stats.stakeholderCount} (${getInitialTotalCount('stakeholder')})</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="opinion"><span class="cat-color-badge" style="background-color:${stats.configColors.opinion};"></span>意見数</button></td><td class="stat-count-value" data-stat="opinion">${stats.opinionCount} (${getInitialTotalCount('opinion')})</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="evidence"><span class="cat-color-badge" style="background-color:${stats.configColors.evidence};"></span>根拠数</button></td><td class="stat-count-value" data-stat="evidence">${stats.evidenceCount} (${getInitialTotalCount('evidence')})</td></tr>
                     </table>
                     
                     ${!isAllDoc ? `
@@ -832,7 +838,7 @@ function createDocumentSection(docId, textContent, stats) {
             return intersected;
         };
 
-        // 上部統計タブの表示リフレッシュ（★出現回数の集計に修正）
+        // 上部統計タブのリフレッシュ（種類数と出現回数の両方を集計して同期表示）
         const updateTabVisualIndicators = () => {
             const intersectedIndexes = getIntersectedIndexes();
 
@@ -852,35 +858,46 @@ function createDocumentSection(docId, textContent, stats) {
                     btn.appendChild(badge);
                 }
 
-                // 2. 統計カウント数の書き換えロジック
+                // 2. 統計数値の書き換え (種類数 と 出現回数)
                 const murderousTd = statsTable.querySelector(`.stat-count-value[data-stat="${targetKey}"]`);
                 if (murderousTd) {
                     const currentList = stats.lists[targetKey] || [];
                     
                     if (intersectedIndexes === null) {
-                        // 初期状態（絞り込みなし）のときは、元の正しい総数を表示
-                        if (targetKey === "triple") murderousTd.textContent = stats.tripleCount;
-                        else if (targetKey === "subject") murderousTd.textContent = stats.subjectCount;
-                        else if (targetKey === "object") murderousTd.textContent = stats.objectCount;
-                        else if (targetKey === "sClass") murderousTd.textContent = stats.sClassCount;
-                        else if (targetKey === "oClass") murderousTd.textContent = stats.oClassCount;
-                        else if (targetKey === "stakeholder") murderousTd.textContent = stats.stakeholderCount;
-                        else if (targetKey === "opinion") murderousTd.textContent = stats.opinionCount;
-                        else if (targetKey === "evidence") murderousTd.textContent = stats.evidenceCount;
+                        // 初期状態（絞り込みなし）：元の値
+                        let baseCount = 0;
+                        if (targetKey === "triple") baseCount = stats.tripleCount;
+                        else if (targetKey === "subject") baseCount = stats.subjectCount;
+                        else if (targetKey === "object") baseCount = stats.objectCount;
+                        else if (targetKey === "sClass") baseCount = stats.sClassCount;
+                        else if (targetKey === "oClass") baseCount = stats.oClassCount;
+                        else if (targetKey === "stakeholder") baseCount = stats.stakeholderCount;
+                        else if (targetKey === "opinion") baseCount = stats.opinionCount;
+                        else if (targetKey === "evidence") baseCount = stats.evidenceCount;
                         
+                        murderousTd.textContent = `${baseCount} (${getInitialTotalCount(targetKey)})`;
                         murderousTd.style.color = "#333333";
                     } else {
-                        // 【変更点】絞り込み発生時：各項目の「有効な出現回数」の合計を算出
+                        // 絞り込み発生時：残った「種類数」と「総出現回数」を両方計算
+                        let availableUniqueCount = 0;
                         let totalAppearanceCount = 0;
+
                         currentList.forEach(item => {
+                            const isSelected = !!activeFiltersMap[item.name];
+                            
                             if (item.bindingIndexes) {
-                                // 現在のフィルターの交差インデックスに含まれている回数をカウント
+                                // 現在の条件に合致する出現回数を計算
                                 const matchCount = item.bindingIndexes.filter(i => intersectedIndexes.has(i)).length;
-                                totalAppearanceCount += matchCount;
+                                
+                                // 選択中、または1回でも合致した箇所があれば、有効な「種類」としてカウント
+                                if (isSelected || matchCount > 0) {
+                                    availableUniqueCount++;
+                                    totalAppearanceCount += matchCount;
+                                }
                             }
                         });
                         
-                        murderousTd.textContent = totalAppearanceCount;
+                        murderousTd.textContent = `${availableUniqueCount} (${totalAppearanceCount})`;
                         murderousTd.style.color = "#d32f2f"; // 絞り込み中は赤字
                     }
                 }
