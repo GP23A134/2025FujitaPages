@@ -413,7 +413,7 @@ button:disabled {
 /* 凡例内テキスト・文字拡大調整 */
 .filter-trigger-row td,
 .filter-trigger-row span {
-    font-size: 12px !important;                       /* フォントサイズ*/
+    font-size: 13px !important;                       /* フォントサイズ*/
 }
 
 .legend-color-box {
