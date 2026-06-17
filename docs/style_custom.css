@@ -532,3 +532,50 @@ button:disabled {
 .filter-trigger-row span {
     font-size: 13px !important;   /* 👈【重要】文字を大きくしたい場合は 16px、小さくしたい場合は 12px などに変えてください */
 }
+
+/* ========================================================
+   [追加] カウント数字と文字を大きく見やすくする調整
+   ======================================================== */
+
+/* 1. 上部の統計エリア全体の文字サイズを大きく */
+.stats-table {
+    font-size: 16px !important; /* 全体を16pxに引き上げ */
+}
+
+/* 「主語数」などのボタン文字 */
+.stats-toggle-btn {
+    font-size: 15px !important; 
+    padding: 6px 8px;           /* クリックしやすく隙間を広く */
+}
+
+/* 右側のカウント数値 [種類数 (出現回数)] を極太・大きく */
+.stats-table td.stat-count-value {
+    font-size: 17px !important;  /* 数字を少し際立たせる */
+    font-weight: 800 !important; /* 文字を極太にする */
+    color: #1e293b;
+    white-space: nowrap;         /* 途中で改行されるのを防ぐ */
+}
+
+/* 2. 下部一覧テーブル（レジェンド）の文字を大きく */
+.filter-trigger-row td,
+.filter-trigger-row span {
+    font-size: 15px !important; /* 13pxから15pxに拡大 */
+}
+
+/* 一覧の中の件数数字「(〇〇件)」の部分 */
+.legend-item-count {
+    font-size: 14px !important; 
+    font-weight: bold;
+}
+
+/* 青い選択中バッジの調整 */
+.tab-badge {
+    font-size: 11px !important;
+    padding: 2px 6px !important;
+    font-weight: bold;
+}
+
+/* 3. 【おまけ】サイドパネル全体の高さを少し調整 */
+.legend-scroll-container {
+    max-height: 310px !important; /* 右側のテキストエリアと下端の高さを綺麗に揃える */
+}
