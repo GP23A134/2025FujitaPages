@@ -1,287 +1,266 @@
 /* ========================================================
-    1. ベース＆共通スタイル (元のスタイルを完全維持)
+   1. ベース＆共通スタイル
    ======================================================== */
 body {
-    font-family: 'Helvetica Neue', Arial, sans-serif;
-    background-color: #f5f7fb;
-    color: #333;
-    margin: 0;
-    padding: 20px;
+    font-family: 'Helvetica Neue', Arial, sans-serif; /* 美しく可読性の高いモダンなサンセリフ体（ゴシック系）を指定 */
+    background-color: #f5f7fb;                       /* 画面全体の背景：目に優しい、ほんのり青みがかったライトグレー */
+    color: #333;                                      /* テキストの基本色：真っ黒を避けた濃いグレー (#333333) */
+    margin: 0;                                        /* ブラウザ既定の外側余白をリセット */
+    padding: 20px;                                    /* 画面の端とコンテンツの間に適切な余白を確保 */
 }
+
 .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    background: #fff;
-    padding: 30px;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    max-width: 1200px;                                /* コンテンツ全体の最大横幅を1200pxに制限 */
+    margin: 0 auto;                                   /* 画面幅が1200px以上のとき、左右中央に配置 */
+    background: #fff;                                 /* メインコンテンツの背景を白に */
+    padding: 30px;                                    /* カード内側の余白をゆったりと確保 */
+    border-radius: 8px;                               /* 四隅の角を8px丸める */
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);           /* 下方向へ向けて、主張しすぎない柔らかな影を落とす */
 }
+
 h2 {
-    margin-top: 0;
-    color: #2c3e50;
-    border-bottom: 2px solid #eef2f5;
-    padding-bottom: 10px;
+    margin-top: 0;                                    /* 上部の余白を消してレイアウトのズレを防止 */
+    color: #2c3e50;                                   /* 深みのあるスタイリッシュな紺色 */
+    border-bottom: 2px solid #eef2f5;                 /* 見出しの下に薄い区切り線を引く */
+    padding-bottom: 10px;                             /* 見出し文字と下線の間の隙間 */
 }
+
+/* 対象ドキュメントID選択などの上部グレーのパネル */
 .config-panel {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    padding: 15px;
-    margin-bottom: 20px;
+    background: #f8fafc;                              /* 薄いグレー */
+    border: 1px solid #e2e8f0;                        /* 枠線 */
+    border-radius: 6px;                               /* 角丸 */
+    padding: 15px;                                    /* 内側余白 */
+    margin-bottom: 20px;                              /* パネルの下側にとる隙間 */
 }
+
 .config-row {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
+    display: flex;                                    /* 子要素（設定項目）を横並びにする */
+    gap: 20px;                                        /* 横並びになった項目同士の隙間を20pxに固定 */
+    flex-wrap: wrap;                                  /* 画面幅が狭くなったら自動で折り返す */
 }
+
+/* チェックボックスとラベルを包むグループ */
 .config-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 500;
-    cursor: pointer;
+    display: flex;                                    /* チェックボックスとテキストを横並びに */
+    align-items: center;                              /* 縦方向のド真ん中で綺麗に高さを揃える */
+    gap: 8px;                                         /* ボックスと文字の間の隙間 */
+    font-weight: 500;                                 /* 文字をやや太めにして視認性を向上 */
+    cursor: pointer;                                  /* マウスを乗せたときに指マーク（ポインタ）にする */
 }
+
 .config-group input[type="checkbox"] {
     cursor: pointer;
-    width: 16px;
-    height: 16px;
+    width: 16px;                                      /* チェックボックス自体の横幅 */
+    height: 16px;                                     /* チェックボックス自体の縦幅 */
 }
+
+/* エラーや警告メッセージを表示するパネル */
 .status-panel {
-    background: #fdfaedd7;
+    background: #fdfaedd7;                            /* 警告用の淡い黄色背景 */
     border: 1px solid #fbcfe8;
-    color: #9d174d;
+    color: #9d174d;                                   /* 警告メッセージ用の濃いピンク/赤紫 */
     border-radius: 6px;
     padding: 12px 15px;
     margin-bottom: 20px;
     font-weight: bold;
 }
 .status-panel.success {
-    background: #f0fdf4;
+    background: #f0fdf4;                              /* 成功時の淡い緑背景 */
     border: 1px solid #bbf7d0;
-    color: #166534;
+    color: #166534;                                   /* 成功テキスト用の深緑 */
 }
 .status-panel.error {
-    background: #fef2f2;
+    background: #fef2f2;                              /* エラー時の淡い赤背景 */
     border: 1px solid #fecaca;
-    color: #991b1b;
+    color: #991b1b;                                   /* エラーテキスト用の深紅 */
 }
+
+/* 実行ボタンを配置するコンテナ */
 .actions {
     display: flex;
     gap: 15px;
     align-items: center;
     margin-bottom: 20px;
 }
+
+/* 汎用ボタンの基本設計 */
 button {
-    padding: 12px 24px;
-    font-size: 15px;
+    padding: 12px 24px;                               /* 上下12px、左右24pxのしっかりとしたクリック領域 */
+    font-size: 15px;                                  /* ボタン内の文字サイズ */
     font-weight: bold;
-    border: none;
+    border: none;                                     /* 既定の不細工な枠線を消去 */
     border-radius: 6px;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.2s;                      /* 色が変わる際、0.2秒かけて滑らかに変化させる */
 }
+
+/* JS側で「.disabled = true」になった時の無効化ボタン（グレーアウト） */
 button:disabled {
-    background-color: #cbd5e1 !important;
-    color: #94a3b8 !important;
-    cursor: not-allowed;
+    background-color: #cbd5e1 !important;             /* 強制的に明るいグレーにする */
+    color: #94a3b8 !important;                        /* 文字色も薄くする */
+    cursor: not-allowed;                              /* マウスを乗せたら「禁止マーク」にする */
 }
-.btn-execute { background-color: #3b82f6; color: white; }
-.btn-execute:hover { background-color: #2563eb; }
+
+.btn-execute { background-color: #3b82f6; color: white; } /* 実行ボタン：洗練されたブルー */
+.btn-execute:hover { background-color: #2563eb; }         /* マウスホバー時に少し濃いブルーにする */
 .btn-download-all { background-color: #10b981; color: white; }
 .btn-download-all:hover { background-color: #059669; }
 
-.output-container { margin-top: 25px; }
-
-/* ログ・共通パーツ */
-.log-panel {
-    margin-top: 20px;
-    background: #1e293b;
-    color: #38bdf8;
-    padding: 15px;
-    border-radius: 6px;
-    font-family: monospace;
+/* 小さなコピーボタンやクリアボタン用 */
+.btn-small {
+    padding: 6px 12px;
     font-size: 13px;
-    white-space: pre-wrap;
+    background-color: #e2e8f0;
+    color: #334155;
+    border-radius: 4px;
 }
-#hiddenFileInput { display: none; }
-.config-row-divider {
-    margin-top: 15px;
-    padding-top: 15px;
-    border-top: 1px dashed #ddd;
+.btn-small:hover {
+    background-color: #cbd5e1;
 }
+
+.output-container { margin-top: 25px; }               /* 解析後の結果がレンダリングされるエリアの上部余白 */
+
 .select-doc-id {
     padding: 6px 12px;
-    width: 270px;
+    width: 270px;                                     /* セレクトボックスの横幅を固定 */
     border: 1px solid #ccc;
     border-radius: 4px;
-    font-size: 14px;
+    font-size: 14px;                                  /* プルダウン内の文字サイズ */
 }
 
-/* 設定・凡例共通のバッジ */
-.legend-panel {
-    margin-top: 15px;
-    padding: 15px;
-    background-color: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-}
-.legend-panel-title {
-    margin-top: 0;
-    margin-bottom: 10px;
-    font-size: 15px;
-    color: #334155;
-    border-bottom: 2px solid #cbd5e1;
-    padding-bottom: 5px;
-}
-.legend-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-.legend-item {
-    display: flex;
-    align-items: center;
-    padding: 4px 8px;
-    background-color: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 4px;
-    font-size: 13px;
-}
-.legend-color-box {
-    width: 14px;
-    height: 14px;
-    margin-right: 6px;
-    border-radius: 2px;
-    border: 1px solid rgba(0,0,0,0.1);
-}
-.legend-text { color: #475569; }
 
 /* ========================================================
-    2. アコーディオン（プルダウン開閉スタイル）
+   2. アコーディオン（出力設定・色設定の開閉スタイル）
    ======================================================== */
 .custom-panel {
-    border: 1px solid #cbd5e1;
+    border: 1px solid #cbd5e1;                        /* パネル全体の外枠境界線 */
     border-radius: 8px;
-    background-color: #f8fafc;
-    overflow: hidden;
+    background-color: #f8fafc;                        /* 内部のベース背景 */
+    overflow: hidden;                                   /* 角丸からはみ出た中身を綺麗にマスクする */
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     margin-bottom: 20px;
     max-width: 1200px;
     margin-left: auto;
     margin-right: auto;
 }
+
+/* アコーディオンのクリックできるヘッダー部分 */
 .toggle-header {
-    background-color: #e2e8f0;
+    background-color: #e2e8f0;                      /* 閉じてる時は少し落ち着いたグレー */
     padding: 12px 15px;
     font-weight: bold;
     color: #334155;
-    font-size: 15px;
+    font-size: 15px;                                  /*「出力設定 ▼」などの見出しの文字サイズ */
     border-bottom: 1px solid #cbd5e1;
     cursor: pointer;
     display: flex;
-    justify-content: space-between;
+    justify-content: space-between;                   /* タイトルと「▼」アイコンを左右の端に引き離す */
     align-items: center;
-    user-select: none;
+    user-select: none;                                /* ダブルクリックしたときに文字が青く選択されないようにする */
     transition: background-color 0.2s ease;
 }
 .toggle-header:hover { 
-    background-color: #cbd5e1; 
+    background-color: #cbd5e1;                        /* マウスを乗せたら少し暗くしてフィードバック */
 }
+
+/* 右側の「▼」「▲」マーク */
 .toggle-icon {
     font-size: 12px;
     color: #64748b;
-    transition: transform 0.2s ease;
+    transition: transform 0.2s ease;                  /* アイコンの切り替え滑らかさ（今回は文字置換ですが一応維持） */
 }
+
+/* 開閉する中身のコンテナ（重要アニメーション） */
 .panel-content {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.2s ease-out;
+    max-height: 0;                                    /* 初期状態（閉じている時）は高さを完全にゼロにする */
+    overflow: hidden;                                 /* 高さがゼロのとき、中身がはみ出て見えないように隠す */
+    transition: max-height 0.2s ease-out;             /* 閉じる時はスッと素早く動く */
 }
+/* JS側で「.open」クラスが付与された瞬間 */
 .panel-content.open {
-    max-height: 2400px;
-    transition: max-height 0.25s ease-in;
+    max-height: 2400px;                               /* 開いた時の最大許容高さ（中身がすべて収まる十分なサイズ） */
+    transition: max-height 0.25s ease-in;             /* 開く時は少し加速しながら滑らかに広がる */
 }
+
 .panel-section {
     padding: 15px;
-    border-bottom: 1px dashed #cbd5e1;
+    border-bottom: 1px dashed #cbd5e1;              /* 各項目（トリプル、ステークホルダー、根拠）を破線で区切る */
 }
+.panel-section:last-child {
+    border-bottom: none;                              /* 一番最後の項目には下の破線をつけない */
+}
+
 .section-title {
-    font-size: 13px;
+    font-size: 13px;                                   /*「トリプル表示設定」などの薄グレーの文字サイズ */
     font-weight: bold;
-    color: #64748b;
+    color: #64748b;                                  /* 少し薄めのグレーでラベル感を演出 */
     margin-bottom: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    text-transform: uppercase;                         /* 念ため英語表記があったら大文字に統一 */
+    letter-spacing: 0.5px;                             /* 文字の間隔をわずかに広げてスタイリッシュに */
 }
+
 .panel-flex-column {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    flex-direction: column;                            /* チェックボックス群を縦に並べる */
+    gap: 8px;                                          /* 縦並びの隙間 */
 }
-.flex-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    align-items: center;
-}
-/* パネル内のドロップダウン（セレクトボックス）の配置調整 */
+
 .panel-section select {
-    margin-bottom: 12px;  /* ★これで下側に少し空白（要素間の隙間）が生まれます */
-    padding-bottom: 4px;  /* 必要に応じて文字の下側の内側余白も調整 */
+    margin-bottom: 12px;                               /* ドロップダウンの下側に設けるマージン */
+    padding-bottom: 4px;
     display: inline-block;
 }
 
-/* --------------------------------------------------------
-   ▼ フォーム要素（カラーピッカー・ラジオボタン・横並び）
-   -------------------------------------------------------- */
-
-/*  基本要素の色（6つ）を「横3つ × 2行」の綺麗な2列構成にする */
+/* --- フォーム要素（カラーピッカー構成「横3列×2行」） --- */
 .custom-inline-row {
-    display: grid !important;
-    grid-template-columns: repeat(3, 1fr) !important; /* 横に3等分（s・p・o で1行目） */
-    gap: 15px 30px !important;                      /* 上下間隔 15px、左右間隔 30px */
+    display: grid !important;                          /* グリッドレイアウトを強制適用 */
+    grid-template-columns: repeat(3, 1fr) !important;  /* 横方向へ寸分違わず「3等分（1:1:1）」の列を生成 */
+    gap: 15px 30px !important;                         /* 【縦の隙間: 15px】×【横の隙間: 30px】 */
     width: 100% !important;
-    box-sizing: border-box;
+    box-sizing: border-box;                            /* 横幅計算にパディングや枠線を含める安全設定 */
 }
 
-/*  2列配置内のアイテム：ラベルの幅を揃えてピッカーと綺麗に横並び */
+/* カラーピッカーの各アイテムの箱 */
 .custom-inline-row .color-picker-item {
     display: flex !important;
-    flex-direction: row !important;  /* ラベルとピッカーを横並びに */
-    align-items: center !important;
-    justify-content: flex-start !important;
+    flex-direction: row !important;                    /* 左側にラベル、右側にピッカーボタンを配置 */
+    align-items: center !important;                    /* 縦方向の中央揃え */
+    justify-content: flex-start !important;            /* 左詰目で配置 */
 }
 
-/*  ラベルの幅を固定して、右側のピッカーの縦ラインをきれいに揃える */
+/* カラーピッカーの横にある日本語ラベルテキスト */
 .custom-inline-row .color-picker-item label {
-    width: 170px !important;         /* 下のステークホルダー設定の幅と完全一致 */
-    white-space: nowrap !important;
-    font-size: 14px !important;
+    width: 170px !important;                           /* ラベルの横幅を170pxで完全固定（これでピッカーの縦位置が完璧に揃う） */
+    white-space: nowrap !important;                    /* 画面が狭くなっても文字の途中で絶対に改行させない */
+    font-size: 14px !important;                        /*「主語(S)」「述語(P)」などの文字サイズ */
     font-weight: bold;
     color: #475569;
 }
 
-/*  ピッカーのサイズを他のエリアと一貫性を持たせる */
+/* 実際のカラーピッカー（四角い色ボタン） */
 .custom-inline-row .color-picker-item input[type="color"] {
-    width: 50px !important;
-    height: 28px !important;
-    border: 1px solid #cbd5e1;
-    border-radius: 4px;
+    width: 50px !important;                            /* ピッカーボタンの横幅 */
+    height: 28px !important;                           /* ピッカーボタンの縦幅 */
+    border: 1px solid #cbd5e1;                       /* 薄い枠線 */
+    border-radius: 4px;                                /* ほんの少し角を丸める */
     cursor: pointer;
     background: #fff;
 }
 
-/*  下のセクション（ステークホルダー・根拠）で使う標準の3列グリッド定義（修復維持） */
+/* 下部のステークホルダー色設定や根拠の色設定で使う3列グリッド */
 .color-picker-grid {
     display: grid !important;
-    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-columns: repeat(3, 1fr) !important;  /* 横に3等分して並べる */
     gap: 15px 30px !important;
     width: 100%;
 }
 
+
 /* ========================================================
-    3. ドキュメント出力エリア＆高精度縦スクロール凡例
-    ======================================================== */
+   3. 解析出力エリア＆サイドメタパネル
+   ======================================================== */
+/* 解析結果が出力されるメインの大きな白いカード */
 .doc-section {
     border: 1px solid #cbd5e1;
     border-radius: 8px;
@@ -290,6 +269,7 @@ button:disabled {
     background-color: #ffffff;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
+
 .doc-header {
     display: flex;
     justify-content: space-between;
@@ -298,159 +278,37 @@ button:disabled {
     border-bottom: 1px solid #e2e8f0;
     padding-bottom: 8px;
 }
-.doc-title { font-weight: bold; color: #1e293b; font-size: 16px; }
-.doc-actions { display: flex; gap: 10px; }
 
-.doc-meta-badge {
-    background-color: #f1f5f9;
-    padding: 8px 12px;
-    border-radius: 6px;
-    border-left: 4px solid #3b82f6;
-    font-size: 13px;
-    font-weight: bold;
-    color: #1e293b;
-    flex-shrink: 0;
+.doc-title { 
+    font-weight: bold; 
+    color: #1e293b; 
+    font-size: 18px;                                  /*「ドキュメント解析結果」などの文字サイズ */
 }
+
+.doc-actions { 
+    display: flex; 
+    gap: 10px; 
+}
+
+/* 左右並びのレイアウトコンテナ */
 .doc-main-content {
     display: flex;
-    gap: 20px;
+    gap: 20px;                                        /* 左の統計パネルと、右のテキストエリアの間の隙間 */
     margin-top: 15px;
-    align-items: stretch;
+    align-items: stretch;                             /* 左右の要素の「高さ」を自動的に同じに引き伸ばして揃える */
 }
+
+/* 左側の統計＆凡例を設置するサイドバー枠 */
 .doc-side-panel {
-    flex: 0 0 320px; 
+    flex: 0 0 320px;                                  /* 横幅を【320px】に完全固定。縮みもしないし伸びもしない */
     width: 320px;
-    height: 520px;
+    height: 580px;                                    /* 右側のテキストエリア（580px）と高さを完全に一致させる */
     display: flex;
-    flex-direction: column;
-    gap: 12px;
+    flex-direction: column;                           /* 内部の統計と凡例リストを縦に並べる */
     box-sizing: border-box;
 }
-.doc-inner-legend {
-    padding: 12px;
-    background-color: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-}
-.doc-inner-legend-title {
-    margin: 0 0 10px 0;
-    font-size: 12px;
-    font-weight: bold;
-    color: #475569;
-    letter-spacing: 0.05em;
-    flex-shrink: 0;
-}
-.doc-inner-legend-container {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 8px;
-    flex-grow: 1;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    padding-right: 5px;
-}
-.doc-legend-item {
-    display: flex !important;
-    align-items: flex-start !important;
-    padding: 5px 8px;
-    background-color: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 4px;
-    font-size: 12px;
-    width: 100%;
-    box-sizing: border-box;
-    flex-shrink: 0;
-}
-.doc-legend-color {
-    width: 14px !important;
-    height: 14px !important;
-    margin-right: 8px !important;
-    margin-top: 2px !important;
-    border-radius: 50% !important;
-    border: 1px solid rgba(0,0,0,0.15) !important;
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
-    flex-shrink: 0 !important;
-}
-.doc-legend-item span {
-    font-size: 12px;
-    color: #475569;
-    line-height: 1.4;
-    white-space: normal !important;
-    word-break: break-all !important;
-    flex-grow: 1;
-}
-.doc-text-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-.doc-text-panel textarea {
-    width: 100%;
-    height: 580px !important;
-    box-sizing: border-box;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 12px;
-    background-color: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 4px;
-    padding: 10px;
-    resize: none;
-}
 
-/* ========================================================
-    4. レスポンシブ対応 (画面幅が狭いときは自動で縦並びに戻す)
-   ======================================================== */
-@media (max-width: 800px) {
-    .doc-main-content {
-        flex-direction: column;
-    }
-    .doc-side-panel {
-        flex: none;
-        width: 100%;
-        height: auto;
-    }
-    .doc-inner-legend-container {
-        max-height: 250px;
-    }
-    /* スマホ画面等、非常に狭い場合は基本設定の横並びも適宜改行を許可 */
-    .custom-inline-row {
-        flex-wrap: wrap !important;
-    }
-}
-
-/* 配色サンプルのスクロールエリアの設定 */
-.legend-scroll-container {
-    max-height: 140px;       /* 横スクロールが出ないよう、少し高さを広げる調整もOK */
-    overflow-y: auto;        /* 縦方向に溢れたらスクロールバーを表示 */
-    overflow-x: hidden;      /* 横スクロールは強制非表示（はみ出しは...で省略） */
-    padding-right: 4px;
-    margin-top: 5px;
-    border: 1px solid #eee;  /* 薄い枠線をつけるとスクロールエリアだと分かりやすくなります */
-    border-radius: 4px;
-    background-color: #fafafa; /* 背景をわずかにグレーにして独立したエリアに見せる */
-}
-
-/* スクロールバー自体をスタイリッシュに細くする（モダンブラウザ対応） */
-.legend-scroll-container::-webkit-scrollbar {
-    width: 6px;
-}
-.legend-scroll-container::-webkit-scrollbar-thumb {
-    background: #ccc;
-    border-radius: 3px;
-}
-.legend-scroll-container::-webkit-scrollbar-thumb:hover {
-    background: #b3b3b3;
-}
-
-/* ========================================================================
-   解析結果統計 および 凡例エリアの統合スタイルシート
-   ======================================================================== */
-
-/* 1. ベースカード全体 */
+/* 統計・凡例を包むホワイトのカードモジュール */
 .doc-meta-badge {
     background-color: #ffffff;
     border: 1px solid #e2e8f0;
@@ -458,121 +316,206 @@ button:disabled {
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     padding: 14px;
     line-height: 1.8;
+    box-sizing: border-box;
+    height: 100%;                                     /* 親要素 (.doc-side-panel) の高さをフルに活かす */
+    display: flex;
+    flex-direction: column;                           /* 内部の要素を縦並びに */
 }
 
-/* 2. カラーボックス（小さな四角） */
-.legend-color-box {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    margin-right: 6px;
-    border-radius: 3px;
-    vertical-align: middle;
-    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
+/* 右側のテキストエリアが入る枠 */
+.doc-text-panel {
+    flex: 1;                                          /* 画面の残り横幅をすべて使って引き伸ばす */
+    display: flex;
+    flex-direction: column;
 }
 
-/* 3. メインタイトル（「解析結果統計」の文字） */
+/* 生成された3部形式テキストが表示されるテキストエリア本体 */
+.doc-text-panel textarea {
+    width: 100%;
+    height: 580px !important;                         /* 高さを580pxに固定（!importantで外部上書きを完全防御） */
+    box-sizing: border-box;
+    font-family: 'Courier New', Courier, monospace;   /* データの桁・タブがズレないよう、等幅フォント（モノスペース）を適用 */
+    font-size: 12px;                                  /* 生成されたテキスト自体の文字サイズ */
+    background-color: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 10px;
+    resize: none;                                     /* ユーザーが右下のつまみでサイズを勝手に変更できないようにする */
+}
+
+/* --- 統計テーブル & トグルボタン関係 --- */
 .badge-main-title {
     display: block;
-    font-size: 14px; /* 文字サイズを変更する場合はここを調整 */
+    font-size: 15px !important;                       /*「解析結果統計」の文字サイズ */
     font-weight: bold;
     margin-bottom: 6px;
     color: #333333;
 }
 
-/* 4. 上部の基本統計テーブル（トリプル数など） */
+/* トリプル数、主語数などが並ぶ上部のテーブル */
 .stats-table {
     width: 100%;
-    border-collapse: collapse;
-    font-size: 14px; /* 文字サイズを変更する場合はここを調整 */
+    border-collapse: collapse;                        /* テーブルの隙間を無くす */
+    font-size: 14px !important;                       /*「トリプル数： 25」などの文字サイズ */
 }
 .stats-table td {
-    padding: 4px 0;
+    padding: 4px 0;                                   /* 1行ずつの上下余白 */
     vertical-align: middle;
 }
+/* テーブルの右列（数字が表示される側）の設定 */
 .stats-table td:last-child {
-    text-align: right;
-    font-weight: bold;
+    text-align: right;                                /* 数字を右寄せにする */
+    font-weight: bold;                                /* 数字を太字にして目立たせる */
     padding-left: 10px;
 }
 
-/* 5. 区切り線 */
-.badge-divider {
-    border: none;
-    border-top: 1px dashed #cccccc;
-    margin: 8px 0;
+/* 統計内の項目名（「主語数」など）のボタン化スタイル */
+.stats-toggle-btn {
+    background: none;                                 /* ボタンの背景を消す */
+    border: none;                                     /* ボタンの枠線を消す */
+    padding: 4px 6px;
+    margin: 0;
+    font-size: 14px !important;                       /* 親の文字サイズ(14px)をそのまま引き継ぐ */
+    font-family: inherit;
+    font-weight: inherit;
+    color: #333333;
+    text-align: left;
+    cursor: pointer;
+    outline: none;                                    /* クリックした時の青い外枠（アウトライン）を消す */
+    text-decoration: none;
+    transition: all 0.2s;
+    width: 100%;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+/* 統計ボタンにマウスを乗せたとき */
+.stats-toggle-btn:hover {
+    color: #0076d6;                                   /* リンクだと直感で分かるように綺麗な青色に変える */
+    background-color: #f1f5f9;
+}
+/* 現在クリックされて、下部に一覧が表示されている「アクティブ」な項目の状態 */
+.stats-toggle-btn.active {
+    color: #0076d6;                                   /* アクティブ時はずっと青文字 */
+    font-weight: bold;                                /* アクティブ時は太字 */
+    background-color: #e2e8f0;
 }
 
-/* 6. 配色のサブタイトル（「ステークホルダー配色」など） */
+/* 選択件数バッジのスタイル定義 */
+.tab-badge {
+    font-size: 12px;
+    background-color: #004085;
+    color: white !important;
+    padding: 1px 6px;
+    border-radius: 10px;
+    margin-left: 5px;
+    display: inline-block;
+}
+
+.cat-color-badge {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.badge-divider {
+    border: none;
+    border-top: 1px dashed #cccccc;                  /* 上部統計と下部凡例リストを分ける破線 */
+    margin: 12px 0;                                    /* 破線の上下にとる隙間 */
+}
+
 .badge-sub-title {
     display: block;
-    font-size: 13px; /* 文字サイズを変更する場合はここを調整 */
+    font-size: 13px;                                   /*「ステークホルダー配色」などの文字サイズ */
     margin-bottom: 4px;
     color: #555555;
     font-weight: bold;
 }
 
-/* 7. スクロール可能なコンテナボックス */
+/* --- 高精度スクロール凡例テーブル（JSの複数選択と完全連動） --- */
 .legend-scroll-container {
-    max-height: 240px; /* 縦幅を変更する場合はここを調整 */
-    overflow-y: auto;
-    padding-right: 4px;
-    background-color: #fafafa;
-    border: 1px solid #eeeeee;
+    flex-grow: 1;                                     /* 上部にある統計テーブルの残りの縦スペースを限界まで自動で埋める */
+    max-height: 250px;                                /* 全体580pxの枠組みの中で絶対に型崩れしないための、限界の最大縦幅 */
+    overflow-y: auto !important;                      /* 縦に項目が溢れたら、自動的に縦スクロールバーを出す */
+    overflow-x: auto !important;                      /* 重要：名前が長い時に文字が潰れないよう、横スクロールを許可 */
+    padding: 6px;
+    background-color: #fafafa;                        /* コンテナ内を僅かにグレーにして独立したエリアに見せる */
+    border: 1px solid #eeeeee;                        /* スクロールエリアを認識しやすくする薄い境界線 */
     border-radius: 4px;
+    box-sizing: border-box;
 }
 
-/* 8. スクロール内の一覧リスト（ステークホルダー名など） */
+/* スクロールコンテナの中にある、ステークホルダー名などのテーブル一覧 */
 .dynamic-legend-table {
-    width: 100%;
+    width: max-content;                               /* 重要：中身の文字列の長さに合わせて自動的に横幅を広げる（横スクロールと連動） */
+    min-width: 100%;                                  /* 短い文字列のときでも、最低限コンテナの横幅いっぱいに広げる */
     border-collapse: collapse;
 }
-.dynamic-legend-table td {
-    padding: 8px 6px;
-    vertical-align: middle;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.dynamic-legend-table tr {
+    border-bottom: 1px dashed #eee;                   /* 凡例項目を1行ずつ薄い破線で区切る */
 }
+.dynamic-legend-table tr:last-child {
+    border-bottom: none;                              /* 一番最後の項目には破線をつけない */
+}
+.dynamic-legend-table td {
+    padding: 7px 6px;                                 /* クリックしやすいように上下に程よい余白(7px)を確保 */
+    vertical-align: middle;
+    white-space: nowrap;                              /* 重要：名前の途中で勝てに自動改行されて縦に崩れるのを絶対防ぐ */
+}
+
+/* 凡例リストの左端に出る、丸や四角の配色カラーサンプルボックス */
+.legend-color-box {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-right: 6px;
+    border-radius: 3px;                                 /* 綺麗な角丸の四角形 */
+    vertical-align: middle;                             /* テキストの文字の高さと綺麗に中央で揃える */
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);      /* 白に近い色が指定されても見えなくならないよう、内側に極薄の影（フチ）をつける */
+}
+
 .legend-item-name {
-    font-size: 13px; /* 文字サイズを変更する場合はここを調整 */
+    font-size: 14px !important;                         /* 凡例に動く表示される「組織名」などの文字サイズ */
     color: #444444;
 }
 
-/* スクロールバーのカスタマイズ */
+/* --- スクロールバー自体のスタイリッシュカスタム --- */
+/* スクロールバー全体の道幅（縦・横共通） */
 .legend-scroll-container::-webkit-scrollbar {
-    width: 5px;
+    width: 6px;                                       /* 縦スクロールバーの太さ */
+    height: 6px;                                      /* 横スクロールバーの太さ */
 }
+/* スクロールバーの「つまみ（ドラッグするパーツ）」 */
 .legend-scroll-container::-webkit-scrollbar-thumb {
-    background: #cccccc;
-    border-radius: 3px;
+    background: #cccccc;                              /* 目立ちすぎないライトグレー */
+    border-radius: 3px;                               /* つまみの角を丸める */
+}
+/* つまみにマウスを乗せたとき */
+.legend-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: #b3b3b3;                              /* 少し濃くしてホバー反応を明示 */
 }
 
-/* 統計内の項目をボタン化するスタイル */
-.stats-toggle-btn {
-    background: none;
-    border: none;
-    padding: 0;
-    margin: 0;
-    font-size: inherit;
-    font-family: inherit;
-    font-weight: inherit;
-    color: #333333;       /* 通常時は現在の文字色と同じ */
-    text-align: left;
-    cursor: pointer;
-    outline: none;
-    text-decoration: none;
-    transition: color 0.2s;
-}
 
-/* マウスホバー時に少し青くしてリンクだと分からせる */
-.stats-toggle-btn:hover {
-    color: #0076d6;
-    text-decoration: underline;
-}
-
-/* 現在下部に一覧が表示されているアクティブな項目のスタイル */
-.stats-toggle-btn.active {
-    color: #0076d6;       /* アクティブ時は青文字 */
-    font-weight: bold;
+/* ========================================================
+   4. レスポンシブ対応 (画面幅が狭いときは自動で縦並びに戻す)
+   ======================================================== */
+@media (max-width: 800px) {
+    /* 画面幅が800px以下（タブレットやスマホなど）になった時の挙動 */
+    .doc-main-content {
+        flex-direction: column;                       /* 左右並びを解除し、上下の縦並びに変更 */
+    }
+    .doc-side-panel {
+        flex: none;
+        width: 100%;                                  /* 統計パネルの横幅を画面いっぱいに広げる */
+        height: auto;                                 /* 高さを自動計測に変更 */
+    }
+    .legend-scroll-container {
+        max-height: 250px;                            /* 縦並びになった時に画面を占有しすぎないよう、高さを少し抑える */
+    }
+    .custom-inline-row {
+        grid-template-columns: 1fr !important;        /* カラーピッカー設定を横3列から「縦1列」に変更して潰れるのを防ぐ */
+        gap: 10px !important;
+    }
 }
