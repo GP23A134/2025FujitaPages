@@ -816,7 +816,6 @@ function createDocumentSection(docId, textContent, stats) {
         let activeFiltersMap = {}; 
         let currentActiveTab = ""; 
 
-        // 共通して含まれるインデックスを抽出
         const getIntersectedIndexes = () => {
             const filterItems = Object.values(activeFiltersMap);
             if (filterItems.length === 0) return null;
@@ -833,7 +832,7 @@ function createDocumentSection(docId, textContent, stats) {
             return intersected;
         };
 
-        // 上部統計タブの選択数バッジと件数をリフレッシュする関数
+        // 上部統計タブの表示リフレッシュ（★出現回数の集計に修正）
         const updateTabVisualIndicators = () => {
             const intersectedIndexes = getIntersectedIndexes();
 
@@ -853,13 +852,13 @@ function createDocumentSection(docId, textContent, stats) {
                     btn.appendChild(badge);
                 }
 
-                // 2. data-stat属性で直接カウント表示用の td を取得して書き換え
+                // 2. 統計カウント数の書き換えロジック
                 const murderousTd = statsTable.querySelector(`.stat-count-value[data-stat="${targetKey}"]`);
                 if (murderousTd) {
                     const currentList = stats.lists[targetKey] || [];
                     
                     if (intersectedIndexes === null) {
-                        // 初期状態（絞り込みなし）
+                        // 初期状態（絞り込みなし）のときは、元の正しい総数を表示
                         if (targetKey === "triple") murderousTd.textContent = stats.tripleCount;
                         else if (targetKey === "subject") murderousTd.textContent = stats.subjectCount;
                         else if (targetKey === "object") murderousTd.textContent = stats.objectCount;
@@ -871,25 +870,23 @@ function createDocumentSection(docId, textContent, stats) {
                         
                         murderousTd.style.color = "#333333";
                     } else {
-                        // 絞り込み発生時
-                        let availableUniqueCount = 0;
+                        // 【変更点】絞り込み発生時：各項目の「有効な出現回数」の合計を算出
+                        let totalAppearanceCount = 0;
                         currentList.forEach(item => {
-                            const isSelected = !!activeFiltersMap[item.name];
-                            const hasIntersection = item.bindingIndexes && item.bindingIndexes.some(i => intersectedIndexes.has(i));
-                            
-                            if (isSelected || hasIntersection) {
-                                availableUniqueCount++;
+                            if (item.bindingIndexes) {
+                                // 現在のフィルターの交差インデックスに含まれている回数をカウント
+                                const matchCount = item.bindingIndexes.filter(i => intersectedIndexes.has(i)).length;
+                                totalAppearanceCount += matchCount;
                             }
                         });
                         
-                        murderousTd.textContent = availableUniqueCount;
-                        murderousTd.style.color = "#d32f2f";
+                        murderousTd.textContent = totalAppearanceCount;
+                        murderousTd.style.color = "#d32f2f"; // 絞り込み中は赤字
                     }
                 }
             });
         };
 
-        // 下部の一覧テーブル（レジェンドテーブル）を更新する関数
         const updateLegendTable = (targetKey) => {
             if (!targetKey || !legendTable) return;
             currentActiveTab = targetKey;
@@ -897,7 +894,6 @@ function createDocumentSection(docId, textContent, stats) {
             const currentList = stats.lists[targetKey] || [];
             const intersectedIndexes = getIntersectedIndexes();
 
-            // 表示用データの加工
             const processedList = currentList.map(item => {
                 const isSelected = !!activeFiltersMap[item.name];
                 let displayCount = 0;
@@ -918,7 +914,6 @@ function createDocumentSection(docId, textContent, stats) {
                 };
             });
 
-            // 順序ソート（選択中 -> 件数あり -> 件数ゼロ）
             processedList.sort((a, b) => {
                 if (a.isSelected !== b.isSelected) return a.isSelected ? -1 : 1;
                 const aAvailable = a.displayCount > 0;
@@ -927,7 +922,6 @@ function createDocumentSection(docId, textContent, stats) {
                 return b.displayCount - a.displayCount;
             });
 
-            // HTMLの生成
             legendTable.innerHTML = processedList.map((item, index) => {
                 const useRedColor = (intersectedIndexes !== null && !item.isSelected);
                 const countStyle = useRedColor 
@@ -947,7 +941,6 @@ function createDocumentSection(docId, textContent, stats) {
                 `;
             }).join('');
 
-            // 各行のクリックイベントと活性・不活性制御
             const rows = legendTable.querySelectorAll(".filter-trigger-row");
             rows.forEach(row => {
                 const idx = parseInt(row.getAttribute("data-index"), 10);
@@ -981,7 +974,6 @@ function createDocumentSection(docId, textContent, stats) {
             });
         };
 
-        // 統計テーブル（タブ）全体のクリックイベント
         statsTable.onclick = (e) => {
             const btn = e.target.closest(".stats-toggle-btn");
             if (!btn) return;
@@ -999,7 +991,6 @@ function createDocumentSection(docId, textContent, stats) {
             updateTabVisualIndicators();
         };
 
-        // 選択クリアボタン
         const clearBtn = section.querySelector(".btn-clear-filters");
         if (clearBtn) {
             clearBtn.onclick = () => {
@@ -1009,7 +1000,6 @@ function createDocumentSection(docId, textContent, stats) {
             };
         }
 
-        // 初期選択のシミュレート
         const defaultBtn = statsTable.querySelector(`.stats-toggle-btn[data-target="stakeholder"]`) || statsTable.querySelector(`.stats-toggle-btn[data-target="subject"]`);
         if (defaultBtn) defaultBtn.click();
     }
