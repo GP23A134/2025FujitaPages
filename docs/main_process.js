@@ -8,27 +8,43 @@
 // 1. 画面初期化 ＆ イベントリスナー登録
 // ------------------------------------------------------------------------
 window.addEventListener('DOMContentLoaded', () => {
+    // データの存在チェック
     if (typeof window.output_json_data !== 'undefined' && window.output_json_data !== null) {
         console.log("[CCO4KG Loader] 相互ロック・カテゴリカラー対応版プロセスを読み込みました。");
         
+        // 初期化処理
         initDocIdDropdown();
         setupAccordion("headerOutput", "contentOutput");
         setupAccordion("headerColor", "contentColor");
         
+        // 各種チェックボックスのイベントリスナー登録（安全対策版）
         const targetIds = [
             "enableSubject", "enableObject", "enablePredicate", 
             "enableSClass", "enableOClass", "enableClassLink", 
             "enableStakeholder", "enableStClass", "enableEvidence"
         ];
-        targetIds.forEach(id => document.getElementById(id).addEventListener("change", updateUIControls));
+        targetIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener("change", updateUIControls);
+        });
         
+        // ラジオボタンのイベントリスナー登録
         document.getElementsByName("shColorMode").forEach(radio => {
             radio.addEventListener("change", updateUIControls);
         });
         
-        document.getElementById("execBtn").addEventListener("click", splitAndProcessData);
-        updateUIControls();
-        document.getElementById("execBtn").disabled = false;
+        // 実行ボタンの設定
+        const execBtn = document.getElementById("execBtn");
+        if (execBtn) {
+            execBtn.addEventListener("click", splitAndProcessData);
+            execBtn.disabled = false;
+        }
+
+        // 初回UI更新
+        if (typeof updateUIControls === 'function') {
+            updateUIControls();
+        }
+        
     } else {
         console.error("[CCO4KG Loader] エラー: データが見つかりません。");
         const statusEl = document.getElementById("statusMessage");
@@ -40,21 +56,27 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+/**
+ * アコーディオン機能のセットアップ
+ * @param {string} headerId - ヘッダー要素のID
+ * @param {string} contentId - コンテンツ要素のID
+ */
 function setupAccordion(headerId, contentId) {
     const header = document.getElementById(headerId);
     const content = document.getElementById(contentId);
-    const icon = header ? header.querySelector(".toggle-icon") : null;
     if (!header || !content) return;
 
+    const icon = header.querySelector(".toggle-icon");
+
     header.addEventListener("click", () => {
-        const isOpen = content.classList.contains("open");
-        if (isOpen) {
-            content.classList.remove("open");
-            if (icon) icon.textContent = "▼";
-        } else {
-            content.classList.add("open");
-            if (icon) icon.textContent = "▲";
+        const isOpen = content.classList.toggle("open"); // toggleを使うとスッキリします
+        
+        if (icon) {
+            icon.textContent = isOpen ? "▲" : "▼";
         }
+        
+        // アクセシビリティ対応（必要に応じて）
+        header.setAttribute("aria-expanded", isOpen ? "true" : "false");
     });
 }
 
@@ -62,75 +84,93 @@ function setupAccordion(headerId, contentId) {
 // 2. 設定パネルの有効・無効リアクティブ制御 (UI連動)
 // ------------------------------------------------------------------------
 function updateUIControls() {
-    let sEnabled = document.getElementById("enableSubject").checked;
-    let oEnabled = document.getElementById("enableObject").checked;
-    let pEnabled = document.getElementById("enablePredicate").checked;
-    let sClassEnabled = document.getElementById("enableSClass").checked;
-    let oClassEnabled = document.getElementById("enableOClass").checked;
-    let classLinkEnabled = document.getElementById("enableClassLink").checked;
+    // ユーティリティ: 要素のチェック状態を安全に取得（存在しない場合は false）
+    const isChecked = (id) => document.getElementById(id)?.checked ?? false;
+
+    // --- 1. 各種フラグの取得 ---
+    let sEnabled         = isChecked("enableSubject");
+    let oEnabled         = isChecked("enableObject");
+    let pEnabled         = isChecked("enablePredicate");
+    let sClassEnabled    = isChecked("enableSClass");
+    let oClassEnabled    = isChecked("enableOClass");
+    let classLinkEnabled = isChecked("enableClassLink");
     
-    const shEnabled = document.getElementById("enableStakeholder").checked;
-    const stClassEnabled = document.getElementById("enableStClass").checked;
-    const evEnabled = document.getElementById("enableEvidence").checked;
+    const shEnabled      = isChecked("enableStakeholder");
+    const stClassEnabled = isChecked("enableStClass");
+    const evEnabled      = isChecked("enableEvidence");
 
-    const cbPredicate = document.getElementById("enablePredicate");
-    if (!sEnabled || !oEnabled) {
-        cbPredicate.disabled = true;
-        cbPredicate.checked = false;
-        pEnabled = false;
-    } else {
-        cbPredicate.disabled = false;
-    }
-
-    const cbClassLink = document.getElementById("enableClassLink");
-    if (!sClassEnabled || !oClassEnabled) {
-        cbClassLink.disabled = true;
-        cbClassLink.checked = false;
-        classLinkEnabled = false;
-    } else {
-        cbClassLink.disabled = false;
-    }
-
-    const cbSoNum = document.getElementById("enableSubjectObjectNumbering");
-    if (!sEnabled && !oEnabled) {
-        cbSoNum.disabled = true;
-        cbSoNum.checked = false;
-    } else {
-        cbSoNum.disabled = false;
-    }
-
-    const toggleElementPalette = (id, enabled) => {
+    // ユーティリティ: 汎用的な要素の状態・視覚制御
+    const toggleUIState = (id, enabled, isCheckbox = false) => {
         const el = document.getElementById(id);
         if (!el) return;
+        
         el.disabled = !enabled;
-        el.parentElement.style.opacity = enabled ? "1.0" : "0.3";
+        
+        // チェックスボックスが非活性化される場合は強制オフにする（相互ロック連動）
+        if (!enabled && isCheckbox) {
+            el.checked = false;
+        }
+
+        // 親要素、または自身がコンテナの場合は不透明度を切り替え
+        const container = el.classList.contains("control-section") ? el : el.parentElement;
+        if (container) {
+            container.style.opacity = enabled ? "1.0" : "0.3";
+        }
     };
 
-    toggleElementPalette("cpSubject", sEnabled);
-    toggleElementPalette("cpObject", oEnabled);
-    toggleElementPalette("cpPredicate", pEnabled);
-    toggleElementPalette("cpSClass", sClassEnabled);
-    toggleElementPalette("cpOClass", oClassEnabled);
-    toggleElementPalette("cpSClassEdge", classLinkEnabled);
+    // --- 2. 依存関係（相互ロック）の判定と制御 ---
+    
+    // 主語(S) または 目的語(O) のどちらかが欠けていたら 述語(P) は不可
+    if (!sEnabled || !oEnabled) pEnabled = false;
+    toggleUIState("enablePredicate", (sEnabled && oEnabled), true);
 
-    document.getElementById("enableStakeholderNumbering").disabled = !shEnabled;
-    document.getElementById("enableStClass").disabled = !shEnabled;
-    document.getElementById("secShColor").style.opacity = shEnabled ? "1.0" : "0.3";
+    // クラス(S) または クラス(O) のどちらかが欠けていたら クラスリンク は不可
+    if (!sClassEnabled || !oClassEnabled) classLinkEnabled = false;
+    toggleUIState("enableClassLink", (sClassEnabled && oClassEnabled), true);
+
+    // 主語(S)・目的語(O) が両方オフなら ナンバリング も不可
+    toggleUIState("enableSubjectObjectNumbering", (sEnabled || oEnabled), true);
+
+    // --- 3. ステークホルダー(SH) 関連の連動制御 ---
+    toggleUIState("enableStakeholderNumbering", shEnabled);
+    toggleUIState("enableStClass", shEnabled);
+    
+    // ステークホルダー色設定セクション全体の不透明度制御
+    const secShColor = document.getElementById("secShColor");
+    if (secShColor) secShColor.style.opacity = shEnabled ? "1.0" : "0.3";
+    
+    // ラジオボタンの制御
     document.getElementsByName("shColorMode").forEach(r => r.disabled = !shEnabled);
 
+    // カラーモード（固定 or ランダム）の判定
     const selectedMode = document.querySelector('input[name="shColorMode"]:checked')?.value || "random";
-    const isFixed = (selectedMode === "select");
+    const isFixed  = (selectedMode === "select");
     const isRandom = (selectedMode === "random");
 
-    toggleElementPalette("cpStakeholder", shEnabled && isFixed);
-    document.getElementById("shFixedColorRow").style.opacity = (shEnabled && isFixed) ? "1.0" : "0.3";
+    // ステークホルダー固定色
+    const shFixedActive = shEnabled && isFixed;
+    toggleUIState("cpStakeholder", shFixedActive);
+    const shFixedRow = document.getElementById("shFixedColorRow");
+    if (shFixedRow) shFixedRow.style.opacity = shFixedActive ? "1.0" : "0.3";
 
+    // ステークホルダー関係クラス色
     const stClassActive = shEnabled && stClassEnabled && (isRandom || isFixed);
-    toggleElementPalette("cpStClass", stClassActive);
-    document.getElementById("stClassColorRow").style.opacity = stClassActive ? "1.0" : "0.3";
+    toggleUIState("cpStClass", stClassActive);
+    const stClassRow = document.getElementById("stClassColorRow");
+    if (stClassRow) stClassRow.style.opacity = stClassActive ? "1.0" : "0.3";
 
-    toggleElementPalette("cpEvidence", evEnabled);
-    document.getElementById("secEvColor").style.opacity = evEnabled ? "1.0" : "0.3";
+    // --- 4. エビデンス(EV) 関連の制御 ---
+    toggleUIState("cpEvidence", evEnabled);
+    const secEvColor = document.getElementById("secEvColor");
+    if (secEvColor) secEvColor.style.opacity = evEnabled ? "1.0" : "0.3";
+
+    // --- 5. カラーパレット(CP) の最終適用（依存関係解決後） ---
+    toggleUIState("cpSubject", sEnabled);
+    toggleUIState("cpObject", oEnabled);
+    toggleUIState("cpPredicate", pEnabled);
+    toggleUIState("cpSClass", sClassEnabled);
+    toggleUIState("cpOClass", oClassEnabled);
+    toggleUIState("cpSClassEdge", classLinkEnabled);
 }
 
 // ------------------------------------------------------------------------
@@ -143,69 +183,124 @@ const SPEAKER_PALETTE = [
     "#957DAD", "#D291BC", "#FEC8D8", "#FFDFD3", "#D8E2DC"
 ];
 
+/**
+ * Unicodeエスケープ文字 (\uXXXX) をデコード
+ */
 function decodeFromUnicode(str) {
     if (!str) return "";
-    return str.replace(/\\u([0-9a-fA-F]{4})/g, (match, grp) => String.fromCharCode(parseInt(grp, 16)));
+    // トライキャッチで囲むか、不正なエスケープによるエラーを防止
+    try {
+        return str.replace(/\\u([0-9a-fA-F]{4})/g, (_, grp) => String.fromCharCode(parseInt(grp, 16)));
+    } catch (e) {
+        return str;
+    }
 }
 
+/**
+ * RDF/SPARQL 特有の不要なリテラル文字・トリム処理を一括クリア
+ */
 function clean(input) {
     if (!input) return "";
-    return decodeFromUnicode(input).replace(/ /g, "").replace(/@ja/g, "").replace(/"/g, "").trim();
+    // 空白（全角含む）、@ja、ダブルクォーテーションを一括で効率よく置換
+    return decodeFromUnicode(input)
+        .replace(/[\s"']|@ja/g, "")
+        .trim();
 }
 
+/**
+ * SPARQL binding オブジェクトから安全に値を取得
+ */
 function getValueFromBinding(binding, key) {
-    return (binding && binding[key]) ? (binding[key].value || "") : "";
+    return binding?.[key]?.value ?? "";
 }
 
+/**
+ * URI の末尾（スラッシュ区切り）からローカルIDを抽出
+ */
 function extractIdFromUri(uriString) {
     if (!uriString) return "";
     const cleanUri = clean(uriString);
-    const parts = cleanUri.split('/');
-    return parts[parts.length - 1] || "";
+    // 末尾のスラッシュの有無を考慮
+    const trimmedUri = cleanUri.endsWith('/') ? cleanUri.slice(0, -1) : cleanUri;
+    return trimmedUri.split('/').pop() || "";
 }
 
+/**
+ * カラーコードの輝度を下げて暗い色を生成（エッジやテキスト用）
+ */
 function darkenColor(hexColor, factor) {
     if (!hexColor || !hexColor.startsWith("#") || hexColor.length !== 7) return "#adadad";
     try {
-        let r = Math.max(0, Math.floor(parseInt(hexColor.substring(1, 3), 16) * factor));
-        let g = Math.max(0, Math.floor(parseInt(hexColor.substring(3, 5), 16) * factor));
-        let b = Math.max(0, Math.floor(parseInt(hexColor.substring(5, 7), 16) * factor));
-        return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-    } catch (e) { return hexColor; }
+        const r = Math.min(255, Math.max(0, Math.floor(parseInt(hexColor.slice(1, 3), 16) * factor)));
+        const g = Math.min(255, Math.max(0, Math.floor(parseInt(hexColor.slice(3, 5), 16) * factor)));
+        const b = Math.min(255, Math.max(0, Math.floor(parseInt(hexColor.slice(5, 7), 16) * factor)));
+        
+        // 16進数文字列への変換を確実に2桁にする
+        return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+    } catch (e) { 
+        return hexColor; 
+    }
 }
 
+/**
+ * SPARQL結果から一意のドキュメントIDを抽出してドロップダウンを初期化
+ */
 function initDocIdDropdown() {
-    const bindings = window.output_json_data.results.bindings;
+    const bindings = window.output_json_data?.results?.bindings;
     const selectEl = document.getElementById("targetDocId");
-    if (!selectEl) return;
+    if (!bindings || !selectEl) return;
     
     selectEl.innerHTML = '<option value="">-- すべてのドキュメント (一括出力) --</option>';
     const idSet = new Set();
     
+    // 高速なループ処理
     for (let i = 0; i < bindings.length; i++) {
-        let rawDocUri = getValueFromBinding(bindings[i], "g") || getValueFromBinding(bindings[i], "?g");
-        if (rawDocUri) idSet.add(extractIdFromUri(rawDocUri));
+        const b = bindings[i];
+        const rawDocUri = getValueFromBinding(b, "g") || getValueFromBinding(b, "?g");
+        if (rawDocUri) {
+            idSet.add(extractIdFromUri(rawDocUri));
+        }
     }
     
+    // ソートして要素を追加（DocumentFragmentを使うとDOM描画が高速化します）
+    const fragment = document.createDocumentFragment();
     Array.from(idSet).sort().forEach(docId => {
         const option = document.createElement("option");
         option.value = docId;
         option.textContent = docId;
-        selectEl.appendChild(option);
+        fragment.appendChild(option);
     });
+    selectEl.appendChild(fragment);
 }
 
+/**
+ * ローディングスピナーの表示（既存DOMのイベントを破壊しない設計）
+ */
 function showSearchIng(resultArea) {
-    const orgDiv = resultArea.innerHTML;
-    resultArea.innerHTML = orgDiv + '<div id="searching"><h2>解析中...</h2>'
-       + '<div class="flower-spinner"><div class="dots-container">'
-       + '<div class="bigger-dot"><div class="smaller-dot"></div>'
-       + '</div></div></div><br></div>';
+    if (!resultArea) return;
+    
+    const spinnerHtml = `
+        <div id="searching">
+            <h2>解析中...</h2>
+            <div class="flower-spinner">
+                <div class="dots-container">
+                    <div class="bigger-dot">
+                        <div class="smaller-dot"></div>
+                    </div>
+                </div>
+            </div>
+            <br>
+        </div>`;
+    
+    // innerHTML = org + new ではなく、末尾に安全に挿入する
+    resultArea.insertAdjacentHTML('beforeend', spinnerHtml);
 }
 
+/**
+ * ローディングスピナーの削除
+ */
 function removeSearchIng() {
-    const searchingDiv = document.getElementById("searching");
-    if (searchingDiv != null) searchingDiv.remove();
+    document.getElementById("searching")?.remove();
 }
 
 // ------------------------------------------------------------------------
@@ -216,51 +311,56 @@ function splitAndProcessData() {
     const outputContainer = document.getElementById("outputContainer");
     
     if (execBtn) execBtn.disabled = true;
-    outputContainer.innerHTML = ""; 
+    if (outputContainer) outputContainer.innerHTML = ""; 
     showSearchIng(outputContainer);
 
+    // 重い処理のために1フレーム（50ms）空けて描画を確定
     setTimeout(() => {
         try {
-            const bindings = window.output_json_data.results.bindings;
-            const shEnabledRaw = document.getElementById("enableStakeholder").checked;
-            const sEnabled = document.getElementById("enableSubject").checked;
-            const oEnabled = document.getElementById("enableObject").checked;
-            const sClassEnabled = document.getElementById("enableSClass").checked;
-            const oClassEnabled = document.getElementById("enableOClass").checked;
+            const bindings = window.output_json_data?.results?.bindings;
+            if (!bindings) throw new Error("Bindings data not found");
 
+            const shEnabledRaw = document.getElementById("enableStakeholder")?.checked ?? false;
+            const sEnabled       = document.getElementById("enableSubject")?.checked ?? false;
+            const oEnabled       = document.getElementById("enableObject")?.checked ?? false;
+            const sClassEnabled  = document.getElementById("enableSClass")?.checked ?? false;
+            const oClassEnabled  = document.getElementById("enableOClass")?.checked ?? false;
+
+            // コンフィグ設定の集約
             const config = {
                 sEnabled: sEnabled,
                 oEnabled: oEnabled,
-                pEnabled: sEnabled && oEnabled && document.getElementById("enablePredicate").checked, 
+                pEnabled: sEnabled && oEnabled && (document.getElementById("enablePredicate")?.checked ?? false), 
                 sClassEnabled: sClassEnabled,
                 oClassEnabled: oClassEnabled,
-                classLinkEnabled: sClassEnabled && oClassEnabled && document.getElementById("enableClassLink").checked, 
+                classLinkEnabled: sClassEnabled && oClassEnabled && (document.getElementById("enableClassLink")?.checked ?? false), 
                 shEnabled: shEnabledRaw,
-                evEnabled: document.getElementById("enableEvidence").checked,
-                shNum: shEnabledRaw && document.getElementById("enableStakeholderNumbering").checked,
-                stClass: shEnabledRaw && document.getElementById("enableStClass").checked,
-                soNum: document.getElementById("enableSubjectObjectNumbering").checked,
-                targetId: document.getElementById("targetDocId").value,
-                shColorMode: document.querySelector('input[name="shColorMode"]:checked').value,
-                cSubj: document.getElementById("cpSubject").value,
-                cObj: document.getElementById("cpObject").value,
-                cPred: document.getElementById("cpPredicate").value,
-                cSClass: document.getElementById("cpSClass").value,
-                cOClass: document.getElementById("cpOClass").value,
-                cSClassEdge: document.getElementById("cpSClassEdge").value, 
-                cEv: document.getElementById("cpEvidence").value,
-                cStClass: document.getElementById("cpStClass").value,
-                cFixedSH: document.getElementById("cpStakeholder").value,
+                evEnabled: document.getElementById("enableEvidence")?.checked ?? false,
+                shNum: shEnabledRaw && (document.getElementById("enableStakeholderNumbering")?.checked ?? false),
+                stClass: shEnabledRaw && (document.getElementById("enableStClass")?.checked ?? false),
+                soNum: document.getElementById("enableSubjectObjectNumbering")?.checked ?? false,
+                targetId: document.getElementById("targetDocId")?.value ?? "",
+                shColorMode: document.querySelector('input[name="shColorMode"]:checked')?.value || "random",
+                cSubj: document.getElementById("cpSubject")?.value || "#000000",
+                cObj: document.getElementById("cpObject")?.value || "#000000",
+                cPred: document.getElementById("cpPredicate")?.value || "#000000",
+                cSClass: document.getElementById("cpSClass")?.value || "#000000",
+                cOClass: document.getElementById("cpOClass")?.value || "#000000",
+                cSClassEdge: document.getElementById("cpSClassEdge")?.value || "#000000", 
+                cEv: document.getElementById("cpEvidence")?.value || "#000000",
+                cStClass: document.getElementById("cpStClass")?.value || "#000000",
+                cFixedSH: document.getElementById("cpStakeholder")?.value || "#000000",
                 cDefaultEdge: "#adadad"
             };
 
-            let docGroups = {};
+            // ドキュメントごとのグルーピング
+            const docGroups = {};
             for (let i = 0; i < bindings.length; i++) {
-                let b = bindings[i];
-                let docId = extractIdFromUri(getValueFromBinding(b, "g") || getValueFromBinding(b, "?g"));
+                const b = bindings[i];
+                const docId = extractIdFromUri(getValueFromBinding(b, "g") || getValueFromBinding(b, "?g"));
                 if (config.targetId !== "" && docId !== config.targetId) continue; 
                 
-                let groupKey = (config.targetId === "") ? "ALL_DOCUMENTS" : docId;
+                const groupKey = (config.targetId === "") ? "ALL_DOCUMENTS" : docId;
                 if (!docGroups[groupKey]) docGroups[groupKey] = [];
                 docGroups[groupKey].push({ binding: b, originalDocId: docId, lineIndex: i });
             }
@@ -275,12 +375,52 @@ function splitAndProcessData() {
             let globalColorCounter = 0;
             removeSearchIng();
 
-            for (let groupKey in docGroups) {
-                let wrappedBindings = docGroups[groupKey];
+            // カラー解決用ヘルパー（ループ外に定義してGCとメモリを節約）
+            const colorResolver = {
+                localSpeakerMap: {},
+                localStClassMap: {},
+                getIndividualColor(id) {
+                    if (this.localSpeakerMap[id]) return this.localSpeakerMap[id];
+                    const color = SPEAKER_PALETTE[globalColorCounter % SPEAKER_PALETTE.length];
+                    this.localSpeakerMap[id] = color;
+                    globalColorCounter++;
+                    return color;
+                },
+                getGroupColor(id) {
+                    if (this.localStClassMap[id]) return this.localStClassMap[id];
+                    const color = SPEAKER_PALETTE[globalColorCounter % SPEAKER_PALETTE.length];
+                    this.localStMap[id] = color;
+                    globalColorCounter++;
+                    return color;
+                },
+                resolve(shId, stClassId, finalSpeakerMap, finalStClassMap) {
+                    if (config.shColorMode === "select") {
+                        finalSpeakerMap[shId] = config.cFixedSH;
+                        if (stClassId) finalStClassMap[stClassId] = config.cStClass;
+                        return;
+                    }
+                    if (config.shColorMode === "group") {
+                        if (stClassId) {
+                            const groupColor = this.getGroupColor(stClassId);
+                            finalStClassMap[stClassId] = groupColor; 
+                            finalSpeakerMap[shId] = darkenColor(groupColor, 0.85);
+                        } else if (!finalSpeakerMap[shId]) {
+                            finalSpeakerMap[shId] = this.getIndividualColor(shId);
+                        }
+                        return;
+                    }
+                    if (config.shColorMode === "random") {
+                        finalSpeakerMap[shId] = this.getIndividualColor(shId);
+                        if (stClassId) finalStClassMap[stClassId] = config.cStClass;
+                    }
+                }
+            };
+
+            // 安全なプロパティ走査（Object.keys）
+            for (const groupKey of Object.keys(docGroups)) {
+                const wrappedBindings = docGroups[groupKey];
                 
                 const wordAppearanceMap = {}; 
-                const localSpeakerColorMap = {}; 
-                const localStClassColorMap = {}; 
                 const finalSpeakerColorMap = {}; 
                 const finalStClassColorMap = {}; 
 
@@ -288,11 +428,16 @@ function splitAndProcessData() {
                 const uniqueObjects = new Set();
                 const uniqueSClasses = new Set();
                 const uniqueOClasses = new Set();
-                const uniqueStakeholders = new Set();
-                const uniqueOpinions = new Set();
                 const uniqueEvidences = new Set();
+                const uniqueOpinions = new Set();
                 const uniqueTriples = new Set();
+                
                 const tripleLabelMap = {};
+                const stakeholderLabelMap = {}; 
+                const stClassLabelMap = {};
+                const legendDisplayColorMap = {};
+                const shExactCountMap = {};
+                const nameToColorCacheMap = {}; // 高速カラー参照用マップ
 
                 const bindingIndexesMap = {
                     triple: {}, subject: {}, object: {}, sClass: {}, oClass: {}, stakeholder: {}, opinion: {}, evidence: {}
@@ -302,73 +447,7 @@ function splitAndProcessData() {
                     stakeholder: {}, subject: {}, object: {}, sClass: {}, oClass: {}, evidence: {}, opinion: {}, triple: {}
                 };
 
-                function getIndividualSpeakerColor(shId) {
-                    if (localSpeakerColorMap[shId]) return localSpeakerColorMap[shId];
-                    let color = SPEAKER_PALETTE[globalColorCounter % SPEAKER_PALETTE.length];
-                    localSpeakerColorMap[shId] = color;
-                    globalColorCounter++;
-                    return color;
-                }
-
-                function getGroupStClassColor(stClassId) {
-                    if (localStClassColorMap[stClassId]) return localStClassColorMap[stClassId];
-                    let color = SPEAKER_PALETTE[globalColorCounter % SPEAKER_PALETTE.length];
-                    localStClassColorMap[stClassId] = color;
-                    globalColorCounter++;
-                    return color;
-                }
-
-                function resolveColors(shId, stClassId) {
-                    if (config.shColorMode === "select") {
-                        finalSpeakerColorMap[shId] = config.cFixedSH;
-                        if (stClassId !== "") finalStClassColorMap[stClassId] = config.cStClass;
-                        return;
-                    }
-                    if (config.shColorMode === "group") {
-                        if (stClassId !== "") {
-                            let groupColor = getGroupStClassColor(stClassId);
-                            finalStClassColorMap[stClassId] = groupColor; 
-                            finalSpeakerColorMap[shId] = darkenColor(groupColor, 0.85);
-                        } else if (!finalSpeakerColorMap[shId]) {
-                            finalSpeakerColorMap[shId] = getIndividualSpeakerColor(shId);
-                        }
-                        return;
-                    }
-                    if (config.shColorMode === "random") {
-                        finalSpeakerColorMap[shId] = getIndividualSpeakerColor(shId);
-                        if (stClassId !== "") finalStClassColorMap[stClassId] = config.cStClass; 
-                    }
-                }
-
-                const classLinkSet = new Set(); 
-                const metadataLinkSet = new Set(); 
-                const comboToTrMap = {}; 
-                let trCounter = 0; 
-                let docOutputBuffer = ""; 
-                
-                const stakeholderLabelMap = {}; 
-                const stClassLabelMap = {};
-
-                for (let item of wrappedBindings) {
-                    let b = item.binding;
-                    let shId = extractIdFromUri(getValueFromBinding(b, "stakeholder"));
-                    let stClassId = extractIdFromUri(getValueFromBinding(b, "stClass") || getValueFromBinding(b, "?stClass"));
-                    let cleanShName = clean(getValueFromBinding(b, "stakeholderLabel"));
-                    
-                    if (/^(【個人】|個人|)$/.test(cleanShName)) continue;
-
-                    let shLabel = "st_" + cleanShName;
-                    let stClassLabel = "stc_" + clean(getValueFromBinding(b, "stClassLabel"));
-                    if (shId !== "") {
-                        stakeholderLabelMap[shId] = shLabel;
-                        if (stClassId !== "") stClassLabelMap[stClassId] = stClassLabel;
-                        if (!finalSpeakerColorMap[shId]) resolveColors(shId, stClassId);
-                    }
-                }
-                
-                const legendDisplayColorMap = {};
-                const shExactCountMap = {};
-
+                // インデックスプッシュ用共通処理
                 const pushIndex = (category, key, idx) => {
                     if (!key) return;
                     if (!bindingIndexesMap[category][key]) bindingIndexesMap[category][key] = [];
@@ -377,48 +456,76 @@ function splitAndProcessData() {
                     }
                 };
 
-                for (let item of wrappedBindings) {
-                    let b = item.binding;
-                    let currentDocId = item.originalDocId; 
-                    let curIdx = item.lineIndex;
+                // 第1パス: 発話者とクラスのカラー情報を事前マッピング
+                for (let i = 0; i < wrappedBindings.length; i++) {
+                    const b = wrappedBindings[i].binding;
+                    const shId = extractIdFromUri(getValueFromBinding(b, "stakeholder"));
+                    const stClassId = extractIdFromUri(getValueFromBinding(b, "stClass") || getValueFromBinding(b, "?stClass"));
+                    const cleanShName = clean(getValueFromBinding(b, "stakeholderLabel"));
+                    
+                    if (/^(【個人】|個人|)$/.test(cleanShName)) continue;
 
-                    let sUri = getValueFromBinding(b, "s");
-                    let sClassUri = getValueFromBinding(b, "sClass");
-                    let oUri = getValueFromBinding(b, "o");
-                    let oClassUri = getValueFromBinding(b, "oClass");
-                    let shUri = getValueFromBinding(b, "stakeholder");
-                    let opUri = getValueFromBinding(b, "opinion");
+                    const shLabel = "st_" + cleanShName;
+                    const stClassLabel = "stc_" + clean(getValueFromBinding(b, "stClassLabel"));
+                    if (shId !== "") {
+                        stakeholderLabelMap[shId] = shLabel;
+                        if (stClassId !== "") stClassLabelMap[stClassId] = stClassLabel;
+                        if (!finalSpeakerColorMap[shId]) {
+                            colorResolver.resolve(shId, stClassId, finalSpeakerColorMap, finalStClassColorMap);
+                        }
+                    }
+                }
 
-                    let sId = extractIdFromUri(sUri);
-                    let sClassId = extractIdFromUri(sClassUri);
-                    let pId = extractIdFromUri(getValueFromBinding(b, "p"));
-                    let oId = extractIdFromUri(oUri);
-                    let oClassId = extractIdFromUri(oClassUri);
-                    let shId = extractIdFromUri(shUri);
-                    let stClassId = extractIdFromUri(getValueFromBinding(b, "stClass") || getValueFromBinding(b, "?stClass"));
-                    let opId = extractIdFromUri(opUri);
+                const classLinkSet = new Set(); 
+                const metadataLinkSet = new Set(); 
+                const comboToTrMap = {}; 
+                let trCounter = 0; 
+                let docOutputBuffer = ""; 
 
-                    let sLabelRaw = clean(getValueFromBinding(b, "sLabel"));
-                    let oLabelRaw = clean(getValueFromBinding(b, "oLabel"));
-                    let shLabelRaw = clean(getValueFromBinding(b, "stakeholderLabel"));
-                    let opContentRaw = clean(getValueFromBinding(b, "opinionContent"));
-                    let evContentRaw = clean(getValueFromBinding(b, "evidence"));
-                    let sClassLabelRaw = clean(getValueFromBinding(b, "sClassLabel"));
-                    let oClassLabelRaw = clean(getValueFromBinding(b, "oClassLabel"));
-                    let stClassLabelRaw = clean(getValueFromBinding(b, "stClassLabel"));
+                // 第2パス: トリプルの構築と出力バッファリング
+                for (let i = 0; i < wrappedBindings.length; i++) {
+                    const item = wrappedBindings[i];
+                    const b = item.binding;
+                    const currentDocId = item.originalDocId; 
+                    const curIdx = item.lineIndex;
 
-                    let sLabel = "s_" + sLabelRaw;
-                    let sClassLabel = "sc_" + sClassLabelRaw;
-                    let pLabel = clean(getValueFromBinding(b, "pLabel")); 
-                    let oLabel = "o_" + oLabelRaw;
-                    let ocLabel = "oc_" + oClassLabelRaw;
-                    let shLabel_cleansed = "st_" + shLabelRaw;
-                    let stClassLabel = "stc_" + stClassLabelRaw;
-                    let evContent = "ev_" + evContentRaw;
+                    const sUri = getValueFromBinding(b, "s");
+                    const sClassUri = getValueFromBinding(b, "sClass");
+                    const oUri = getValueFromBinding(b, "o");
+                    const oClassUri = getValueFromBinding(b, "oClass");
+                    const shUri = getValueFromBinding(b, "stakeholder");
+                    const opUri = getValueFromBinding(b, "opinion");
+
+                    const sId = extractIdFromUri(sUri);
+                    const sClassId = extractIdFromUri(sClassUri);
+                    const pId = extractIdFromUri(getValueFromBinding(b, "p"));
+                    const oId = extractIdFromUri(oUri);
+                    const oClassId = extractIdFromUri(oClassUri);
+                    const shId = extractIdFromUri(shUri);
+                    const stClassId = extractIdFromUri(getValueFromBinding(b, "stClass") || getValueFromBinding(b, "?stClass"));
+                    const opId = extractIdFromUri(opUri);
+
+                    const sLabelRaw = clean(getValueFromBinding(b, "sLabel"));
+                    const oLabelRaw = clean(getValueFromBinding(b, "oLabel"));
+                    const shLabelRaw = clean(getValueFromBinding(b, "stakeholderLabel"));
+                    const opContentRaw = clean(getValueFromBinding(b, "opinionContent"));
+                    const evContentRaw = clean(getValueFromBinding(b, "evidence"));
+                    const sClassLabelRaw = clean(getValueFromBinding(b, "sClassLabel"));
+                    const oClassLabelRaw = clean(getValueFromBinding(b, "oClassLabel"));
+                    const stClassLabelRaw = clean(getValueFromBinding(b, "stClassLabel"));
 
                     if (sId === "" || oId === "") continue;
 
-                    let comboKeyForId = `${currentDocId}_${sId}|${pId}|${oId}`;
+                    const sLabel = "s_" + sLabelRaw;
+                    const sClassLabel = "sc_" + sClassLabelRaw;
+                    const pLabel = clean(getValueFromBinding(b, "pLabel")); 
+                    const oLabel = "o_" + oLabelRaw;
+                    const ocLabel = "oc_" + oClassLabelRaw;
+                    const shLabel_cleansed = "st_" + shLabelRaw;
+                    const stClassLabel = "stc_" + stClassLabelRaw;
+                    const evContent = "ev_" + evContentRaw;
+
+                    const comboKeyForId = `${currentDocId}_${sId}|${pId}|${oId}`;
                     let isFirstTimeTr = false;
                     
                     if (!comboToTrMap[comboKeyForId]) {
@@ -426,10 +533,10 @@ function splitAndProcessData() {
                         trCounter++;
                         isFirstTimeTr = true; 
                     }
-                    let trId = comboToTrMap[comboKeyForId]; 
+                    const trId = comboToTrMap[comboKeyForId]; 
 
-                    let tripleMapKey = `${sLabelRaw} | ${pLabel} | ${oLabelRaw}`;
-                    let tripleDisplayLabel = `${trId}_${sLabelRaw}_${pLabel}_${oLabelRaw}`; 
+                    const tripleMapKey = `${sLabelRaw} | ${pLabel} | ${oLabelRaw}`;
+                    const tripleDisplayLabel = `${trId}_${sLabelRaw}_${pLabel}_${oLabelRaw}`; 
 
                     uniqueTriples.add(tripleMapKey);
                     tripleLabelMap[tripleMapKey] = tripleDisplayLabel;
@@ -462,14 +569,14 @@ function splitAndProcessData() {
                         pushIndex("evidence", evContent, curIdx);
                     }
 
-                    let displaySLabel = config.soNum ? `${sLabel}_${trId}` : sLabel;
-                    let displayOLabel = config.soNum ? `${oLabel}_${trId}` : oLabel;
+                    const displaySLabel = config.soNum ? `${sLabel}_${trId}` : sLabel;
+                    const displayOLabel = config.soNum ? `${oLabel}_${trId}` : oLabel;
                     
                     let shNodeName = "";
                     let speakerColor = config.cFixedSH;
                     if (shId !== "" && shLabelRaw) {
                         shNodeName = shLabel_cleansed;
-                        let stCount = (wordAppearanceMap[shId] || 0) + 1;
+                        const stCount = (wordAppearanceMap[shId] || 0) + 1;
                         wordAppearanceMap[shId] = stCount;
                         shNodeName = config.shNum ? `${shNodeName}_${stCount}` : shNodeName;
                         speakerColor = finalSpeakerColorMap[shId] || config.cFixedSH;
@@ -489,9 +596,12 @@ function splitAndProcessData() {
                             legendDisplayColorMap[`stClass_${stClassId}`] = { name: `【分類】${className}`, color: finalStClassColorMap[stClassId], uri: sClassUri };
                         }
                         legendDisplayColorMap[`sh_${shId}`] = { name: `${shLabel_cleansed}`, color: speakerColor, uri: shUri };
+                        
+                        // 高速化用のインデックスキャッシュに格納
+                        nameToColorCacheMap[shLabel_cleansed] = speakerColor;
                     }
 
-                    let prefix = (config.targetId === "") ? `${currentDocId}\t` : "";
+                    const prefix = (config.targetId === "") ? `${currentDocId}\t` : "";
 
                     if (isFirstTimeTr) {
                         if (config.pEnabled) {
@@ -500,7 +610,7 @@ function splitAndProcessData() {
                         if (config.sEnabled) {
                             docOutputBuffer += `${prefix}${trId}\t主語\t${displaySLabel}\t${config.cDefaultEdge}\t${config.cSubj}\t${config.cSubj}\n`;
                         } else if (config.sClassEnabled && sClassId !== "" && sClassLabelRaw) {
-                            let directSClassKey = `${currentDocId}_${trId}_direct_sClass_${sClassId}`;
+                            const directSClassKey = `${currentDocId}_${trId}_direct_sClass_${sClassId}`;
                             if (!classLinkSet.has(directSClassKey)) {
                                 classLinkSet.add(directSClassKey);
                                 docOutputBuffer += `${prefix}${trId}\tsClass\t${sClassLabel}\t${config.cDefaultEdge}\t${config.cSClass}\t${config.cSClass}\n`;
@@ -509,7 +619,7 @@ function splitAndProcessData() {
                         if (config.oEnabled) {
                             docOutputBuffer += `${prefix}${trId}\t目的語\t${displayOLabel}\t${config.cDefaultEdge}\t${config.cObj}\t${config.cObj}\n`;
                         } else if (config.oClassEnabled && oClassId !== "" && oClassLabelRaw) {
-                            let directOClassKey = `${currentDocId}_${trId}_direct_oClass_${oClassId}`;
+                            const directOClassKey = `${currentDocId}_${trId}_direct_oClass_${oClassId}`;
                             if (!classLinkSet.has(directOClassKey)) {
                                 classLinkSet.add(directOClassKey);
                                 docOutputBuffer += `${prefix}${trId}\toClass\t${ocLabel}\t${config.cDefaultEdge}\t${config.cOClass}\t${config.cOClass}\n`;
@@ -518,21 +628,21 @@ function splitAndProcessData() {
                     }
 
                     if (config.sEnabled && config.sClassEnabled && sClassId !== "" && sClassLabelRaw) {
-                        let scKey = `${currentDocId}_${sId}_${sClassId}`;
+                        const scKey = `${currentDocId}_${sId}_${sClassId}`;
                         if (!classLinkSet.has(scKey)) {
                             classLinkSet.add(scKey);
                             docOutputBuffer += `${prefix}${displaySLabel}\tsClass\t${sClassLabel}\t${config.cDefaultEdge}\t${config.cSClass}\t${config.cSClass}\n`;
                         }
                     }
                     if (config.oEnabled && config.oClassEnabled && oClassId !== "" && oClassLabelRaw) {
-                        let ocKey = `${currentDocId}_${oId}_${oClassId}`;
+                        const ocKey = `${currentDocId}_${oId}_${oClassId}`;
                         if (!classLinkSet.has(ocKey)) {
                             classLinkSet.add(ocKey);
                             docOutputBuffer += `${prefix}${displayOLabel}\toClass\t${ocLabel}\t${config.cDefaultEdge}\t${config.cOClass}\t${config.cOClass}\n`;
                         }
                     }
                     if (config.classLinkEnabled && sClassId !== "" && sClassLabelRaw && oClassId !== "" && oClassLabelRaw) {
-                        let linkKey = `${currentDocId}_${sClassId}_${oClassId}`;
+                        const linkKey = `${currentDocId}_${sClassId}_${oClassId}`;
                         if (!classLinkSet.has(linkKey)) {
                             classLinkSet.add(linkKey);
                             docOutputBuffer += `${prefix}${sClassLabel}\tclassLink\t${ocLabel}\t${config.cSClassEdge}\t${config.cSClass}\t${config.cOClass}\n`;
@@ -540,22 +650,22 @@ function splitAndProcessData() {
                     }
 
                     if (shId !== "" && shLabelRaw) {
-                        let shMetaKey = `${currentDocId}_${trId}_${shNodeName}`;
+                        const shMetaKey = `${currentDocId}_${trId}_${shNodeName}`;
                         if (!metadataLinkSet.has(shMetaKey)) {
                             metadataLinkSet.add(shMetaKey);
                             docOutputBuffer += `${prefix}${trId}\t発話者\t${shNodeName}\t${config.cDefaultEdge}\t${speakerColor}\t${speakerColor}\n`;
                         }
                         
                         if (config.stClass && stClassId !== "" && stClassLabelRaw) {
-                            let stcKey = `${currentDocId}_${shNodeName}_${stClassId}`;
+                            const stcKey = `${currentDocId}_${shNodeName}_${stClassId}`;
                             if (!classLinkSet.has(stcKey)) {
                                 classLinkSet.add(stcKey);
-                                let classColor = finalStClassColorMap[stClassId] || config.cStClass;
+                                const classColor = finalStClassColorMap[stClassId] || config.cStClass;
                                 docOutputBuffer += `${prefix}${shNodeName}\t所属\t${stClassLabel}\t${config.cDefaultEdge}\t${classColor}\t${classColor}\n`;
                             }
                         }
                         if (opContentRaw) {
-                            let opMetaKey = `${currentDocId}_${shNodeName}_opinion_${opId}`;
+                            const opMetaKey = `${currentDocId}_${shNodeName}_opinion_${opId}`;
                             if (!metadataLinkSet.has(opMetaKey)) {
                                 metadataLinkSet.add(opMetaKey);
                                 docOutputBuffer += `${prefix}${shNodeName}\t意見\t${opContentRaw}\t${config.cDefaultEdge}\t#f0f0f0\t#f0f0f0\n`;
@@ -564,7 +674,7 @@ function splitAndProcessData() {
                     }
 
                     if (config.evEnabled && evContentRaw !== "") {
-                        let evMetaKey = `${currentDocId}_${trId}_evidence_${evContent}`;
+                        const evMetaKey = `${currentDocId}_${trId}_evidence_${evContent}`;
                         if (!metadataLinkSet.has(evMetaKey)) {
                             metadataLinkSet.add(evMetaKey);
                             docOutputBuffer += `${prefix}${trId}\t根拠\t${evContent}\t${config.cDefaultEdge}\t${config.cEv}\t${config.cEv}\n`;
@@ -572,21 +682,20 @@ function splitAndProcessData() {
                     }
                 }
 
+                // 統計オブジェクトリストの生成（O(1) カラーマップアクセスへ改善）
                 const createSortedObjList = (setObj, countSubMap, categoryKey) => {
                     return Array.from(setObj).map(item => {
                         let rawName = item;
                         if (categoryKey === "triple") rawName = tripleLabelMap[item] || item;
                         
                         let baseColor = null;
-                        if (categoryKey === "subject") baseColor = config.cSubj;
-                        if (categoryKey === "object") baseColor = config.cObj;
-                        if (categoryKey === "sClass") baseColor = config.cSClass;
-                        if (categoryKey === "oClass") baseColor = config.cOClass;
-                        if (categoryKey === "evidence") baseColor = config.cEv;
-                        
-                        if (categoryKey === "stakeholder") {
-                            const found = Object.values(legendDisplayColorMap).find(m => m.name === item);
-                            if (found) baseColor = found.color;
+                        switch (categoryKey) {
+                            case "subject":     baseColor = config.cSubj; break;
+                            case "object":      baseColor = config.cObj; break;
+                            case "sClass":      baseColor = config.cSClass; break;
+                            case "oClass":      baseColor = config.cOClass; break;
+                            case "evidence":    baseColor = config.cEv; break;
+                            case "stakeholder": baseColor = nameToColorCacheMap[item] || null; break;
                         }
 
                         return {
@@ -600,14 +709,9 @@ function splitAndProcessData() {
 
                 const stats = {
                     configColors: {
-                        triple: config.cPred,
-                        subject: config.cSubj,
-                        object: config.cObj,
-                        sClass: config.cSClass,
-                        oClass: config.cOClass,
-                        stakeholder: config.cFixedSH, 
-                        opinion: "#f0f0f0",
-                        evidence: config.cEv
+                        triple: config.cPred, subject: config.cSubj, object: config.cObj,
+                        sClass: config.cSClass, oClass: config.cOClass, stakeholder: config.cFixedSH,
+                        opinion: "#f0f0f0", evidence: config.cEv
                     },
                     tripleCount: uniqueTriples.size,
                     subjectCount: uniqueSubjects.size,
@@ -629,6 +733,7 @@ function splitAndProcessData() {
                     }
                 };
 
+                // 出力セクションのレンダリングへ
                 createDocumentSection(groupKey, docOutputBuffer, stats);
             }
 
@@ -669,7 +774,7 @@ function createDocumentSection(docId, textContent, stats) {
             <div class="doc-side-panel">
                 <div class="doc-meta-badge">
                     <b class="badge-main-title">解析結果統計</b>
-                   <table class="stats-table">
+                    <table class="stats-table">
                         <tr><td><button class="stats-toggle-btn" data-target="triple"><span class="cat-color-badge" style="background-color:${stats.configColors.triple};"></span>トリプル数</button></td><td class="stat-count-value" data-stat="triple">${stats.tripleCount}</td></tr>
                         <tr><td><button class="stats-toggle-btn" data-target="subject"><span class="cat-color-badge" style="background-color:${stats.configColors.subject};"></span>主語数</button></td><td class="stat-count-value" data-stat="subject">${stats.subjectCount}</td></tr>
                         <tr><td><button class="stats-toggle-btn" data-target="object"><span class="cat-color-badge" style="background-color:${stats.configColors.object};"></span>目的語数</button></td><td class="stat-count-value" data-stat="object">${stats.objectCount}</td></tr>
@@ -711,6 +816,7 @@ function createDocumentSection(docId, textContent, stats) {
         let activeFiltersMap = {}; 
         let currentActiveTab = ""; 
 
+        // 交差インデックス（共通して含まれるbindingIndexes）を計算
         const getIntersectedIndexes = () => {
             const filterItems = Object.values(activeFiltersMap);
             if (filterItems.length === 0) return null;
@@ -727,6 +833,7 @@ function createDocumentSection(docId, textContent, stats) {
             return intersected;
         };
 
+        // 上部統計タブの記法や件数表示の動的リフレッシュ
         const updateTabVisualIndicators = () => {
             const intersectedIndexes = getIntersectedIndexes();
 
@@ -734,7 +841,7 @@ function createDocumentSection(docId, textContent, stats) {
                 const targetKey = btn.getAttribute("data-target");
                 if (!targetKey) return;
                 
-                // 1. 選択バッジの更新 (✓がついている選択中アイテム数)
+                // 1. 選択中バッジの更新
                 const activeCount = Object.values(activeFiltersMap).filter(item => item.category === targetKey).length;
                 const oldBadge = btn.querySelector(".tab-badge");
                 if (oldBadge) oldBadge.remove();
@@ -746,13 +853,13 @@ function createDocumentSection(docId, textContent, stats) {
                     btn.appendChild(badge);
                 }
 
-                // 2. 【改善】セルの位置に依存せず、data-stat属性で直接カウント表示用の td を取得する
+                // 2. data-stat属性で直接カウント表示用の td を取得して書き換え
                 const murderousTd = statsTable.querySelector(`.stat-count-value[data-stat="${targetKey}"]`);
                 if (murderousTd) {
                     const currentList = stats.lists[targetKey] || [];
                     
                     if (intersectedIndexes === null) {
-                        // 初期状態（絞り込みなし）のときは、statsから元の正しい総数を取得して表示
+                        // 初期状態（絞り込みなし）
                         if (targetKey === "triple") murderousTd.textContent = stats.tripleCount;
                         else if (targetKey === "subject") murderousTd.textContent = stats.subjectCount;
                         else if (targetKey === "object") murderousTd.textContent = stats.objectCount;
@@ -764,7 +871,7 @@ function createDocumentSection(docId, textContent, stats) {
                         
                         murderousTd.style.color = "#333333";
                     } else {
-                        // 絞り込みが発生している場合
+                        // 絞り込み発生時
                         let availableUniqueCount = 0;
                         currentList.forEach(item => {
                             const isSelected = !!activeFiltersMap[item.name];
@@ -782,7 +889,38 @@ function createDocumentSection(docId, textContent, stats) {
             });
         };
 
-            // 1. 選択中を上、2. 選択可能（件数 > 0）を中、3. 選択不可（件数 == 0）を下、の順にソート
+        // 途切れていた下部リスト（レジェンドテーブル）の描画処理を復元・統合
+        const updateLegendTable = (targetKey) => {
+            if (!targetKey || !legendTable) return;
+            currentActiveTab = targetKey;
+
+            const currentList = stats.lists[targetKey] || [];
+            const intersectedIndexes = getIntersectedIndexes();
+
+            // 表示用データの加工
+            const processedList = currentList.map(item => {
+                const isSelected = !!activeFiltersMap[item.name];
+                let displayCount = 0;
+
+                if (intersectedIndexes === null) {
+                    // 絞り込みなしの時は本来の件数（bindingIndexesの長さなど）
+                    displayCount = item.bindingIndexes ? item.bindingIndexes.length : 0;
+                } else {
+                    // 絞り込みありの時は交差する件数
+                    if (item.bindingIndexes) {
+                        displayCount = item.bindingIndexes.filter(i => intersectedIndexes.has(i)).length;
+                    }
+                }
+
+                return {
+                    name: item.name,
+                    color: item.color || stats.configColors[targetKey],
+                    isSelected: isSelected,
+                    displayCount: displayCount
+                };
+            });
+
+            // 順序ソート（1. 選択中、2. 件数あり、3. 件数ゼロ）
             processedList.sort((a, b) => {
                 if (a.isSelected !== b.isSelected) return a.isSelected ? -1 : 1;
                 const aAvailable = a.displayCount > 0;
@@ -793,7 +931,6 @@ function createDocumentSection(docId, textContent, stats) {
 
             // HTMLの生成
             legendTable.innerHTML = processedList.map((item, index) => {
-                // 絞り込みが発生している（intersectedIndexesがある）かつ 未選択 の場合、件数を「赤字」にするクラス・スタイル
                 const useRedColor = (intersectedIndexes !== null && !item.isSelected);
                 const countStyle = useRedColor 
                     ? 'color: #d32f2f; margin-left: 4px; font-weight: bold;' 
@@ -819,7 +956,6 @@ function createDocumentSection(docId, textContent, stats) {
                 const item = processedList[idx];
                 if (!item) return;
 
-                // 選択可能な件数が 0件 のものは不活性（薄暗くしてクリック不可）にする
                 if (item.displayCount > 0 || item.isSelected) {
                     row.style.opacity = "1";
                     row.style.pointerEvents = "auto";
@@ -834,7 +970,6 @@ function createDocumentSection(docId, textContent, stats) {
                     if (activeFiltersMap[clickedValue]) {
                         delete activeFiltersMap[clickedValue]; 
                     } else {
-                        // 元のフルリストから bindingIndexes を復元して保存
                         const originalItem = currentList.find(c => c.name === clickedValue);
                         activeFiltersMap[clickedValue] = { 
                             ...originalItem, 
@@ -848,65 +983,7 @@ function createDocumentSection(docId, textContent, stats) {
             });
         };
 
-        const updateTabVisualIndicators = () => {
-            const intersectedIndexes = getIntersectedIndexes();
-
-            statsTable.querySelectorAll(".stats-toggle-btn").forEach(btn => {
-                const targetKey = btn.getAttribute("data-target");
-                if (!targetKey) return;
-                
-                // 1. 選択バッジの更新 (✓がついている選択中アイテム数)
-                const activeCount = Object.values(activeFiltersMap).filter(item => item.category === targetKey).length;
-                const oldBadge = btn.querySelector(".tab-badge");
-                if (oldBadge) oldBadge.remove();
-
-                if (activeCount > 0) {
-                    const badge = document.createElement("span");
-                    badge.className = "tab-badge";
-                    badge.textContent = `${activeCount}`;
-                    btn.appendChild(badge);
-                }
-
-                // 2. 解析結果統計のカウント数(右側の列)を動的に変化させる
-                const row = btn.closest("tr");
-                if (row) {
-                    // row.cells[1] の代わりに、より安全なアプローチ
-                    const murderousTd = row.cells[1]; 
-                    if (murderousTd) {
-                        const currentList = stats.lists[targetKey] || [];
-                        
-                        if (intersectedIndexes === null) {
-                            // 初期状態（絞り込みなし）のときは、statsから元の正しい総数を取得して表示
-                            if (targetKey === "triple") murderousTd.textContent = stats.tripleCount;
-                            else if (targetKey === "subject") murderousTd.textContent = stats.subjectCount;
-                            else if (targetKey === "object") murderousTd.textContent = stats.objectCount;
-                            else if (targetKey === "sClass") murderousTd.textContent = stats.sClassCount;
-                            else if (targetKey === "oClass") murderousTd.textContent = stats.oClassCount;
-                            else if (targetKey === "stakeholder") murderousTd.textContent = stats.stakeholderCount;
-                            else if (targetKey === "opinion") murderousTd.textContent = stats.opinionCount;
-                            else if (targetKey === "evidence") murderousTd.textContent = stats.evidenceCount;
-                            
-                            murderousTd.style.color = "#333333";
-                        } else {
-                            // 絞り込みが発生している場合
-                            let availableUniqueCount = 0;
-                            currentList.forEach(item => {
-                                const isSelected = !!activeFiltersMap[item.name];
-                                const hasIntersection = item.bindingIndexes && item.bindingIndexes.some(i => intersectedIndexes.has(i));
-                                
-                                if (isSelected || hasIntersection) {
-                                    availableUniqueCount++;
-                                }
-                            });
-                            
-                            murderousTd.textContent = availableUniqueCount;
-                            murderousTd.style.color = "#d32f2f";
-                        }
-                    }
-                }
-            });
-        };
-
+        // 統計テーブル（タブ）全体のクリックイベント委譲
         statsTable.onclick = (e) => {
             const btn = e.target.closest(".stats-toggle-btn");
             if (!btn) return;
@@ -926,6 +1003,7 @@ function createDocumentSection(docId, textContent, stats) {
             updateTabVisualIndicators();
         };
 
+        // 選択クリアボタン
         const clearBtn = section.querySelector(".btn-clear-filters");
         if (clearBtn) {
             clearBtn.onclick = () => {
@@ -935,6 +1013,8 @@ function createDocumentSection(docId, textContent, stats) {
             };
         }
 
+        // 初期選択のシミュレート
         const defaultBtn = statsTable.querySelector(`.stats-toggle-btn[data-target="stakeholder"]`) || statsTable.querySelector(`.stats-toggle-btn[data-target="subject"]`);
         if (defaultBtn) defaultBtn.click();
+    }
 }
