@@ -356,7 +356,7 @@ button:disabled {
 .stats-table {
     width: 100%;
     border-collapse: collapse;                        /* テーブルの隙間を無くす */
-    font-size: 1px !important;                       /*「トリプル数： 25」などの文字サイズ */
+    font-size: 13px !important;                       /*「トリプル数： 25」などの文字サイズ */
 }
 .stats-table td {
     padding: 4px 0;                                   /* 1行ずつの上下余白 */
