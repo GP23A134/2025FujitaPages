@@ -495,15 +495,6 @@ function splitAndProcessData() {
                     let oClassLabelRaw = clean(getValueFromBinding(b, "oClassLabel"));
                     let stClassLabelRaw = clean(getValueFromBinding(b, "stClassLabel"));
 
-                    // 【除外徹底】「【個人】」または「個人」を含むレコードはスキップ
-                    if (sLabelRaw === "【個人】" || sLabelRaw === "個人") continue;
-                    if (oLabelRaw === "【個人】" || oLabelRaw === "個人") continue;
-                    if (shLabelRaw === "【個人】" || shLabelRaw === "個人") shLabelRaw = "";
-                    if (opContentRaw === "【個人】" || opContentRaw === "個人") opContentRaw = "";
-                    if (sClassLabelRaw === "【個人】" || sClassLabelRaw === "個人") sClassLabelRaw = "";
-                    if (oClassLabelRaw === "【個人】" || oClassLabelRaw === "個人") oClassLabelRaw = "";
-                    if (stClassLabelRaw === "【個人】" || stClassLabelRaw === "個人") stClassLabelRaw = "";
-
                     let sLabel      = "s_" + sLabelRaw;
                     let sClassLabel = "sc_" + sClassLabelRaw;
                     let pLabel      = clean(getValueFromBinding(b, "pLabel")); 
@@ -926,9 +917,9 @@ function createDocumentSection(docId, textContent, stats) {
         </tr>`;
     }
     if (stats.oClassEnabled) {
-        tableHtml += `<tr>
-            <td>${getBox(stats.cOClass)}${isAllDoc ? '目的語クラス数' : `<button class="stats-toggle-btn" data-target="oClass" data-doc="${docId}" style="font-size: 1em;">目的語クラス数</button>`}</td>
-            <td>stats.oClassCount</td>
+    tableHtml += `<tr>
+        <td>${getBox(stats.cOClass)}${isAllDoc ? '目的語クラス数' : `<button class="stats-toggle-btn" data-target="oClass" data-doc="${docId}" style="font-size: 1em;">目的語クラス数</button>`}</td>
+        <td>${stats.oClassCount}</td>
         </tr>`;
     }
     if (stats.shEnabled) {
