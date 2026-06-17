@@ -248,9 +248,7 @@ function initDocIdDropdown() {
         selectEl.appendChild(option);
     });
 }
-// ------------------------------------------------------------------------
-// ご提示いただいたローディング表示・消去関数
-// ------------------------------------------------------------------------
+/** ローディング表示・消去関数 */
 function showSearchIng(resultArea) {
     const orgDiv = resultArea.innerHTML;
     resultArea.innerHTML = orgDiv + '<div id="searching"><h2>検索中...</h2>'
