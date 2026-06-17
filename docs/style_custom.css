@@ -356,7 +356,7 @@ button:disabled {
 .stats-table {
     width: 100%;
     border-collapse: collapse;                        /* テーブルの隙間を無くす */
-    font-size: 14px !important;                       /*「トリプル数： 25」などの文字サイズ */
+    font-size: 1px !important;                       /*「トリプル数： 25」などの文字サイズ */
 }
 .stats-table td {
     padding: 4px 0;                                   /* 1行ずつの上下余白 */
@@ -375,7 +375,7 @@ button:disabled {
     border: none;                                     /* ボタンの枠線を消す */
     padding: 4px 6px;
     margin: 0;
-    font-size: 14px !important;                       /* 親の文字サイズ(14px)をそのまま引き継ぐ */
+    font-size: 13px !important;                       /* 親の文字サイズ(14px)をそのまま引き継ぐ */
     font-family: inherit;
     font-weight: inherit;
     color: #333333;
@@ -413,11 +413,12 @@ button:disabled {
 
 .cat-color-badge {
     display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
+    width: 12px;                                      /* 見やすくするために12pxにサイズを揃えました */
+    height: 12px;
+    border-radius: 3px;                              
     margin-right: 6px;
     vertical-align: middle;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);      /* 下の一覧の四角と同じように、薄いフチをつけて綺麗に見せます */
 }
 
 .badge-divider {
@@ -437,7 +438,7 @@ button:disabled {
 /* --- 高精度スクロール凡例テーブル（JSの複数選択と完全連動） --- */
 .legend-scroll-container {
     flex-grow: 1;                                     /* 上部にある統計テーブルの残りの縦スペースを限界まで自動で埋める */
-    max-height: 250px;                                /* 全体580pxの枠組みの中で絶対に型崩れしないための、限界の最大縦幅 */
+    max-height: 350px;                                /* 全体580pxの枠組みの中で絶対に型崩れしないための、限界の最大縦幅 */
     overflow-y: auto !important;                      /* 縦に項目が溢れたら、自動的に縦スクロールバーを出す */
     overflow-x: auto !important;                      /* 重要：名前が長い時に文字が潰れないよう、横スクロールを許可 */
     padding: 6px;
@@ -518,4 +519,16 @@ button:disabled {
         grid-template-columns: 1fr !important;        /* カラーピッカー設定を横3列から「縦1列」に変更して潰れるのを防ぐ */
         gap: 10px !important;
     }
+}
+
+/* --- 一覧全体の高さ（スクロールコンテナ） --- */
+.legend-scroll-container {
+    max-height: 400px !important;  /* 👈【重要】高さを大きくしたい場合は、この数値を大きく（例: 500px）してください */
+    overflow-y: auto !important;
+}
+
+/* --- 一覧の中のテキスト（名前と件数）のフォントサイズ --- */
+.filter-trigger-row td,
+.filter-trigger-row span {
+    font-size: 13px !important;   /* 👈【重要】文字を大きくしたい場合は 16px、小さくしたい場合は 12px などに変えてください */
 }
