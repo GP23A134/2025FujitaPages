@@ -770,12 +770,13 @@ function createDocumentSection(docId, textContent, stats) {
             });
 
             // HTMLの生成
+            // HTMLの生成
             legendTable.innerHTML = processedList.map((item, index) => {
-                // 絞り込みが発生している（intersectedIndexesがある）かつ 未選択 の場合、件数を「赤字」にする
+                // 絞り込みが発生している（intersectedIndexesがある）かつ 未選択 の場合、件数を「赤字」にするクラス・スタイル
                 const useRedColor = (intersectedIndexes !== null && !item.isSelected);
                 const countStyle = useRedColor 
-                    ? 'color: #d32f2f; font-size: 0.9em; margin-left: 4px; font-weight: bold;' 
-                    : 'color: #666666; font-size: 0.9em; margin-left: 4px;';
+                    ? 'color: #d32f2f; margin-left: 4px; font-weight: bold;' 
+                    : 'color: #666666; margin-left: 4px;';
 
                 return `
                     <tr class="filter-trigger-row" data-index="${index}" data-value="${item.name}" style="cursor:pointer; transition: background 0.2s; ${item.isSelected ? 'background-color: #cce5ff; border-left: 4px solid #004085;' : ''}">
@@ -783,7 +784,7 @@ function createDocumentSection(docId, textContent, stats) {
                             ${item.color ? `<span style="background-color:${item.color}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:8px; vertical-align:middle; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);"></span>` : ''}
                             <span style="vertical-align:middle; ${item.isSelected ? 'font-weight: bold; color: #004085;' : ''}">
                                 ${item.isSelected ? '✓ ' : ''}${item.name} 
-                                <span style="${countStyle}">(${item.displayCount}件)</span>
+                                <span class="legend-item-count" style="${countStyle}">(${item.displayCount}件)</span>
                             </span>
                         </td>
                     </tr>
@@ -901,7 +902,7 @@ function createDocumentSection(docId, textContent, stats) {
 
             if (titleEl) titleEl.textContent = `${labelText.replace(/[・数]/g, '')}一覧`;
             if (noticeEl) {
-                noticeEl.textContent = "※選択した要素と「繋がりがある項目のみ」が他カテゴリでも選択可能になります。";
+                noticeEl.textContent = "";
             }
 
             updateLegendTable(targetKey);
