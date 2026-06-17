@@ -1047,7 +1047,7 @@ function createDocumentSection(docId, textContent, stats) {
                                     textarea.value = filteredLines.join("\n");
                                 }
                             } else {
-                                //2. トリプル以外（主語・ステークホルダー等）の場合の連動処理 
+                                // --- 2. トリプル以外（主語・ステークホルダー等）の場合の連動処理 ---
                                 if (window.cy) {
                                     window.cy.elements().removeClass("highlighted-node dimmed-node");
                                 }
@@ -1057,7 +1057,7 @@ function createDocumentSection(docId, textContent, stats) {
                                     currentFilterTarget = null;
                                     row.style.backgroundColor = "";
                                     row.querySelector(".legend-item-name").style.fontWeight = "normal";
-                                    console.log(`[解除] 名称: ${item.name}`);
+                                    console.log(`[解除] カテゴリ: ${targetKey} | 名称: ${item.name}`);
                                 } else {
                                     // 新しく選択された場合
                                     currentFilterTarget = clickedValue;
@@ -1081,7 +1081,7 @@ function createDocumentSection(docId, textContent, stats) {
                                         // 全体を一旦薄くする
                                         window.cy.elements().addClass("dimmed-node");
 
-                                        // 重複分離されたノード（例: st_Aさん_1, st_Aさん_2）を前方一致で一括ヒットさせる
+                                        // 重複分離されたノードを前方一致で一括ヒットさせる
                                         window.cy.nodes().forEach(node => {
                                             const nodeId = node.id();
                                             if (nodeId === clickedName || nodeId.startsWith(prefix + clickedName)) {
@@ -1090,7 +1090,9 @@ function createDocumentSection(docId, textContent, stats) {
                                             }
                                         });
                                     }
-                                    console.log(`[${labelText.replace('数', '')}] 名称: ${item.name} | URI:`, item.uri || "URIが存在しません");
+                                    
+                                    //ラベル行クリック時に、ID（URI）情報をコンソールに表示
+                                    console.log(`[選択] カテゴリ: ${targetKey} | 名称: ${item.name} | ID/URI: ${item.uri || "IDが存在しません"}`);
                                 }
                             }
                         };
@@ -1122,6 +1124,9 @@ function createDocumentSection(docId, textContent, stats) {
 
                 const targetKey = e.target.getAttribute("data-target");
                 const labelText = e.target.textContent;
+                
+                // ボタン自体が押されたとき、そのターゲットキーをコンソールに表示
+                console.log(`[カテゴリ切り替え] ターゲットボタンID (targetKey): ${targetKey} (${labelText})`);
                 
                 // タブが切り替わったら選択状態・グラフハイライトは全リセットして原本に戻す
                 currentFilterTarget = null;
