@@ -902,7 +902,7 @@ function createDocumentSection(docId, textContent, stats) {
             if (noticeEl) {
                 noticeEl.textContent = targetKey === "triple" 
                     ? "※行をクリックで本文をトリプル番号（T1など）で絞り込み"
-                    : "※行をクリックでグラフ上の該当ノード（重複分離分含む）を一括ハイライト";
+                    : "";
             }
 
             // カテゴリ切り替え時はフィルタとハイライト状態を安全に全面初期化
