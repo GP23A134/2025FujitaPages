@@ -523,14 +523,14 @@ button:disabled {
 
 /* --- 一覧全体の高さ（スクロールコンテナ） --- */
 .legend-scroll-container {
-    max-height: 400px !important;  /* 👈【重要】高さを大きくしたい場合は、この数値を大きく（例: 500px）してください */
+    max-height: 400px !important;  /* 高さを大きくしたい場合は、この数値を大きく（例: 500px）してください */
     overflow-y: auto !important;
 }
 
 /* --- 一覧の中のテキスト（名前と件数）のフォントサイズ --- */
 .filter-trigger-row td,
 .filter-trigger-row span {
-    font-size: 13px !important;   /* 👈【重要】文字を大きくしたい場合は 16px、小さくしたい場合は 12px などに変えてください */
+    font-size: 13px !important;   /* 文字を大きくしたい場合は 16px、小さくしたい場合は 12px などに変えてください */
 }
 
 /* ========================================================
@@ -544,14 +544,13 @@ button:disabled {
 
 /* 「主語数」などのボタン文字 */
 .stats-toggle-btn {
-    font-size: 15px !important; 
+    font-size: 13px !important; 
     padding: 6px 8px;           /* クリックしやすく隙間を広く */
 }
 
 /* 右側のカウント数値 [種類数 (出現回数)] を極太・大きく */
 .stats-table td.stat-count-value {
-    font-size: 17px !important;  /* 数字を少し際立たせる */
-    font-weight: 800 !important; /* 文字を極太にする */
+    font-size: 13px !important;  /* 数字を少し際立たせる */
     color: #1e293b;
     white-space: nowrap;         /* 途中で改行されるのを防ぐ */
 }
@@ -564,13 +563,13 @@ button:disabled {
 
 /* 一覧の中の件数数字「(〇〇件)」の部分 */
 .legend-item-count {
-    font-size: 14px !important; 
+    font-size: 13px !important; 
     font-weight: bold;
 }
 
 /* 青い選択中バッジの調整 */
 .tab-badge {
-    font-size: 11px !important;
+    font-size: 10px !important;
     padding: 2px 6px !important;
     font-weight: bold;
 }
