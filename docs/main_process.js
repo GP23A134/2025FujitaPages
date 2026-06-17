@@ -669,15 +669,15 @@ function createDocumentSection(docId, textContent, stats) {
             <div class="doc-side-panel">
                 <div class="doc-meta-badge">
                     <b class="badge-main-title">解析結果統計</b>
-                    <table class="stats-table">
-                        <tr><td><button class="stats-toggle-btn" data-target="triple"><span class="cat-color-badge" style="background-color:${stats.configColors.triple};"></span>トリプル数</button></td><td>${stats.tripleCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="subject"><span class="cat-color-badge" style="background-color:${stats.configColors.subject};"></span>主語数</button></td><td>${stats.subjectCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="object"><span class="cat-color-badge" style="background-color:${stats.configColors.object};"></span>目的語数</button></td><td>${stats.objectCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="sClass"><span class="cat-color-badge" style="background-color:${stats.configColors.sClass};"></span>主語クラス数</button></td><td>${stats.sClassCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="oClass"><span class="cat-color-badge" style="background-color:${stats.configColors.oClass};"></span>目的語クラス数</button></td><td>${stats.oClassCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="stakeholder"><span class="cat-color-badge" style="background-color:${stats.configColors.stakeholder};"></span>ステークホルダー数</button></td><td>${stats.stakeholderCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="opinion"><span class="cat-color-badge" style="background-color:${stats.configColors.opinion};"></span>意見数</button></td><td>${stats.opinionCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="evidence"><span class="cat-color-badge" style="background-color:${stats.configColors.evidence};"></span>根拠数</button></td><td>${stats.evidenceCount}</td></tr>
+                   <table class="stats-table">
+                        <tr><td><button class="stats-toggle-btn" data-target="triple"><span class="cat-color-badge" style="background-color:${stats.configColors.triple};"></span>トリプル数</button></td><td class="stat-count-value" data-stat="triple">${stats.tripleCount}</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="subject"><span class="cat-color-badge" style="background-color:${stats.configColors.subject};"></span>主語数</button></td><td class="stat-count-value" data-stat="subject">${stats.subjectCount}</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="object"><span class="cat-color-badge" style="background-color:${stats.configColors.object};"></span>目的語数</button></td><td class="stat-count-value" data-stat="object">${stats.objectCount}</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="sClass"><span class="cat-color-badge" style="background-color:${stats.configColors.sClass};"></span>主語クラス数</button></td><td class="stat-count-value" data-stat="sClass">${stats.sClassCount}</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="oClass"><span class="cat-color-badge" style="background-color:${stats.configColors.oClass};"></span>目的語クラス数</button></td><td class="stat-count-value" data-stat="oClass">${stats.oClassCount}</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="stakeholder"><span class="cat-color-badge" style="background-color:${stats.configColors.stakeholder};"></span>ステークホルダー数</button></td><td class="stat-count-value" data-stat="stakeholder">${stats.stakeholderCount}</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="opinion"><span class="cat-color-badge" style="background-color:${stats.configColors.opinion};"></span>意見数</button></td><td class="stat-count-value" data-stat="opinion">${stats.opinionCount}</td></tr>
+                        <tr><td><button class="stats-toggle-btn" data-target="evidence"><span class="cat-color-badge" style="background-color:${stats.configColors.evidence};"></span>根拠数</button></td><td class="stat-count-value" data-stat="evidence">${stats.evidenceCount}</td></tr>
                     </table>
                     
                     ${!isAllDoc ? `
@@ -731,7 +731,6 @@ function createDocumentSection(docId, textContent, stats) {
             const intersectedIndexes = getIntersectedIndexes();
 
             statsTable.querySelectorAll(".stats-toggle-btn").forEach(btn => {
-                // ボタンのdata-target属性から確実にカテゴリ名（"triple", "subject"等）を取得
                 const targetKey = btn.getAttribute("data-target");
                 if (!targetKey) return;
                 
@@ -747,44 +746,37 @@ function createDocumentSection(docId, textContent, stats) {
                     btn.appendChild(badge);
                 }
 
-                // 2. 解析結果統計のカウント数(右側の列)を動的に変化させる
-                const row = btn.closest("tr");
-                if (row) {
-                    const murderousTd = row.cells[1]; // 右側の数値が入っている td 要素
-                    if (murderousTd) {
-                        const currentList = stats.lists[targetKey] || [];
+                // 2. 【改善】セルの位置に依存せず、data-stat属性で直接カウント表示用の td を取得する
+                const murderousTd = statsTable.querySelector(`.stat-count-value[data-stat="${targetKey}"]`);
+                if (murderousTd) {
+                    const currentList = stats.lists[targetKey] || [];
+                    
+                    if (intersectedIndexes === null) {
+                        // 初期状態（絞り込みなし）のときは、statsから元の正しい総数を取得して表示
+                        if (targetKey === "triple") murderousTd.textContent = stats.tripleCount;
+                        else if (targetKey === "subject") murderousTd.textContent = stats.subjectCount;
+                        else if (targetKey === "object") murderousTd.textContent = stats.objectCount;
+                        else if (targetKey === "sClass") murderousTd.textContent = stats.sClassCount;
+                        else if (targetKey === "oClass") murderousTd.textContent = stats.oClassCount;
+                        else if (targetKey === "stakeholder") murderousTd.textContent = stats.stakeholderCount;
+                        else if (targetKey === "opinion") murderousTd.textContent = stats.opinionCount;
+                        else if (targetKey === "evidence") murderousTd.textContent = stats.evidenceCount;
                         
-                        if (intersectedIndexes === null) {
-                            // 【確実な判定に修正】ボタンのテキストに依存せず、targetKeyの値で直接初期の総数をセット
-                            if (targetKey === "triple") murderousTd.textContent = stats.tripleCount;
-                            else if (targetKey === "subject") murderousTd.textContent = stats.subjectCount;
-                            else if (targetKey === "object") murderousTd.textContent = stats.objectCount;
-                            else if (targetKey === "sClass") murderousTd.textContent = stats.sClassCount;
-                            else if (targetKey === "oClass") murderousTd.textContent = stats.oClassCount;
-                            else if (targetKey === "stakeholder") murderousTd.textContent = stats.stakeholderCount;
-                            else if (targetKey === "opinion") murderousTd.textContent = stats.opinionCount;
-                            else if (targetKey === "evidence") murderousTd.textContent = stats.evidenceCount;
+                        murderousTd.style.color = "#333333";
+                    } else {
+                        // 絞り込みが発生している場合
+                        let availableUniqueCount = 0;
+                        currentList.forEach(item => {
+                            const isSelected = !!activeFiltersMap[item.name];
+                            const hasIntersection = item.bindingIndexes && item.bindingIndexes.some(i => intersectedIndexes.has(i));
                             
-                            // 通常の文字色(黒)に戻す
-                            murderousTd.style.color = "#333333";
-                        } else {
-                            // 絞り込みが発生している場合：
-                            // 該当カテゴリのリスト内で、現在選択可能（共通の bindingIndexes を持つ）なアイテム数を計算
-                            let availableUniqueCount = 0;
-                            currentList.forEach(item => {
-                                const isSelected = !!activeFiltersMap[item.name];
-                                const hasIntersection = item.bindingIndexes && item.bindingIndexes.some(i => intersectedIndexes.has(i));
-                                
-                                if (isSelected || hasIntersection) {
-                                    availableUniqueCount++;
-                                }
-                            });
-                            
-                            // 計算された動的な数値を上書き
-                            murderousTd.textContent = availableUniqueCount;
-                            // 絞り込み中は赤字にする
-                            murderousTd.style.color = "#d32f2f";
-                        }
+                            if (isSelected || hasIntersection) {
+                                availableUniqueCount++;
+                            }
+                        });
+                        
+                        murderousTd.textContent = availableUniqueCount;
+                        murderousTd.style.color = "#d32f2f";
                     }
                 }
             });
@@ -799,7 +791,6 @@ function createDocumentSection(docId, textContent, stats) {
                 return b.displayCount - a.displayCount;
             });
 
-            // HTMLの生成
             // HTMLの生成
             legendTable.innerHTML = processedList.map((item, index) => {
                 // 絞り込みが発生している（intersectedIndexesがある）かつ 未選択 の場合、件数を「赤字」にするクラス・スタイル
