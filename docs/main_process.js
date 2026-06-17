@@ -731,7 +731,9 @@ function createDocumentSection(docId, textContent, stats) {
             const intersectedIndexes = getIntersectedIndexes();
 
             statsTable.querySelectorAll(".stats-toggle-btn").forEach(btn => {
+                // ボタンのdata-target属性から確実にカテゴリ名（"triple", "subject"等）を取得
                 const targetKey = btn.getAttribute("data-target");
+                if (!targetKey) return;
                 
                 // 1. 選択バッジの更新 (✓がついている選択中アイテム数)
                 const activeCount = Object.values(activeFiltersMap).filter(item => item.category === targetKey).length;
@@ -753,7 +755,7 @@ function createDocumentSection(docId, textContent, stats) {
                         const currentList = stats.lists[targetKey] || [];
                         
                         if (intersectedIndexes === null) {
-                            // 【修正】初期状態（絞り込みなし）のときは、statsから元の正しい総数を取得して表示
+                            // 【確実な判定に修正】ボタンのテキストに依存せず、targetKeyの値で直接初期の総数をセット
                             if (targetKey === "triple") murderousTd.textContent = stats.tripleCount;
                             else if (targetKey === "subject") murderousTd.textContent = stats.subjectCount;
                             else if (targetKey === "object") murderousTd.textContent = stats.objectCount;
