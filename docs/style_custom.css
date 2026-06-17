@@ -441,7 +441,7 @@ button:disabled {
 }
 
 .legend-item-count {
-    font-size: 11px !important;                       /* [調整] 件数数字を少し強調 */
+    font-size: 12px !important;                       /* [調整] 件数数字を少し強調 */
     font-weight: bold;
 }
 
