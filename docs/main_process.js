@@ -3,7 +3,7 @@
  * CCO4KG 変換・特定ID指定抽出ツール メインロジック
  * 区分: ローカル連携 ＆ カテゴリ間相互ロック（動的絞り込み）完全対応版
  * =======================================================================
- * * 【全体の概要】
+ * 【全体の概要】
  * 本スクリプトは、ナレッジグラフ（KG）データを解析し、画面上で主語、目的語、
  * ステークホルダーなどのカテゴリを横断して動的に絞り込む（相互ロックする）
  * ためのフロントエンド用コアロジックです。
@@ -71,8 +71,7 @@ function setupAccordion(headerId, contentId) {
             content.style.display = "none"; // 非表示にする
         } else {
             header.classList.add("active");
-            content.style.style = "block"; // 表示する
-            content.style.display = "block"; 
+            content.style.display = "block"; // 表示する
         }
     });
 }
@@ -288,20 +287,14 @@ function splitAndProcessData() {
         evidenceCount: Object.keys(evidenceMap).length,
         configColors: colors,
         lists: {
-            // トリプルそのもののリスト（インデックス番号そのものをキーとしてバインド）
             triple: filteredTriples.map((t, idx) => ({ name: `Triple-${idx+1}`, count: 1, bindingIndexes: [idx], color: colors.predicate })),
-            // 主語リスト
             subject: Object.keys(subjectMap).map(k => ({ name: k, count: subjectMap[k].count, bindingIndexes: subjectMap[k].indexes, color: colors.subject })),
-            // 目的語リスト
             object: Object.keys(objectMap).map(k => ({ name: k, count: objectMap[k].count, bindingIndexes: objectMap[k].indexes, color: colors.object })),
-            // 主語クラスリスト
             sClass: Object.keys(sClassMap).map(k => ({ name: k, count: sClassMap[k].count, bindingIndexes: sClassMap[k].indexes, color: colors.sClass })),
-            // 目的語クラスリスト
             oClass: Object.keys(oClassMap).map(k => ({ name: k, count: oClassMap[k].count, bindingIndexes: oClassMap[k].indexes, color: colors.oClass })),
-            // ステークホルダーリスト（カラーモード設定によって割り当てる色を動的に切り替える）
             stakeholder: Object.keys(stakeholderMap).map(k => {
                 const shObj = stakeholderMap[k];
-                let finalColor = colors.subject; // デフォルトの予備色
+                let finalColor = colors.subject;
                 if (shColorMode === "type") {
                     finalColor = stakeholderTypeColors[shObj.type] || stakeholderTypeColors["未定義"];
                 } else {
@@ -309,9 +302,7 @@ function splitAndProcessData() {
                 }
                 return { name: k, count: shObj.count, bindingIndexes: shObj.indexes, color: finalColor, type: shObj.type };
             }),
-            // 意見リスト
             opinion: Object.keys(opinionMap).map(k => ({ name: k, count: opinionMap[k].count, bindingIndexes: opinionMap[k].indexes, color: colors.predicate })),
-            // 根拠リスト
             evidence: Object.keys(evidenceMap).map(k => ({ name: k, count: evidenceMap[k].count, bindingIndexes: evidenceMap[k].indexes, color: colors.evidence }))
         }
     };
@@ -319,11 +310,10 @@ function splitAndProcessData() {
     // データの加工がすべて終わったら、画面（UI）へデータを引き渡してレンダリングを開始する
     renderStatsAndInteractiveControls(stats);
 
-    // 【ステップ4】可視化グラフライブラリ（Cytoscape等）に渡すためのノード・エッジの生成処理
+    // 【ステップ4】可視化グラフライブラリに渡すためのノード・エッジの生成処理
     const nodesMap = {};
     const edgesList = [];
 
-    // 画面のフラグで「有効」とされている要素だけを抽出し、グラフのノードを生成する補助関数
     const addNode = (id, label, type, color, shape = "ellipse") => {
         if (!id) return;
         if (!nodesMap[id]) {
@@ -331,7 +321,6 @@ function splitAndProcessData() {
         }
     };
 
-    // 各トリプルデータから、チェックボックスで有効化されているノードとそれらを結ぶリンクをグラフデータとして構築
     filteredTriples.forEach((t, idx) => {
         const sId = `S_${t.subject}`;
         const oId = `O_${t.object}`;
@@ -340,7 +329,6 @@ function splitAndProcessData() {
         const shId = `SH_${t.stakeholder}`;
         const evId = `EV_${t.evidence}`;
 
-        // 各要素が画面上で有効化（チェックあり）されている場合のみノードとして登録
         if (flags.subject && t.subject) addNode(sId, t.subject, "Subject", colors.subject, "round-rectangle");
         if (flags.object && t.object) addNode(oId, t.object, "Object", colors.object, "round-rectangle");
         if (flags.sClass && t.sClass) addNode(scId, t.sClass, "SClass", colors.sClass, "ellipse");
@@ -357,34 +345,26 @@ function splitAndProcessData() {
             addNode(shId, t.stakeholder, "Stakeholder", shColor, "diamond");
         }
 
-        // --- エッジ（線）の接続構築ロジック ---
-        // 1. 主語 ──(述語)──> 目的語 の基本リンク
         if (flags.subject && flags.object && flags.predicate && t.subject && t.object) {
             edgesList.push({ data: { source: sId, target: oId, label: t.predicate, color: colors.predicate, type: "Predicate" } });
         }
-        // 2. 主語 ──> 主語クラス の所属リンク
         if (flags.subject && flags.sClass && t.subject && t.sClass) {
             edgesList.push({ data: { source: sId, target: scId, label: "isA", color: "#999999", type: "isA" } });
         }
-        // 3. 目的語 ──> 目的語クラス の所属リンク
         if (flags.object && flags.oClass && t.object && t.oClass) {
             edgesList.push({ data: { source: oId, target: ocId, label: "isA", color: "#999999", type: "isA" } });
         }
-        // 4. 主語クラス ──> 目的語クラス のクラス間関係リンク
         if (flags.sClass && flags.oClass && flags.classLink && t.sClass && t.oClass && t.classLink) {
             edgesList.push({ data: { source: scId, target: ocId, label: t.classLink, color: colors.classLink, type: "ClassLink" } });
         }
-        // 5. ステークホルダー ──> 主語 の発言・所有関係リンク
         if (flags.stakeholder && flags.subject && t.stakeholder && t.subject) {
             edgesList.push({ data: { source: shId, target: sId, label: "asserts", color: "#444444", type: "asserts" } });
         }
-        // 6. 根拠 ──> 主語 のエビデンス裏付けリンク
         if (flags.evidence && flags.subject && t.evidence && t.subject) {
             edgesList.push({ data: { source: evId, target: sId, label: "supports", color: colors.evidence, type: "supports" } });
         }
     });
 
-    // 最終的に出来上がった純粋なノードとエッジのJSONデータを画面下部の大容量テキストエリアに出力
     const resultJson = {
         nodes: Object.values(nodesMap),
         edges: edgesList
@@ -392,7 +372,7 @@ function splitAndProcessData() {
     
     document.getElementById("outputJsonTextarea").value = JSON.stringify(resultJson, null, 2);
     console.log("[CCO4KG Process] 解析結果の出力に成功しました。");
-}
+} // 👈【完全修正】前回のコードで抜けていた、splitAndProcessData関数の閉じカッコをしっかりと補填しました。
 
 // ------------------------------------------------------------------------
 // 3. 解析出力エリア ＆ 相互ロック（動的インタラクション）処理
@@ -406,22 +386,17 @@ function renderStatsAndInteractiveControls(stats) {
     const section = document.getElementById("interactiveStatsSection");
     if (!section) return;
 
-    // 相互ロック用のUIセクションを表示状態にする
     section.style.display = "block";
 
-    // 画面内の表示を更新するためのDOMターゲット要素をまとめて確保
     const statsTable = section.querySelector(".stats-table");
     const titleEl = section.querySelector(".legend-box-title");
     const noticeEl = section.querySelector(".legend-box-notice");
     const legendTable = section.querySelector(".legend-interactive-table");
 
-    // 現在どのフィルター（どの要素）が選択されているかを保持するメモリマップ（キー: 要素名, 値: カテゴリ等）
     let activeFiltersMap = {};
-    // 現在アクティブ（クリックして選択中）になっている統計タブ（カテゴリキー）を管理
     let currentActiveTab = "stakeholder";
 
     if (statsTable) {
-        // 解析結果統計テーブルのHTML構造を生成。各ボタンの左の丸バッジを角丸四角形に変更
         statsTable.innerHTML = `
             <table class="stats-table">
                 <tr><td><button class="stats-toggle-btn" data-target="triple"><span class="cat-color-badge" style="background-color:${stats.configColors.predicate};"></span>トリプル数</button></td><td>${stats.tripleCount}</td></tr>
@@ -435,16 +410,10 @@ function renderStatsAndInteractiveControls(stats) {
             </table>
         `;
 
-        /**
-         * 【ロジックの肝】相互に重なり合う共通の有効トリプルインデックスを計算する関数
-         * 他のカテゴリで何か要素が選ばれている場合、それらすべてを満たすトリプルの位置（Set）を返す。
-         * 何も選択されていない通常時は null を返す。
-         */
         const getIntersectedIndexes = () => {
             const activeItems = Object.values(activeFiltersMap);
-            if (activeItems.length === 0) return null; // 何も絞り込まれていない
+            if (activeItems.length === 0) return null;
 
-            // フィルターが所属するカテゴリごとにデータをグループ化（同じカテゴリ内の複数選択はOR、別カテゴリ間はANDで処理するため）
             const categoryGroups = {};
             activeItems.forEach(item => {
                 if (!categoryGroups[item.category]) categoryGroups[item.category] = [];
@@ -453,9 +422,7 @@ function renderStatsAndInteractiveControls(stats) {
 
             let finalSet = null;
 
-            // 各カテゴリグループ（主語、ステークホルダー等）ごとに条件をマージ
             Object.keys(categoryGroups).forEach(catKey => {
-                // 同じカテゴリ内は「OR（和集合）」でインデックスを合算
                 const categoryUnionSet = new Set();
                 categoryGroups[catKey].forEach(item => {
                     if (item.bindingIndexes) {
@@ -463,7 +430,6 @@ function renderStatsAndInteractiveControls(stats) {
                     }
                 });
 
-                // 異なるカテゴリ間は「AND（積集合）」で絞り込む
                 if (finalSet === null) {
                     finalSet = new Set(categoryUnionSet);
                 } else {
@@ -478,10 +444,6 @@ function renderStatsAndInteractiveControls(stats) {
             return finalSet || new Set();
         };
 
-        /**
-         * 【関数】updateLegendTable
-         * 選択されている統計タブ（キー）に応じた凡例リストを右側のスクロールテーブル内に構築・描画する
-         */
         const updateLegendTable = (targetKey) => {
             currentActiveTab = targetKey;
             let currentList = stats.lists[targetKey] || [];
@@ -491,21 +453,16 @@ function renderStatsAndInteractiveControls(stats) {
                 return;
             }
 
-            // 現在有効な（絞り込まれた）トリプルインデックスの集合を取得
             const intersectedIndexes = getIntersectedIndexes();
 
-            // 画面に表示するためのデータを事前にシミュレーション計算
             const processedList = currentList.map(item => {
                 const isSelected = !!activeFiltersMap[item.name];
-                let displayCount = item.count; // 初期値は全体の出現数
+                let displayCount = item.count;
 
-                // 他のカテゴリで絞り込みが発生している場合、繋がりがある有効な件数を再計算
                 if (intersectedIndexes !== null) {
                     if (isSelected) {
-                        // 自身がすでに選択されている場合は元の最大数を維持
                         displayCount = item.count;
                     } else {
-                        // 自分が属するトリプルインデックスのうち、現在絞り込み条件（intersectedIndexes）をクリアできる数だけをカウント
                         displayCount = item.bindingIndexes ? item.bindingIndexes.filter(i => intersectedIndexes.has(i)).length : 0;
                     }
                 }
@@ -517,18 +474,15 @@ function renderStatsAndInteractiveControls(stats) {
                 };
             });
 
-            // 一覧の見やすさを向上するためソート（1.選択中が一番上、2.次につながりがある有効なもの、3.選択不可の0件は下）
             processedList.sort((a, b) => {
                 if (a.isSelected !== b.isSelected) return a.isSelected ? -1 : 1;
                 const aAvailable = a.displayCount > 0;
                 const bAvailable = b.displayCount > 0;
                 if (aAvailable !== bAvailable) return aAvailable ? -1 : 1;
-                return b.displayCount - a.displayCount; // 件数の多い順
+                return b.displayCount - a.displayCount;
             });
 
-            // 凡例テーブルのHTMLを動的に組み立て。件数の文字サイズ等はインラインスタイルからCSSクラス制御が効くように修正
             legendTable.innerHTML = processedList.map((item, index) => {
-                // 絞り込みが発生していて、かつ未選択の要素の件数は「鮮やかな赤字」にしてアピールする
                 const useRedColor = (intersectedIndexes !== null && !item.isSelected);
                 const countStyle = useRedColor 
                     ? 'color: #d32f2f; margin-left: 4px; font-weight: bold;' 
@@ -547,31 +501,26 @@ function renderStatsAndInteractiveControls(stats) {
                 `;
             }).join('');
 
-            // 生成した各行要素にクリックイベントを付与し、不活性（0件）のものは選択不可（グレーアウト）にする
             const rows = legendTable.querySelectorAll(".filter-trigger-row");
             rows.forEach(row => {
                 const idx = parseInt(row.getAttribute("data-index"), 10);
                 const item = processedList[idx];
                 if (!item) return;
 
-                // 選択可能なリアルタイム件数が 0件 のアイテムは不活性化する（誤クリック防止）
                 if (item.displayCount > 0 || item.isSelected) {
                     row.style.opacity = "1";
                     row.style.pointerEvents = "auto";
                 } else {
-                    row.style.opacity = "0.25"; // 薄暗くする
-                    row.style.pointerEvents = "none"; // マウスイベントを完全に遮断
+                    row.style.opacity = "0.25";
+                    row.style.pointerEvents = "none";
                 }
 
-                // 各行がクリックされた時の処理（フィルターのトグル切り替え）
                 row.onclick = () => {
                     const clickedValue = row.getAttribute("data-value");
 
                     if (activeFiltersMap[clickedValue]) {
-                        // すでに選択中であれば、マップから削除して選択を解除
                         delete activeFiltersMap[clickedValue]; 
                     } else {
-                        // 未選択であれば、元のフルリストから正しい bindingIndexes の情報を探してフィルターマップに登録
                         const originalItem = currentList.find(c => c.name === clickedValue);
                         activeFiltersMap[clickedValue] = { 
                             ...originalItem, 
@@ -579,58 +528,37 @@ function renderStatsAndInteractiveControls(stats) {
                         }; 
                     }
 
-                    // フィルター変更後に、凡例テーブルと統計の数値表示をすべて再計算してリフレッシュ
                     updateLegendTable(targetKey); 
                     updateTabVisualIndicators(); 
                 };
             });
         };
 
-        /**
-         * 【関数】updateTabVisualIndicators
-         * 目的: 画面左側の「解析結果統計」エリア内の通知バッジ(選択数)と、
-         * 他カテゴリでの絞り込みに連動した「リアルタイム有効件数」を更新する
-         */
         const updateTabVisualIndicators = () => {
-            // 現在他のカテゴリで絞り込まれている要素の全インデックスを取得
             const intersectedIndexes = getIntersectedIndexes();
 
-            // 左側統計テーブル内の、各カテゴリのボタンを1つずつループ走査
             statsTable.querySelectorAll(".stats-toggle-btn").forEach(btn => {
-                // ボタンの 'data-target' 属性（"triple", "subject"等）を取得
                 const targetKey = btn.getAttribute("data-target");
-                if (!targetKey) return; 
+                if (!targetKey) return;
                 
-                /* ------------------------------------------------------------
-                 * 1. 選択数バッジ (✓がついている現在アクティブなフィルター数) の更新
-                 * ------------------------------------------------------------ */
                 const activeCount = Object.values(activeFiltersMap).filter(item => item.category === targetKey).length;
                 const oldBadge = btn.querySelector(".tab-badge");
-                if (oldBadge) oldBadge.remove(); // 古い通知数字を一度クリア
+                if (oldBadge) oldBadge.remove();
 
                 if (activeCount > 0) {
                     const badge = document.createElement("span");
-                    badge.className = "tab-badge"; 
+                    badge.className = "tab-badge";
                     badge.textContent = `${activeCount}`;
-                    btn.appendChild(badge); // ボタンの横に現在の選択数を表示
+                    btn.appendChild(badge);
                 }
 
-                /* ------------------------------------------------------------
-                 * 2. 解析結果統計のカウント数値（右側の列）を動的に変化させる処理
-                 * ------------------------------------------------------------ */
                 const row = btn.closest("tr");
                 if (row) {
-                    // 行の2番目のセル（td要素）に数値テキストが入っているため参照
                     const murderousTd = row.cells[1]; 
-                    
                     if (murderousTd) {
                         const currentList = stats.lists[targetKey] || [];
                         
                         if (intersectedIndexes === null) {
-                            /**
-                             * A. 【初期状態 または 絞り込みなし】
-                             * ボタンのテキストに依存せず、targetKeyの値で直接初期の正しい総数をセットして復元
-                             */
                             if (targetKey === "triple") murderousTd.textContent = stats.tripleCount;
                             else if (targetKey === "subject") murderousTd.textContent = stats.subjectCount;
                             else if (targetKey === "object") murderousTd.textContent = stats.objectCount;
@@ -640,28 +568,18 @@ function renderStatsAndInteractiveControls(stats) {
                             else if (targetKey === "opinion") murderousTd.textContent = stats.opinionCount;
                             else if (targetKey === "evidence") murderousTd.textContent = stats.evidenceCount;
                             
-                            // 文字の色を標準の黒（#333333）に戻す
                             murderousTd.style.color = "#333333";
                         } else {
-                            /**
-                             * B. 【他カテゴリの選択によって絞り込みが発生している場合】
-                             * 該当カテゴリ内で、現在選択可能（共通の bindingIndexes を持つ）なアイテム数を数える
-                             */
                             let availableUniqueCount = 0;
-                            
                             currentList.forEach(item => {
                                 const isSelected = !!activeFiltersMap[item.name];
                                 const hasIntersection = item.bindingIndexes && item.bindingIndexes.some(i => intersectedIndexes.has(i));
-                                
-                                // すでに選択されているか、他とのつながり（交差）がある場合はカウント
                                 if (isSelected || hasIntersection) {
                                     availableUniqueCount++;
                                 }
                             });
                             
-                            // リアルタイムに計算された動的な数値を上書き
                             murderousTd.textContent = availableUniqueCount;
-                            // 絞り込まれて数値が減っていることが一目でわかるよう「赤字」にする
                             murderousTd.style.color = "#d32f2f";
                         }
                     }
@@ -669,43 +587,34 @@ function renderStatsAndInteractiveControls(stats) {
             });
         };
 
-        // 「解析結果統計」の各ボタン（タブ）をクリックしたときの切り替えイベント
         statsTable.onclick = (e) => {
             const btn = e.target.closest(".stats-toggle-btn");
             if (!btn) return;
 
-            // 他のすべてのボタンから active クラスを外し、クリックされたボタンだけに active クラスを付与
             statsTable.querySelectorAll(".stats-toggle-btn").forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
 
             const targetKey = btn.getAttribute("data-target");
-            
-            // ボタンの文字列から数字や不要な記号を除去して綺麗な日本語タイトルを抽出
             const labelText = btn.textContent.replace(/[0-9()✓\s]/g, '').trim(); 
 
-            // 右側エリアのタイトルを「〇〇一覧」に書き換える
             if (titleEl) titleEl.textContent = `${labelText.replace(/[・数]/g, '')}一覧`;
             if (noticeEl) {
-                // 必要に応じてアナウンス用メッセージを入力可能（現在は空）
                 noticeEl.textContent = "";
             }
 
-            // 右側の凡例リストを選択されたカテゴリのデータに切り替えて再描画
             updateLegendTable(targetKey);
             updateTabVisualIndicators();
         };
 
-        // 「選択をクリア」ボタンが押された時の処理
         const clearBtn = section.querySelector(".btn-clear-filters");
         if (clearBtn) {
             clearBtn.onclick = () => {
-                activeFiltersMap = {}; // 選択中のフィルターをすべて初期化（空に）
-                updateLegendTable(currentActiveTab); // 現在のタブの凡例を全表示に戻す
-                updateTabVisualIndicators(); // 統計のカウント数をすべて初期状態の黒文字に戻す
+                activeFiltersMap = {};
+                updateLegendTable(currentActiveTab);
+                updateTabVisualIndicators();
             };
         }
 
-        // 初期表示時、データが存在すれば「ステークホルダー数」または「主語数」をデフォルトで選択状態（クリック）にする
         const defaultBtn = statsTable.querySelector(`.stats-toggle-btn[data-target="stakeholder"]`) || statsTable.querySelector(`.stats-toggle-btn[data-target="subject"]`);
         if (defaultBtn) defaultBtn.click();
     }
