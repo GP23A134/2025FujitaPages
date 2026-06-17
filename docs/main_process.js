@@ -886,7 +886,7 @@ function createDocumentSection(docId, textContent, stats) {
                 </tr>
             `).join('');
 
-            // 各行のクリックイベント（イベント委譲でスマートに集約可能ですが、元のトグルロジック維持のため再設定）
+            // 各行のクリックイベント
             legendTable.querySelectorAll(".filter-trigger-row").forEach(row => {
                 row.onclick = () => {
                     const clickedValue = row.getAttribute("data-value");
@@ -901,7 +901,7 @@ function createDocumentSection(docId, textContent, stats) {
                         } else {
                             currentFilterTarget = clickedValue;
                             const trPrefix = clickedValue.split('_')[0];
-                            // 3列目(インデックス2)にIDが入る前提として最適化（無駄なsomeを廃止）
+                            // 3列目(インデックス2)にIDが入る前提として最適化
                             textarea.value = allLines.filter(line => line.split('\t')[2] === trPrefix).join("\n");
                         }
                     } else {
@@ -931,7 +931,7 @@ function createDocumentSection(docId, textContent, stats) {
             });
         };
 
-        // 💡 統計数ボタンへのイベント委譲（Event Delegation）による最適化
+        // 統計数ボタン
         const statsTable = section.querySelector(".stats-table");
         statsTable.onclick = (e) => {
             const btn = e.target.closest(".stats-toggle-btn");
@@ -943,12 +943,12 @@ function createDocumentSection(docId, textContent, stats) {
             const targetKey = btn.getAttribute("data-target");
             const labelText = btn.textContent;
 
-            // テキスト更新系をここへ集約（無駄な連打処理の排除）
+            // テキスト更新
             if (titleEl) titleEl.textContent = `${labelText.replace(/[・数]/g, '')}一覧`;
             if (noticeEl) {
                 noticeEl.textContent = targetKey === "triple" 
                     ? "※行をクリックで本文をトリプル番号（T1など）で絞り込み"
-                    : "※行をクリックでグラフ上の該当ノード（重複分離分含む）を一括ハイライト";
+                    : "";
             }
 
             currentFilterTarget = null;
