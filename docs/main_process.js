@@ -801,14 +801,12 @@ function createDocumentSection(docId, textContent, stats) {
 
     section.querySelector(".doc-text-panel").appendChild(textarea);
     
-    // コピーボタンのイベント登録
     section.querySelector(".btn-copy-small").onclick = () => {
         navigator.clipboard.writeText(textarea.value).then(() => alert("データをコピーしました。"));
     };
 
     container.appendChild(section);
 
-    // フィルター機能の初期化（個別ドキュメントモードのみ）
     if (!isAllDoc) {
         const legendTable = document.getElementById(`dynamic-legend-table-${docId}`);
         const titleEl = document.getElementById(`legend-current-title-${docId}`);
@@ -818,7 +816,7 @@ function createDocumentSection(docId, textContent, stats) {
         let activeFiltersMap = {}; 
         let currentActiveTab = ""; 
 
-        // 共通して含まれる（交差する）インデックスを抽出
+        // 共通して含まれるインデックスを抽出
         const getIntersectedIndexes = () => {
             const filterItems = Object.values(activeFiltersMap);
             if (filterItems.length === 0) return null;
@@ -835,7 +833,7 @@ function createDocumentSection(docId, textContent, stats) {
             return intersected;
         };
 
-        // 統計タブの選択数バッジと、絞り込み件数の表示リフレッシュ
+        // 上部統計タブの選択数バッジと件数をリフレッシュする関数
         const updateTabVisualIndicators = () => {
             const intersectedIndexes = getIntersectedIndexes();
 
@@ -843,7 +841,7 @@ function createDocumentSection(docId, textContent, stats) {
                 const targetKey = btn.getAttribute("data-target");
                 if (!targetKey) return;
                 
-                // 1. 選択中アイテム数のバッジ更新 (✓の数)
+                // 1. 選択中バッジの更新
                 const activeCount = Object.values(activeFiltersMap).filter(item => item.category === targetKey).length;
                 const oldBadge = btn.querySelector(".tab-badge");
                 if (oldBadge) oldBadge.remove();
@@ -855,7 +853,7 @@ function createDocumentSection(docId, textContent, stats) {
                     btn.appendChild(badge);
                 }
 
-                // 2. data-stat属性を用いて、統計カウント（右側のセル）を安全に更新
+                // 2. data-stat属性で直接カウント表示用の td を取得して書き換え
                 const murderousTd = statsTable.querySelector(`.stat-count-value[data-stat="${targetKey}"]`);
                 if (murderousTd) {
                     const currentList = stats.lists[targetKey] || [];
@@ -873,7 +871,7 @@ function createDocumentSection(docId, textContent, stats) {
                         
                         murderousTd.style.color = "#333333";
                     } else {
-                        // 絞り込み発生中
+                        // 絞り込み発生時
                         let availableUniqueCount = 0;
                         currentList.forEach(item => {
                             const isSelected = !!activeFiltersMap[item.name];
@@ -891,7 +889,7 @@ function createDocumentSection(docId, textContent, stats) {
             });
         };
 
-        // 下部の一覧テーブル（レジェンドテーブル）を更新する関数（★不足していた定義を復元）
+        // 下部の一覧テーブル（レジェンドテーブル）を更新する関数
         const updateLegendTable = (targetKey) => {
             if (!targetKey || !legendTable) return;
             currentActiveTab = targetKey;
@@ -899,7 +897,7 @@ function createDocumentSection(docId, textContent, stats) {
             const currentList = stats.lists[targetKey] || [];
             const intersectedIndexes = getIntersectedIndexes();
 
-            // 表示用にデータをマッピング・集計
+            // 表示用データの加工
             const processedList = currentList.map(item => {
                 const isSelected = !!activeFiltersMap[item.name];
                 let displayCount = 0;
@@ -920,7 +918,7 @@ function createDocumentSection(docId, textContent, stats) {
                 };
             });
 
-            // ソート（選択中 -> 残件あり -> 残件なし）
+            // 順序ソート（選択中 -> 件数あり -> 件数ゼロ）
             processedList.sort((a, b) => {
                 if (a.isSelected !== b.isSelected) return a.isSelected ? -1 : 1;
                 const aAvailable = a.displayCount > 0;
@@ -929,7 +927,7 @@ function createDocumentSection(docId, textContent, stats) {
                 return b.displayCount - a.displayCount;
             });
 
-            // レジェンドテーブルのHTMLを生成
+            // HTMLの生成
             legendTable.innerHTML = processedList.map((item, index) => {
                 const useRedColor = (intersectedIndexes !== null && !item.isSelected);
                 const countStyle = useRedColor 
@@ -956,7 +954,6 @@ function createDocumentSection(docId, textContent, stats) {
                 const item = processedList[idx];
                 if (!item) return;
 
-                // 残り0件のものは不活性にしてクリックも不可にする
                 if (item.displayCount > 0 || item.isSelected) {
                     row.style.opacity = "1";
                     row.style.pointerEvents = "auto";
@@ -984,7 +981,7 @@ function createDocumentSection(docId, textContent, stats) {
             });
         };
 
-        // 統計テーブル（上部タブ）クリック時の制御
+        // 統計テーブル（タブ）全体のクリックイベント
         statsTable.onclick = (e) => {
             const btn = e.target.closest(".stats-toggle-btn");
             if (!btn) return;
@@ -1002,7 +999,7 @@ function createDocumentSection(docId, textContent, stats) {
             updateTabVisualIndicators();
         };
 
-        // 選択クリアボタンの挙動
+        // 選択クリアボタン
         const clearBtn = section.querySelector(".btn-clear-filters");
         if (clearBtn) {
             clearBtn.onclick = () => {
@@ -1012,7 +1009,7 @@ function createDocumentSection(docId, textContent, stats) {
             };
         }
 
-        // 初期状態で表示するタブの決定（自動クリック）
+        // 初期選択のシミュレート
         const defaultBtn = statsTable.querySelector(`.stats-toggle-btn[data-target="stakeholder"]`) || statsTable.querySelector(`.stats-toggle-btn[data-target="subject"]`);
         if (defaultBtn) defaultBtn.click();
     }
