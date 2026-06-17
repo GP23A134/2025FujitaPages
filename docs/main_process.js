@@ -916,8 +916,8 @@ function createDocumentSection(docId, textContent, stats) {
     }
     if (stats.oClassEnabled) {
     tableHtml += `<tr>
-        <td>${getBox(stats.cOClass)}${isAllDoc ? '目的語クラス数' : `<button class="stats-toggle-btn" data-target="oClass" data-doc="${docId}" style="font-size: 1em;">目的語クラス数</button>`}</td>
-        <td>${stats.oClassCount}</td>
+            <td>${getBox(stats.cOClass)}${isAllDoc ? '目的語クラス数' : `<button class="stats-toggle-btn" data-target="oClass" data-doc="${docId}" style="font-size: 1em;">目的語クラス数</button>`}</td>
+            <td>${stats.oClassCount}</td>
         </tr>`;
     }
     if (stats.shEnabled) {
