@@ -991,29 +991,34 @@ function createDocumentSection(docId, textContent, stats) {
             });
             // ─── ここから【追加】テキストエリアのリアルタイム絞り込み ───
             if (intersectedIndexes === null) {
-                // フィルターが何も選択されていない場合は、元のテキストをすべて表示
+                // 💡 フィルターが何も選択されていない（初期状態）なら、元の全テキストをそのまま表示
                 textarea.value = textContent;
             } else {
-                // 元の全テキストを1行ずつに分解（空行はそのまま維持）
-                const lines = textContent.split(/\r?\n/);
+                // 1. 元の全テキストを「改行」で1行ずつの配列にバラバラにする
+                // (Windowsの改行 \r\n と Mac/Linuxの \n の両方に対応)
+                const allLines = textContent.split(/\r?\n/);
                 
-                // 💡【重要】ヘッダー（1行目）があるため、データ本体の行だけを抜き出す
-                // 0番目はヘッダー行なので、実際のデータ行は index 1 からスタートします
-                const headerLine = lines[0];
-                const dataLines = lines.slice(1).filter(line => line.trim() !== "");
+                // 2. 「見出し（ヘッダー）」と「データ中身」を綺麗に分離する
+                // 0番目は Subject\tObject... などの見出し
+                const headerLine = allLines[0]; 
+                // 1番目以降が実際のデータ行（空行やスペースだけの行は除外）
+                const dataLines = allLines.slice(1).filter(line => line.trim() !== "");
 
-                // 現在生き残っている「背番号（インデックス）」のSet
+                // 現在の相互連動で生き残っている「背番号（インデックス）」のSetを取得
                 const allowedIndexes = intersectedIndexes;
 
-                // 生き残っている背番号と同じ「データ行」だけを抽出
+                // 3. 生き残っている背番号と同じ「部屋番号」のデータ行だけをすくい取る
                 const filteredDataLines = dataLines.filter((line, dataIdx) => {
-                    // プログラムの背番号（0, 1, 2...）が、データ行の配列番号（dataIdx）と一致するか判定
+                    // プログラムが持つ背番号（allowedIndexes）に、この行の番号（dataIdx）が含まれるか判定
                     return allowedIndexes.has(dataIdx);
                 });
 
-                // ヘッダー行と、絞り込まれたデータ行を合体させてテキストエリアに反映
-                const finalResult = [headerLine, ...filteredDataLines];
-                textarea.value = finalResult.join("\n") + "\n";
+                // 4. 見出し行のすぐ下に、すくい取ったデータ行だけをガッチャンコする
+                const regeneratedLines = [headerLine, ...filteredDataLines];
+
+                // 5. 配列をもう一度「改行（\n）」で繋ぎ直して、1つのテキスト（文字列）に再生成！
+                // 最後にテキストエリア（左側の画面）に上書きデプロイします
+                textarea.value = regeneratedLines.join("\n") + "\n";
             }
         };
 
