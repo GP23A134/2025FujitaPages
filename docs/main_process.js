@@ -769,6 +769,9 @@ function createDocumentSection(docId, textContent, stats) {
     textarea.readOnly = true;
     textarea.value = textContent; 
 
+    //【追加】行ごとの配列を保持（空行を除外）
+    const originalLines = textContent.split("\n").filter(line => line.trim() !== "");
+    
     section.innerHTML = `
         <div class="doc-header">
             <div class="doc-title">${isAllDoc ? '出力モード: 一括出力' : `出力モード: ${docId}`}</div>
@@ -986,6 +989,24 @@ function createDocumentSection(docId, textContent, stats) {
                     updateTabVisualIndicators(); 
                 };
             });
+            // ─── ここから【追加】テキストエリアのリアルタイム絞り込み ───
+            if (intersectedIndexes === null) {
+                // 何もフィルターが選択されていない場合は、元のテキストをすべて表示
+                textarea.value = textContent;
+            } else {
+                // 現在生き残っている「背番号（インデックス）」の配列
+                const allowedIndexes = Array.from(intersectedIndexes);
+
+                // 各行が、生き残っているデータのいずれかに該当するかチェックして抽出
+                const filteredLines = originalLines.filter((line, lineIdx) => {
+                    // セクション4で作った「wrappedBindings」のインデックスと対応しています。
+                    // ユーザーが選択した結果（allowedIndexes）にこの行のインデックスが含まれていれば残す
+                    return allowedIndexes.includes(lineIdx);
+                });
+
+                // 絞り込まれた行を改行でつなぎ直してテキストエリアに反映
+                textarea.value = filteredLines.join("\n") + (filteredLines.length > 0 ? "\n" : "");
+            }
         };
 
         // 統計テーブル（タブ）全体のクリックイベント
