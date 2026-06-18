@@ -825,7 +825,7 @@ function splitAndProcessData() {
 }
 
 // =============================================================================
-// 4. HTMLレンダラー（左右配置反転・統計要素内縦積み・複数選択コピペ対応版）
+// 4. HTMLレンダラー（textContent 型安全・複数選択バグ修正版）
 // =============================================================================
 function showSearchIng(resultArea) {
     const orgDiv = resultArea.innerHTML;
@@ -844,6 +844,13 @@ function createDocumentSection(docId, textContent, stats) {
     const container = document.getElementById("outputContainer");
     const isAllDoc = (docId === "ALL_DOCUMENTS");
 
+    // 🌟【エラー対策：型安全ガード】textContent が配列などで渡された場合、改行で結合して文字列化する
+    if (Array.isArray(textContent)) {
+        textContent = textContent.join("\n");
+    } else if (typeof textContent !== "string") {
+        textContent = textContent ? String(textContent) : "";
+    }
+
     const section = document.createElement("div");
     section.className = "doc-section";
 
@@ -853,7 +860,6 @@ function createDocumentSection(docId, textContent, stats) {
 
     const alertCopied = () => alert(`${docId} のデータをコピーしました。`);
 
-    // 🌟【仕様変更】元のHTML構造をベースにしながら、左パネルと右パネルの並び順を反転
     section.innerHTML = `
         <div class="doc-header">
             <div class="doc-title">${isAllDoc ? '出力モード: すべてのドキュメント（一括出力）' : `出力モード: ${docId}`}</div>
@@ -892,10 +898,8 @@ function createDocumentSection(docId, textContent, stats) {
         </div>
     `;
 
-    // 右側のパネルにテキストエリアをドッキング
     section.querySelector(".doc-text-panel").appendChild(textarea);
     
-    // 元のコピペボタン処理をバインド
     section.querySelector(".btn-copy-small").onclick = () => {
         navigator.clipboard.writeText(textarea.value)
             .then(alertCopied)
@@ -925,7 +929,6 @@ function createDocumentSection(docId, textContent, stats) {
                 return;
             }
 
-            // 【優先ソートロジック】選択中、または関連候補を上位へソート
             if (window.currentFilterTargets.size > 0) {
                 currentList = [...currentList].sort((a, b) => {
                     const aSelected = window.currentFilterTargets.has(a.name);
@@ -940,7 +943,6 @@ function createDocumentSection(docId, textContent, stats) {
                 });
             }
 
-            // 🌟【仕様変更】各行の表示をflexコンテキストの「column（垂直積み重ね）」に書き換え
             legendTable.innerHTML = currentList.map((item, index) => {
                 const isSelected = window.currentFilterTargets.has(item.name);
                 return `
@@ -957,7 +959,6 @@ function createDocumentSection(docId, textContent, stats) {
 
             applyTripleRowLocking(legendTable, currentList);
 
-            // 複数選択用のトグルクリックハンドラー
             legendTable.querySelectorAll(".filter-trigger-row").forEach(row => {
                 row.onclick = () => {
                     const clickedValue = row.getAttribute("data-value");
@@ -1000,13 +1001,15 @@ function createDocumentSection(docId, textContent, stats) {
                             }).join("\n");
                         }
                     } else {
-                        // テキストエリアの複数選択条件による安全な改行分割フィルター
                         if (window.currentFilterTargets.size === 0) {
                             textarea.value = textContent;
                         } else {
                             const allLines = textContent.split("\n");
                             const filteredLines = [];
-                            if (allLines.length > 0) filteredLines.push(allLines[0]); // ヘッダーを常に残す
+                            if (allLines.length > 0) filteredLines.push(allLines[0]); 
+
+                            const _clean = (v) => (v ? v.replace(/[\r\n\t]/g, "").trim() : "");
+                            const _getVal = (b, key) => (b && b[key] ? b[key].value : "");
 
                             for (let i = 1; i < allLines.length; i++) {
                                 const lineStr = allLines[i];
@@ -1021,13 +1024,13 @@ function createDocumentSection(docId, textContent, stats) {
                                         const b = bindings[bIdx];
                                         if (!b) return false;
                                         
-                                        if (targetKey === "subject" && b.sLabel) return lineStr.includes("s_" + b.sLabel.value);
-                                        if (targetKey === "object" && b.oLabel) return lineStr.includes("o_" + b.oLabel.value);
-                                        if (targetKey === "sClass" && b.sClassLabel) return lineStr.includes("sc_" + b.sClassLabel.value);
-                                        if (targetKey === "oClass" && b.oClassLabel) return lineStr.includes("oc_" + b.oClassLabel.value);
-                                        if (targetKey === "stakeholder" && b.stakeholderLabel) return lineStr.includes("st_" + b.stakeholderLabel.value);
-                                        if (targetKey === "opinion" && b.opinionContent) return lineStr.includes(b.opinionContent.value);
-                                        if (targetKey === "evidence" && b.evidence) return lineStr.includes("ev_" + b.evidence.value);
+                                        if (targetKey === "subject")     return lineStr.includes("s_" + _clean(_getVal(b, "sLabel")));
+                                        if (targetKey === "object")      return lineStr.includes("o_" + _clean(_getVal(b, "oLabel")));
+                                        if (targetKey === "sClass")      return lineStr.includes("sc_" + _clean(_getVal(b, "sClassLabel")));
+                                        if (targetKey === "oClass")      return lineStr.includes("oc_" + _clean(_getVal(b, "oClassLabel")));
+                                        if (targetKey === "stakeholder") return lineStr.includes("st_" + _clean(_getVal(b, "stakeholderLabel")));
+                                        if (targetKey === "opinion")     return lineStr.includes(_clean(_getVal(b, "opinionContent")));
+                                        if (targetKey === "evidence")    return lineStr.includes("ev_" + _clean(_getVal(b, "evidence")));
                                         return false;
                                     });
                                 });
@@ -1037,7 +1040,6 @@ function createDocumentSection(docId, textContent, stats) {
                             textarea.value = filteredLines.join("\n");
                         }
 
-                        // Cytoscapeが定義されている場合のハイライト連携
                         if (window.cy) {
                             window.cy.elements().removeClass("highlighted-node dimmed-node");
                             if (window.currentFilterTargets.size > 0) {
@@ -1120,6 +1122,11 @@ function createDocumentSection(docId, textContent, stats) {
             if (noticeEl) {
                 noticeEl.textContent = "※選択可能な候補が自動的にリストの上部に集まります（複数選択対応）";
             }
+
+            window.currentFilterTargets.clear();
+            window.activeBindingIndexes.clear();
+            window.selectedItemsMap = {};
+            textarea.value = textContent;
 
             updateLegendTable(targetKey);
         };
