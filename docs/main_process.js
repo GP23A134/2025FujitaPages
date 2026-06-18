@@ -483,6 +483,7 @@ function splitAndProcessData() {
                 const classLinkSet = new Set(); 
                 const metadataLinkSet = new Set(); 
                 const comboToTrMap = {}; 
+                const opinionToColorMap = {};
                 let trCounter = 0; 
                 let docOutputBuffer = ""; 
 
@@ -593,6 +594,7 @@ function splitAndProcessData() {
                             uniqueOpinions.add(opContentRaw);
                             jsonCountMap.opinion[opContentRaw] = (jsonCountMap.opinion[opContentRaw] || 0) + 1;
                             pushIndex("opinion", opContentRaw, curIdx);
+                            opinionToColorMap[opContentRaw] = speakerColor;
                         }
 
                         if (config.shColorMode === "group") {
@@ -700,6 +702,7 @@ function splitAndProcessData() {
                             case "oClass":      baseColor = config.cOClass; break;
                             case "evidence":    baseColor = config.cEv; break;
                             case "stakeholder": baseColor = nameToColorCacheMap[item] || null; break;
+                            case "opinion":     baseColor = opinionToColorMap[item] || "#f0f0f0"; break; 
                         }
 
                         return {
