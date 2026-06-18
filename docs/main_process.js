@@ -991,22 +991,29 @@ function createDocumentSection(docId, textContent, stats) {
             });
             // ─── ここから【追加】テキストエリアのリアルタイム絞り込み ───
             if (intersectedIndexes === null) {
-                // フィルターが何も選択されていない場合は全行を表示
+                // フィルターが何も選択されていない場合は、元のテキストをすべて表示
                 textarea.value = textContent;
             } else {
-                // 💡 確実に動かすため、textContent（元の全テキスト）をこの場で1行ずつ分解する
-                const lines = textContent.split("\n").filter(line => line.trim() !== "");
+                // 元の全テキストを1行ずつに分解（空行はそのまま維持）
+                const lines = textContent.split(/\r?\n/);
                 
+                // 💡【重要】ヘッダー（1行目）があるため、データ本体の行だけを抜き出す
+                // 0番目はヘッダー行なので、実際のデータ行は index 1 からスタートします
+                const headerLine = lines[0];
+                const dataLines = lines.slice(1).filter(line => line.trim() !== "");
+
                 // 現在生き残っている「背番号（インデックス）」のSet
                 const allowedIndexes = intersectedIndexes;
 
-                // 生き残っている背番号と同じ行番号のテキストだけを抽出
-                const filteredLines = lines.filter((line, lineIdx) => {
-                    return allowedIndexes.has(lineIdx);
+                // 生き残っている背番号と同じ「データ行」だけを抽出
+                const filteredDataLines = dataLines.filter((line, dataIdx) => {
+                    // プログラムの背番号（0, 1, 2...）が、データ行の配列番号（dataIdx）と一致するか判定
+                    return allowedIndexes.has(dataIdx);
                 });
 
-                // テキストエリアに反映
-                textarea.value = filteredLines.join("\n") + (filteredLines.length > 0 ? "\n" : "");
+                // ヘッダー行と、絞り込まれたデータ行を合体させてテキストエリアに反映
+                const finalResult = [headerLine, ...filteredDataLines];
+                textarea.value = finalResult.join("\n") + "\n";
             }
         };
 
