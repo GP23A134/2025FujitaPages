@@ -824,298 +824,308 @@ function splitAndProcessData() {
     }, 50); // 50msのタイマーイベントをトリガーとして実行
 }
 
-// ------------------------------------------------------------------------
-// 5. ドキュメントセクションの動的生成 ＆ テキストエリア相互連動（複数選択・コピペボタン付）
-// ------------------------------------------------------------------------
+// =============================================================================
+// 4. HTMLレンダラー（左右配置反転・統計要素内縦積み・複数選択コピペ対応版）
+// =============================================================================
+function showSearchIng(resultArea) {
+    const orgDiv = resultArea.innerHTML;
+    resultArea.innerHTML = orgDiv + '<div id="searching"><h2>検索中...</h2>'
+       + '<div class="flower-spinner"><div class="dots-container">'
+       + '<div class="bigger-dot"><div class="smaller-dot"></div>'
+       + '</div></div></div><br></div>';
+}
+
+function removeSearchIng() {
+    const searchingDiv = document.getElementById("searching");
+    if (searchingDiv != null) searchingDiv.remove();
+}
+
 function createDocumentSection(docId, textContent, stats) {
-    const outputContainer = document.getElementById("outputContainer");
-    if (!outputContainer) return;
+    const container = document.getElementById("outputContainer");
+    const isAllDoc = (docId === "ALL_DOCUMENTS");
 
     const section = document.createElement("div");
-    section.className = "document-section";
-    section.style.border = "1px solid #ccc";
-    section.style.margin = "20px 0";
-    section.style.padding = "15px";
-    section.style.borderRadius = "5px";
-
-    const title = document.createElement("h3");
-    title.innerText = (docId === "ALL_DOCUMENTS") ? "全ドキュメント一括変換結果" : `ドキュメント ID: ${docId}`;
-    section.appendChild(title);
-
-    const flexContainer = document.createElement("div");
-    flexContainer.style.display = "flex";
-    flexContainer.style.gap = "20px";
-    section.appendChild(flexContainer);
-
-    // 【左側カラム】データ要素の統計リストエリア
-    const leftCol = document.createElement("div");
-    leftCol.style.flex = "1";
-    leftCol.style.maxHeight = "480px";
-    leftCol.style.overflowY = "auto";
-    leftCol.style.border = "1px solid #eee";
-    leftCol.style.padding = "10px";
-    leftCol.style.backgroundColor = "#fafafa";
-
-    const leftTitle = document.createElement("h4");
-    leftTitle.innerText = "データ要素の統計（複数選択可、クリックで切り替え）";
-    leftTitle.style.marginTop = "0";
-    leftCol.appendChild(leftTitle);
-
-    const tabBtnContainer = document.createElement("div");
-    tabBtnContainer.style.display = "flex";
-    tabBtnContainer.style.flexWrap = "wrap";
-    tabBtnContainer.style.gap = "5px";
-    tabBtnContainer.style.marginBottom = "10px";
-    leftCol.appendChild(tabBtnContainer);
-
-    const tabContentContainer = document.createElement("div");
-    leftCol.appendChild(tabContentContainer);
-
-    // 【右側カラム】変換後のTSVデータテキストエリア
-    const rightCol = document.createElement("div");
-    rightCol.style.flex = "1";
-    
-    // ラベルとボタンを横並びにするためのヘッダーコンテナ
-    const textareaHeader = document.createElement("div");
-    textareaHeader.style.display = "flex";
-    textareaHeader.style.justifyContent = "space-between";
-    textareaHeader.style.alignItems = "center";
-    textareaHeader.style.marginBottom = "5px";
-
-    const textareaLabel = document.createElement("label");
-    textareaLabel.innerText = "変換後の関係性データ (TSV形式):";
-    textareaLabel.style.fontWeight = "bold";
-    textareaHeader.appendChild(textareaLabel);
-
-    // 🌟【新規追加】テキストコピペ（コピー）ボタン
-    const copyBtn = document.createElement("button");
-    copyBtn.innerText = "テキストをコピー";
-    copyBtn.style.padding = "3px 10px";
-    copyBtn.style.cursor = "pointer";
-    copyBtn.style.backgroundColor = "#28a745";
-    copyBtn.style.color = "#fff";
-    copyBtn.style.border = "none";
-    copyBtn.style.borderRadius = "3px";
-    copyBtn.style.fontSize = "12px";
-    copyBtn.style.fontWeight = "bold";
-
-    // コピーボタンがクリックされた時の処理
-    copyBtn.onclick = () => {
-        // 現在テキストエリアに表示されている中身（絞り込み済みの場合はそのテキスト）をクリップボードにコピー
-        navigator.clipboard.writeText(textarea.value).then(() => {
-            // コピー成功時の演出
-            copyBtn.innerText = "コピーしました！";
-            copyBtn.style.backgroundColor = "#155724";
-            setTimeout(() => {
-                copyBtn.innerText = "テキストをコピー";
-                copyBtn.style.backgroundColor = "#28a745";
-            }, 1500);
-        }).catch(err => {
-            console.error("コピーに失敗しました: ", err);
-            alert("コピーに失敗しました。手動で選択してコピーしてください。");
-        });
-    };
-    textareaHeader.appendChild(copyBtn);
-    rightCol.appendChild(textareaHeader);
+    section.className = "doc-section";
 
     const textarea = document.createElement("textarea");
-    textarea.style.width = "100%";
-    textarea.style.height = "450px";
-    textarea.style.fontFamily = "monospace";
-    textarea.style.whiteSpace = "pre";
-    textarea.style.overflowX = "auto";
-    
-    textarea.value = textContent;
-    rightCol.appendChild(textarea);
+    textarea.readOnly = true;
+    textarea.value = textContent; 
 
-    const categories = [
-        { key: "triple",      label: `トリプル (${stats.tripleCount})` },
-        { key: "subject",     label: `主語 (${stats.subjectCount})` },
-        { key: "object",      label: `目的語 (${stats.objectCount})` },
-        { key: "sClass",      label: `主語クラス (${stats.sClassCount})` },
-        { key: "oClass",      label: `目的語クラス (${stats.oClassCount})` },
-        { key: "stakeholder", label: `発話者 (${stats.stakeholderCount})` },
-        { key: "opinion",     label: `意見 (${stats.opinionCount})` },
-        { key: "evidence",    label: `根拠 (${stats.evidenceCount})` }
-    ];
+    const alertCopied = () => alert(`${docId} のデータをコピーしました。`);
 
-    let activeTab = "triple"; 
-
-    const selectedItemsMap = {};
-
-    const filterTextarea = () => {
-        const selectedKeys = Object.keys(selectedItemsMap);
-        
-        if (selectedKeys.length === 0) {
-            textarea.value = textContent;
-            return;
-        }
-
-        const lines = textContent.split("\n");
-        const filteredLines = [];
-        
-        if (lines.length > 0) {
-            filteredLines.push(lines[0]); 
-        }
-
-        const bindings = window.output_json_data?.results?.bindings;
-
-        for (let i = 1; i < lines.length; i++) {
-            const lineStr = lines[i];
-            if (!lineStr) continue;
-
-            const isMatchAny = selectedKeys.some(selectKey => {
-                const targetIndexes = selectedItemsMap[selectKey].indexes;
-                const catKey = selectedItemsMap[selectKey].category;
-
-                return targetIndexes.some(idx => {
-                    const b = bindings[idx];
-                    if (!b) return false;
-                    
-                    const sLabelRaw = clean(getValueFromBinding(b, "sLabel"));
-                    const oLabelRaw = clean(getValueFromBinding(b, "oLabel"));
-                    const pLabelRaw = clean(getValueFromBinding(b, "pLabel"));
-                    const shLabelRaw = clean(getValueFromBinding(b, "stakeholderLabel"));
-                    const opContentRaw = clean(getValueFromBinding(b, "opinionContent"));
-                    const evContentRaw = clean(getValueFromBinding(b, "evidence"));
-                    const sClassLabelRaw = clean(getValueFromBinding(b, "sClassLabel"));
-                    const oClassLabelRaw = clean(getValueFromBinding(b, "oClassLabel"));
-
-                    if (catKey === "subject")     return lineStr.includes("s_" + sLabelRaw);
-                    if (catKey === "object")      return lineStr.includes("o_" + oLabelRaw);
-                    if (catKey === "sClass")      return lineStr.includes("sc_" + sClassLabelRaw);
-                    if (catKey === "oClass")      return lineStr.includes("oc_" + oClassLabelRaw);
-                    if (catKey === "stakeholder") return lineStr.includes("st_" + shLabelRaw);
-                    if (catKey === "opinion")     return lineStr.includes(opContentRaw);
-                    if (catKey === "evidence")    return lineStr.includes("ev_" + evContentRaw);
-                    if (catKey === "triple") {
-                        return lineStr.includes(pLabelRaw) && lineStr.includes("s_" + sLabelRaw) && lineStr.includes("o_" + oLabelRaw);
-                    }
-                    return false;
-                });
-            });
-
-            if (isMatchAny) {
-                filteredLines.push(lineStr);
-            }
-        }
-
-        textarea.value = filteredLines.join("\n");
-        
-        textarea.style.backgroundColor = "#fff3cd";
-        setTimeout(() => { textarea.style.backgroundColor = "#fff"; }, 300);
-    };
-
-    const renderTabs = () => {
-        tabBtnContainer.innerHTML = "";
-        tabContentContainer.innerHTML = "";
-
-        categories.forEach(cat => {
-            const btn = document.createElement("button");
-            btn.innerText = cat.label;
-            btn.style.padding = "5px 10px";
-            btn.style.cursor = "pointer";
-            btn.style.border = "1px solid #ccc";
-            btn.style.borderRadius = "3px";
+    // 🌟【仕様変更】元のHTML構造をベースにしながら、左パネルと右パネルの並び順を反転
+    section.innerHTML = `
+        <div class="doc-header">
+            <div class="doc-title">${isAllDoc ? '出力モード: すべてのドキュメント（一括出力）' : `出力モード: ${docId}`}</div>
+            <div class="doc-actions"><button class="btn-small btn-copy-small">このデータをコピー</button></div>
+        </div>
+        <div class="doc-main-content" style="display: flex; gap: 20px;">
             
-            if (cat.key === activeTab) {
-                btn.style.backgroundColor = "#007bff";
-                btn.style.color = "#fff";
-                btn.style.fontWeight = "bold";
-            } else {
-                btn.style.backgroundColor = "#fff";
-                btn.style.color = "#333";
-            }
+            <div class="doc-side-panel" style="flex: 1;">
+                <div class="doc-meta-badge">
+                    <b class="badge-main-title" style="font-size: 1.1em;">解析結果統計</b>
+                    <table class="stats-table" style="font-size: 1.05em; width: 100%;">
+                        <tr><td>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="triple" style="font-size: 1em;">トリプル数</button>` : 'トリプル数'}</td><td>${stats.tripleCount}</td></tr>
+                        ${stats.sEnabled ? `<tr><td><span class="legend-color-box" style="background-color:${stats.cSubj}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;"></span>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="subject" style="font-size: 1em;">主語数</button>` : '主語数'}</td><td>${stats.subjectCount}</td></tr>` : ''}
+                        ${stats.oEnabled ? `<tr><td><span class="legend-color-box" style="background-color:${stats.cObj}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;"></span>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="object" style="font-size: 1em;">目的語数</button>` : '目的語数'}</td><td>${stats.objectCount}</td></tr>` : ''}
+                        ${stats.sClassEnabled ? `<tr><td><span class="legend-color-box" style="background-color:${stats.cSClass}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;"></span>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="sClass" style="font-size: 1em;">主語クラス数</button>` : '主語クラス数'}</td><td>${stats.sClassCount}</td></tr>` : ''}
+                        ${stats.oClassEnabled ? `<tr><td><span class="legend-color-box" style="background-color:${stats.cOClass}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;"></span>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="oClass" style="font-size: 1em;">目的語クラス数</button>` : '目的語クラス数'}</td><td>${stats.oClassCount}</td></tr>` : ''}
+                        ${stats.shEnabled ? `
+                            <tr><td>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="stakeholder" style="font-size: 1em;">${stats.titleName || 'ステークホルダー'}数</button>` : `${stats.titleName || 'ステークホルダー'}数`}</td><td>${stats.stakeholderCount}</td></tr>
+                            <tr><td>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="opinion" style="font-size: 1em;">意見数</button>` : '意見数'}</td><td>${stats.opinionCount}</td></tr>
+                        ` : ''}
+                        ${stats.evEnabled ? `<tr><td><span class="legend-color-box" style="background-color:${stats.cEv}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;"></span>${!isAllDoc ? `<button class="stats-toggle-btn" data-target="evidence" style="font-size: 1em;">根拠数</button>` : '根拠数'}</td><td>${stats.evidenceCount}</td></tr>` : ''}
+                    </table>
+                    ${!isAllDoc ? `
+                        <hr class="badge-divider" style="border:none; border-top:1px dashed #ccc; margin:25px 0 15px 0;">
+                        <b id="legend-current-title-${docId}" class="badge-sub-title" style="display:block; margin-bottom:4px; font-size:1.05em; color:#444;"></b>
+                        <span id="legend-notice-${docId}" style="font-size:0.8em; color:#888; display:block; margin-bottom:8px;"></span>
+                        <div class="legend-scroll-container" style="overflow-y: auto; overflow-x: auto; max-height: 240px; border: 1px solid #eee; padding: 5px; background: #fff; border-radius: 4px;">
+                            <table id="dynamic-legend-table-${docId}" class="dynamic-legend-table" style="width: 100%; border-collapse: collapse;"></table>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
 
-            btn.onclick = () => {
-                activeTab = cat.key;
-                renderTabs();
-            };
-            tabBtnContainer.appendChild(btn);
-        });
+            <div class="doc-text-panel" style="flex: 1;"></div>
 
-        const currentList = stats.lists[activeTab] || [];
-        if (currentList.length === 0) {
-            tabContentContainer.innerHTML = "<p style='color:#888; font-style:italic;'>データがありません</p>";
-            return;
-        }
+        </div>
+    `;
 
-        const listUl = document.createElement("ul");
-        listUl.style.listStyle = "none";
-        listUl.style.padding = "0";
-        listUl.style.margin = "0";
-
-        currentList.forEach(item => {
-            const li = document.createElement("div"); 
-            li.style.padding = "8px 6px";
-            li.style.borderBottom = "1px solid #eee";
-            li.style.cursor = "pointer";
-            li.style.display = "flex";
-            li.style.flexDirection = "column"; 
-            li.style.alignItems = "flex-start"; 
-            li.style.gap = "4px"; 
-            li.style.fontSize = "13px";
-            li.style.transition = "background-color 0.2s";
-
-            const itemUniqueKey = `${activeTab}_${item.name}`;
-            const isCurrentlySelected = !!selectedItemsMap[itemUniqueKey];
-
-            if (isCurrentlySelected) {
-                li.style.backgroundColor = "#d1ecf1"; 
-                li.style.borderLeft = "4px solid #17a2b8"; 
-            } else {
-                li.style.backgroundColor = "transparent";
-                li.style.borderLeft = "4px solid transparent";
-            }
-
-            li.onmouseover = () => {
-                if (!selectedItemsMap[itemUniqueKey]) li.style.backgroundColor = "#e9ecef";
-            };
-            li.onmouseout  = () => {
-                if (!selectedItemsMap[itemUniqueKey]) li.style.backgroundColor = "transparent";
-            };
-
-            li.onclick = () => {
-                if (selectedItemsMap[itemUniqueKey]) {
-                    delete selectedItemsMap[itemUniqueKey];
-                } else {
-                    const targetIndexes = item.bindingIndexes || [];
-                    if (targetIndexes.length > 0) {
-                        selectedItemsMap[itemUniqueKey] = {
-                            category: activeTab,
-                            indexes: targetIndexes
-                        };
-                    }
-                }
-                renderTabs();
-                filterTextarea();
-            };
-
-            const colorBadge = document.createElement("span");
-            colorBadge.style.display = "inline-block";
-            colorBadge.style.width = "12px";
-            colorBadge.style.height = "12px";
-            colorBadge.style.borderRadius = "2px";
-            colorBadge.style.backgroundColor = item.color || "#ccc";
-
-            const textSpan = document.createElement("span");
-            textSpan.innerText = `${item.name} (${item.count}件)`;
-            if (isCurrentlySelected) {
-                textSpan.style.fontWeight = "bold";
-                textSpan.style.color = "#0c5460";
-            }
-
-            li.appendChild(colorBadge);
-            li.appendChild(textSpan);
-            listUl.appendChild(li);
-        });
-
-        tabContentContainer.appendChild(listUl);
+    // 右側のパネルにテキストエリアをドッキング
+    section.querySelector(".doc-text-panel").appendChild(textarea);
+    
+    // 元のコピペボタン処理をバインド
+    section.querySelector(".btn-copy-small").onclick = () => {
+        navigator.clipboard.writeText(textarea.value)
+            .then(alertCopied)
+            .catch(() => {
+                textarea.select();
+                document.execCommand("copy");
+                alertCopied();
+            });
     };
 
-    renderTabs();
-    
-    flexContainer.appendChild(leftCol);
-    flexContainer.appendChild(rightCol);
-    outputContainer.appendChild(section);
+    container.appendChild(section);
+
+    if (!isAllDoc) {
+        const legendTable = document.getElementById(`dynamic-legend-table-${docId}`);
+        const titleEl = document.getElementById(`legend-current-title-${docId}`);
+        const noticeEl = document.getElementById(`legend-notice-${docId}`);
+        
+        if (typeof window.currentFilterTargets === 'undefined') window.currentFilterTargets = new Set();
+        if (typeof window.activeBindingIndexes === 'undefined') window.activeBindingIndexes = new Set();
+        if (typeof window.selectedItemsMap === 'undefined') window.selectedItemsMap = {};
+
+        const updateLegendTable = (targetKey) => {
+            let currentList = stats.lists[targetKey] || [];
+            
+            if (currentList.length === 0) {
+                legendTable.innerHTML = `<tr><td style="color:#888; font-style:italic; padding:5px; font-size:1em;">データがありません</td></tr>`;
+                return;
+            }
+
+            // 【優先ソートロジック】選択中、または関連候補を上位へソート
+            if (window.currentFilterTargets.size > 0) {
+                currentList = [...currentList].sort((a, b) => {
+                    const aSelected = window.currentFilterTargets.has(a.name);
+                    const bSelected = window.currentFilterTargets.has(b.name);
+                    if (aSelected !== bSelected) return aSelected ? -1 : 1;
+
+                    const aAvailable = a.bindingIndexes?.some(i => window.activeBindingIndexes.has(i));
+                    const bAvailable = b.bindingIndexes?.some(i => window.activeBindingIndexes.has(i));
+                    if (aAvailable !== bAvailable) return aAvailable ? -1 : 1;
+
+                    return b.count - a.count;
+                });
+            }
+
+            // 🌟【仕様変更】各行の表示をflexコンテキストの「column（垂直積み重ね）」に書き換え
+            legendTable.innerHTML = currentList.map((item, index) => {
+                const isSelected = window.currentFilterTargets.has(item.name);
+                return `
+                    <tr class="filter-trigger-row" data-index="${index}" data-value="${item.name}" style="transition: background 0.2s, opacity 0.2s; ${isSelected ? 'background-color: #d1e7dd;' : ''}">
+                        <td style="padding:8px 4px; border-bottom:1px dashed #eee; display:flex; flex-direction:column; align-items:flex-start; gap:4px;">
+                            ${item.color ? `<span class="legend-color-box" style="background-color:${item.color}; display:inline-block; width:12px; height:12px; border-radius:3px;"></span>` : ''}
+                            <span class="legend-item-name" style="font-size:1.05em; color:#333; ${isSelected ? 'font-weight: bold;' : ''}">
+                                ${item.name} <span style="color: #d32f2f; font-size: 0.9em; margin-left: 2px; font-weight: bold;">(${item.count || 0}件)</span>
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            applyTripleRowLocking(legendTable, currentList);
+
+            // 複数選択用のトグルクリックハンドラー
+            legendTable.querySelectorAll(".filter-trigger-row").forEach(row => {
+                row.onclick = () => {
+                    const clickedValue = row.getAttribute("data-value");
+                    const idx = parseInt(row.getAttribute("data-index"), 10);
+                    const item = currentList[idx];
+
+                    if (window.currentFilterTargets.has(clickedValue)) {
+                        window.currentFilterTargets.delete(clickedValue);
+                        delete window.selectedItemsMap[clickedValue];
+                    } else {
+                        window.currentFilterTargets.add(clickedValue);
+                        window.selectedItemsMap[clickedValue] = item;
+                    }
+
+                    if (window.currentFilterTargets.size === 0) {
+                        window.activeBindingIndexes.clear();
+                    } else {
+                        let intersected = null;
+                        Object.values(window.selectedItemsMap).forEach(si => {
+                            const idxSet = new Set(si.bindingIndexes || []);
+                            if (intersected === null) {
+                                intersected = idxSet;
+                            } else {
+                                intersected = new Set([...intersected].filter(x => idxSet.has(x)));
+                            }
+                        });
+                        window.activeBindingIndexes = intersected || new Set();
+                    }
+
+                    if (item.isTriple) {
+                        if (window.currentFilterTargets.size === 0) {
+                            textarea.value = textContent; 
+                        } else {
+                            const allLines = textContent.split("\n");
+                            const selectedPrefixes = Array.from(window.currentFilterTargets).map(val => val.split('_')[0]);
+                            
+                            textarea.value = allLines.filter(line => {
+                                const trPart = line.split('\t')[2];
+                                return selectedPrefixes.includes(trPart);
+                            }).join("\n");
+                        }
+                    } else {
+                        // テキストエリアの複数選択条件による安全な改行分割フィルター
+                        if (window.currentFilterTargets.size === 0) {
+                            textarea.value = textContent;
+                        } else {
+                            const allLines = textContent.split("\n");
+                            const filteredLines = [];
+                            if (allLines.length > 0) filteredLines.push(allLines[0]); // ヘッダーを常に残す
+
+                            for (let i = 1; i < allLines.length; i++) {
+                                const lineStr = allLines[i];
+                                if (!lineStr) continue;
+
+                                const bindings = window.output_json_data?.results?.bindings || [];
+                                const match = Array.from(window.currentFilterTargets).some(selVal => {
+                                    const activeItem = window.selectedItemsMap[selVal];
+                                    if (!activeItem) return false;
+                                    
+                                    return (activeItem.bindingIndexes || []).some(bIdx => {
+                                        const b = bindings[bIdx];
+                                        if (!b) return false;
+                                        
+                                        if (targetKey === "subject" && b.sLabel) return lineStr.includes("s_" + b.sLabel.value);
+                                        if (targetKey === "object" && b.oLabel) return lineStr.includes("o_" + b.oLabel.value);
+                                        if (targetKey === "sClass" && b.sClassLabel) return lineStr.includes("sc_" + b.sClassLabel.value);
+                                        if (targetKey === "oClass" && b.oClassLabel) return lineStr.includes("oc_" + b.oClassLabel.value);
+                                        if (targetKey === "stakeholder" && b.stakeholderLabel) return lineStr.includes("st_" + b.stakeholderLabel.value);
+                                        if (targetKey === "opinion" && b.opinionContent) return lineStr.includes(b.opinionContent.value);
+                                        if (targetKey === "evidence" && b.evidence) return lineStr.includes("ev_" + b.evidence.value);
+                                        return false;
+                                    });
+                                });
+
+                                if (match) filteredLines.push(lineStr);
+                            }
+                            textarea.value = filteredLines.join("\n");
+                        }
+
+                        // Cytoscapeが定義されている場合のハイライト連携
+                        if (window.cy) {
+                            window.cy.elements().removeClass("highlighted-node dimmed-node");
+                            if (window.currentFilterTargets.size > 0) {
+                                window.cy.elements().addClass("dimmed-node");
+                                const bindings = window.output_json_data?.results?.bindings || [];
+                                const allowedNodes = new Set();
+
+                                window.activeBindingIndexes.forEach(bIdx => {
+                                    const b = bindings[bIdx];
+                                    if (!b) return;
+                                    if (b.sLabel) allowedNodes.add(b.sLabel.value);
+                                    if (b.oLabel) allowedNodes.add(b.oLabel.value);
+                                    if (b.stakeholderLabel) allowedNodes.add(b.stakeholderLabel.value);
+                                });
+
+                                window.cy.nodes().forEach(node => {
+                                    const nodeId = node.id();
+                                    const rawId = nodeId.replace(/^(s_|o_|st_)/, "");
+                                    if (window.currentFilterTargets.has(rawId) || allowedNodes.has(rawId)) {
+                                        node.removeClass("dimmed-node").addClass("highlighted-node");
+                                        node.connectedEdges().removeClass("dimmed-node");
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    
+                    updateLegendTable(targetKey); 
+                    legendTable.parentElement.scrollTop = 0;
+                };
+            });
+        };
+
+        function applyTripleRowLocking(currentTableEl, currentList) {
+            const rows = currentTableEl.querySelectorAll(".filter-trigger-row");
+            
+            if (window.currentFilterTargets.size === 0) {
+                rows.forEach(r => { 
+                    r.style.opacity = "1";
+                    r.style.pointerEvents = "auto";
+                    r.style.cursor = "pointer";
+                });
+                return;
+            }
+
+            rows.forEach(r => {
+                const rVal = r.getAttribute("data-value");
+                const idx = parseInt(r.getAttribute("data-index"), 10);
+                const item = currentList[idx];
+
+                if (!item) return;
+
+                const isSharedTriple = item.bindingIndexes?.some(i => window.activeBindingIndexes.has(i));
+
+                if (window.currentFilterTargets.has(rVal) || isSharedTriple) {
+                    r.style.opacity = "1";
+                    r.style.pointerEvents = "auto";
+                    r.style.cursor = "pointer";
+                } else {
+                    r.style.opacity = "0.25"; 
+                    r.style.pointerEvents = "none"; 
+                    r.style.cursor = "not-allowed";
+                }
+            });
+        }
+
+        const statsTable = section.querySelector(".stats-table");
+
+        statsTable.onclick = (e) => {
+            const btn = e.target.closest(".stats-toggle-btn");
+            if (!btn) return;
+
+            statsTable.querySelectorAll(".stats-toggle-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+
+            const targetKey = btn.getAttribute("data-target");
+            const labelText = btn.textContent;
+
+            if (titleEl) titleEl.textContent = `${labelText.replace(/[・数]/g, '')}一覧`;
+            if (noticeEl) {
+                noticeEl.textContent = "※選択可能な候補が自動的にリストの上部に集まります（複数選択対応）";
+            }
+
+            updateLegendTable(targetKey);
+        };
+
+        let defaultKey = stats.shEnabled ? "stakeholder" : "subject";
+        const initialBtn = statsTable.querySelector(`.stats-toggle-btn[data-target="${defaultKey}"]`);
+        if (initialBtn) initialBtn.click();
+    }
 }
