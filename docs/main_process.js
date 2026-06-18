@@ -991,20 +991,21 @@ function createDocumentSection(docId, textContent, stats) {
             });
             // ─── ここから【追加】テキストエリアのリアルタイム絞り込み ───
             if (intersectedIndexes === null) {
-                // 何もフィルターが選択されていない場合は、元のテキストをすべて表示
+                // フィルターが何も選択されていない場合は全行を表示
                 textarea.value = textContent;
             } else {
-                // 現在生き残っている「背番号（インデックス）」の配列
-                const allowedIndexes = Array.from(intersectedIndexes);
+                // 💡 確実に動かすため、textContent（元の全テキスト）をこの場で1行ずつ分解する
+                const lines = textContent.split("\n").filter(line => line.trim() !== "");
+                
+                // 現在生き残っている「背番号（インデックス）」のSet
+                const allowedIndexes = intersectedIndexes;
 
-                // 各行が、生き残っているデータのいずれかに該当するかチェックして抽出
-                const filteredLines = originalLines.filter((line, lineIdx) => {
-                    // セクション4で作った「wrappedBindings」のインデックスと対応しています。
-                    // ユーザーが選択した結果（allowedIndexes）にこの行のインデックスが含まれていれば残す
-                    return allowedIndexes.includes(lineIdx);
+                // 生き残っている背番号と同じ行番号のテキストだけを抽出
+                const filteredLines = lines.filter((line, lineIdx) => {
+                    return allowedIndexes.has(lineIdx);
                 });
 
-                // 絞り込まれた行を改行でつなぎ直してテキストエリアに反映
+                // テキストエリアに反映
                 textarea.value = filteredLines.join("\n") + (filteredLines.length > 0 ? "\n" : "");
             }
         };
