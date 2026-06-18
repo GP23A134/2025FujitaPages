@@ -825,15 +825,14 @@ function splitAndProcessData() {
 }
 
 // ------------------------------------------------------------------------
-// 5. ドキュメントセクションの動的生成 ＆ テキストエリア相互連動
+// 5. ドキュメントセクションの動的生成 ＆ テキストエリア相互連動（元の表示形式版）
 // ------------------------------------------------------------------------
-// 引数の第2引数を「textContent」から「docLines（配列）」に明示的に変更
-function createDocumentSection(docId, docLines, stats) {
-    // 画面上の出力先コンテナを取得
+function createDocumentSection(docId, textContent, stats) {
+    // 画面上の親コンテナ（出力エリア）のエレメントを取得
     const outputContainer = document.getElementById("outputContainer");
     if (!outputContainer) return;
 
-    // ドキュメントごとの外枠（セクション）となるHTML要素を生成
+    // 前の表示形式と全く同じデザインで外枠（セクション全体のコンテナ）となるDiv要素を生成
     const section = document.createElement("div");
     section.className = "document-section";
     section.style.border = "1px solid #ccc";
@@ -841,18 +840,18 @@ function createDocumentSection(docId, docLines, stats) {
     section.style.padding = "15px";
     section.style.borderRadius = "5px";
 
-    // ドキュメントごとのタイトル（見出し）を設定
+    // ドキュメントIDを識別するための見出しタイトルを生成
     const title = document.createElement("h3");
     title.innerText = (docId === "ALL_DOCUMENTS") ? "全ドキュメント一括変換結果" : `ドキュメント ID: ${docId}`;
     section.appendChild(title);
 
-    // 画面を左右2カラムに分けるためのフレックスボックス（レイアウト用コンテナ）
+    // 画面を元の2カラムレイアウト（左にテキスト、右にリスト）にするためのフレックスボックスを設定
     const flexContainer = document.createElement("div");
     flexContainer.style.display = "flex";
     flexContainer.style.gap = "20px";
     section.appendChild(flexContainer);
 
-    // 【左カラム】変換後のTSVデータを表示・編集するためのテキストエリアエリア
+    // 【左側カラム】元の表示形式のテキストエリアを構築
     const leftCol = document.createElement("div");
     leftCol.style.flex = "1";
     
@@ -869,12 +868,12 @@ function createDocumentSection(docId, docLines, stats) {
     textarea.style.whiteSpace = "pre";
     textarea.style.overflowX = "auto";
     
-    // セクション4から渡された「行データの配列（docLines）」を、改行コードで結合してテキストエリアに一括投入
-    textarea.value = docLines.join("\n");
+    // セクション4から渡されたテキストデータをそのままテキストエリアに復元（元の形式）
+    textarea.value = textContent;
     leftCol.appendChild(textarea);
     flexContainer.appendChild(leftCol);
 
-    // 【右カラム】各要素の出現回数を表示する統計リストエリア
+    // 【右側カラム】元の表示形式の統計情報＆切り替えタブ構造を構築
     const rightCol = document.createElement("div");
     rightCol.style.flex = "1";
     rightCol.style.maxHeight = "480px";
@@ -888,7 +887,7 @@ function createDocumentSection(docId, docLines, stats) {
     rightTitle.style.marginTop = "0";
     rightCol.appendChild(rightTitle);
 
-    // カテゴリ（トリプル、主語、目的語など）を切り替えるためのボタン置き場
+    // カテゴリをワンクリックで切り替えるためのボタン用HTMLコンテナ
     const tabBtnContainer = document.createElement("div");
     tabBtnContainer.style.display = "flex";
     tabBtnContainer.style.flexWrap = "wrap";
@@ -896,11 +895,11 @@ function createDocumentSection(docId, docLines, stats) {
     tabBtnContainer.style.marginBottom = "10px";
     rightCol.appendChild(tabBtnContainer);
 
-    // ボタンの下に実際のリストを描画するためのコンテンツ置き場
+    // 選択されたリストの中身を展開するためのHTMLコンテナ
     const tabContentContainer = document.createElement("div");
     rightCol.appendChild(tabContentContainer);
 
-    // 画面に生成するタブの定義一覧と、statsから取得する件数の紐付け
+    // 表示する各種カテゴリの定義と、statsに格納されている件数のマッピング
     const categories = [
         { key: "triple",      label: `トリプル (${stats.tripleCount})` },
         { key: "subject",     label: `主語 (${stats.subjectCount})` },
@@ -912,16 +911,16 @@ function createDocumentSection(docId, docLines, stats) {
         { key: "evidence",    label: `根拠 (${stats.evidenceCount})` }
     ];
 
-    // 初期状態でアクティブ（選択状態）にするタブ
+    // 初回に選択されているタブの初期値を設定
     let activeTab = "triple"; 
 
-    // タブおよび単語リストを動的に画面へ描画する独立関数
+    // タブおよび単語リストのHTML要素を元の形式に合わせて再描画する内部関数
     const renderTabs = () => {
-        // ボタンと中身を一度クリア
+        // 現在表示されている中身を一度空にする
         tabBtnContainer.innerHTML = "";
         tabContentContainer.innerHTML = "";
 
-        // カテゴリ定義に基づいてタブボタンをループ生成
+        // 定義されたカテゴリーをループしてボタンを生成
         categories.forEach(cat => {
             const btn = document.createElement("button");
             btn.innerText = cat.label;
@@ -930,7 +929,7 @@ function createDocumentSection(docId, docLines, stats) {
             btn.style.border = "1px solid #ccc";
             btn.style.borderRadius = "3px";
             
-            // 現在アクティブなタブだけ、背景を青色にして強調する
+            // アクティブなタブには元の青色ハイライト、それ以外は標準の白背景スタイルを適用
             if (cat.key === activeTab) {
                 btn.style.backgroundColor = "#007bff";
                 btn.style.color = "#fff";
@@ -940,7 +939,7 @@ function createDocumentSection(docId, docLines, stats) {
                 btn.style.color = "#333";
             }
 
-            // タブがクリックされたらアクティブなキーを書き換えて再描画
+            // タブクリック時にアクティブなカテゴリを切り替えてHTMLを再構築
             btn.onclick = () => {
                 activeTab = cat.key;
                 renderTabs();
@@ -948,20 +947,20 @@ function createDocumentSection(docId, docLines, stats) {
             tabBtnContainer.appendChild(btn);
         });
 
-        // 現在選ばれているカテゴリのソート済み単語リストを取得
+        // 選択されたカテゴリに対応するソート済みリストデータを取得
         const currentList = stats.lists[activeTab] || [];
         if (currentList.length === 0) {
             tabContentContainer.innerHTML = "<p style='color:#888; font-style:italic;'>データがありません</p>";
             return;
         }
 
-        // リスト（UL要素）の作成
+        // リストを格納するUL（アンオーダーリスト）要素を生成
         const listUl = document.createElement("ul");
         listUl.style.listStyle = "none";
         listUl.style.padding = "0";
         listUl.style.margin = "0";
 
-        // 単語ひとつひとつを行（LI要素）として組み立てるループ
+        // リスト内の各アイテム（単語行）をループで生成
         currentList.forEach(item => {
             const li = document.createElement("li");
             li.style.padding = "6px";
@@ -972,35 +971,34 @@ function createDocumentSection(docId, docLines, stats) {
             li.style.alignItems = "center";
             li.style.fontSize = "13px";
 
-            // マウスを乗せたときに背景をグレーにするホバー効果
+            // 元の表示形式のホバーエフェクト（背景色変化）を設定
             li.onmouseover = () => li.style.backgroundColor = "#e9ecef";
             li.onmouseout  = () => li.style.backgroundColor = "transparent";
 
-            // 【相互インタラクティブ連動】統計の単語をクリックしたときの絞り込み処理
+            // 単語がクリックされた時にテキストエリアを絞り込む、元のインタラクティブ連動処理
             li.onclick = () => {
                 const targetIndexes = item.bindingIndexes || [];
                 if (targetIndexes.length === 0) return;
 
-                // フィルタリング後の行を格納するための新しい配列
+                // 絞り込みを行うために、元の全体テキストを改行で分割して1行ずつの配列を作る
+                const lines = textContent.split("\n");
                 const filteredLines = [];
                 
-                // 配列の最初の行（0番目：カラムヘッダー）は常に必ず残す
-                if (docLines.length > 0) {
-                    filteredLines.push(docLines[0]);
+                // 元のロジック通り、1行目のヘッダーは強制的に必ず残す
+                if (lines.length > 0) {
+                    filteredLines.push(lines[0]);
                 }
 
-                // セクション4から引き継いだ元の行データ（インデックス1以降）をループ精査
-                for (let i = 1; i < docLines.length; i++) {
-                    const lineStr = docLines[i];
+                // 各データ行（インデックス1以降）をループでチェックして絞り込む
+                for (let i = 1; i < lines.length; i++) {
+                    const lineStr = lines[i];
                     if (!lineStr) continue;
 
-                    // クリックされた要素の絶対背番号が、現在の行のデータと一致するか検証
                     const bindings = window.output_json_data?.results?.bindings;
                     const match = targetIndexes.some(idx => {
                         const b = bindings[idx];
                         if (!b) return false;
                         
-                        // JSONから対応する生ラベル群を取り出してクリーンアップ
                         const sLabelRaw = clean(getValueFromBinding(b, "sLabel"));
                         const oLabelRaw = clean(getValueFromBinding(b, "oLabel"));
                         const pLabelRaw = clean(getValueFromBinding(b, "pLabel"));
@@ -1010,7 +1008,7 @@ function createDocumentSection(docId, docLines, stats) {
                         const sClassLabelRaw = clean(getValueFromBinding(b, "sClassLabel"));
                         const oClassLabelRaw = clean(getValueFromBinding(b, "oClassLabel"));
 
-                        // タブのカテゴリに合わせて、接頭辞付き文字列が現在のTSV行に含まれているかを厳密に判定
+                        // 元の判定形式に戻し、カテゴリの識別プレフィックスがTSV文字列中に存在するかチェック
                         if (activeTab === "subject")     return lineStr.includes("s_" + sLabelRaw);
                         if (activeTab === "object")      return lineStr.includes("o_" + oLabelRaw);
                         if (activeTab === "sClass")      return lineStr.includes("sc_" + sClassLabelRaw);
@@ -1024,21 +1022,21 @@ function createDocumentSection(docId, docLines, stats) {
                         return false;
                     });
 
-                    // 条件に合致した（クリックされた単語に関係している）行データのみを重複なく配列に追加
+                    // 一致した関係性エッジ（行）だけを一時配列に格納
                     if (match) {
                         filteredLines.push(lineStr);
                     }
                 }
 
-                // 絞り込まれた行配列を再び改行で繋ぎ直して、テキストエリアに瞬時に反映
+                // 絞り込まれた行データを改行で繋ぎ直して元の表示形式としてテキストエリアへ反映
                 textarea.value = filteredLines.join("\n");
                 
-                // クリックが成功したことをユーザーに伝えるため、テキストエリアを一時的に黄色く点滅させる
+                // クリック連動が機能したことを示す元のフラッシュ背景色を設定
                 textarea.style.backgroundColor = "#fff3cd";
                 setTimeout(() => { textarea.style.backgroundColor = "#fff"; }, 500);
             };
 
-            // 各単語の左側に表示する、カラー識別用の小さな四角形（チップ）
+            // 単語の左隣に添える、元のカラー識別用角丸スクエアバッジ
             const colorBadge = document.createElement("span");
             colorBadge.style.display = "inline-block";
             colorBadge.style.width = "12px";
@@ -1047,12 +1045,12 @@ function createDocumentSection(docId, docLines, stats) {
             colorBadge.style.borderRadius = "2px";
             colorBadge.style.backgroundColor = item.color || "#ccc";
 
-            // 単語名と件数を表示するテキストラベル
+            // 単語のテキストとカウント数を表示する元の文字コンポーネント
             const textSpan = document.createElement("span");
             textSpan.innerText = `${item.name} (${item.count}件)`;
             textSpan.style.flex = "1";
 
-            // 要素を組み立ててリストに追加
+            // 各パーツをドキュメントHTMLとしてアセンブル（結合）
             li.appendChild(colorBadge);
             li.appendChild(textSpan);
             listUl.appendChild(li);
@@ -1061,8 +1059,10 @@ function createDocumentSection(docId, docLines, stats) {
         tabContentContainer.appendChild(listUl);
     };
 
-    // 初期化として最初のリスト描画を実行
+    // 初期化表示のために1回目の描画を自動実行
     renderTabs();
+    
+    // 生成した右カラムと左カラムを出力枠にはめ込み、最後に画面のメインコンテナに統合
     flexContainer.appendChild(rightCol);
     outputContainer.appendChild(section);
 }
