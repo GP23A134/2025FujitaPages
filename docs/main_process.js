@@ -29,9 +29,10 @@ window.addEventListener('DOMContentLoaded', () => {
         });
         
         // ラジオボタンのイベントリスナー登録
-        document.getElementsByName("shColorMode").forEach(radio => {
-            radio.addEventListener("change", updateUIControls);
-        });
+        const shRadios = document.getElementsByName("shColorMode");
+        if (shRadios.length > 0) {
+            shRadios.forEach(radio => radio.addEventListener("change", updateUIControls));
+        }
         
         // 実行ボタンの設定
         const execBtn = document.getElementById("execBtn");
@@ -68,14 +69,14 @@ function setupAccordion(headerId, contentId) {
 
     const icon = header.querySelector(".toggle-icon");
 
+    // 初期状態のアクセシビリティ属性を設定
+    const isInitialOpen = content.classList.contains("open");
+    header.setAttribute("aria-expanded", isInitialOpen ? "true" : "false");
+    header.setAttribute("role", "button"); // クリック可能であることを明示
+
     header.addEventListener("click", () => {
-        const isOpen = content.classList.toggle("open"); // toggleを使うとスッキリします
-        
-        if (icon) {
-            icon.textContent = isOpen ? "▲" : "▼";
-        }
-        
-        // アクセシビリティ対応（必要に応じて）
+        const isOpen = content.classList.toggle("open");
+        if (icon) icon.textContent = isOpen ? "▲" : "▼";
         header.setAttribute("aria-expanded", isOpen ? "true" : "false");
     });
 }
@@ -99,10 +100,10 @@ function updateUIControls() {
     const stClassEnabled = isChecked("enableStClass");
     const evEnabled      = isChecked("enableEvidence");
 
-    // ユーティリティ: 汎用的な要素の状態・視覚制御
+    // ユーティリティ: 汎用的な要素の状態・視覚制御（最終的な有効/無効状態を返す）
     const toggleUIState = (id, enabled, isCheckbox = false) => {
         const el = document.getElementById(id);
-        if (!el) return;
+        if (!el) return false;
         
         el.disabled = !enabled;
         
@@ -111,29 +112,31 @@ function updateUIControls() {
             el.checked = false;
         }
 
-        // 親要素、または自身がコンテナの場合は不透明度を切り替え
+        // ラジオボタンやパレット単体で親を巻き添えにしないよう、特定の要素のみ透明度を制御
+        // または、対象要素自身に 'control-item' などのクラスがあるかチェック
         const container = el.classList.contains("control-section") ? el : el.parentElement;
-        if (container) {
+        if (container && !el.name) { // ラジオボタン(nameあり)は親の透明度をいじらない
             container.style.opacity = enabled ? "1.0" : "0.3";
         }
+        
+        return enabled && (isCheckbox ? el.checked : true);
     };
 
     // --- 2. 依存関係（相互ロック）の判定と制御 ---
     
     // 主語(S) または 目的語(O) のどちらかが欠けていたら 述語(P) は不可
-    if (!sEnabled || !oEnabled) pEnabled = false;
-    toggleUIState("enablePredicate", (sEnabled && oEnabled), true);
+    pEnabled = toggleUIState("enablePredicate", (sEnabled && oEnabled), true);
 
     // クラス(S) または クラス(O) のどちらかが欠けていたら クラスリンク は不可
-    if (!sClassEnabled || !oClassEnabled) classLinkEnabled = false;
-    toggleUIState("enableClassLink", (sClassEnabled && oClassEnabled), true);
+    classLinkEnabled = toggleUIState("enableClassLink", (sClassEnabled && oClassEnabled), true);
 
     // 主語(S)・目的語(O) が両方オフなら ナンバリング も不可
     toggleUIState("enableSubjectObjectNumbering", (sEnabled || oEnabled), true);
 
     // --- 3. ステークホルダー(SH) 関連の連動制御 ---
     toggleUIState("enableStakeholderNumbering", shEnabled);
-    toggleUIState("enableStClass", shEnabled);
+    // stClass自体の有効・無効フラグも、shEnabledに連動した結果で上書き
+    const actualStClassEnabled = toggleUIState("enableStClass", shEnabled, true);
     
     // ステークホルダー色設定セクション全体の不透明度制御
     const secShColor = document.getElementById("secShColor");
@@ -142,10 +145,10 @@ function updateUIControls() {
     // ラジオボタンの制御
     document.getElementsByName("shColorMode").forEach(r => r.disabled = !shEnabled);
 
-    // カラーモード（固定 or ランダム）の判定
+    // カラーモードの判定
     const selectedMode = document.querySelector('input[name="shColorMode"]:checked')?.value || "random";
-    const isFixed  = (selectedMode === "select");
-    const isRandom = (selectedMode === "random");
+    const isFixed = (selectedMode === "select");
+    const isGroup = (selectedMode === "group");
 
     // ステークホルダー固定色
     const shFixedActive = shEnabled && isFixed;
@@ -153,8 +156,8 @@ function updateUIControls() {
     const shFixedRow = document.getElementById("shFixedColorRow");
     if (shFixedRow) shFixedRow.style.opacity = shFixedActive ? "1.0" : "0.3";
 
-    // ステークホルダー関係クラス色
-    const stClassActive = shEnabled && stClassEnabled && (isRandom || isFixed);
+    // ステークホルダー関係クラス色（"group" モード時も活性化するよう修正）
+    const stClassActive = shEnabled && actualStClassEnabled && (isGroup || isFixed || selectedMode === "random");
     toggleUIState("cpStClass", stClassActive);
     const stClassRow = document.getElementById("stClassColorRow");
     if (stClassRow) stClassRow.style.opacity = stClassActive ? "1.0" : "0.3";
@@ -164,7 +167,7 @@ function updateUIControls() {
     const secEvColor = document.getElementById("secEvColor");
     if (secEvColor) secEvColor.style.opacity = evEnabled ? "1.0" : "0.3";
 
-    // --- 5. カラーパレット(CP) の最終適用（依存関係解決後） ---
+    // --- 5. カラーパレット(CP) の最終適用（依存関係解決後の変数を使用） ---
     toggleUIState("cpSubject", sEnabled);
     toggleUIState("cpObject", oEnabled);
     toggleUIState("cpPredicate", pEnabled);
@@ -222,7 +225,8 @@ function extractIdFromUri(uriString) {
     const cleanUri = clean(uriString);
     // 末尾のスラッシュの有無を考慮
     const trimmedUri = cleanUri.endsWith('/') ? cleanUri.slice(0, -1) : cleanUri;
-    return trimmedUri.split('/').pop() || "";
+    const lastSegment = trimmedUri.split('/').pop() || "";
+    return lastSegment.split('#').pop() || "";
 }
 
 /**
@@ -389,7 +393,7 @@ function splitAndProcessData() {
                 getGroupColor(id) {
                     if (this.localStClassMap[id]) return this.localStClassMap[id];
                     const color = SPEAKER_PALETTE[globalColorCounter % SPEAKER_PALETTE.length];
-                    this.localStMap[id] = color;
+                    this.localStClassMap[id] = color;
                     globalColorCounter++;
                     return color;
                 },
@@ -853,13 +857,12 @@ function createDocumentSection(docId, textContent, stats) {
                     btn.appendChild(badge);
                 }
 
-                // 2. data-stat属性で直接カウント表示用の td を取得して書き換え
+                // 2. カウント表示の更新
                 const murderousTd = statsTable.querySelector(`.stat-count-value[data-stat="${targetKey}"]`);
                 if (murderousTd) {
                     const currentList = stats.lists[targetKey] || [];
                     
                     if (intersectedIndexes === null) {
-                        // 初期状態（絞り込みなし）
                         if (targetKey === "triple") murderousTd.textContent = stats.tripleCount;
                         else if (targetKey === "subject") murderousTd.textContent = stats.subjectCount;
                         else if (targetKey === "object") murderousTd.textContent = stats.objectCount;
@@ -871,7 +874,6 @@ function createDocumentSection(docId, textContent, stats) {
                         
                         murderousTd.style.color = "#333333";
                     } else {
-                        // 絞り込み発生時
                         let availableUniqueCount = 0;
                         currentList.forEach(item => {
                             const isSelected = !!activeFiltersMap[item.name];
@@ -889,7 +891,7 @@ function createDocumentSection(docId, textContent, stats) {
             });
         };
 
-        // 下部の一覧テーブル（レジェンドテーブル）を更新する関数
+        // 下部の一覧テーブルを更新する関数
         const updateLegendTable = (targetKey) => {
             if (!targetKey || !legendTable) return;
             currentActiveTab = targetKey;
@@ -918,13 +920,15 @@ function createDocumentSection(docId, textContent, stats) {
                 };
             });
 
-            // 順序ソート（選択中 -> 件数あり -> 件数ゼロ）
+            // 順序ソート（安全対策を強化）
             processedList.sort((a, b) => {
                 if (a.isSelected !== b.isSelected) return a.isSelected ? -1 : 1;
-                const aAvailable = a.displayCount > 0;
-                const bAvailable = b.displayCount > 0;
+                const countA = a.displayCount || 0;
+                const countB = b.displayCount || 0;
+                const aAvailable = countA > 0;
+                const bAvailable = countB > 0;
                 if (aAvailable !== bAvailable) return aAvailable ? -1 : 1;
-                return b.displayCount - a.displayCount;
+                return countB - countA;
             });
 
             // HTMLの生成
@@ -990,9 +994,12 @@ function createDocumentSection(docId, textContent, stats) {
             btn.classList.add("active");
 
             const targetKey = btn.getAttribute("data-target");
-            const labelText = btn.textContent.replace(/[0-9()✓\s]/g, '').trim(); 
+            
+            // 子要素を巻き込まないように、テキストノードの先頭文字からタイトルを安全に抽出
+            const rawText = btn.childNodes[1]?.textContent || btn.textContent;
+            const labelText = rawText.replace(/[数]/g, '').trim(); 
 
-            if (titleEl) titleEl.textContent = `${labelText.replace(/[・数]/g, '')}一覧`;
+            if (titleEl) titleEl.textContent = `${labelText}一覧`;
             if (noticeEl) noticeEl.textContent = "";
 
             updateLegendTable(targetKey);
@@ -1004,7 +1011,11 @@ function createDocumentSection(docId, textContent, stats) {
         if (clearBtn) {
             clearBtn.onclick = () => {
                 activeFiltersMap = {}; 
-                updateLegendTable(currentActiveTab);
+                // 現在アクティブになっているクラスを持つボタンのキーをフォールバックに利用
+                const currentActiveBtn = statsTable.querySelector(".stats-toggle-btn.active");
+                const fallbackKey = currentActiveBtn ? currentActiveBtn.getAttribute("data-target") : currentActiveTab;
+                
+                updateLegendTable(fallbackKey);
                 updateTabVisualIndicators();
             };
         }
