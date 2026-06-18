@@ -825,304 +825,239 @@ function splitAndProcessData() {
 }
 
 // ------------------------------------------------------------------------
-// 5. レンダラー＆相互連動型リストフィルタ（テキストエリア非連動）
+// 5. ドキュメントセクションの動的生成 ＆ テキストエリア相互連動
 // ------------------------------------------------------------------------
-function regenerateTextareaContent(textarea, textContent, intersectedIndexes) {
-    if (!textarea) return;
+function createDocumentSection(docId, docLines, stats) {
+    const outputContainer = document.getElementById("outputContainer");
+    if (!outputContainer) return;
 
-    if (intersectedIndexes === null) {
-        // フィルター未選択なら元の全テキストを表示
-        textarea.value = textContent;
-    } else {
-        // 1. 元のテキストをバラバラにする
-        const allLines = textContent.split(/\r?\n/);
-        const headerLine = allLines[0]; 
-        const dataLines = allLines.slice(1).filter(line => line.trim() !== "");
-
-        // 2. 生き残っている背番号の行だけをすくい取る
-        const filteredDataLines = dataLines.filter((line, dataIdx) => {
-            return intersectedIndexes.has(dataIdx);
-        });
-
-        // 3. 見出しと合体させて新しいテキストを生成
-        const regeneratedLines = [headerLine, ...filteredDataLines];
-        textarea.value = regeneratedLines.join("\n") + "\n";
-    }
-}
-
-function createDocumentSection(docId, textContent, stats) {
-    const container = document.getElementById("outputContainer");
-    if (!container) return;
-    const isAllDoc = (docId === "ALL_DOCUMENTS");
-
+    // ドキュメントごとの外枠（セクション）を作成
     const section = document.createElement("div");
-    section.className = "doc-section";
+    section.className = "document-section";
+    section.style.border = "1px solid #ccc";
+    section.style.margin = "20px 0";
+    section.style.padding = "15px";
+    section.style.borderRadius = "5px";
+
+    // タイトル（見出し）の追加
+    const title = document.createElement("h3");
+    title.innerText = (docId === "ALL_DOCUMENTS") ? "全ドキュメント一括変換結果" : `ドキュメント ID: ${docId}`;
+    section.appendChild(title);
+
+    // レイアウト用の2カラムコンテナ（左：グラフデータ、右：統計リスト）
+    const flexContainer = document.createElement("div");
+    flexContainer.style.display = "flex";
+    flexContainer.style.gap = "20px";
+    section.appendChild(flexContainer);
+
+    // 【左カラム】テキストエリア（TSV出力用）
+    const leftCol = document.createElement("div");
+    leftCol.style.flex = "1";
+    
+    const textareaLabel = document.createElement("label");
+    textareaLabel.innerText = "変換後の関係性データ (TSV形式):";
+    textareaLabel.style.display = "block";
+    textareaLabel.style.fontWeight = "bold";
+    leftCol.appendChild(textareaLabel);
 
     const textarea = document.createElement("textarea");
-    textarea.readOnly = true;
-    textarea.value = textContent; 
-
-    //【追加】行ごとの配列を保持（空行を除外）
-    const originalLines = textContent.split("\n").filter(line => line.trim() !== "");
+    textarea.style.width = "100%";
+    textarea.style.height = "450px";
+    textarea.style.fontFamily = "monospace";
+    textarea.style.whiteSpace = "pre";
+    textarea.style.overflowX = "auto";
     
-    section.innerHTML = `
-        <div class="doc-header">
-            <div class="doc-title">${isAllDoc ? '出力モード: 一括出力' : `出力モード: ${docId}`}</div>
-            <div class="doc-actions">
-                ${!isAllDoc ? `<button class="btn-small btn-clear-filters" style="background-color: #6c757d; color: white; border: none; margin-right: 8px; cursor: pointer; border-radius: 4px; padding: 6px 12px; font-weight: bold;">選択をクリア</button>` : ''}
-                <button class="btn-small btn-copy-small">このデータをコピー</button>
-            </div>
-        </div>
-        <div class="doc-main-content">
-            <div class="doc-side-panel">
-                <div class="doc-meta-badge">
-                    <b class="badge-main-title">解析結果統計</b>
-                    <table class="stats-table">
-                        <tr><td><button class="stats-toggle-btn" data-target="triple"><span class="cat-color-badge" style="background-color:${stats.configColors.triple};"></span>トリプル数</button></td><td class="stat-count-value" data-stat="triple">${stats.tripleCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="subject"><span class="cat-color-badge" style="background-color:${stats.configColors.subject};"></span>主語数</button></td><td class="stat-count-value" data-stat="subject">${stats.subjectCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="object"><span class="cat-color-badge" style="background-color:${stats.configColors.object};"></span>目的語数</button></td><td class="stat-count-value" data-stat="object">${stats.objectCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="sClass"><span class="cat-color-badge" style="background-color:${stats.configColors.sClass};"></span>主語クラス数</button></td><td class="stat-count-value" data-stat="sClass">${stats.sClassCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="oClass"><span class="cat-color-badge" style="background-color:${stats.configColors.oClass};"></span>目的語クラス数</button></td><td class="stat-count-value" data-stat="oClass">${stats.oClassCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="stakeholder"><span class="cat-color-badge" style="background-color:${stats.configColors.stakeholder};"></span>ステークホルダー数</button></td><td class="stat-count-value" data-stat="stakeholder">${stats.stakeholderCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="opinion"><span class="cat-color-badge" style="background-color:${stats.configColors.opinion};"></span>意見数</button></td><td class="stat-count-value" data-stat="opinion">${stats.opinionCount}</td></tr>
-                        <tr><td><button class="stats-toggle-btn" data-target="evidence"><span class="cat-color-badge" style="background-color:${stats.configColors.evidence};"></span>根拠数</button></td><td class="stat-count-value" data-stat="evidence">${stats.evidenceCount}</td></tr>
-                    </table>
-                    
-                    ${!isAllDoc ? `
-                        <hr class="badge-divider">
-                        <b id="legend-current-title-${docId}" class="badge-sub-title">一覧</b>
-                        <span id="legend-notice-${docId}" style="font-size:0.8em; color:#2196F3; display:block; margin-bottom:8px; font-weight:bold;"></span>
-                        <div class="legend-scroll-container">
-                            <table id="dynamic-legend-table-${docId}" class="dynamic-legend-table"></table>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-            <div class="doc-text-panel"></div>
-        </div>
-    `;
+    // セクション4から配列で届いたデータを、改行で結合してテキストエリアに表示
+    textarea.value = docLines.join("\n");
+    leftCol.appendChild(textarea);
+    flexContainer.appendChild(leftCol);
 
-    section.querySelector(".doc-text-panel").appendChild(textarea);
-    
-    section.querySelector(".btn-copy-small").onclick = () => {
-        navigator.clipboard.writeText(textarea.value).then(() => alert("データをコピーしました。"));
-    };
+    // 【右カラム】統計情報 ＆ インタラクティブ連動リスト
+    const rightCol = document.createElement("div");
+    rightCol.style.flex = "1";
+    rightCol.style.maxHeight = "480px";
+    rightCol.style.overflowY = "auto";
+    rightCol.style.border = "1px solid #eee";
+    rightCol.style.padding = "10px";
+    rightCol.style.backgroundColor = "#fafafa";
 
-    container.appendChild(section);
+    const rightTitle = document.createElement("h4");
+    rightTitle.innerText = "データ要素の統計（クリックでテキストエリアを絞り込み）";
+    rightTitle.style.marginTop = "0";
+    rightCol.appendChild(rightTitle);
 
-    if (!isAllDoc) {
-        const legendTable = document.getElementById(`dynamic-legend-table-${docId}`);
-        const titleEl = document.getElementById(`legend-current-title-${docId}`);
-        const noticeEl = document.getElementById(`legend-notice-${docId}`);
-        const statsTable = section.querySelector(".stats-table");
-        
-        let activeFiltersMap = {}; 
-        let currentActiveTab = ""; 
+    // タブ切り替え用のボタンコンテナ
+    const tabBtnContainer = document.createElement("div");
+    tabBtnContainer.style.display = "flex";
+    tabBtnContainer.style.flexWrap = "wrap";
+    tabBtnContainer.style.gap = "5px";
+    tabBtnContainer.style.marginBottom = "10px";
+    rightCol.appendChild(tabBtnContainer);
 
-        // 共通して含まれるインデックスを抽出
-        const getIntersectedIndexes = () => {
-            const filterItems = Object.values(activeFiltersMap);
-            if (filterItems.length === 0) return null;
+    // 各タブの内容を表示するコンテンツコンテナ
+    const tabContentContainer = document.createElement("div");
+    rightCol.appendChild(tabContentContainer);
 
-            let intersected = null;
-            filterItems.forEach(item => {
-                const idxSet = new Set(item.bindingIndexes || []);
-                if (intersected === null) {
-                    intersected = idxSet;
-                } else {
-                    intersected = new Set([...intersected].filter(x => idxSet.has(x)));
-                }
-            });
-            return intersected;
-        };
+    // タブに表示するカテゴリーの定義
+    const categories = [
+        { key: "triple",      label: `トリプル (${stats.tripleCount})` },
+        { key: "subject",     label: `主語 (${stats.subjectCount})` },
+        { key: "object",      label: `目的語 (${stats.objectCount})` },
+        { key: "sClass",      label: `主語クラス (${stats.sClassCount})` },
+        { key: "oClass",      label: `目的語クラス (${stats.oClassCount})` },
+        { key: "stakeholder", label: `発話者 (${stats.stakeholderCount})` },
+        { key: "opinion",     label: `意見 (${stats.opinionCount})` },
+        { key: "evidence",    label: `根拠 (${stats.evidenceCount})` }
+    ];
 
-        // 上部統計タブの選択数バッジと件数をリフレッシュする関数
-        const updateTabVisualIndicators = () => {
-            const intersectedIndexes = getIntersectedIndexes();
+    let activeTab = "triple"; // 初期アクティブタブ
 
-            statsTable.querySelectorAll(".stats-toggle-btn").forEach(btn => {
-                const targetKey = btn.getAttribute("data-target");
-                if (!targetKey) return;
-                
-                // 1. 選択中バッジの更新
-                const activeCount = Object.values(activeFiltersMap).filter(item => item.category === targetKey).length;
-                const oldBadge = btn.querySelector(".tab-badge");
-                if (oldBadge) oldBadge.remove();
+    // タブ及びリストの描画関数
+    const renderTabs = () => {
+        tabBtnContainer.innerHTML = "";
+        tabContentContainer.innerHTML = "";
 
-                if (activeCount > 0) {
-                    const badge = document.createElement("span");
-                    badge.className = "tab-badge";
-                    badge.textContent = `${activeCount}`;
-                    btn.appendChild(badge);
-                }
-
-                // 2. カウント表示の更新
-                const murderousTd = statsTable.querySelector(`.stat-count-value[data-stat="${targetKey}"]`);
-                if (murderousTd) {
-                    const currentList = stats.lists[targetKey] || [];
-                    
-                    if (intersectedIndexes === null) {
-                        if (targetKey === "triple") murderousTd.textContent = stats.tripleCount;
-                        else if (targetKey === "subject") murderousTd.textContent = stats.subjectCount;
-                        else if (targetKey === "object") murderousTd.textContent = stats.objectCount;
-                        else if (targetKey === "sClass") murderousTd.textContent = stats.sClassCount;
-                        else if (targetKey === "oClass") murderousTd.textContent = stats.oClassCount;
-                        else if (targetKey === "stakeholder") murderousTd.textContent = stats.stakeholderCount;
-                        else if (targetKey === "opinion") murderousTd.textContent = stats.opinionCount;
-                        else if (targetKey === "evidence") murderousTd.textContent = stats.evidenceCount;
-                        
-                        murderousTd.style.color = "#333333";
-                    } else {
-                        let availableUniqueCount = 0;
-                        currentList.forEach(item => {
-                            const isSelected = !!activeFiltersMap[item.name];
-                            const hasIntersection = item.bindingIndexes && item.bindingIndexes.some(i => intersectedIndexes.has(i));
-                            
-                            if (isSelected || hasIntersection) {
-                                availableUniqueCount++;
-                            }
-                        });
-                        
-                        murderousTd.textContent = availableUniqueCount;
-                        murderousTd.style.color = "#d32f2f";
-                    }
-                }
-            });
-        };
-
-        // 下部の一覧テーブルを更新する関数
-        const updateLegendTable = (targetKey) => {
-            if (!targetKey || !legendTable) return;
-            currentActiveTab = targetKey;
-
-            const currentList = stats.lists[targetKey] || [];
-            const intersectedIndexes = getIntersectedIndexes();
-
-            // 表示用データの加工
-            const processedList = currentList.map(item => {
-                const isSelected = !!activeFiltersMap[item.name];
-                let displayCount = 0;
-
-                if (intersectedIndexes === null) {
-                    displayCount = item.bindingIndexes ? item.bindingIndexes.length : 0;
-                } else {
-                    if (item.bindingIndexes) {
-                        displayCount = item.bindingIndexes.filter(i => intersectedIndexes.has(i)).length;
-                    }
-                }
-
-                return {
-                    name: item.name,
-                    color: item.color || stats.configColors[targetKey],
-                    isSelected: isSelected,
-                    displayCount: displayCount
-                };
-            });
-
-            // 順序ソート（安全対策を強化）
-            processedList.sort((a, b) => {
-                if (a.isSelected !== b.isSelected) return a.isSelected ? -1 : 1;
-                const countA = a.displayCount || 0;
-                const countB = b.displayCount || 0;
-                const aAvailable = countA > 0;
-                const bAvailable = countB > 0;
-                if (aAvailable !== bAvailable) return aAvailable ? -1 : 1;
-                return countB - countA;
-            });
-
-            // HTMLの生成
-            legendTable.innerHTML = processedList.map((item, index) => {
-                const useRedColor = (intersectedIndexes !== null && !item.isSelected);
-                const countStyle = useRedColor 
-                    ? 'color: #d32f2f; margin-left: 4px; font-weight: bold;' 
-                    : 'color: #666666; margin-left: 4px;';
-
-                return `
-                    <tr class="filter-trigger-row" data-index="${index}" data-value="${item.name}" style="cursor:pointer; transition: background 0.2s; ${item.isSelected ? 'background-color: #cce5ff; border-left: 4px solid #004085;' : ''}">
-                        <td style="padding:6px 10px; border-bottom:1px dashed #eee; vertical-align:middle;">
-                            ${item.color ? `<span style="background-color:${item.color}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:8px; vertical-align:middle; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);"></span>` : ''}
-                            <span style="vertical-align:middle; ${item.isSelected ? 'font-weight: bold; color: #004085;' : ''}">
-                                ${item.isSelected ? '✓ ' : ''}${item.name} 
-                                <span class="legend-item-count" style="${countStyle}">(${item.displayCount}件)</span>
-                            </span>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-
-            // 各行のクリックイベントと活性・不活性制御
-            const rows = legendTable.querySelectorAll(".filter-trigger-row");
-            rows.forEach(row => {
-                const idx = parseInt(row.getAttribute("data-index"), 10);
-                const item = processedList[idx];
-                if (!item) return;
-
-                if (item.displayCount > 0 || item.isSelected) {
-                    row.style.opacity = "1";
-                    row.style.pointerEvents = "auto";
-                } else {
-                    row.style.opacity = "0.25"; 
-                    row.style.pointerEvents = "none";
-                }
-
-                row.onclick = () => {
-                    const clickedValue = row.getAttribute("data-value");
-
-                    if (activeFiltersMap[clickedValue]) {
-                        delete activeFiltersMap[clickedValue]; 
-                    } else {
-                        const originalItem = currentList.find(c => c.name === clickedValue);
-                        activeFiltersMap[clickedValue] = { 
-                            ...originalItem, 
-                            category: targetKey 
-                        }; 
-                    }
-
-                    updateLegendTable(targetKey); 
-                    updateTabVisualIndicators(); 
-                };
-            });
-            // ─── ここから【追加】テキストエリアのリアルタイム絞り込み ───
-            regenerateTextareaContent(textarea, textContent, getIntersectedIndexes());
-        };
-
-        // 統計テーブル（タブ）全体のクリックイベント
-        statsTable.onclick = (e) => {
-            const btn = e.target.closest(".stats-toggle-btn");
-            if (!btn) return;
-
-            statsTable.querySelectorAll(".stats-toggle-btn").forEach(b => b.classList.remove("active"));
-            btn.classList.add("active");
-
-            const targetKey = btn.getAttribute("data-target");
+        categories.forEach(cat => {
+            // タブボタンの生成
+            const btn = document.createElement("button");
+            btn.innerText = cat.label;
+            btn.style.padding = "5px 10px";
+            btn.style.cursor = "pointer";
+            btn.style.border = "1px solid #ccc";
+            btn.style.borderRadius = "3px";
             
-            // 子要素を巻き込まないように、テキストノードの先頭文字からタイトルを安全に抽出
-            const rawText = btn.childNodes[1]?.textContent || btn.textContent;
-            const labelText = rawText.replace(/[数]/g, '').trim(); 
+            if (cat.key === activeTab) {
+                btn.style.backgroundColor = "#007bff";
+                btn.style.color = "#fff";
+                btn.style.fontWeight = "bold";
+            } else {
+                btn.style.backgroundColor = "#fff";
+                btn.style.color = "#333";
+            }
 
-            if (titleEl) titleEl.textContent = `${labelText}一覧`;
-            if (noticeEl) noticeEl.textContent = "";
-
-            updateLegendTable(targetKey);
-            updateTabVisualIndicators();
-        };
-
-        // 選択クリアボタン
-        const clearBtn = section.querySelector(".btn-clear-filters");
-        if (clearBtn) {
-            clearBtn.onclick = () => {
-                activeFiltersMap = {}; 
-                // 現在アクティブになっているクラスを持つボタンのキーをフォールバックに利用
-                const currentActiveBtn = statsTable.querySelector(".stats-toggle-btn.active");
-                const fallbackKey = currentActiveBtn ? currentActiveBtn.getAttribute("data-target") : currentActiveTab;
-                
-                updateLegendTable(fallbackKey);
-                updateTabVisualIndicators();
+            btn.onclick = () => {
+                activeTab = cat.key;
+                renderTabs();
             };
+            tabBtnContainer.appendChild(btn);
+        });
+
+        // 現在選択されているタブのリストデータを取得
+        const currentList = stats.lists[activeTab] || [];
+        if (currentList.length === 0) {
+            tabContentContainer.innerHTML = "<p style='color:#888; font-style:italic;'>データがありません</p>";
+            return;
         }
 
-        // 初期選択のシミュレート
-        const defaultBtn = statsTable.querySelector(`.stats-toggle-btn[data-target="stakeholder"]`) || statsTable.querySelector(`.stats-toggle-btn[data-target="subject"]`);
-        if (defaultBtn) defaultBtn.click();
-    }
+        const listUl = document.createElement("ul");
+        listUl.style.listStyle = "none";
+        listUl.style.padding = "0";
+        listUl.style.margin = "0";
+
+        currentList.forEach(item => {
+            const li = document.createElement("li");
+            li.style.padding = "6px";
+            li.style.borderBottom = "1px solid #eee";
+            li.style.cursor = "pointer";
+            li.style.display = "flex";
+            li.style.justifyContent = "between";
+            li.style.alignItems = "center";
+            li.style.fontSize = "13px";
+
+            // ホバー効果
+            li.onmouseover = () => li.style.backgroundColor = "#e9ecef";
+            li.onmouseout  = () => li.style.backgroundColor = "transparent";
+
+            // 🌟【重複排除・超連動ロジック】
+            // リストの項目をクリックした時の絞り込み処理
+            li.onclick = () => {
+                const targetIndexes = item.bindingIndexes || [];
+                if (targetIndexes.length === 0) return;
+
+                //セクション4から引き継いだ「行配列（docLines）」をそのまま活用してフィルタリング
+                const filteredLines = [];
+                
+                // 配列の0番目（ヘッダー行）は常に残す
+                if (docLines.length > 0) {
+                    filteredLines.push(docLines[0]);
+                }
+
+                //【重要】文字列の結合（+=）によるダブりを完全に防止！
+                // セクション4の「第2パス」で生成された関係性データ（1行ずつ）を正確に精査
+                // ヘッダーを除いた、実際のデータ行（i=1以降）をループ処理
+                for (let i = 1; i < docLines.length; i++) {
+                    const lineStr = docLines[i];
+                    if (!lineStr) continue;
+
+                    // セクション4で各行にセットした「元データの絶対インデックス（背番号）」とマッチするか判定
+                    const bindings = window.output_json_data?.results?.bindings;
+                    const match = targetIndexes.some(idx => {
+                        const b = bindings[idx];
+                        if (!b) return false;
+                        
+                        const sLabelRaw = clean(getValueFromBinding(b, "sLabel"));
+                        const oLabelRaw = clean(getValueFromBinding(b, "oLabel"));
+                        const pLabelRaw = clean(getValueFromBinding(b, "pLabel"));
+                        const shLabelRaw = clean(getValueFromBinding(b, "stakeholderLabel"));
+                        const opContentRaw = clean(getValueFromBinding(b, "opinionContent"));
+                        const evContentRaw = clean(getValueFromBinding(b, "evidence"));
+                        const sClassLabelRaw = clean(getValueFromBinding(b, "sClassLabel"));
+                        const oClassLabelRaw = clean(getValueFromBinding(b, "oClassLabel"));
+                        const stClassLabelRaw = clean(getValueFromBinding(b, "stClassLabel"));
+
+                        // タブのカテゴリに応じて、現在の行文字列の中にクリックされた要素が含まれているかを判定
+                        if (activeTab === "subject")     return lineStr.includes("s_" + sLabelRaw);
+                        if (activeTab === "object")      return lineStr.includes("o_" + oLabelRaw);
+                        if (activeTab === "sClass")      return lineStr.includes("sc_" + sClassLabelRaw);
+                        if (activeTab === "oClass")      return lineStr.includes("oc_" + oClassLabelRaw);
+                        if (activeTab === "stakeholder") return lineStr.includes("st_" + shLabelRaw);
+                        if (activeTab === "opinion")     return lineStr.includes(opContentRaw);
+                        if (activeTab === "evidence")    return lineStr.includes("ev_" + evContentRaw);
+                        if (activeTab === "triple") {
+                            const pId = extractIdFromUri(getValueFromBinding(b, "p"));
+                            return lineStr.includes(pLabelRaw) && lineStr.includes("s_" + sLabelRaw) && lineStr.includes("o_" + oLabelRaw);
+                        }
+                        return false;
+                    });
+
+                    // 条件に合致した関係性エッジ（TSVの1行）のみを、ダブりなく配列に格納
+                    if (match) {
+                        filteredLines.push(lineStr);
+                    }
+                }
+
+                // フィルタリングされた配列を改行コードで結合し、テキストエリアをパッと瞬時に書き換え
+                textarea.value = filteredLines.join("\n");
+                
+                // 選択中であることが視覚的にわかるよう、一時的に背景を黄色く強調
+                textarea.style.backgroundColor = "#fff3cd";
+                setTimeout(() => { textarea.style.backgroundColor = "#fff"; }, 500);
+            };
+
+            // カラー表示用チップ（バッジ）
+            const colorBadge = document.createElement("span");
+            colorBadge.style.display = "inline-block";
+            colorBadge.style.width = "12px";
+            colorBadge.style.height = "12px";
+            colorBadge.style.marginRight = "8px";
+            colorBadge.style.borderRadius = "2px";
+            colorBadge.style.backgroundColor = item.color || "#ccc";
+
+            // テキスト部分
+            const textSpan = document.createElement("span");
+            textSpan.innerText = `${item.name} (${item.count}件)`;
+            textSpan.style.flex = "1";
+
+            li.appendChild(colorBadge);
+            li.appendChild(textSpan);
+            listUl.appendChild(li);
+        });
+
+        tabContentContainer.appendChild(listUl);
+    };
+
+    // 初回リスト描画を実行
+    renderTabs();
+    flexContainer.appendChild(rightCol);
+    outputContainer.appendChild(section);
 }
