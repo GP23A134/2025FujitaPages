@@ -825,14 +825,12 @@ function splitAndProcessData() {
 }
 
 // ------------------------------------------------------------------------
-// 5. ドキュメントセクションの動的生成 ＆ テキストエリア相互連動（配置逆転・縦積み版）
+// 5. ドキュメントセクションの動的生成 ＆ テキストエリア相互連動（複数選択・コピペボタン付）
 // ------------------------------------------------------------------------
 function createDocumentSection(docId, textContent, stats) {
-    // 画面上の親コンテナ（出力エリア）のエレメントを取得
     const outputContainer = document.getElementById("outputContainer");
     if (!outputContainer) return;
 
-    // 外枠（セクション全体のコンテナ）となるDiv要素を生成
     const section = document.createElement("div");
     section.className = "document-section";
     section.style.border = "1px solid #ccc";
@@ -840,18 +838,16 @@ function createDocumentSection(docId, textContent, stats) {
     section.style.padding = "15px";
     section.style.borderRadius = "5px";
 
-    // ドキュメントIDを識別するための見出しタイトルを生成
     const title = document.createElement("h3");
     title.innerText = (docId === "ALL_DOCUMENTS") ? "全ドキュメント一括変換結果" : `ドキュメント ID: ${docId}`;
     section.appendChild(title);
 
-    // 画面を2カラムレイアウトにするためのフレックスボックスを設定（要素の追加順で左右を決定）
     const flexContainer = document.createElement("div");
     flexContainer.style.display = "flex";
     flexContainer.style.gap = "20px";
     section.appendChild(flexContainer);
 
-    // ─── 【仕様変更：左側カラム】データ要素の統計リストエリア ───
+    // 【左側カラム】データ要素の統計リストエリア
     const leftCol = document.createElement("div");
     leftCol.style.flex = "1";
     leftCol.style.maxHeight = "480px";
@@ -861,11 +857,10 @@ function createDocumentSection(docId, textContent, stats) {
     leftCol.style.backgroundColor = "#fafafa";
 
     const leftTitle = document.createElement("h4");
-    leftTitle.innerText = "データ要素の統計（クリックでテキストエリアを絞り込み）";
+    leftTitle.innerText = "データ要素の統計（複数選択可、クリックで切り替え）";
     leftTitle.style.marginTop = "0";
     leftCol.appendChild(leftTitle);
 
-    // カテゴリを切り替えるためのボタン用HTMLコンテナ
     const tabBtnContainer = document.createElement("div");
     tabBtnContainer.style.display = "flex";
     tabBtnContainer.style.flexWrap = "wrap";
@@ -873,19 +868,55 @@ function createDocumentSection(docId, textContent, stats) {
     tabBtnContainer.style.marginBottom = "10px";
     leftCol.appendChild(tabBtnContainer);
 
-    // 選択されたリストの中身を展開するためのHTMLコンテナ
     const tabContentContainer = document.createElement("div");
     leftCol.appendChild(tabContentContainer);
 
-    // ─── 【仕様変更：右側カラム】変換後のTSVデータテキストエリア ───
+    // 【右側カラム】変換後のTSVデータテキストエリア
     const rightCol = document.createElement("div");
     rightCol.style.flex = "1";
     
+    // ラベルとボタンを横並びにするためのヘッダーコンテナ
+    const textareaHeader = document.createElement("div");
+    textareaHeader.style.display = "flex";
+    textareaHeader.style.justifyContent = "space-between";
+    textareaHeader.style.alignItems = "center";
+    textareaHeader.style.marginBottom = "5px";
+
     const textareaLabel = document.createElement("label");
     textareaLabel.innerText = "変換後の関係性データ (TSV形式):";
-    textareaLabel.style.display = "block";
     textareaLabel.style.fontWeight = "bold";
-    rightCol.appendChild(textareaLabel);
+    textareaHeader.appendChild(textareaLabel);
+
+    // 🌟【新規追加】テキストコピペ（コピー）ボタン
+    const copyBtn = document.createElement("button");
+    copyBtn.innerText = "テキストをコピー";
+    copyBtn.style.padding = "3px 10px";
+    copyBtn.style.cursor = "pointer";
+    copyBtn.style.backgroundColor = "#28a745";
+    copyBtn.style.color = "#fff";
+    copyBtn.style.border = "none";
+    copyBtn.style.borderRadius = "3px";
+    copyBtn.style.fontSize = "12px";
+    copyBtn.style.fontWeight = "bold";
+
+    // コピーボタンがクリックされた時の処理
+    copyBtn.onclick = () => {
+        // 現在テキストエリアに表示されている中身（絞り込み済みの場合はそのテキスト）をクリップボードにコピー
+        navigator.clipboard.writeText(textarea.value).then(() => {
+            // コピー成功時の演出
+            copyBtn.innerText = "コピーしました！";
+            copyBtn.style.backgroundColor = "#155724";
+            setTimeout(() => {
+                copyBtn.innerText = "テキストをコピー";
+                copyBtn.style.backgroundColor = "#28a745";
+            }, 1500);
+        }).catch(err => {
+            console.error("コピーに失敗しました: ", err);
+            alert("コピーに失敗しました。手動で選択してコピーしてください。");
+        });
+    };
+    textareaHeader.appendChild(copyBtn);
+    rightCol.appendChild(textareaHeader);
 
     const textarea = document.createElement("textarea");
     textarea.style.width = "100%";
@@ -894,11 +925,9 @@ function createDocumentSection(docId, textContent, stats) {
     textarea.style.whiteSpace = "pre";
     textarea.style.overflowX = "auto";
     
-    // テキストデータをテキストエリアに流し込み
     textarea.value = textContent;
     rightCol.appendChild(textarea);
 
-    // 表示する各種カテゴリの定義と、statsに格納されている件数のマッピング
     const categories = [
         { key: "triple",      label: `トリプル (${stats.tripleCount})` },
         { key: "subject",     label: `主語 (${stats.subjectCount})` },
@@ -910,15 +939,77 @@ function createDocumentSection(docId, textContent, stats) {
         { key: "evidence",    label: `根拠 (${stats.evidenceCount})` }
     ];
 
-    // 初期状態のタブ設定
     let activeTab = "triple"; 
 
-    // タブおよび単語リストのHTML要素を再描画する内部関数
+    const selectedItemsMap = {};
+
+    const filterTextarea = () => {
+        const selectedKeys = Object.keys(selectedItemsMap);
+        
+        if (selectedKeys.length === 0) {
+            textarea.value = textContent;
+            return;
+        }
+
+        const lines = textContent.split("\n");
+        const filteredLines = [];
+        
+        if (lines.length > 0) {
+            filteredLines.push(lines[0]); 
+        }
+
+        const bindings = window.output_json_data?.results?.bindings;
+
+        for (let i = 1; i < lines.length; i++) {
+            const lineStr = lines[i];
+            if (!lineStr) continue;
+
+            const isMatchAny = selectedKeys.some(selectKey => {
+                const targetIndexes = selectedItemsMap[selectKey].indexes;
+                const catKey = selectedItemsMap[selectKey].category;
+
+                return targetIndexes.some(idx => {
+                    const b = bindings[idx];
+                    if (!b) return false;
+                    
+                    const sLabelRaw = clean(getValueFromBinding(b, "sLabel"));
+                    const oLabelRaw = clean(getValueFromBinding(b, "oLabel"));
+                    const pLabelRaw = clean(getValueFromBinding(b, "pLabel"));
+                    const shLabelRaw = clean(getValueFromBinding(b, "stakeholderLabel"));
+                    const opContentRaw = clean(getValueFromBinding(b, "opinionContent"));
+                    const evContentRaw = clean(getValueFromBinding(b, "evidence"));
+                    const sClassLabelRaw = clean(getValueFromBinding(b, "sClassLabel"));
+                    const oClassLabelRaw = clean(getValueFromBinding(b, "oClassLabel"));
+
+                    if (catKey === "subject")     return lineStr.includes("s_" + sLabelRaw);
+                    if (catKey === "object")      return lineStr.includes("o_" + oLabelRaw);
+                    if (catKey === "sClass")      return lineStr.includes("sc_" + sClassLabelRaw);
+                    if (catKey === "oClass")      return lineStr.includes("oc_" + oClassLabelRaw);
+                    if (catKey === "stakeholder") return lineStr.includes("st_" + shLabelRaw);
+                    if (catKey === "opinion")     return lineStr.includes(opContentRaw);
+                    if (catKey === "evidence")    return lineStr.includes("ev_" + evContentRaw);
+                    if (catKey === "triple") {
+                        return lineStr.includes(pLabelRaw) && lineStr.includes("s_" + sLabelRaw) && lineStr.includes("o_" + oLabelRaw);
+                    }
+                    return false;
+                });
+            });
+
+            if (isMatchAny) {
+                filteredLines.push(lineStr);
+            }
+        }
+
+        textarea.value = filteredLines.join("\n");
+        
+        textarea.style.backgroundColor = "#fff3cd";
+        setTimeout(() => { textarea.style.backgroundColor = "#fff"; }, 300);
+    };
+
     const renderTabs = () => {
         tabBtnContainer.innerHTML = "";
         tabContentContainer.innerHTML = "";
 
-        // カテゴリーボタンをループ生成
         categories.forEach(cat => {
             const btn = document.createElement("button");
             btn.innerText = cat.label;
@@ -943,93 +1034,63 @@ function createDocumentSection(docId, textContent, stats) {
             tabBtnContainer.appendChild(btn);
         });
 
-        // 現在選ばれているカテゴリのデータを取得
         const currentList = stats.lists[activeTab] || [];
         if (currentList.length === 0) {
             tabContentContainer.innerHTML = "<p style='color:#888; font-style:italic;'>データがありません</p>";
             return;
         }
 
-        // リストを格納するUL要素を生成
         const listUl = document.createElement("ul");
         listUl.style.listStyle = "none";
         listUl.style.padding = "0";
         listUl.style.margin = "0";
 
-        // 各アイテム（単語行）をループで生成
         currentList.forEach(item => {
-            const li = document.createElement("li");
+            const li = document.createElement("div"); 
             li.style.padding = "8px 6px";
             li.style.borderBottom = "1px solid #eee";
             li.style.cursor = "pointer";
-            // 🌟【仕様変更】flex-directionをcolumnに指定し、バッジとテキストを縦の積み重ね（垂直並び）に変更
             li.style.display = "flex";
             li.style.flexDirection = "column"; 
-            li.style.alignItems = "flex-start"; // 左端に揃えて縦積みする
-            li.style.gap = "4px"; // バッジとテキストの間の縦方向の隙間
+            li.style.alignItems = "flex-start"; 
+            li.style.gap = "4px"; 
             li.style.fontSize = "13px";
+            li.style.transition = "background-color 0.2s";
 
-            // ホバーエフェクトを設定
-            li.onmouseover = () => li.style.backgroundColor = "#e9ecef";
-            li.onmouseout  = () => li.style.backgroundColor = "transparent";
+            const itemUniqueKey = `${activeTab}_${item.name}`;
+            const isCurrentlySelected = !!selectedItemsMap[itemUniqueKey];
 
-            // 単語がクリックされた時のテキストエリア絞り込み処理
-            li.onclick = () => {
-                const targetIndexes = item.bindingIndexes || [];
-                if (targetIndexes.length === 0) return;
+            if (isCurrentlySelected) {
+                li.style.backgroundColor = "#d1ecf1"; 
+                li.style.borderLeft = "4px solid #17a2b8"; 
+            } else {
+                li.style.backgroundColor = "transparent";
+                li.style.borderLeft = "4px solid transparent";
+            }
 
-                const lines = textContent.split("\n");
-                const filteredLines = [];
-                
-                if (lines.length > 0) {
-                    filteredLines.push(lines[0]);
-                }
-
-                for (let i = 1; i < lines.length; i++) {
-                    const lineStr = lines[i];
-                    if (!lineStr) continue;
-
-                    const bindings = window.output_json_data?.results?.bindings;
-                    const match = targetIndexes.some(idx => {
-                        const b = bindings[idx];
-                        if (!b) return false;
-                        
-                        const sLabelRaw = clean(getValueFromBinding(b, "sLabel"));
-                        const oLabelRaw = clean(getValueFromBinding(b, "oLabel"));
-                        const pLabelRaw = clean(getValueFromBinding(b, "pLabel"));
-                        const shLabelRaw = clean(getValueFromBinding(b, "stakeholderLabel"));
-                        const opContentRaw = clean(getValueFromBinding(b, "opinionContent"));
-                        const evContentRaw = clean(getValueFromBinding(b, "evidence"));
-                        const sClassLabelRaw = clean(getValueFromBinding(b, "sClassLabel"));
-                        const oClassLabelRaw = clean(getValueFromBinding(b, "oClassLabel"));
-
-                        if (activeTab === "subject")     return lineStr.includes("s_" + sLabelRaw);
-                        if (activeTab === "object")      return lineStr.includes("o_" + oLabelRaw);
-                        if (activeTab === "sClass")      return lineStr.includes("sc_" + sClassLabelRaw);
-                        if (activeTab === "oClass")      return lineStr.includes("oc_" + oClassLabelRaw);
-                        if (activeTab === "stakeholder") return lineStr.includes("st_" + shLabelRaw);
-                        if (activeTab === "opinion")     return lineStr.includes(opContentRaw);
-                        if (activeTab === "evidence")    return lineStr.includes("ev_" + evContentRaw);
-                        if (activeTab === "triple") {
-                            return lineStr.includes(pLabelRaw) && lineStr.includes("s_" + sLabelRaw) && lineStr.includes("o_" + oLabelRaw);
-                        }
-                        return false;
-                    });
-
-                    if (match) {
-                        filteredLines.push(lineStr);
-                    }
-                }
-
-                // 絞り込まれた結果をテキストエリアへ反映
-                textarea.value = filteredLines.join("\n");
-                
-                // 一時的に背景色を変化させるフラッシュ効果
-                textarea.style.backgroundColor = "#fff3cd";
-                setTimeout(() => { textarea.style.backgroundColor = "#fff"; }, 500);
+            li.onmouseover = () => {
+                if (!selectedItemsMap[itemUniqueKey]) li.style.backgroundColor = "#e9ecef";
+            };
+            li.onmouseout  = () => {
+                if (!selectedItemsMap[itemUniqueKey]) li.style.backgroundColor = "transparent";
             };
 
-            // カラー識別用の小さな四角形バッジ
+            li.onclick = () => {
+                if (selectedItemsMap[itemUniqueKey]) {
+                    delete selectedItemsMap[itemUniqueKey];
+                } else {
+                    const targetIndexes = item.bindingIndexes || [];
+                    if (targetIndexes.length > 0) {
+                        selectedItemsMap[itemUniqueKey] = {
+                            category: activeTab,
+                            indexes: targetIndexes
+                        };
+                    }
+                }
+                renderTabs();
+                filterTextarea();
+            };
+
             const colorBadge = document.createElement("span");
             colorBadge.style.display = "inline-block";
             colorBadge.style.width = "12px";
@@ -1037,11 +1098,13 @@ function createDocumentSection(docId, textContent, stats) {
             colorBadge.style.borderRadius = "2px";
             colorBadge.style.backgroundColor = item.color || "#ccc";
 
-            // 単語名と件数を表示する文字コンポーネント
             const textSpan = document.createElement("span");
             textSpan.innerText = `${item.name} (${item.count}件)`;
+            if (isCurrentlySelected) {
+                textSpan.style.fontWeight = "bold";
+                textSpan.style.color = "#0c5460";
+            }
 
-            // 縦積み(column)に設定した親要素(li)に、バッジ、テキストの順で格納
             li.appendChild(colorBadge);
             li.appendChild(textSpan);
             listUl.appendChild(li);
@@ -1050,10 +1113,8 @@ function createDocumentSection(docId, textContent, stats) {
         tabContentContainer.appendChild(listUl);
     };
 
-    // リスト描画を実行
     renderTabs();
     
-    // 🌟【仕様変更】最初（左側）に「leftCol（統計）」、次（右側）に「rightCol（テキスト）」の順で並び順をアセンブル
     flexContainer.appendChild(leftCol);
     flexContainer.appendChild(rightCol);
     outputContainer.appendChild(section);
