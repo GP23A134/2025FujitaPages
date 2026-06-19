@@ -160,10 +160,25 @@ function updateUIControls() {
 
     // ========================================================================
     // 【発話者（ステークホルダー）関連の下位設定（ラジオ・コントロール）連動制御】
-    // ステークホルダー本体の抽出チェックが外れている場合は、配下の枝番やクラス表示等の子属性の編集を一括ロックします。
+    // ステークホルダー本体の抽出チェックが外れている場合は、配下の枝番（連番）やクラス表示（stClass）を一括ロックします。
     // ========================================================================
-    document.getElementById("enableStakeholderNumbering").disabled = !shEnabled;
-    document.getElementById("enableStClass").disabled = !shEnabled;
+    const cbShNum = document.getElementById("enableStakeholderNumbering");
+    const cbStClass = document.getElementById("enableStClass");
+
+    if (!shEnabled) {
+        // ステークホルダーが無効な場合、連番振りと発話者クラスのチェックを外し、操作不可にします
+        cbShNum.checked = false;
+        cbShNum.disabled = true;
+        
+        cbStClass.checked = false;
+        cbStClass.disabled = true;
+    } else {
+        // ステークホルダーが有効な場合は、どちらも操作可能にします
+        cbShNum.disabled = false;
+        cbStClass.disabled = false;
+    }
+
+    // カラー設定セクションなどの見た目の制御
     document.getElementById("secShColor").style.opacity = shEnabled ? "1.0" : "0.3";
     document.getElementsByName("shColorMode").forEach(r => r.disabled = !shEnabled);
 
@@ -178,10 +193,10 @@ function updateUIControls() {
 
     // ========================================================================
     // 【発話者所属クラス（stClass）固定色ピッカーの活性・不活性マトリクス判定】
-    // 所属クラスが表示設定にあり、かつカラーモードが「固定色」または「ランダム（一律固定）」である場合のみ、
-    // stClass用のピッカーを活性化します（「グループ別モード」のときは親クラス自動原色計算が行われるため不活性にします）。
+    // ステークホルダー本体と所属クラスの双方が有効で、かつカラーモードが「固定色」または「ランダム」のときのみ、
+    // stClass用のピッカーを活性化します。
     // ========================================================================
-    const stClassActive = shEnabled && stClassEnabled && (isRandom || isFixed);
+    const stClassActive = shEnabled && cbStClass.checked && (isRandom || isFixed);
     toggleElementPalette("cpStClass", stClassActive);
     document.getElementById("stClassColorRow").style.opacity = stClassActive ? "1.0" : "0.3";
 
@@ -242,7 +257,7 @@ function getValueFromBinding(binding, key) {
 
 /**
  * RDFの完全なURI文字列から、末尾のローカル識別子（ID）のみを切り出す関数です。
- * @param {string} uriString - 変換対象のURI（例: http://example.org/data/doc01）
+ * @param {string} uriString - 変換対象のURI（例: http://example.org/data/doc00001）
  * @returns {string} 抽出されたID（例: doc01）
  */
 function extractIdFromUri(uriString) {
@@ -362,10 +377,12 @@ function splitAndProcessData() {
             const config = {
                 sEnabled: sEnabled,
                 oEnabled: oEnabled,
+                
                 // 主語と目的語がともに有効、かつ述語チェックボックスが有効な場合のみ述語ラインの出力を許可します。
                 pEnabled: sEnabled && oEnabled && document.getElementById("enablePredicate").checked, 
                 sClassEnabled: sClassEnabled,
                 oClassEnabled: oClassEnabled,
+
                 // 主語クラスと目的語クラスがともに有効、かつクラス間リンクが有効な場合のみリンク出力を許可します。
                 classLinkEnabled: sClassEnabled && oClassEnabled && document.getElementById("enableClassLink").checked, 
                 shEnabled: shEnabledRaw,
@@ -533,7 +550,7 @@ function splitAndProcessData() {
                 for (let item of wrappedBindings) {
                     let b = item.binding;
                     let currentDocId = item.originalDocId; 
-                    let curIdx = item.lineIndex; // ソースデータ上での絶対行インデックス
+                    let curIdx = item.lineIndex;
 
                     let sUri = getValueFromBinding(b, "s");
                     let sClassUri = getValueFromBinding(b, "sClass");
@@ -884,7 +901,7 @@ function createDocumentSection(docId, structuredLines, stats) {
         <div class="doc-main-content">
             <div class="doc-side-panel">
                 <div class="doc-meta-badge">
-                    <b class="badge-main-title">解析結果統計</b>
+                    <b class="badge-main-title">結果</b>
                     <table class="stats-table">
                         <tr><td><button class="stats-toggle-btn" data-target="triple" data-label="トリプル"><span class="cat-color-badge" style="background-color:${stats.configColors.triple};"></span>トリプル数</button></td><td class="stat-count-value" data-stat="triple">${stats.tripleCount}</td></tr>
                         <tr style="display: ${isSubjectEnabled ? 'table-row' : 'none'};"><td><button class="stats-toggle-btn" data-target="subject" data-label="主語"><span class="cat-color-badge" style="background-color:${stats.configColors.subject};"></span>主語数</button></td><td class="stat-count-value" data-stat="subject">${stats.subjectCount}</td></tr>
