@@ -567,6 +567,9 @@ function splitAndProcessData() {
                     let ocLabel = "oc_" + oClassLabelRaw;
                     let shLabel_cleansed = "st_" + shLabelRaw;
                     let stClassLabel = "stc_" + stClassLabelRaw;
+                    
+                    // ★【修正点①】意見（Opinion）の文言に op_ プレフィックスを定義
+                    let opContent = "op_" + opContentRaw;
                     let evContent = "ev_" + evContentRaw;
 
                     if (sId === "" || oId === "") continue;
@@ -632,10 +635,11 @@ function splitAndProcessData() {
                         speakerColor = finalSpeakerColorMap[shId] || config.cFixedSH;
                         
                         if (opContentRaw) {
-                            uniqueOpinions.add(opContentRaw);
-                            jsonCountMap.opinion[opContentRaw] = (jsonCountMap.opinion[opContentRaw] || 0) + 1;
-                            pushIndex("opinion", opContentRaw, curIdx);
-                            opinionColorMap[opContentRaw] = darkenColor(speakerColor, 0.85);
+                            // ★【修正点②】一貫性を持たせるため、統計管理（Set/Map）のキーもop_付きに統一
+                            uniqueOpinions.add(opContent);
+                            jsonCountMap.opinion[opContent] = (jsonCountMap.opinion[opContent] || 0) + 1;
+                            pushIndex("opinion", opContent, curIdx);
+                            opinionColorMap[opContent] = darkenColor(speakerColor, 0.85);
                         }
 
                         if (config.stClass && stClassId !== "" && stClassLabelRaw) {
@@ -686,15 +690,16 @@ function splitAndProcessData() {
 
                     if (shId !== "" && shLabelRaw) {
                         if (opContentRaw) {
-                            let opinionColor = opinionColorMap[opContentRaw] || "#f0f0f0";
-                            localLinesBuffer.push(`${prefix}${trId}\t意見\t${opContentRaw}\t${config.cDefaultEdge}\t${opinionColor}\t${opinionColor}\t${curIdx}`);
-                            localLinesBuffer.push(`${prefix}${opContentRaw}\t発話者\t${shNodeName}\t${config.cDefaultEdge}\t${opinionColor}\t${speakerColor}\t${curIdx}`);
+                            let opinionColor = opinionColorMap[opContent] || "#f0f0f0";
+                            // ★【修正点③】テキストバッファ（TSV出力行）に格納する箇所も opContent（op_付き）を適用
+                            localLinesBuffer.push(`${prefix}${trId}\t意見\t${opContent}\t${config.cDefaultEdge}\t${opinionColor}\t${opinionColor}\t${curIdx}`);
+                            localLinesBuffer.push(`${prefix}${opContent}\t発話者\t${shNodeName}\t${config.cDefaultEdge}\t${speakerColor}\t${speakerColor}\t${curIdx}`);
                         } else {
                             localLinesBuffer.push(`${prefix}${trId}\t発話者\t${shNodeName}\t${config.cDefaultEdge}\t${speakerColor}\t${speakerColor}\t${curIdx}`);
                         }
                         if (config.stClass && stClassId !== "" && stClassLabelRaw) {
                             let classColor = finalStClassColorMap[stClassId] || config.cStClass;
-                            localLinesBuffer.push(`${prefix}${shNodeName}\t所属\t${stClassLabel}\t${config.cDefaultEdge}\t${classColor}\t${classColor}\t${curIdx}`);
+                            localLinesBuffer.push(`${prefix}${shNodeName}\tstClass\t${stClassLabel}\t${config.cDefaultEdge}\t${classColor}\t${classColor}\t${curIdx}`);
                         }
                     }
 
@@ -802,6 +807,8 @@ function splitAndProcessData() {
 // 5. レンダラー＆相互連動型リストフィルタ
 // ------------------------------------------------------------------------
 function createDocumentSection(docId, structuredLines, stats) {
+    const HIDE_UNAVAILABLE = true; // true: 選択中＆選択可能以外を非表示 / false: 薄暗くする（元の挙動）
+
     // 出力先のコンテナ要素を取得。存在しない場合は以降の処理を中断する。
     const container = document.getElementById("outputContainer");
     if (!container) return;
@@ -1151,8 +1158,10 @@ function createDocumentSection(docId, structuredLines, stats) {
                 ? 'color: #d32f2f; margin-left: 4px; font-weight: bold;' 
                 : 'color: #666666; margin-left: 4px;';
 
+            const activeClass = item.isSelected ? 'filter-active' : '';
+
             return `
-                <tr class="filter-trigger-row" data-index="${index}" data-value="${item.name}" style="cursor:pointer; transition: background 0.2s; ${item.isSelected ? 'background-color: #cce5ff; border-left: 4px solid #004085;' : ''}">
+                <tr class="filter-trigger-row ${activeClass}" data-index="${index}" data-value="${item.name}" style="cursor:pointer; transition: background 0.2s; ${item.isSelected ? 'background-color: #cce5ff; border-left: 4px solid #004085;' : ''}">
                     <td style="padding:6px 10px; border-bottom:1px dashed #eee; vertical-align:middle;">
                         ${item.color ? `<span style="background-color:${item.color}; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:8px; vertical-align:middle; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);"></span>` : ''}
                         <span style="vertical-align:middle; ${item.isSelected ? 'font-weight: bold; color: #004085;' : ''}">
@@ -1164,18 +1173,49 @@ function createDocumentSection(docId, structuredLines, stats) {
             `;
         }).join('');
 
+        // ★【新機能】リスト（凡例テーブル）のダブルクリックで該当欄の選択をすべて解除
+        legendTable.ondblclick = (e) => {
+            // イベントのバブリングによる予期せぬ動作を防止
+            e.stopPropagation();
+
+            let hasChanged = false;
+            // 現在アクティブなフィルターの中から、開いているカテゴリ（targetKey）に一致するものだけを削除
+            Object.keys(activeFiltersMap).forEach(label => {
+                if (activeFiltersMap[label].category === targetKey) {
+                    delete activeFiltersMap[label];
+                    hasChanged = true;
+                }
+            });
+
+            // 削除が行われた場合のみ、画面表示をまとめて更新
+            if (hasChanged) {
+                updateTextareaDisplay();
+                updateLegendTable(targetKey);
+                updateTabVisualIndicators();
+            }
+        };
+
         const rows = legendTable.querySelectorAll(".filter-trigger-row");
         rows.forEach(row => {
             const idx = parseInt(row.getAttribute("data-index"), 10);
             const item = processedList[idx];
             if (!item) return;
 
-            if (item.displayCount > 0 || item.isSelected) {
+            const isAvailable = (item.displayCount > 0);
+            const shouldShow = item.isSelected || isAvailable; 
+
+            if (shouldShow) {
+                row.style.display = ""; 
                 row.style.opacity = "1";
                 row.style.pointerEvents = "auto";
             } else {
-                row.style.opacity = "0.25"; 
-                row.style.pointerEvents = "none"; 
+                if (HIDE_UNAVAILABLE) {
+                    row.style.display = "none"; 
+                } else {
+                    row.style.display = "";     
+                    row.style.opacity = "0.25"; 
+                    row.style.pointerEvents = "none"; 
+                }
             }
 
             row.onclick = () => {
@@ -1230,9 +1270,11 @@ function createDocumentSection(docId, structuredLines, stats) {
     }
 
     // 初期起動時のフォールバック：有効化されている項目の中からデフォルトのタブを選択して開く
-    let defaultTarget = "triple";
-    if (isStakeholderEnabled) defaultTarget = "stakeholder";
-    else if (isSubjectEnabled) defaultTarget = "subject";
+    let defaultTarget = "triple"; // 最初からトリプルをデフォルトにする
+    
+    // トリプルが常に選択されるように、条件分岐からstakeholderの優先処理を削除（または順番を変更）します
+    if (!defaultTarget && isStakeholderEnabled) defaultTarget = "stakeholder";
+    else if (!defaultTarget && isSubjectEnabled) defaultTarget = "subject";
     
     const defaultBtn = statsTable.querySelector(`.stats-toggle-btn[data-target="${defaultTarget}"]`);
     if (defaultBtn) defaultBtn.click();
