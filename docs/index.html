@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>CCO4KG 変換・特定ID指定抽出ツール</title>
-    <link rel="stylesheet" href="style_custom.css">
+    <link rel="stylesheet" href="css/style_custom.css">
     
     <script src="output_CCO4KG.js"></script>
-    <script src="main_process.js"></script>
+    <script src="js/main_process.js"></script>
 </head>
 <body>
 
@@ -53,7 +53,7 @@
                     </div>
                     <div class="detail-item">
                         <label class="config-group">
-                            <input type="checkbox" id="enableSubjectObjectNumbering" checked>
+                            <input type="checkbox" id="enableSubjectObjectNumbering">
                             主語(s)・目的語(o)にトリプルIDで連番を付与する（重複ノードの分離）
                         </label>
                     </div>
@@ -89,7 +89,7 @@
                     </div>
                     <div class="detail-item">
                         <label class="config-group">
-                            <input type="checkbox" id="enableStakeholderNumbering" checked> 
+                            <input type="checkbox" id="enableStakeholderNumbering"> 
                             ステークホルダーに連番を付与する（重複ノードの分離）
                         </label>
                     </div>
@@ -102,7 +102,7 @@
                 </div>
             </div>
 
-            <div class="panel-section" style="border-bottom: none; padding-bottom: 0;">
+            <div class="panel-section" style="border-bottom: none; padding-bottom: 10;">
                 <div class="section-title">
                     <strong>根拠の設定</strong>
                 </div>
@@ -178,7 +178,7 @@
                 </div>
             </div>
 
-            <div class="panel-section" id="secEvColor" style="border-bottom: none; padding-bottom: 0;">
+            <div class="panel-section" id="secEvColor" style="border-bottom: none; padding-bottom: 10;">
                 <div class="section-title">根拠の色</div>
                 <div class="color-picker-grid">
                     <div class="color-picker-item">
@@ -187,6 +187,7 @@
                     </div>
                 </div>
             </div>
+            
         </div>
     </div>
 
