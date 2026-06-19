@@ -2,7 +2,7 @@
    1. ベース＆共通スタイル
    ======================================================== */
 body {
-    font-family: 'Helvetica Neue', Arial, sans-serif; /* 美しく可読性の高いモダンなサンセリフ体 */
+    font-family: 'Helvetica Neue', Arial, sans-serif; /* サンセリフ体 */
     background-color: #f5f7fb;                        /* 目に優しい、ほんのり青みがかったライトグレー */
     color: #333;                                      /* 真っ黒を避けた濃いグレー */
     margin: 0;                                        /* ブラウザ既定の外側余白をリセット */
@@ -281,14 +281,15 @@ button:disabled {
     display: flex;
     gap: 20px;                                        /* 統計パネルとテキストエリアの間の隙間 */
     margin-top: 15px;
-    align-items: stretch;                             /* 左右の高さを自動で同じに引き伸ばす */
+    align-items: stretch;                             /* 左右のパネルの高さを一貫させる */
 }
 
 /* --- 左側：統計＆凡例サイドバー --- */
 .doc-side-panel {
-    flex: 0 0 320px;                                  /* 横幅を320pxに完全固定 */
-    width: 320px;
-    height: 650px;                                    /* 右側のテキストエリアと高さを完全一致 */
+    flex: 0 0 320px !important;                       /* ★!importantを追加して横幅の変動を絶対禁止 */
+    width: 320px !important;                          /* ★320pxに完全ロック */
+    max-width: 320px !important;                      /* ★これ以上広がるのも禁止 */
+    height: 750px;                                    /* 高さはここで調整可能 */
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
@@ -302,9 +303,10 @@ button:disabled {
     padding: 14px;
     line-height: 1.8;
     box-sizing: border-box;
-    height: 100%;                                     /* 親要素の高さをフルに活かす */
+    height: 100%;                                     /* 左側パネルの高さ（650px）をフルに使う */
     display: flex;
     flex-direction: column;
+    overflow: hidden;                                 /* 子要素のスクロールを正しく機能させる */
 }
 
 .badge-main-title {
@@ -383,8 +385,8 @@ button:disabled {
 /* --- 下部：高精度スクロール凡例（レジェンド） --- */
 .legend-scroll-container {
     flex-grow: 1;                                     /* 上部統計テーブルの残り縦スペースを限界まで自動で埋める */
-    max-height: 450px !important;                     /* [調整] 右側のテキストエリアと下端高さを綺麗に揃える数値 */
-    overflow-y: auto !important;                      /* 縦に項目が溢れたらスクロールバーを出す */
+    height: 0;                                        /* 高さを固定枠内に収めるためのトリガー */
+    overflow-y: auto !important;                      /* リストが溢れたらここだけ縦スクロールバーを出す */
     overflow-x: auto !important;                      /* 名前の長い時に潰れないよう横スクロールを許可 */
     padding: 6px;
     background-color: #fafafa;                        /* コンテナ内を僅かにグレーにして独立化 */
@@ -431,7 +433,7 @@ button:disabled {
     width: 12px;
     height: 12px;
     margin-right: 6px;
-    border-radius: 3px;                              
+    border-radius: 3px;                               
     vertical-align: middle;
     box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
 }
@@ -471,23 +473,51 @@ button:disabled {
 
 /* --- 右側：テキストエリアパネル --- */
 .doc-text-panel {
-    flex: 1;                                          /* 画面の残り横幅をすべて使って引き伸ばす */
+    flex: 0 0 750px !important;                       /* ★!importantを追加して横幅の変動を絶対禁止 */
+    width: 750px !important;                          /* ★750pxに完全ロック */
+    max-width: 750px !important;                      /* ★これ以上広がるのも禁止 */
     display: flex;
     flex-direction: column;
 }
 
 .doc-text-panel textarea {
     width: 100%;
-    height: 580px !important;                         /* 高さを580pxに固定し外部上書きを防御 */
-    padding: 10px;
+    height: 650px !important;                         /* 高さはここで調整可能（左側の高さと合わせる） */
+    padding: 12px;
     box-sizing: border-box;
-    font-family: 'Courier New', Courier, monospace;   /* データの桁・タブがズレないよう等幅フォント */
+    font-family: 'Courier New', Courier, monospace;   
     font-size: 12px;
+    line-height: 1.5;
     background-color: #fff;
     border: 1px solid #e2e8f0;
     border-radius: 4px;
-    resize: none;                                     /* ユーザーによるリサイズを禁止 */
+    resize: none;                                     
+    
+    /* 横スクロール対応 */
+    white-space: pre;                                 
+    overflow-x: auto;                                 
+    overflow-y: auto;                                 
 }
+
+.doc-text-panel textarea {
+    width: 100%;
+    height: 750px !important;                          /* ★【高さ固定】右側の高さを「650px」に完全ロック */
+    padding: 12px;
+    box-sizing: border-box;
+    font-family: 'Courier New', Courier, monospace;   /* データの桁・タブがズレないよう等幅フォント */
+    font-size: 12px;
+    line-height: 1.5;
+    background-color: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    resize: none;                                     /* ユーザーによる手動リサイズを禁止 */
+    
+    /* 横スクロールを可能にする設定 */
+    white-space: pre;                                 /* 自動折り返しを禁止し、元の改行データに準拠 */
+    overflow-x: auto;                                 /* 横に長い行がある場合は横スクロールバーを表示 */
+    overflow-y: auto;                                 /* 縦に長い場合はテキストエリア内で縦スクロール */
+}
+
 
 /* ========================================================
    6. レスポンシブ対応 (モバイル・タブレット環境)
