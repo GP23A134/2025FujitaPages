@@ -944,7 +944,7 @@ function createDocumentSection(docId, structuredLines, stats) {
             
             <div class="doc-text-panel" style="display: flex; flex-direction: column; height: 850px; box-sizing: border-box;">
                 <div class="doc-tabs-bar" style="margin-bottom: 15px; flex-shrink: 0;">
-                    <button class="doc-panel-tab active" data-tab="diagram">図・グラフ表示</button>
+                    <button class="doc-panel-tab active" data-tab="diagram">グラフ表示</button>
                     <button class="doc-panel-tab" data-tab="table">テーブル表示</button> 
                     <button class="doc-panel-tab" data-tab="text">テキスト表示</button>
                 </div>
@@ -1149,6 +1149,7 @@ function createDocumentSection(docId, structuredLines, stats) {
     };
 
     // テーブルデータを更新する関数（ステークホルダー数を右端に配置）
+    // テーブルデータを更新する関数（ヘッダー一括トグル＆ステークホルダー改行表示版）
     const updateDataTableDisplay = () => {
         const thead = section.querySelector(`#data-content-table-${docId} thead`);
         const tbody = section.querySelector(`#data-content-tbody-${docId}`);
@@ -1166,21 +1167,22 @@ function createDocumentSection(docId, structuredLines, stats) {
             tableEl.style.borderCollapse = "collapse";
         }
         
-        // 1. ヘッダーを生成（ステークホルダー数を一番右端に配置）
+        // 1. ヘッダーを生成（幅の調整、ホバーエフェクト、一括トグル用クラスの付与）
+        // 1. ヘッダーを生成（すべて中央揃えに変更）
         thead.innerHTML = `
             <tr>
                 <th style="padding: 10px; border-bottom: 2px solid #e0e0e0; width: 7%; text-align: center;">ID</th>
-                <th style="padding: 10px; border-bottom: 2px solid #e0e0e0; width: 35%; text-align: left; cursor: help;" title="セルをクリックすると詳細/クラスを切り替え">
-                    ${isSubjectClassMode ? '主語クラス (sClass)' : '主語 (Subject)'}
+                <th class="header-toggle-subject" style="padding: 10px; border-bottom: 2px solid #e0e0e0; width: 28%; text-align: center; cursor: pointer; transition: background 0.2s;" title="クリックで主語列を一括切り替え" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor=''">
+                    ${isSubjectClassMode ? '主語クラス' : '主語'}
                 </th>
-                <th style="padding: 10px; border-bottom: 2px solid #e0e0e0; width: 12%; text-align: center;">述語 (Predicate)</th>
-                <th style="padding: 10px; border-bottom: 2px solid #e0e0e0; width: 35%; text-align: left; cursor: help;" title="セルをクリックすると詳細/クラスを切り替え">
-                    ${isObjectClassMode ? '目的語クラス (oClass)' : '目的語 (Object)'}
+                <th style="padding: 10px; border-bottom: 2px solid #e0e0e0; width: 12%; text-align: center;">述語</th>
+                <th class="header-toggle-object" style="padding: 10px; border-bottom: 2px solid #e0e0e0; width: 28%; text-align: center; cursor: pointer; transition: background 0.2s;" title="クリックで目的語列を一括切り替え" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor=''">
+                    ${isObjectClassMode ? '目的語クラス' : '目的語'}
                 </th>
-                <th style="padding: 10px; border-bottom: 2px solid #e0e0e0; width: 11%; text-align: center;">ステークホルダー数</th>
+                <th style="padding: 10px; border-bottom: 2px solid #e0e0e0; width: 25%; text-align: center;">ステークホルダー</th>
             </tr>
         `;
-
+        
         tbody.innerHTML = "";
         const currentText = textarea.value.trim();
 
@@ -1282,11 +1284,10 @@ function createDocumentSection(docId, structuredLines, stats) {
             const oClass = stringToOClassMap.get(rawObj) || rawObj;
             
             const displayPred = group.predicates.length > 0 ? group.predicates.join(" / ") : "（関係性なし）";
-
             const initSubText = isSubjectClassMode ? sClass : rawSub;
             const initObjText = isObjectClassMode ? oClass : rawObj;
 
-            // ステークホルダー数の計算
+            // ステークホルダー「名」のリストを重複なく抽出
             const shSet = new Set();
             const opinions = idToOpinionsMap.get(tId);
             if (opinions) {
@@ -1295,14 +1296,17 @@ function createDocumentSection(docId, structuredLines, stats) {
                     if (sh) shSet.add(sh);
                 });
             }
-            const stakeholderCount = shSet.size;
+            
+            // 配列にして、1人増えるごとに改行（<br>）を挟んで結合する
+            const stakeholderListHtml = shSet.size > 0 
+                ? Array.from(shSet).join("<br>") 
+                : '<span style="color: #ccc;">-</span>';
 
-            // HTMLの出力順序を入れ替え（ステークホルダー数を一番最後（右側）のtdに）
             htmlBuffer += `
                 <tr style="border-bottom: 1px solid #eee; transition: background 0.1s;" onmouseover="this.style.backgroundColor='#f9f9f9'" onmouseout="this.style.backgroundColor='transparent'">
                     <td style="padding: 10px; font-weight: bold; color: #004085; width: 7%; font-size: 0.95em; text-align: center;">${tId}</td>
                     <td class="toggle-cell subject-cell" 
-                        style="padding: 10px; word-break: break-all; width: 35%; text-align: left; cursor: pointer; transition: color 0.2s;"
+                        style="padding: 10px; word-break: break-all; width: 28%; text-align: left; cursor: pointer; transition: color 0.2s;"
                         data-raw="${rawSub}" 
                         data-class="${sClass}"
                         data-current="${isSubjectClassMode ? 'class' : 'raw'}"
@@ -1311,14 +1315,16 @@ function createDocumentSection(docId, structuredLines, stats) {
                     >${initSubText}</td>
                     <td style="padding: 10px; color: #333; font-weight: 500; width: 12%; font-size: 0.95em; text-align: center;">${displayPred}</td>
                     <td class="toggle-cell object-cell" 
-                        style="padding: 10px; word-break: break-all; width: 35%; text-align: left; cursor: pointer; transition: color 0.2s;"
+                        style="padding: 10px; word-break: break-all; width: 28%; text-align: left; cursor: pointer; transition: color 0.2s;"
                         data-raw="${rawObj}" 
                         data-class="${oClass}"
                         data-current="${isObjectClassMode ? 'class' : 'raw'}"
                         onmouseover="this.style.color='#0056b3'; this.style.textDecoration='underline';"
                         onmouseout="this.style.color=''; this.style.textDecoration='';"
                     >${initObjText}</td>
-                    <td style="padding: 10px; color: #495057; font-weight: bold; width: 11%; font-size: 0.95em; text-align: center;">${stakeholderCount}</td>
+                    <td style="padding: 10px; color: #495057; width: 25%; font-size: 0.95em; text-align: left; line-height: 1.4; word-break: break-all;">
+                        ${stakeholderListHtml}
+                    </td>
                 </tr>
             `;
         });
@@ -1327,26 +1333,75 @@ function createDocumentSection(docId, structuredLines, stats) {
             ? `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #999;">該当するデータがありません。</td></tr>` 
             : htmlBuffer;
 
-        // --- 4. クリックイベントのバインド（個別トグル処理） ---
+        // ------------------------------------------------------------------------
+        // クラス/詳細の一括・個別制御ロジック（ヘッダーテキスト連動版）
+        // ------------------------------------------------------------------------
+        
+        // セル単体をトグル（切り替え）する内部共通ヘルパー関数
+        const toggleCell = (cell) => {
+            const currentStatus = cell.getAttribute("data-current");
+            const rawVal = cell.getAttribute("data-raw");
+            const classVal = cell.getAttribute("data-class");
+
+            if (currentStatus === "raw") {
+                cell.textContent = classVal;
+                cell.setAttribute("data-current", "class");
+                cell.style.fontWeight = "600";
+            } else {
+                cell.textContent = rawVal;
+                cell.setAttribute("data-current", "raw");
+                cell.style.fontWeight = "normal";
+            }
+        };
+
+        // ① 個別クリックイベントのバインド（枠組みとリスナーは維持、挙動は削除）
         tbody.querySelectorAll(".toggle-cell").forEach(cell => {
             cell.addEventListener("click", (e) => {
                 e.stopPropagation();
-                
-                const currentStatus = cell.getAttribute("data-current");
-                const rawVal = cell.getAttribute("data-raw");
-                const classVal = cell.getAttribute("data-class");
-
-                if (currentStatus === "raw") {
-                    cell.textContent = classVal;
-                    cell.setAttribute("data-current", "class");
-                    cell.style.fontWeight = "600";
-                } else {
-                    cell.textContent = rawVal;
-                    cell.setAttribute("data-current", "raw");
-                    cell.style.fontWeight = "normal";
-                }
+                // 【個別変更の削除】文字のトグル処理は無効化
+                /* toggleCell(cell); */
             });
         });
+
+        // ② 主語ヘッダークリック時：主語列のセル ＆ ヘッダーの文字を一括トグル
+        const subHeader = thead.querySelector(".header-toggle-subject");
+        if (subHeader) {
+            subHeader.addEventListener("click", () => {
+                const targetCells = tbody.querySelectorAll(".subject-cell");
+                if (targetCells.length === 0) return;
+                
+                // 1. 列の中身をすべてトグル
+                targetCells.forEach(cell => toggleCell(cell));
+
+                // 2. ヘッダー自身の表記をトグル（最初の1個目のセルの状態に合わせる）
+                const firstCellStatus = targetCells[0].getAttribute("data-current");
+                if (firstCellStatus === "class") {
+                    subHeader.textContent = "主語クラス";
+                } else {
+                    subHeader.textContent = "主語";
+                }
+            });
+        }
+
+        // ③ 目的語ヘッダークリック時：目的語列のセル ＆ ヘッダーの文字を一括トグル
+        const objHeader = thead.querySelector(".header-toggle-object");
+        if (objHeader) {
+            objHeader.addEventListener("click", () => {
+                const targetCells = tbody.querySelectorAll(".object-cell");
+                if (targetCells.length === 0) return;
+
+                // 1. 列の中身をすべてトグル
+                targetCells.forEach(cell => toggleCell(cell));
+
+                // 2. ヘッダー自身の表記をトグル（最初の1個目のセルの状態に合わせる）
+                const firstCellStatus = targetCells[0].getAttribute("data-current");
+                if (firstCellStatus === "class") {
+                    objHeader.textContent = "目的語クラス";
+                } else {
+                    objHeader.textContent = "目的語";
+                }
+            });
+        }
     };
     // グラフ描画・同期共通関数
     const syncGraphWithCurrentText = () => {
@@ -1613,32 +1668,24 @@ function createDocumentSection(docId, structuredLines, stats) {
             });
         }
 
-        // 5. 一覧（選択中カテゴリ）の隣にある選択解除ボタン（部分解除に変更）
+        // 5. 一覧（選択中カテゴリ）の隣にある選択解除ボタン（完全部分リフレッシュ版）
         const listClearBtn = section.querySelector(`#btn-clear-from-list-${docId}`);
         if (listClearBtn && statsTable) {
             listClearBtn.addEventListener("click", () => {
-                // 【修正】現在のカテゴリ(currentActiveTab)に属するフィルタだけを削除する
+                // 1. 現在アクティブなカテゴリのフィルタだけを削除
                 Object.keys(activeFiltersMap).forEach(label => {
                     if (activeFiltersMap[label].category === currentActiveTab) {
                         delete activeFiltersMap[label];
                     }
                 });
 
-                // 2. 統計テーブル内のすべてのトグルボタンから active クラスを一括削除
-                statsTable.querySelectorAll(".stats-toggle-btn").forEach(b => b.classList.remove("active"));
+                // 2. 左側の統計メニューの active クラスは維持、またはバッジの更新のために再描画
+                // 【重要】defaultBtn.click() を廃止し、現在のタブ（currentActiveTab）を維持したまま画面を更新する
+                updateTextareaDisplay();             // テキストエリアの絞り込みを再計算
+                updateLegendTable(currentActiveTab); // 現在の凡例一覧テーブルを再描画（✓マークや件数を更新）
+                updateTabVisualIndicators();         // 左側メニューの数値バッジなどを更新
 
-                // 3. 初期状態である「トリプル数 (triple)」ボタンを強制クリック
-                // （※もしトリプル数に戻したくない場合は、ここを currentActiveTab のまま再描画する処理に変えることも可能です）
-                const defaultBtn = statsTable.querySelector('.stats-toggle-btn[data-target="triple"]');
-                if (defaultBtn) {
-                    defaultBtn.click();
-                } else {
-                    updateTextareaDisplay();
-                    updateLegendTable(currentActiveTab);
-                    updateTabVisualIndicators();
-                }
-
-                // 4. 現在アクティブなタブの状態に合わせて表示をリフレッシュする
+                // 3. 現在開いているメインコンテンツ（グラフ or テーブル）の表示をリフレッシュ
                 const activeTabEl = section.querySelector(".tabs .active"); 
                 const currentTabName = activeTabEl ? activeTabEl.getAttribute("data-tab") : "table";
 
