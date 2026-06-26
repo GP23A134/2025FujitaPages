@@ -499,6 +499,7 @@ button:disabled {
 .legend-scroll-container {
     flex-grow: 1;
     height: 0;
+    min-height: 200px;
     overflow-y: auto;
     overflow-x: auto;
     padding: 6px;
@@ -699,47 +700,167 @@ button:disabled {
     padding: 4px;
 }
 
-/* テーブル表示タブ内部 */
+/* ========================================================
+   6-3. テーブル表示タブ内部（他タブ選択時の表示残りバグ修正版）
+   ======================================================== */
+/* 💡 !importantを外し、.activeがついている時だけ flex 表示にする */
 .pane-table {
     padding: 0px;
     box-sizing: border-box;
-    overflow-y: auto;
+    display: none; /* 💡 初期状態は非表示（他のタブ選択時は消える） */
+    width: 100%;
 }
 
-.table-scroll-wrapper {
+/* 💡 テーブルタブがアクティブ（選択状態）の時だけ縦並びで表示する */
+.pane-table.active {
+    display: flex;
+    flex-direction: column;
     height: 100%;
+}
+
+/* スクロールするテーブルの枠 */
+.table-scroll-wrapper {
+    flex: 1 1 auto; /* 余った縦幅をすべてテーブルに割り当てる */
     overflow: auto;
     border: 1px solid #e0e0e0;
-    border-radius: 4px;
+    border-radius: 4px 4px 0 0;
+    box-sizing: border-box;
+    margin-bottom: 0 !important; /* ボタンとの隙間を詰める */
 }
 
+/* テーブル本体 */
 .data-content-table {
-    width: 100%;
+    width: 100% !important;
+    table-layout: fixed !important;
     border-collapse: collapse;
     font-size: 0.9em;
-    text-align: left;
+    margin: 0;
 }
 
+/* ヘッダーの固定設定とデザイン */
 .data-content-table thead {
-    background-color: #f5f5f5;
+    background-color: #f8f9fa;
     position: sticky;
     top: 0;
     z-index: 10;
     box-shadow: 0 1px 0 #e0e0e0;
 }
 
+/* ヘッダーセル（中央揃え） */
 .data-content-table th {
-    padding: 10px;
+    padding: 12px 10px;
     border-bottom: 2px solid #e0e0e0;
+    font-weight: bold;
+    text-align: center !important;
+    vertical-align: middle;
+    background-color: #f8f9fa;
 }
 
-.data-content-table th:nth-child(1),
-.data-content-table th:nth-child(3) {
-    width: 35%;
+/* データ行セル */
+.data-content-table td {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    vertical-align: top;
+    word-break: break-all;
+    box-sizing: border-box;
 }
 
-.data-content-table th:nth-child(2) {
-    width: 30%;
+/* 5つの列幅を黄金比率で割り当て */
+.data-content-table th:nth-child(1), .data-content-table td:nth-child(1) { width: 7% !important; text-align: center !important; }   /* ID */
+.data-content-table th:nth-child(2), .data-content-table td:nth-child(2) { width: 28% !important; text-align: left !important; }  /* 主語 */
+.data-content-table th:nth-child(3), .data-content-table td:nth-child(3) { width: 12% !important; text-align: center !important; } /* 述語 */
+.data-content-table th:nth-child(4), .data-content-table td:nth-child(4) { width: 28% !important; text-align: left !important; }  /* 目的語 */
+.data-content-table th:nth-child(5), .data-content-table td:nth-child(5) { width: 25% !important; text-align: left !important; }  /* ステークホルダー */
+
+/* 行のホバー効果 */
+.data-content-table tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+/* ────────────────────────────────────────────────────────
+   💡 ページ切り替えパーツ（高さ調整＆テキスト化＆非表示制御版）
+   ──────────────────────────────────────────────────────── */
+.table-pagination-nav {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 6px 12px !important;     /* 💡 少し上下の余白を広げて見やすく */
+    background: #f8f9fa !important;
+    border: 1px solid #e0e0e0 !important;
+    border-top: none !important;
+    border-radius: 0 0 4px 4px !important;
+    font-size: 0.85em !important;      /* 💡 文字サイズを少しだけ大きく */
+    box-sizing: border-box !important;
+    width: 100% !important;
+    clear: both !important;
+    flex-shrink: 0 !important;
+    margin-top: 0 !important;
+    height: 40px !important;           /* 💡 全体の高さを32pxから40pxにアップ */
+    position: relative !important;
+}
+
+/* 表示件数やカウンターの文字・選択欄 */
+.nav-info-group {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    color: #666 !important;
+    line-height: 1 !important;
+    z-index: 1 !important;
+}
+
+.select-rows-per-page {
+    padding: 2px 4px !important;       /* 💡 選択欄を少し押しやすく調整 */
+    font-size: 12px !important;
+    height: 24px !important;           /* 💡 選択可能な欄の高さを24pxに */
+    border: 1px solid #ccc !important;
+    border-radius: 3px !important;
+    cursor: pointer !important;
+    background: #fff !important;
+}
+
+/* 「前へ ページ 1 / 5 次へ」のエリア */
+.pagination-buttons-area {
+    display: flex !important;
+    gap: 12px !important;              /* 💡 文字同士の間隔を少し広げる */
+    align-items: center !important;
+    position: absolute !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    margin: 0 auto !important;
+    z-index: 2 !important;
+}
+
+/* 💡 ボタンではなくテキスト（リンク）に変更 */
+.pagination-buttons-area button {
+    background: none !important;       /* 背景を透明に */
+    border: none !important;           /* 枠線を削除 */
+    padding: 0 !important;             /* 余白をリセット */
+    margin: 0 !important;
+    font-size: 12px !important;        /* 文字サイズ */
+    height: auto !important;
+    color: #0056b3 !important;         /* 💡 選択可能な時は青いテキストリンク色 */
+    cursor: pointer !important;
+    text-decoration: underline !important; /* 💡 下線をつけてリンクらしく */
+    line-height: 1 !important;
+}
+
+.pagination-buttons-area button:hover {
+    color: #00356b !important;         /* ホバー時は少し濃い青に */
+}
+
+/* 💡 選択不可（disabled）の時はJavaScriptと連動して完全に非表示（隠す） */
+.pagination-buttons-area button:disabled {
+    display: none !important;          /* 💡 完全に非表示にする */
+}
+
+/* ページインジケーター（ページ 1 / 5 などの文字） */
+.page-indicator {
+    margin: 0 !important;
+    color: #333 !important;
+    font-size: 12px !important;
+    line-height: 1 !important;
+    font-weight: normal !important;
 }
 
 /* その他レガシー用補助 */
