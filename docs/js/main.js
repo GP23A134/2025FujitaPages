@@ -48,8 +48,8 @@ window.onload = function () {
   const physicsBtn = document.getElementById("physicsBtn");
 
   if (physicsBtn) {
-    physicsBtn.textContent = "自動レイアウト：OFF";
-    physicsBtn.dataset.on = "false";
+    physicsBtn.textContent = "自動レイアウト：ON";
+    physicsBtn.dataset.on = "true";
 
     physicsBtn.addEventListener("click", function () {
       if (!network) return;
