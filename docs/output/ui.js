@@ -72,7 +72,7 @@ function generateHTML(docId, isAllDoc, config, stats) {
                     <div class="tab-pane pane-diagram" data-content="diagram" style="display: none; width: 100%; height: 100%; flex-direction: column;">
                         <div class="diagram-container" style="display: flex; flex-direction: column; height: 100%; width: 100%;">
                             <div class="control-actions-bar" style="display: flex; justify-content: flex-start; width: 100%; margin-bottom: 12px; flex-shrink: 0;">
-                                <button id="physicsBtn-${docId}" data-on="false" class="btn-small btn-physics" style="margin: 0; background-color: #6c757d; color: white;">自動レイアウト：OFF</button>
+                                <button id="physicsBtn-${docId}" data-on="true" class="btn-small btn-physics" style="margin: 0; background-color: #6c757d; color: white;">自動レイアウト：ON</button>
                             </div>
                             <div class="map_box" style="position: relative; width: 100%; flex-grow: 1; height: 0; margin: 0;">
                                 <div id="mynetwork-${docId}" class="network-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; contain: strict; will-change: transform;"></div>
