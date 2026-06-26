@@ -34,18 +34,18 @@ function updateDataTableDisplay(section, docId, currentActiveTab, currentTextval
     const initSubjectAsClass = (currentActiveTab === "sClass");
     const initObjectAsClass = (currentActiveTab === "oClass");
     
-    // 1. ヘッダーの描画（インラインスタイルを排除し、CSSクラスを付与）
+    // 1. ヘッダーの描画（中央揃えスタイルを強制適用）
     thead.innerHTML = `
-        <tr style="box-sizing: border-box;">
-            <th class="text-center" style="padding: 10px; border-bottom: 2px solid #e0e0e0; width: 7% !important; text-align: center !important;">ID</th>
-            <th id="th-subject-${docId}" class="clickable text-center" style="padding: 10px; border-bottom: 2px solid #e0e0e0; width: 28% !important; text-align: center !important; cursor: pointer; user-select: none; background-color: #f9f9f9;" title="クリックで主語 ↔ 主語クラスを一括切り替え">
+        <tr>
+            <th class="th-id text-center" style="text-align: center !important;">ID</th>
+            <th id="th-subject-${docId}" class="th-subject text-center clickable" title="クリックで主語 ↔ 主語クラスを一括切り替え" style="text-align: center !important;">
                 ${initSubjectAsClass ? '主語クラス' : '主語'}
             </th>
-            <th class="text-center" style="padding: 10px; border-bottom: 2px solid #e0e0e0; width: 12% !important; text-align: center !important;">述語</th>
-            <th id="th-object-${docId}" class="clickable text-center" style="padding: 10px; border-bottom: 2px solid #e0e0e0; width: 28% !important; text-align: center !important; cursor: pointer; user-select: none; background-color: #f9f9f9;" title="クリックで目的語 ↔ 目的語クラスを一括切り替え">
+            <th class="th-predicate text-center" style="text-align: center !important;">述語</th>
+            <th id="th-object-${docId}" class="th-object text-center clickable" title="クリックで目的語 ↔ 目的語クラスを一括切り替え" style="text-align: center !important;">
                 ${initObjectAsClass ? '目的語クラス' : '目的語'}
             </th>
-            <th class="text-center" style="padding: 10px; border-bottom: 2px solid #e0e0e0; width: 25% !important; text-align: center !important;">ステークホルダー</th>
+            <th class="th-stakeholder text-center" style="text-align: center !important;">ステークホルダー</th>
         </tr>
     `;
 
