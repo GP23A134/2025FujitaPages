@@ -41,7 +41,7 @@ function createDocumentSection(docId, structuredLines, stats) {
 
         textarea.value = getCleanFullText(linesArray, state.isAllDoc);
         
-        // 💡 修正: 初期表示時は「データテーブル(table)」のみを表示、他を非表示にする
+        //初期表示時は「データテーブル(table)」のみを表示、他を非表示にする
         tabs.forEach((tab) => {
             const targetTab = tab.getAttribute("data-tab");
             const pane = section.querySelector(`.tab-pane[data-content="${targetTab}"]`);
@@ -407,22 +407,36 @@ function createDocumentSection(docId, structuredLines, stats) {
             });
         }
 
-        const listClearBtn = section.querySelector(`#btn-clear-from-list-${docId}`);
-        if (listClearBtn && statsTable) {
-            listClearBtn.addEventListener("click", () => {
+        // 「選択解除」ボタンのクリックイベント
+        const clearFromListBtn = section.querySelector(`#btn-clear-from-list-${docId}`);
+        if (clearFromListBtn) {
+            clearFromListBtn.addEventListener("click", () => {
+                let hasChanged = false;
+                
+                // 現在アクティブなタブ（カテゴリ）のフィルターをすべて削除
                 Object.keys(state.activeFiltersMap).forEach(label => {
-                    if (state.activeFiltersMap[label].category === state.currentActiveTab) delete state.activeFiltersMap[label];
+                    if (state.activeFiltersMap[label].category === state.currentActiveTab) {
+                        delete state.activeFiltersMap[label];
+                        hasChanged = true;
+                    }
                 });
-                statsTable.querySelectorAll(".stats-toggle-btn").forEach(b => b.classList.remove("active"));
 
-                const defaultBtn = statsTable.querySelector('.stats-toggle-btn[data-target="triple"]');
-                if (defaultBtn) {
-                    defaultBtn.click();
-                } else {
+                if (hasChanged) {
+                    // 1. テキストエリアの表示を更新（ここで元の全データ、または残った条件に再計算されます）
                     updateTextareaDisplay();
+                    
+                    // 2. サイドバーの凡例リストの選択表示をリセット
                     updateLegendTable(state.currentActiveTab);
+                    
+                    // 3. タブの選択中インジケーターを更新
                     updateTabVisualIndicators();
-                    updateDataTableDisplay(section, docId, state.currentActiveTab, textarea.value);
+
+                    // 💡【ここを修正・追記】
+                    // テキストエリアが更新された後の最新の文字列（textarea.value）を
+                    // テーブル描画関数に確実に引き渡して、表をリアルタイムに再描画させます
+                    if (typeof updateDataTableDisplay === "function") {
+                        updateDataTableDisplay(section, docId, state.currentActiveTab, textarea.value);
+                    }
                 }
             });
         }
