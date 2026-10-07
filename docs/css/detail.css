@@ -1,0 +1,356 @@
+/* ==========================================================================
+   ダイアログ全体の外枠・レイアウト設定
+   ========================================================================== */
+
+/* ダイアログ全体の背景領域拡大と枠調整 */
+#annotationClassDialog {
+	/* 画面幅の90%を確保しつつ最大幅を840pxに設定 */
+	width: 90vw;
+	max-width: 840px;
+	/* 画面高さの85%を上限にし、大きくなりすぎるのを防止 */
+	max-height: 85vh;
+	padding: 0;
+	border: 1px solid #cbd5e1;
+	border-radius: 12px;
+	/* 浮き上がって見えるような立体的な影（Box Shadow）を設定 */
+	box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+	/* ヘッダー固定表示のため外枠側のスクロールを無効化 */
+	overflow: hidden;
+}
+
+/* ダイアログ内部のメインコンテナ（Flexboxによる縦並び構造） */
+.class-detail-container {
+	display: flex;
+	flex-direction: column;
+	max-height: 85vh;
+	background: #fff;
+}
+
+/* ==========================================================================
+   ヘッダーエリア（固定表示・タイトル・閉じるボタン）
+   ========================================================================== */
+
+/* 1. ヘッダーを上部に固定 (sticky) */
+.class-detail-heading {
+	/* スクロールしても最上部に張り付く設定 */
+	position: sticky;
+	top: 0;
+	z-index: 10; /* コンテンツの上に重ねる */
+	display: flex;
+	align-items: center;
+	justify-content: space-between; /* タイトル側と×ボタンを左右両端に配置 */
+	padding: 16px 24px;
+	border-bottom: 1px solid #e2e8f0;
+	background: #ffffff; /* 背景色を指定して下のコンテンツの透けを防止 */
+}
+
+/* ヘッダー左側のタイトル領域 */
+.class-detail-header-main {
+	display: flex;
+	align-items: center;
+	gap: 12px; /* 種別タグとタイトルの間の余白 */
+}
+
+/* タイトルテキスト */
+.class-detail-heading h3 {
+	margin: 0;
+	color: #0f172a;
+	font-size: 18px;
+	font-weight: 700;
+}
+
+/* 種別バッジ（「中間クラス」「個別」などのラベル） */
+.class-detail-target {
+	padding: 4px 10px;
+	border-radius: 999px; /* 丸みのあるカプセル形状 */
+	background: #eef6ff;
+	color: #245d9c;
+	font-size: 12px;
+	font-weight: 700;
+	white-space: nowrap; /* テキストの途中で折り返さない */
+}
+
+/* ×ボタン（閉じるボタン）のスタイル */
+.class-detail-close-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	border: none;
+	border-radius: 50%; /* 正円形状 */
+	background: transparent;
+	color: #64748b;
+	font-size: 18px;
+	line-height: 1;
+	cursor: pointer;
+	transition: background 0.15s, color 0.15s;
+}
+
+/* ×ボタン ホバー（マウスオーバー）時の演出 */
+.class-detail-close-btn:hover {
+	background: #f1f5f9;
+	color: #0f172a;
+}
+
+/* ==========================================================================
+   メインコンテンツエリア（スクロール領域・共通セクション）
+   ========================================================================== */
+
+/* メインコンテンツ（スクロール可能エリア） */
+.class-detail-body {
+	flex: 1; /* 余った縦領域を一杯に使う */
+	padding: 0 24px 24px;
+	overflow-y: auto; /* コンテンツが溢れた場合のみ縦スクロールバーを表示 */
+}
+
+/* セクション境界（四角い枠を使わず線で切り分ける） */
+.class-detail-section {
+	padding: 20px 0;
+	border-bottom: 1px solid #e2e8f0;
+}
+
+/* 最後のセクションの下線は消去 */
+.class-detail-section:last-child {
+	border-bottom: none;
+}
+
+/* 各セクションの見出し（h4） */
+.class-detail-section h4 {
+	margin: 0 0 14px;
+	padding-left: 10px;
+	border-left: 4px solid #08706f; /* 左側のアクセントカラー線 */
+	color: #1e293b;
+	font-size: 15px;
+	font-weight: 700;
+}
+
+/* ==========================================================================
+   概要サマリー領域
+   ========================================================================== */
+
+/* 概要サマリーの記述リスト（dl） */
+.class-detail-summary dl {
+	display: flex;
+	gap: 32px; /* 各数値項目の間隔 */
+	margin: 0;
+}
+
+/* 概要サマリーの項目名（dt） */
+.class-detail-summary-item dt {
+	color: #64748b;
+	font-size: 12px;
+}
+
+/* 概要サマリーの数値・データ（dd） */
+.class-detail-summary-item dd {
+	margin: 4px 0 0;
+	color: #0f172a;
+	font-size: 16px;
+	font-weight: 700;
+}
+
+/* ==========================================================================
+   関連クラス・階層項目エリア
+   ========================================================================== */
+
+/* 関連クラスのグループ配置 */
+.related-class-groups {
+	display: grid;
+	gap: 16px;
+}
+
+/* 関連述語名グループの見出し（h5） */
+.related-class-group h5 {
+	margin: 0 0 8px;
+	color: #475569;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+/* 関連クラスのボタン一覧（タグ型配置） */
+.detail-class-options {
+	display: flex;
+	flex-wrap: wrap; /* 幅を超えたら折り返す */
+	gap: 8px;
+}
+
+/* 関連クラスボタン */
+.detail-class-options button {
+	padding: 6px 12px;
+	border: 1px solid #cbd5e1;
+	border-radius: 6px;
+	background: #fff;
+	color: #334155;
+	font-size: 12px;
+	font-weight: 500;
+	cursor: pointer;
+}
+
+/* 関連クラスボタン ホバー時 */
+.detail-class-options button:hover {
+	border-color: #08706f;
+	color: #08706f;
+	background: #f8fafc;
+}
+
+/* ==========================================================================
+   集計チャート（SVG横棒グラフ・ドーナツグラフ）
+   ========================================================================== */
+
+/* 2つのグラフを横並びにするレイアウト設定 */
+.class-detail-charts {
+	display: grid;
+	/* 左側（横棒グラフ）を1fr、右側（ドーナツグラフ）を少し狭めに設定 */
+	grid-template-columns: minmax(0, 1fr) minmax(220px, .8fr);
+	align-items: start;
+	gap: 24px;
+}
+
+/* グラフカードの見出し */
+.class-chart-card h4 {
+	margin: 0 0 12px;
+	padding-left: 0;
+	border-left: none; /* セクションのh4と重複しないよう左線をオフ */
+	color: #475569;
+	font-size: 13px;
+}
+
+/* SVG横棒グラフのコンテナ */
+.class-bar-chart {
+	display: block;
+	width: 100%;
+	height: auto;
+	overflow: visible;
+}
+
+/* 横棒グラフ内のSVGテキストラベル・数値 */
+.class-chart-label,
+.class-chart-value {
+	fill: #475569;
+	font-size: 20px;
+}
+
+.class-chart-value {
+	font-weight: 700;
+}
+
+/* ドーナツグラフと凡例の横並びレイアウト */
+.class-donut-layout {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+}
+
+/* ドーナツグラフ本体のサイズ規定 */
+.class-donut {
+	position: relative;
+	flex: 0 0 120px;
+	width: 120px;
+	height: 120px;
+}
+
+.class-donut svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+/* ドーナツグラフの中央件数表示 */
+.class-donut > span {
+	position: absolute;
+	z-index: 1;
+	inset: 0;
+	display: grid;
+	place-content: center; /* 完全中央寄せ */
+	color: #245d9c;
+	font-size: 22px;
+	font-weight: 800;
+	text-align: center;
+}
+
+.class-donut > span small {
+	margin-left: 2px;
+	font-size: 11px;
+}
+
+/* ドーナツグラフの凡例リスト */
+.class-chart-legend {
+	display: grid;
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	color: #475569;
+	font-size: 12px;
+	list-style: none;
+}
+
+.class-chart-legend li {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+/* 凡例のカラーマーク（円） */
+.class-chart-dot {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+}
+
+/* ==========================================================================
+   本文確認トリプル一覧
+   ========================================================================== */
+
+/* トリプル確認ボタンのグリッド配置 */
+.annotation-detail-triples {
+	display: grid;
+	gap: 8px;
+}
+
+/* 各トリプルボタン */
+.annotation-detail-triples button {
+	padding: 10px 12px;
+	border: 1px solid #e2e8f0;
+	border-radius: 6px;
+	background: #fff;
+	color: #334155;
+	text-align: left;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+/* トリプルボタン ホバー時 */
+.annotation-detail-triples button:hover {
+	border-color: #08706f;
+	color: #08706f;
+	background: #f8fafc;
+}
+
+/* データが存在しない場合の空文字スタイル */
+.class-detail-empty {
+	margin: 0;
+	color: #94a3b8;
+	font-size: 13px;
+}
+
+/* ==========================================================================
+   レスポンシブ（画面幅に応じたレイアウト調整）
+   ========================================================================== */
+
+/* タブレット・スマートフォンサイズ（700px以下）：グラフを縦並びへ変更 */
+@media (max-width: 700px) {
+	.class-detail-charts {
+		grid-template-columns: 1fr;
+	}
+}
+
+/* スマートフォンサイズ（600px以下）：サマリー項目を縦並びへ変更 */
+@media (max-width: 600px) {
+	.class-detail-summary dl {
+		flex-direction: column;
+		gap: 12px;
+	}
+}
