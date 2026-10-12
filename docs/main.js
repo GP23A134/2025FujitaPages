@@ -18,10 +18,17 @@ function renderTree(rows) {
   const isSearching = searchInput.value.trim() !== '';
   rows.forEach((row) => {
     if (!tree.has(row.topClass)) tree.set(row.topClass, new Map());
-    const middle = tree.get(row.topClass);
-    if (!middle.has(row.middleClass)) middle.set(row.middleClass, []);
-    middle.get(row.middleClass).push(row);
+    let nodes = tree.get(row.topClass);
+    row.middleClass.split(' / ').forEach((label, index, labels) => {
+      if (!nodes.has(label)) nodes.set(label, { children: new Map(), rows: [] });
+      const node = nodes.get(label);
+      if (index === labels.length - 1) node.rows.push(row);
+      nodes = node.children;
+    });
   });
+
+  const countRows = (nodes) => [...nodes.values()].reduce(
+    (count, node) => count + node.rows.length + countRows(node.children), 0);
 
   treeElement.replaceChildren(...[...tree].map(([topClass, middle]) => {
     const top = document.createElement('details');
@@ -30,34 +37,26 @@ function renderTree(rows) {
     top.setAttribute('role', 'treeitem');
     const topSummary = document.createElement('summary');
     topSummary.append(document.createTextNode(topClass));
-    const topId = document.createElement('span');
-    topId.className = 'tree-level-id';
-    topId.textContent = textId(rows.find((row) => row.topClass === topClass).topClassId);
-    topSummary.append(topId);
     const topCount = document.createElement('span');
     topCount.className = 'count-badge top-count';
-    topCount.textContent = [...middle.values()].reduce((n, items) => n + items.length, 0);
+    topCount.textContent = countRows(middle);
     topSummary.append(topCount);
     top.append(topSummary);
     const middleList = document.createElement('ul');
-    [...middle].forEach(([middleClass, items]) => {
+    const renderMiddleNodes = (nodes, list) => [...nodes].forEach(([middleClass, node]) => {
       const middleItem = document.createElement('li');
       const middleDetails = document.createElement('details');
       middleDetails.className = 'tree-middle-class';
       middleDetails.open = isSearching;
       const middleSummary = document.createElement('summary');
       middleSummary.append(document.createTextNode(middleClass));
-      const middleId = document.createElement('span');
-      middleId.className = 'tree-level-id';
-      middleId.textContent = textId(items[0].middleClassId);
-      middleSummary.append(middleId);
       const middleCount = document.createElement('span');
       middleCount.className = 'count-badge middle-count';
-      middleCount.textContent = items.length;
+      middleCount.textContent = node.rows.length + countRows(node.children);
       middleSummary.append(middleCount);
       middleDetails.append(middleSummary);
       const leafList = document.createElement('ul');
-      items.forEach((row) => {
+      node.rows.forEach((row) => {
         const leaf = document.createElement('li');
         const classInfo = document.createElement('div');
         classInfo.className = 'tree-class';
@@ -71,10 +70,12 @@ function renderTree(rows) {
         leaf.append(classInfo);
         leafList.append(leaf);
       });
+      renderMiddleNodes(node.children, leafList);
       middleDetails.append(leafList);
       middleItem.append(middleDetails);
-      middleList.append(middleItem);
+      list.append(middleItem);
     });
+    renderMiddleNodes(middle, middleList);
     top.append(middleList);
     return top;
   }));
