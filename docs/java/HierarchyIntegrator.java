@@ -80,8 +80,18 @@ public final class HierarchyIntegrator {
     }
 
     private static String folderLabel(String folder) {
-        int separator = folder.indexOf('_');
-        return separator >= 0 ? folder.substring(separator + 1) : folder;
+        String label = folder;
+        // t_00000_未分類 / m_00000_未分類 の形式
+        int firstSeparator = label.indexOf('_');
+        if (firstSeparator >= 0) {
+            label = label.substring(firstSeparator + 1);
+        }
+        int secondSeparator = label.indexOf('_');
+        if (secondSeparator >= 0 && label.substring(0, secondSeparator).matches("\\d+")) {
+            label = label.substring(secondSeparator + 1);
+        }
+
+        return label;
     }
 }
 

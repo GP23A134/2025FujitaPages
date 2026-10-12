@@ -104,6 +104,11 @@ public final class ClassIdAssigner {
                 if (index < 0) continue;
                 String id = idPart(createId(idPrefix, index));
                 Path target = folder.resolveSibling(id + "_" + label);
+                // すでに正しい名前なら何もしない
+                if (folder.equals(target)) {
+                    continue;
+                }
+                // 別のフォルダが同名の場合だけエラー
                 if (Files.exists(target)) {
                     throw new IOException("変更先フォルダが既に存在します: " + target);
                 }
