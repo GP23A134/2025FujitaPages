@@ -10,14 +10,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /** data/classes配下のIDフォルダを走査して統合TSVを生成します。 */
-public final class HierarchyIntegrator {
+public final class HierarchyDataReader {
     private static final String DIRECT_HEADER = "対象クラスID\tラベル";
     private static final String OUTPUT_HEADER = "上位クラスID\t上位クラスラベル\t中間クラスID\t中間クラスラベル\t対象クラスID\tラベル";
-    private HierarchyIntegrator() {}
+    private HierarchyDataReader() {}
 
     public static void main(String[] args) throws IOException {
         if (args.length != 0 && args.length != 2) {
-            System.err.println("使用法: HierarchyIntegrator [<classesフォルダ> <出力TSV>]");
+            System.err.println("使用法: HierarchyDataReader [<classesフォルダ> <出力TSV>]");
             System.exit(2);
         }
         Path base = Path.of(".").toAbsolutePath().normalize();

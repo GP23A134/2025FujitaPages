@@ -2,8 +2,8 @@
 
 既存のJavaプログラムとは独立した、機能別のデータ処理ツールです。
 
-- `HierarchyIntegrator`：`data/classes`内の階層ディレクトリを統合
-- `WebGenerator`：統合TSVをブラウザー用JavaScriptへ変換
+- `HierarchyDataReader`：`data/classes`内の階層ディレクトリを統合
+- `HierarchyJsonGenerator`：統合TSVから階層JSONとブラウザー用JavaScriptを生成
 - `ClassIdAssigner`：クラス一覧とフォルダーへIDを付与
 
 入力データの配置:
@@ -28,6 +28,6 @@ javac -encoding UTF-8 -d out java/*.java
 実行例:
 
 ```text
-java -cp out HierarchyIntegrator
-java -cp out WebGenerator
+java -cp out HierarchyDataReader
+java -cp out HierarchyJsonGenerator
 ```

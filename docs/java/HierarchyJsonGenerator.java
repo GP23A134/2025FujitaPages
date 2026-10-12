@@ -12,26 +12,67 @@ import java.util.List;
  * <p>入力ファイルはUTF-8、タブ区切り、各行は2列であることを前提とします。対応TSVは
  * 指定ディレクトリ直下に複数配置でき、すべて読み込みます。</p>
  */
-public final class WebGenerator {
+public final class HierarchyJsonGenerator {
     /** KGIntegratorで事前に生成した統合TSV。 */
     private static final Path BASE = Path.of(".").toAbsolutePath().normalize();
     private static final Path INTEGRATED_TSV_FILE = BASE.resolve("output/kgtools-integrated.tsv");
     /** 階層データだけを書き出すJavaScriptファイル。 */
     private static final Path OUTPUT_JAVASCRIPT_FILE = BASE.resolve("app.js");
+    private static final Path OUTPUT_JSON_FILE = BASE.resolve("output/hierarchy.json");
 
     private static final String INTEGRATED_HEADER =
             "上位クラスID\t上位クラスラベル\t中間クラスID\t中間クラスラベル\t対象クラスID\tラベル";
 
-    private WebGenerator() {
+    private HierarchyJsonGenerator() {
         // 静的メソッドだけを持つユーティリティークラスのため、生成を禁止します。
     }
 
     /** 統合TSVを読み込み、ブラウザー用の階層データだけをJavaScriptへ出力します。 */
     public static void main(String[] args) throws IOException {
         List<String[]> integratedRows = readIntegratedRows(INTEGRATED_TSV_FILE);
+        writeHierarchyJson(OUTPUT_JSON_FILE, integratedRows);
         writeJavaScript(OUTPUT_JAVASCRIPT_FILE, integratedRows);
         System.out.printf("%n%s に %d件の階層データを出力しました。%n",
                 OUTPUT_JAVASCRIPT_FILE, integratedRows.size());
+    }
+
+    /** 統合TSVを、上位クラス→中間クラス→対象クラスのJSONへ変換します。 */
+    private static void writeHierarchyJson(Path output, List<String[]> rows) throws IOException {
+        StringBuilder json = new StringBuilder("[\n");
+        String previousTop = null;
+        String previousPath = null;
+        for (String[] row : rows) {
+            String topId = jsonValue(row[0]);
+            String top = jsonValue(row[1]);
+            String[] middleIds = row[2].split(" / ");
+            String[] middleLabels = row[3].split(" / ");
+            if (!top.equals(previousTop)) {
+                if (previousTop != null) json.append("      ]\n    }\n  ]\n},\n");
+                json.append("  {\"id\":").append(topId).append(",\"label\":").append(top)
+                        .append(",\"children\":[\n");
+                previousTop = row[1];
+                previousPath = null;
+            }
+            String path = String.join(" / ", middleLabels);
+            if (!path.equals(previousPath)) {
+                if (previousPath != null) json.append("      ]\n    },\n");
+                json.append("    {\"id\":").append(jsonValue(String.join(" / ", middleIds)))
+                        .append(",\"label\":").append(jsonValue(path)).append(",\"children\":[],\"classes\":[\n");
+                previousPath = path;
+            }
+            if (json.charAt(json.length() - 1) != '[') json.append(",\n");
+            json.append("        {\"id\":").append(jsonValue(row[4])).append(",\"label\":")
+                    .append(jsonValue(row[5])).append("}");
+        }
+        if (!rows.isEmpty()) json.append("\n      ]\n    }\n  ]\n}\n");
+        json.append("]\n");
+        Files.createDirectories(output.toAbsolutePath().getParent());
+        Files.writeString(output, json.toString(), StandardCharsets.UTF_8);
+    }
+
+    private static String jsonValue(String value) {
+        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\n", "\\n").replace("\r", "\\r") + "\"";
     }
 
     /**
