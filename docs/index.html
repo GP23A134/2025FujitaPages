@@ -4,45 +4,102 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>クラス階層</title>
+  <link rel="stylesheet" href="style.css">
   <script src="app.js" defer></script>
   <script src="main.js" defer></script>
-  <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-mode="browse">
+  <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>
   <header class="page-header">
     <p class="eyebrow">KNOWLEDGE GRAPH VIEWER</p>
     <h1>クラス階層</h1>
     <p class="page-description">上位・中間クラスごとに対象クラスを検索、参照できます。</p>
+    <p><a class="page-link-button" href="edit.html">編集画面へ</a></p>
   </header>
+
   <main>
     <div class="tabs" role="tablist" aria-label="表示切替">
-      <button type="button" class="tab is-active" id="tree-tab" role="tab" aria-selected="true" aria-controls="tree-panel">階層ツリー</button>
-      <button type="button" class="tab" id="table-tab" role="tab" aria-selected="false" aria-controls="table-panel">表</button>
-      <button type="button" class="tab" id="summary-tab" role="tab" aria-selected="false" aria-controls="summary-panel">集計</button>
+      <button type="button" class="tab is-active" id="tree-tab" role="tab" aria-selected="true"
+        aria-controls="tree-panel">
+        階層ツリー
+      </button>
+      <button type="button" class="tab" id="target-class-tab" role="tab" aria-selected="false"
+        aria-controls="target-class-panel">
+        クラス一覧
+      </button>
+      <button type="button" class="tab" id="middle-class-tab" role="tab" aria-selected="false"
+        aria-controls="middle-class-panel">
+        中間クラス一覧
+      </button>
+      <button type="button" class="tab" id="top-class-tab" role="tab" aria-selected="false"
+        aria-controls="top-class-panel">
+        上位クラス一覧
+      </button>
     </div>
+
     <section id="tree-panel" class="tab-panel" role="tabpanel" aria-labelledby="tree-tab">
       <div id="tree" class="tree" role="tree"></div>
     </section>
-    <section id="table-panel" class="tab-panel" role="tabpanel" aria-labelledby="table-tab" hidden>
-      <div id="search-section">
-        <form id="search-form" class="search-form">
-          <label class="search-label" for="search"></label>
-          <div class="search-input-wrapper">
-            <input id="search" type="search" placeholder="上位・中間・ID・ラベルで検索">
-            <button type="button" id="clear-search" class="clear-button" aria-label="検索条件をクリア">×</button>
-          </div>
-          <button type="submit" class="search-button">検索</button>
-        </form>
-      </div>
-      <h2>一覧</h2>
+
+    <section id="top-class-panel" class="tab-panel" role="tabpanel" aria-labelledby="top-class-tab" hidden>
+      <h2>上位クラス一覧</h2>
       <table>
-        <thead><tr><th>上位クラス</th><th>上位クラスID</th><th>中間クラス</th><th>中間クラスID</th><th>ID</th><th>ラベル</th></tr></thead>
-        <tbody id="rows"></tbody>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>ラベル</th>
+          </tr>
+        </thead>
+        <tbody id="top-class-rows"></tbody>
       </table>
     </section>
-    <section id="summary-panel" class="tab-panel" role="tabpanel" aria-labelledby="summary-tab" hidden>
-      <h2>集計</h2>
-      <div id="summary" class="summary-grid"></div>
+
+    <section id="middle-class-panel" class="tab-panel" role="tabpanel" aria-labelledby="middle-class-tab" hidden>
+      <h2>中間クラス一覧</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>ラベル</th>
+          </tr>
+        </thead>
+        <tbody id="middle-class-rows"></tbody>
+      </table>
+    </section>
+
+    <section id="target-class-panel" class="tab-panel" role="tabpanel" aria-labelledby="target-class-tab" hidden>
+      <h2>クラス一覧</h2>
+      <div class="class-search" role="search">
+        <label for="top-class-filter">
+          上位クラス
+          <select id="top-class-filter">
+            <option value="">すべて</option>
+          </select>
+        </label>
+        <label for="middle-class-filter">
+          中間クラス
+          <select id="middle-class-filter">
+            <option value="">すべて</option>
+          </select>
+        </label>
+        <label for="class-text-filter" class="class-search-text">
+          検索
+          <input id="class-text-filter" type="search" placeholder="ID・ラベルで部分一致検索">
+        </label>
+        <button type="button" id="download-class-tsv" class="search-button">
+          絞り込み結果をTSV保存
+        </button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>ラベル</th>
+          </tr>
+        </thead>
+        <tbody id="target-class-rows"></tbody>
+      </table>
     </section>
   </main>
 </body>

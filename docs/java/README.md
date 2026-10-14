@@ -1,33 +1,64 @@
 # KG Tools
 
-既存のJavaプログラムとは独立した、機能別のデータ処理ツールです。
+ノートの作業順に沿って、データ作成・分類・Web表示を分離したデータ処理ツールです。
 
-- `HierarchyDataReader`：`data/classes`内の階層ディレクトリを統合
-- `HierarchyJsonGenerator`：統合TSVから階層JSONとブラウザー用JavaScriptを生成
-- `ClassIdAssigner`：クラス一覧とフォルダーへIDを付与
+- `QueryDataExporter`：SPARQLクエリを実行し、結果をJSONへ保存
+- `InstanceClassIntegrator`：クエリ結果からインスタンスとクラスを統合
+- `WebDataGenerator`：統合JSONからWeb用の`app.js`を生成
+- `ClassRelationUpdater`：inputのTSVからクラス一覧と親子関係を更新
 
 入力データの配置:
 
 ```text
 data/
-├─ classes.tsv             # 対象クラス本体
-├─ 上位クラス一覧.tsv       # 上位クラス一覧
-├─ 中間クラス一覧.tsv       # 中間クラス一覧
-└─ classes/                # 階層と対象クラスの所属
-   └─ top_上位クラス/
-      ├─ direct.tsv
-      └─ middle_中間クラス/direct.tsv
+├─ query-result/
+│  ├─ base-data/
+│  └─ upper-class-data/
+└─ integrated-data/
 ```
 
-コンパイル例:
+コンパイル例（初回は Maven が必要なライブラリを取得します）:
 
 ```text
-javac -encoding UTF-8 -d out java/*.java
+mvn -f java/pom.xml compile
 ```
 
 実行例:
 
 ```text
-java -cp out HierarchyDataReader
-java -cp out HierarchyJsonGenerator
+mvn -f java/pom.xml exec:java "-Dexec.mainClass=InstanceClassIntegrator"
+mvn -f java/pom.xml exec:java "-Dexec.mainClass=WebDataGenerator"
+```
+
+`QueryDataExporter.java` 上部の `MODE` を変更して、初期データ取得モードを指定します。
+
+```text
+mvn -f java/pom.xml exec:java "-Dexec.mainClass=QueryDataExporter"
+```
+
+`MODE = "base"` は `querys/` のみ、`MODE = "all"` は `querys/` と `upper-class-querys/` を実行します。
+
+各クエリは同名のJSONとして、`data/query-result/base-data/` または `data/query-result/upper-class-data/` に保存します。出力形式はJSONに統一しています。コマンドは `docs` ディレクトリから実行してください。
+
+`base-data` はインスタンスと対象クラスの固定関係です。`upper-class-data` は対象クラス・中間クラス・上位クラスの階層情報です。分類変更ではインスタンスと対象クラスの関係を変更しません。
+
+## インスタンスとクラスの統合
+
+クエリ結果から、主語・目的語を区別せず、インスタンスごとの所属クラスを統合します。
+
+```text
+mvn -f java/pom.xml exec:java "-Dexec.mainClass=InstanceClassIntegrator"
+```
+
+出力先は次の2ファイルです。
+
+- `data/integrated-data/instance-class-data.json`：インスタンスと所属クラス
+- `data/integrated-data/class-data.json`：クラス一覧とクラス間の親子関係
+- `data/integrated-data/middle-class-list.json`：中間クラス一覧
+- `data/integrated-data/top-class-list.json`：上位クラス一覧
+
+Web表示用の`app.js`を生成する場合は、次を実行します。
+
+```text
+mvn -f java/pom.xml exec:java "-Dexec.mainClass=WebDataGenerator"
 ```

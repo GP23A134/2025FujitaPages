@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>クラス編集</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+  <script src="edit.js" defer></script>
+</head>
+<body data-mode="edit">
+  <header class="page-header">
+    <p class="eyebrow">KNOWLEDGE GRAPH EDITOR</p>
+    <h1>クラス編集</h1>
+    <p class="page-description">クラスの追加と親子関係を編集します。</p>
+    <p><a id="browse-link" class="page-link-button" href="index.html">閲覧画面へ</a></p>
+    <button type="button" id="save-edit-changes" class="search-button edit-header-save">編集内容を保存</button>
+  </header>
+
+  <main>
+    <div class="tabs" role="tablist" aria-label="編集画面切り替え">
+      <button type="button" class="tab is-active" data-edit-tab="edit-tree-panel" aria-selected="true">
+        階層ツリー
+      </button>
+      <button type="button" class="tab" data-edit-tab="edit-form-panel" aria-selected="false">
+        編集フォーム
+      </button>
+    </div>
+
+    <section id="edit-tree-panel" class="tab-panel">
+
+      <div class="edit-tree-layout">
+        <div id="edit-tree" class="tree" role="tree"></div>
+        <aside id="held-panel" class="instance-selection" hidden>
+          <h2>保持中 <span id="held-count" class="held-count" aria-live="polite">0件</span></h2>
+          <div id="held-instance-list" class="held-instance-list"></div>
+          <button type="button" id="save-held-classes" class="search-button">保持中を保存</button>
+        </aside>
+      </div>
+    </section>
+
+    <section id="edit-form-panel" class="tab-panel" hidden>
+      <section class="class-edit-panel">
+        <h2>クラスを追加</h2>
+        <div class="class-edit-form">
+          <label for="new-class-type">
+            種類
+            <select id="new-class-type">
+              <option value="top">上位クラス</option>
+              <option value="middle">中間クラス</option>
+            </select>
+          </label>
+          <label for="new-class-label">
+            ラベル
+            <input id="new-class-label" type="text">
+          </label>
+          <button type="button" id="add-class" class="search-button">追加</button>
+        </div>
+
+        <h2>親クラスを変更</h2>
+        <div class="class-edit-form">
+          <label for="edit-child-class">
+            子クラス
+            <select id="edit-child-class"></select>
+          </label>
+          <label for="edit-parent-class">
+            親クラス
+            <select id="edit-parent-class"></select>
+          </label>
+          <button type="button" id="apply-parent-change" class="search-button">変更を反映</button>
+        </div>
+        <p id="edit-status" class="edit-status" role="status"></p>
+      </section>
+
+      <section>
+        <h2>現在のクラス</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>種類</th>
+              <th>ID</th>
+              <th>ラベル</th>
+            </tr>
+          </thead>
+          <tbody id="edit-class-rows"></tbody>
+        </table>
+      </section>
+
+      <div>
+        <button type="button" id="download-class-list" class="search-button">class-list.tsvを保存</button>
+        <button type="button" id="download-relation" class="search-button">class-relation.tsvを保存</button>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
