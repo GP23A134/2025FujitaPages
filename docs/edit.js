@@ -96,7 +96,9 @@ function renderTree() {
       return button;
     }
     const details = document.createElement('details');
-    details.className = depth === 0 ? 'tree-top-class' : 'tree-middle-class';
+    // 親子関係が「対象クラス → 上位クラス」の2階層でも、
+    // 階層の深さではなくIDの種別で上位・中間を判定する。
+    details.className = kind(item.id) === 'top' ? 'tree-top-class' : 'tree-middle-class';
     details.open = true;
     const summary = document.createElement('summary');
     const button = document.createElement('button');
@@ -109,9 +111,32 @@ function renderTree() {
     count.textContent = countTargets(item.id);
     summary.append(count);
     const list = document.createElement('ul');
-    (children.get(item.id) || []).map((id) => classes.find((candidate) => candidate.id === id)).filter(Boolean)
-      .forEach((child) => { const li = document.createElement('li'); li.append(build(child, depth + 1)); list.append(li); });
-    if (depth === 0) list.append(addRow('中間クラスを追加', () => createFromTree('middle', item.id)));
+    const childItems = (children.get(item.id) || [])
+      .map((id) => classes.find((candidate) => candidate.id === id)).filter(Boolean);
+    const directTargets = kind(item.id) === 'top'
+      ? childItems.filter((child) => kind(child.id) === 'class') : [];
+    const appendChild = (child, parentList) => {
+      const li = document.createElement('li');
+      li.append(build(child, depth + 1));
+      parentList.append(li);
+    };
+    if (directTargets.length) {
+      const li = document.createElement('li');
+      const middleDetails = document.createElement('details');
+      middleDetails.className = 'tree-middle-class';
+      middleDetails.open = true;
+      const middleSummary = document.createElement('summary');
+      middleSummary.textContent = '未分類';
+      middleDetails.append(middleSummary);
+      const targetList = document.createElement('ul');
+      directTargets.forEach((child) => appendChild(child, targetList));
+      middleDetails.append(targetList);
+      li.append(middleDetails);
+      list.append(li);
+    }
+    childItems.filter((child) => !directTargets.includes(child))
+      .forEach((child) => appendChild(child, list));
+    if (kind(item.id) === 'top') list.append(addRow('中間クラスを追加', () => createFromTree('middle', item.id)));
     details.append(list); return details;
   };
   tree.replaceChildren(...roots.map((item) => build(item)));

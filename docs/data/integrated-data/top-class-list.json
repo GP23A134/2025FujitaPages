@@ -3,6 +3,46 @@
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/t_00000",
       "label": "未分類"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/t_00001",
+      "label": "事業計画・手続"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/t_00010",
+      "label": "地域社会・情報公開"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/t_00004",
+      "label": "鳥類・野生生物"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/t_00003",
+      "label": "自然環境・生態系"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/t_00002",
+      "label": "環境影響評価"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/t_00006",
+      "label": "水環境・土壌"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/t_00009",
+      "label": "防災・安全"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/t_00007",
+      "label": "生活環境・健康"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/t_00008",
+      "label": "景観・文化"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/t_00005",
+      "label": "植物・植生"
     }
   ]
 }

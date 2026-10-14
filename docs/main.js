@@ -127,15 +127,18 @@ function buildHierarchyRows(data) {
     (instance.classes || []).forEach((classInfo) => {
       const path = pathFor(classInfo.id).map((id) => classMap.get(id) || { id, label: id });
       const top = path[0] || { id: 'unclassified-top', label: '未分類' };
+      const leaf = path[path.length - 1] || classInfo;
+      // 更新データによっては対象クラスが上位クラスへ直接つながる。
+      // 階層の深さだけで判定すると、対象クラス(c_)自身を中間クラスとして表示してしまう。
+      const isTargetClass = leaf.id.includes('/c_');
       const middle = path.length > 2
         ? path.slice(1, -1).map((item) => item.label).join(' / ')
-        : (path[1] ? path[1].label : '未分類');
-      const leaf = path[path.length - 1] || classInfo;
+        : (isTargetClass ? '未分類' : (path[1] ? path[1].label : '未分類'));
       rows.push({
         topClass: top.label,
         topClassId: top.id,
         middleClass: middle,
-        middleClassId: path.length > 1 ? path[1].id : 'unclassified-middle',
+        middleClassId: path.length > 2 ? path[1].id : 'unclassified-middle',
         id: leaf.id,
         label: leaf.label
       });
