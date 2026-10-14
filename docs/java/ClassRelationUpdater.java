@@ -32,6 +32,7 @@ public final class ClassRelationUpdater {
         Map<String, String> classes = readClasses(classData);
         addInputClasses(classes);
         List<String[]> relations = readRelations(classes);
+        normalizeDirectTargetRelations(classes, relations);
         writeClassData(classes, relations);
         writeList(MIDDLE_LIST, classes, "m_");
         writeList(TOP_LIST, classes, "t_");
@@ -83,6 +84,36 @@ public final class ClassRelationUpdater {
         return result;
     }
 
+    /** 対象クラスから上位クラスへの直接関係を、実データの中間クラス経由へ変換します。 */
+    private static void normalizeDirectTargetRelations(Map<String, String> classes, List<String[]> relations) {
+        Map<String, String> middleByTop = new LinkedHashMap<>();
+        int nextMiddleNumber = nextNumbers(classes).get("m_");
+        List<String[]> normalized = new ArrayList<>();
+        for (String[] relation : relations) {
+            if (shortId(relation[0]).startsWith("m_") && shortId(relation[1]).startsWith("t_")) {
+                middleByTop.putIfAbsent(relation[1], relation[0]);
+            }
+        }
+        for (String[] relation : relations) {
+            String child = relation[0];
+            String parent = relation[1];
+            if (shortId(child).startsWith("c_") && shortId(parent).startsWith("t_")) {
+                String middle = middleByTop.get(parent);
+                if (middle == null) {
+                    middle = URI_PREFIX + "m_" + String.format("%05d", nextMiddleNumber++);
+                    classes.put(middle, "未分類");
+                    normalized.add(new String[] { middle, parent });
+                }
+                middleByTop.put(parent, middle);
+                normalized.add(new String[] { child, middle });
+            } else {
+                normalized.add(relation);
+            }
+        }
+        relations.clear();
+        relations.addAll(normalized);
+    }
+
     private static void writeClassData(Map<String, String> classes, List<String[]> relations) throws IOException {
         JsonObject root = new JsonObject();
         JsonArray classArray = new JsonArray();
@@ -121,7 +152,13 @@ public final class ClassRelationUpdater {
 
     private static List<String> readTsv(Path file, String header) throws IOException {
         List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
-        if (lines.isEmpty() || !lines.get(0).replace("\ufeff", "").equals(header)) {
+        String actualHeader = lines.isEmpty() ? "" : lines.get(0).replace("\ufeff", "");
+        String normalizedHeader = String.join("\t", actualHeader.split("\t", -1)).trim();
+        normalizedHeader = String.join("\t", java.util.Arrays.stream(normalizedHeader.split("\t", -1))
+                .map(String::trim).toList());
+        String expectedHeader = String.join("\t", java.util.Arrays.stream(header.split("\t", -1))
+                .map(String::trim).toList());
+        if (lines.isEmpty() || !normalizedHeader.equals(expectedHeader)) {
             throw new IOException("TSVヘッダーが不正です: " + file);
         }
         return lines.subList(1, lines.size()).stream().filter(line -> !line.isBlank()).toList();

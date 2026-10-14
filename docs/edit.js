@@ -28,6 +28,9 @@ function renderInstances() {
   const count = document.getElementById('held-count');
   panel.hidden = heldInstances.size === 0;
   if (count) count.textContent = `${heldInstances.size}件`;
+  document.querySelectorAll('.move-held-button').forEach((button) => {
+    button.hidden = heldInstances.size === 0;
+  });
   held.replaceChildren(...[...heldInstances.values()].map((instance) => {
     const item = document.createElement('div'); item.className = 'held-instance-item';
     item.textContent = `${instance.label || '(ラベルなし)'} (${instance.id})`;
@@ -54,6 +57,28 @@ function renderTree() {
     const button = document.createElement('button');
     button.type = 'button'; button.className = 'tree-add-button tree-add-row'; button.textContent = `＋ ${label}`;
     button.addEventListener('click', handler); row.append(button); return row;
+  };
+  const addTreeButton = (label, handler) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tree-add-button';
+    button.textContent = label;
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      handler();
+    });
+    return button;
+  };
+  const moveHeldToMiddle = (middleId) => {
+    if (!heldInstances.size) { status.textContent = '先に対象クラスを選択してください。'; return; }
+    const selectedIds = new Set(heldInstances.keys());
+    data.classData.relations = data.classData.relations.filter((relation) => !selectedIds.has(relation.child));
+    selectedIds.forEach((child) => data.classData.relations.push({ child, parent: middleId, relation: 'subClassOf' }));
+    const movedCount = selectedIds.size;
+    heldInstances.clear(); hasUnsavedChanges = true;
+    status.textContent = `${movedCount}件を中間クラスへ移動しました。`;
+    render(); renderInstances();
   };
   const createFromTree = (type, parentId = null) => {
     const label = window.prompt(`${type === 'top' ? '上位' : type === 'middle' ? '中間' : '対象'}クラス名を入力してください`);
@@ -103,9 +128,16 @@ function renderTree() {
     const summary = document.createElement('summary');
     const button = document.createElement('button');
     button.type = 'button'; button.className = 'tree-add-button';
-    button.textContent = `${item.label} (${item.id})`;
+    const hideUnclassifiedMiddleId = kind(item.id) === 'middle' && item.label === '未分類';
+    button.textContent = hideUnclassifiedMiddleId ? item.label : `${item.label} (${item.id})`;
     button.addEventListener('click', () => { childSelect.value = item.id; document.getElementById('edit-form-panel').scrollIntoView(); });
     summary.append(button); details.append(summary);
+    if (kind(item.id) === 'middle') {
+      const moveButton = addTreeButton('ここへ移動', () => moveHeldToMiddle(item.id));
+      moveButton.classList.add('move-held-button');
+      moveButton.hidden = heldInstances.size === 0;
+      summary.append(moveButton);
+    }
     const count = document.createElement('span');
     count.className = 'count-badge edit-count';
     count.textContent = countTargets(item.id);
