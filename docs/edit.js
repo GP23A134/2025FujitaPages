@@ -128,7 +128,7 @@ function renderTree() {
     const summary = document.createElement('summary');
     const button = document.createElement('button');
     button.type = 'button'; button.className = 'tree-add-button';
-    const hideUnclassifiedMiddleId = kind(item.id) === 'middle' && item.label === '未分類';
+    const hideUnclassifiedMiddleId = kind(item.id) === 'middle' && item.label.startsWith('未分類');
     button.textContent = hideUnclassifiedMiddleId ? item.label : `${item.label} (${item.id})`;
     button.addEventListener('click', () => { childSelect.value = item.id; document.getElementById('edit-form-panel').scrollIntoView(); });
     summary.append(button); details.append(summary);

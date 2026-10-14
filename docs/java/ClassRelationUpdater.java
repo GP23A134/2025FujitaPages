@@ -101,7 +101,7 @@ public final class ClassRelationUpdater {
                 String middle = middleByTop.get(parent);
                 if (middle == null) {
                     middle = URI_PREFIX + "m_" + String.format("%05d", nextMiddleNumber++);
-                    classes.put(middle, "未分類");
+                    classes.put(middle, "未分類（" + classes.get(parent) + "）");
                     normalized.add(new String[] { middle, parent });
                 }
                 middleByTop.put(parent, middle);
