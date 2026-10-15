@@ -26,7 +26,6 @@ public final class InstanceClassIntegrator {
     private static final String TOP_CLASS_PREFIX = "t_";
     private static final String MIDDLE_CLASS_PREFIX = "m_";
     private static final String UNCLASSIFIED_TOP_ID = CLASS_URI_PREFIX + "t_00000";
-    private static final String UNCLASSIFIED_MIDDLE_ID = CLASS_URI_PREFIX + "m_00000";
 
     private static final Path INPUT_DIRECTORY = Paths.get("data/query-result/base-data");
     private static final Path UPPER_INPUT_DIRECTORY = Paths.get("data/query-result/upper-class-data");
@@ -124,14 +123,11 @@ public final class InstanceClassIntegrator {
     private static void addUnclassifiedHierarchy(Map<String, Instance> instances,
             Map<String, String> classLabels, Map<String, Set<String>> classRelations) {
         classLabels.putIfAbsent(UNCLASSIFIED_TOP_ID, "未分類");
-        classLabels.putIfAbsent(UNCLASSIFIED_MIDDLE_ID, "未分類");
-        classRelations.computeIfAbsent(UNCLASSIFIED_MIDDLE_ID, ignored -> new LinkedHashSet<>())
-                .add(UNCLASSIFIED_TOP_ID);
         for (Instance instance : instances.values()) {
             for (String classId : instance.classIds) {
                 if (classId.startsWith(CLASS_URI_PREFIX + "c_")) {
                     classRelations.computeIfAbsent(classId, ignored -> new LinkedHashSet<>())
-                            .add(UNCLASSIFIED_MIDDLE_ID);
+                            .add(UNCLASSIFIED_TOP_ID);
                 }
             }
         }

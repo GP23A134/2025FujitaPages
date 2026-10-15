@@ -13,7 +13,7 @@ function renderClassListRows(elementId, items) {
     const row = document.createElement('tr');
     const id = document.createElement('td');
     const label = document.createElement('td');
-    id.textContent = item.id;
+    id.textContent = displayClassId(item.id);
     label.textContent = item.label;
     row.append(id, label);
     return row;
@@ -32,6 +32,10 @@ function renderClassLists(data) {
   const middleFilter = document.getElementById('middle-class-filter');
   const textFilter = document.getElementById('class-text-filter');
   const downloadButton = document.getElementById('download-class-tsv');
+  if (!topFilter || !middleFilter || !textFilter || !downloadButton) return;
+
+  topFilter.replaceChildren(new Option('すべて', ''));
+  middleFilter.replaceChildren(new Option('すべて', ''));
   const parentMap = new Map();
   (data.classData?.relations || []).forEach((relation) => {
     if (!parentMap.has(relation.child)) parentMap.set(relation.child, []);
@@ -51,7 +55,7 @@ function renderClassLists(data) {
   const addOptions = (select, items) => items.forEach((item) => {
     const option = document.createElement('option');
     option.value = item.id;
-    option.textContent = item.label;
+    option.textContent = `${item.label} (${displayClassId(item.id)})`;
     select.append(option);
   });
   addOptions(topFilter, tops);
@@ -79,11 +83,11 @@ function renderClassLists(data) {
       URL.revokeObjectURL(url);
     };
   };
-  [topFilter, middleFilter, textFilter].forEach((element) => element.addEventListener('input', updateTargets));
+  [topFilter, middleFilter, textFilter].forEach((element) => {
+    element.oninput = updateTargets;
+  });
   updateTargets();
 }
-
-if (window.appData) renderClassLists(window.appData);
 
 document.querySelectorAll('.mode-button').forEach((button) => {
   button.addEventListener('click', () => {
@@ -147,24 +151,22 @@ function buildHierarchyRows(data) {
   return rows;
 }
 
-const hierarchyRows = window.appData ? buildHierarchyRows(window.appData) : [];
-
 function textLabel(value) {
   return value.replace(/^"|"@[^@]+$/g, '');
 }
 
-function textId(value) {
-  return value.replace(/^<|>$/g, '');
+function displayClassId(id) {
+  return id;
 }
 
 function renderTree(rows) {
   const tree = new Map();
   const isSearching = Boolean(searchInput && searchInput.value.trim() !== '');
   rows.forEach((row) => {
-    if (!tree.has(row.topClass)) tree.set(row.topClass, new Map());
-    let nodes = tree.get(row.topClass);
+    if (!tree.has(row.topClass)) tree.set(row.topClass, { id: row.topClassId, middle: new Map() });
+    let nodes = tree.get(row.topClass).middle;
     row.middleClass.split(' / ').forEach((label, index, labels) => {
-      if (!nodes.has(label)) nodes.set(label, { children: new Map(), rows: [] });
+      if (!nodes.has(label)) nodes.set(label, { id: row.middleClassId, children: new Map(), rows: [] });
       const node = nodes.get(label);
       if (index === labels.length - 1) node.rows.push(row);
       nodes = node.children;
@@ -182,7 +184,8 @@ function renderTree(rows) {
     button.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); handler(); });
     return button;
   };
-  treeElement.replaceChildren(...[...tree].map(([topClass, middle]) => {
+  treeElement.replaceChildren(...[...tree].map(([topClass, topNode]) => {
+    const middle = topNode.middle;
     const top = document.createElement('details');
     top.className = 'tree-top-class';
     top.open = true;
@@ -193,6 +196,10 @@ function renderTree(rows) {
     topCount.className = 'count-badge top-count';
     topCount.textContent = countRows(middle);
     topSummary.append(topCount);
+    const topId = document.createElement('span');
+    topId.className = 'browse-level-id';
+    topId.textContent = displayClassId(topNode.id);
+    topSummary.append(topId);
     topSummary.append(addTreeButton('＋中間クラス', () => addClassFromTree('middle', topClass)));
     top.append(topSummary);
     const middleList = document.createElement('ul');
@@ -207,6 +214,10 @@ function renderTree(rows) {
       middleCount.className = 'count-badge middle-count';
       middleCount.textContent = node.rows.length + countRows(node.children);
       middleSummary.append(middleCount);
+      const middleId = document.createElement('span');
+      middleId.className = 'browse-level-id';
+      middleId.textContent = displayClassId(node.id);
+      middleSummary.append(middleId);
       middleSummary.append(addTreeButton('＋対象クラス', () => addClassFromTree('class', middleClass)));
       middleDetails.append(middleSummary);
       const leafList = document.createElement('ul');
@@ -219,7 +230,7 @@ function renderTree(rows) {
         label.textContent = textLabel(row.label);
         const id = document.createElement('span');
         id.className = 'tree-class-id';
-        id.textContent = row.id;
+        id.textContent = displayClassId(row.id);
         classInfo.append(label, id);
         leaf.append(classInfo);
         leafList.append(leaf);
@@ -250,8 +261,7 @@ function addClassFromTree(type, parentLabel = '') {
     const parent = classes.find((candidate) => candidate.label === parentLabel);
     if (parent) window.appData.classData.relations.push({ child: item.id, parent: parent.id, relation: 'subClassOf' });
   }
-  render(buildHierarchyRows(window.appData));
-  if (window.appData) renderClassLists(window.appData);
+  refresh(window.appData);
 }
 
 const addTopFromTree = document.getElementById('add-top-from-tree');
@@ -297,6 +307,14 @@ function render(rows) {
   }));
 }
 
+let hierarchyRows = window.appData ? buildHierarchyRows(window.appData) : [];
+
+function refresh(data) {
+  hierarchyRows = buildHierarchyRows(data);
+  render(hierarchyRows);
+  renderClassLists(data);
+}
+
 function applySearch() {
   if (!searchInput) return;
   const query = searchInput.value.trim().toLocaleLowerCase();
@@ -316,7 +334,8 @@ if (searchForm && searchInput && clearSearchButton) {
   });
 }
 
-render(hierarchyRows);
+if (window.appData) refresh(window.appData);
+else render([]);
 
 document.querySelectorAll('.tab').forEach((tab) => {
   tab.addEventListener('click', () => {
