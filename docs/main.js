@@ -126,9 +126,12 @@ function buildHierarchyRows(data) {
     }
     return path.reverse();
   };
-  const rows = [];
+  // インスタンス単位ではなく対象クラス単位で行を作る。同じ対象クラスに
+  // 複数のインスタンスが属していても、階層上は1件だけ表示する。
+  const rowsByClass = new Map();
   (data.instanceClassData.instances || []).forEach((instance) => {
     (instance.classes || []).forEach((classInfo) => {
+      if (rowsByClass.has(classInfo.id)) return;
       const path = pathFor(classInfo.id).map((id) => classMap.get(id) || { id, label: id });
       const top = path[0] || { id: 'unclassified-top', label: '未分類' };
       const leaf = path[path.length - 1] || classInfo;
@@ -138,7 +141,7 @@ function buildHierarchyRows(data) {
       const middle = path.length > 2
         ? path.slice(1, -1).map((item) => item.label).join(' / ')
         : (isTargetClass ? '未分類' : (path[1] ? path[1].label : '未分類'));
-      rows.push({
+      rowsByClass.set(classInfo.id, {
         topClass: top.label,
         topClassId: top.id,
         middleClass: middle,
@@ -148,7 +151,7 @@ function buildHierarchyRows(data) {
       });
     });
   });
-  return rows;
+  return [...rowsByClass.values()];
 }
 
 function textLabel(value) {
@@ -156,7 +159,9 @@ function textLabel(value) {
 }
 
 function displayClassId(id) {
-  return id;
+  const segment = String(id).split('/').pop();
+  const match = segment.match(/^([cmt])_0*(\d+)$/);
+  return match ? `${match[1]}_${Number(match[2])}` : segment;
 }
 
 function renderTree(rows) {
@@ -191,15 +196,19 @@ function renderTree(rows) {
     top.open = true;
     top.setAttribute('role', 'treeitem');
     const topSummary = document.createElement('summary');
-    topSummary.append(document.createTextNode(topClass));
+    const topContent = document.createElement('div');
+    topContent.className = 'tree-level-content';
+    const topLabel = document.createElement('span');
+    topLabel.className = 'tree-level-label';
+    topLabel.textContent = topClass;
     const topCount = document.createElement('span');
     topCount.className = 'count-badge top-count';
     topCount.textContent = countRows(middle);
-    topSummary.append(topCount);
     const topId = document.createElement('span');
-    topId.className = 'browse-level-id';
+    topId.className = 'tree-level-id';
     topId.textContent = displayClassId(topNode.id);
-    topSummary.append(topId);
+    topContent.append(topLabel, topCount, topId);
+    topSummary.append(topContent);
     topSummary.append(addTreeButton('＋中間クラス', () => addClassFromTree('middle', topClass)));
     top.append(topSummary);
     const middleList = document.createElement('ul');
@@ -209,15 +218,19 @@ function renderTree(rows) {
       middleDetails.className = 'tree-middle-class';
       middleDetails.open = isSearching;
       const middleSummary = document.createElement('summary');
-      middleSummary.append(document.createTextNode(middleClass));
+      const middleContent = document.createElement('div');
+      middleContent.className = 'tree-level-content';
+      const middleLabel = document.createElement('span');
+      middleLabel.className = 'tree-level-label';
+      middleLabel.textContent = middleClass;
       const middleCount = document.createElement('span');
       middleCount.className = 'count-badge middle-count';
       middleCount.textContent = node.rows.length + countRows(node.children);
-      middleSummary.append(middleCount);
       const middleId = document.createElement('span');
-      middleId.className = 'browse-level-id';
+      middleId.className = 'tree-level-id';
       middleId.textContent = displayClassId(node.id);
-      middleSummary.append(middleId);
+      middleContent.append(middleLabel, middleCount, middleId);
+      middleSummary.append(middleContent);
       middleSummary.append(addTreeButton('＋対象クラス', () => addClassFromTree('class', middleClass)));
       middleDetails.append(middleSummary);
       const leafList = document.createElement('ul');

@@ -87,6 +87,30 @@
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/m_22",
       "label": "制度管理"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_26",
+      "label": "道路"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_27",
+      "label": "車両"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_32",
+      "label": "鉄道"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_33",
+      "label": "公共交通"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_34",
+      "label": "交通安全"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_00035",
+      "label": "除雪"
     }
   ]
 }

@@ -9,7 +9,10 @@ const status = document.getElementById('edit-status');
 // 同じクラスの重複選択を防ぎながら、IDを使った移動処理を行える。
 const heldInstances = new Map();
 const heldMiddleClasses = new Map();
+const searchSelected = new Map();
 let hasUnsavedChanges = false;
+let managementKind = 'top';
+let searchDestinationId = '';
 
 // IDの命名規則からクラスの階層を判定する。new- で始まる編集中のIDも、
 // 保存前から通常の上位・中間・対象クラスと同じように扱う。
@@ -35,7 +38,13 @@ function createClass(type, label) {
   // 新規IDは既存件数を基準に連番で作る。new- を付けることで、保存時に
   // まだ正式な外部IDが割り当てられていないクラスとして出力できる。
   const prefix = type === 'top' ? 't_' : type === 'middle' ? 'm_' : 'c_';
-  const serial = classes.filter((item) => kind(item.id) === type).length + 1;
+  // 件数ではなく既存IDの最大番号の次を使う。削除済みIDや欠番があると
+  // 件数ベースではJava側の採番とずれ、new- IDを関係TSVから解決できなくなる。
+  const serial = classes.reduce((max, item) => {
+    if (kind(item.id) !== type) return max;
+    const match = String(item.id).split('/').pop().match(/^[mt]_0*(\d+)$/);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0) + 1;
   const item = { id: `new-${prefix}${serial}`, label: label.trim(), type };
   classes.push(item);
   return item;
@@ -45,6 +54,95 @@ function addRelation(child, parent) {
   // 関係の向きは「子から親」。親変更処理では先に古い子の関係を除去してから、
   // この関数で新しい親との関係を1件追加する。
   data.classData.relations.push({ child, parent, relation: 'subClassOf' });
+}
+
+function descendantIds(id) {
+  const result = new Set();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    data.classData.relations.forEach((relation) => {
+      if ((relation.parent === id || result.has(relation.parent)) && !result.has(relation.child)) {
+        result.add(relation.child); changed = true;
+      }
+    });
+  }
+  return result;
+}
+
+function targetCount(id) {
+  return [...descendantIds(id)].filter((childId) => kind(childId) === 'class').length;
+}
+
+function ensureUnclassified() {
+  let top = classes.find((item) => classKind(item) === 'top' && item.label === '未分類');
+  if (!top) { top = createClass('top', '未分類'); }
+  let middle = classes.find((item) => classKind(item) === 'middle' && item.label === '未分類' &&
+    data.classData.relations.some((relation) => relation.child === item.id && relation.parent === top.id));
+  if (!middle) { middle = createClass('middle', '未分類'); addRelation(middle.id, top.id); }
+  return { top, middle };
+}
+
+function moveClassMembersToUnclassified(classId) {
+  const members = [...descendantIds(classId)].filter((id) => kind(id) === 'class');
+  if (!members.length) return 0;
+  const { middle } = ensureUnclassified();
+  const memberIds = new Set(members);
+  data.classData.relations = data.classData.relations.filter((relation) => !memberIds.has(relation.child));
+  members.forEach((id) => addRelation(id, middle.id));
+  return members.length;
+}
+
+function renderTargetSearch() {
+  const input = document.getElementById('target-class-search');
+  const query = input.value.trim().toLocaleLowerCase();
+  const targets = classes.filter((item) => classKind(item) === 'class' &&
+    (!query || `${item.label} ${item.id}`.toLocaleLowerCase().includes(query)));
+  const result = document.getElementById('target-search-results');
+  result.replaceChildren(...targets.map((item) => {
+    const label = document.createElement('label'); label.className = 'target-search-option';
+    const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = searchSelected.has(item.id); checkbox.dataset.classId = item.id;
+    checkbox.addEventListener('change', () => checkbox.checked ? searchSelected.set(item.id, item) : searchSelected.delete(item.id));
+    const text = document.createElement('span'); text.textContent = `${item.label} (${displayClassId(item.id)})`;
+    label.append(checkbox, text); return label;
+  }));
+  document.getElementById('target-search-count').textContent = `${targets.length}件中 ${searchSelected.size}件を選択中`;
+}
+
+function renderClassManagement() {
+  const list = document.getElementById('class-management-list');
+  if (!list) return;
+  const managed = classes.filter((item) => classKind(item) === managementKind)
+    .map((item) => ({ item, count: targetCount(item.id) }))
+    .sort((a, b) => a.count - b.count || a.item.label.localeCompare(b.item.label, 'ja'));
+  list.replaceChildren(...managed.map(({ item, count }) => {
+    const row = document.createElement('div'); row.className = 'class-management-row';
+    const info = document.createElement('span'); info.textContent = `${classKind(item) === 'top' ? '上位' : '中間'}: ${item.label} (${displayClassId(item.id)}) — ${count}件`;
+    const actions = document.createElement('span'); actions.className = 'class-management-actions';
+    const rename = document.createElement('button'); rename.type = 'button'; rename.className = 'rename-class-button'; rename.textContent = '名称変更';
+    rename.addEventListener('click', () => {
+      const nextLabel = window.prompt('新しいクラス名を入力してください。', item.label);
+      if (!nextLabel || !nextLabel.trim() || nextLabel.trim() === item.label) return;
+      item.label = nextLabel.trim(); hasUnsavedChanges = true;
+      status.textContent = `クラス名を「${item.label}」に変更しました。`; render();
+    });
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'delete-class-button'; button.textContent = '削除';
+    button.disabled = item.label === '未分類';
+    button.addEventListener('click', () => {
+      if (!window.confirm(`「${item.label}」を削除しますか？所属する対象クラスは未分類へ移動します。`)) return;
+      const moved = moveClassMembersToUnclassified(item.id);
+      const childIds = new Set(data.classData.relations.filter((relation) => relation.parent === item.id).map((relation) => relation.child));
+      data.classData.relations = data.classData.relations.filter((relation) => relation.child !== item.id && relation.parent !== item.id);
+      if (classKind(item) === 'top') {
+        const { top } = ensureUnclassified();
+        childIds.forEach((childId) => { if (classes.some((candidate) => candidate.id === childId)) addRelation(childId, top.id); });
+      }
+      const index = classes.indexOf(item); if (index >= 0) classes.splice(index, 1);
+      heldMiddleClasses.delete(item.id); hasUnsavedChanges = true;
+      status.textContent = `${item.label}を削除しました。${moved}件を未分類へ移動しました。`; render();
+    });
+    actions.append(rename, button); row.append(info, actions); return row;
+  }));
 }
 
 // 子クラス・親クラスの選択欄を現在のクラス配列から作り直す。
@@ -57,6 +155,20 @@ function render() {
   // クラス追加や親変更の後は、選択欄・一覧・ツリー・保持中パネルをまとめて
   // 更新する。個別の表示だけを更新すると、各画面の内容がずれるためである。
   fillSelect(childSelect); fillSelect(parentSelect);
+  const searchTargetKind = document.getElementById('search-target-kind');
+  const searchMiddle = document.getElementById('search-target-middle');
+  const selectedKind = searchTargetKind.value;
+  searchMiddle.parentElement.firstChild.textContent = selectedKind === 'top' ? '付与先の上位クラス' : '付与先の中間クラス';
+  searchMiddle.replaceChildren(...classes.filter((item) => classKind(item) === selectedKind).map((item) => {
+    const option = document.createElement('option'); option.value = item.id; option.textContent = `${item.label} (${displayClassId(item.id)})`; return option;
+  }));
+  const newParent = document.getElementById('search-new-class-parent');
+  const parentKind = document.getElementById('search-new-class-parent-kind').value;
+  newParent.parentElement.firstChild.textContent = `保存先の${parentKind === 'top' ? '上位' : '中間'}クラス`;
+  newParent.replaceChildren(...classes.filter((item) => classKind(item) === parentKind).map((item) => {
+    const option = document.createElement('option'); option.value = item.id; option.textContent = `${item.label} (${displayClassId(item.id)})`; return option;
+  }));
+  newParent.parentElement.hidden = selectedKind !== 'middle';
   document.getElementById('edit-class-rows').replaceChildren(...classes.map((item) => {
     const row = document.createElement('tr');
     [classKind(item), displayClassId(item.id), item.label].forEach((value) => {
@@ -68,6 +180,8 @@ function render() {
   }));
   renderTree();
   renderInstances();
+  renderTargetSearch();
+  renderClassManagement();
 }
 function renderInstances() {
   // 保持中の対象クラスがある場合だけサイドパネルと移動用ボタンを表示する。
@@ -402,6 +516,45 @@ document.getElementById('apply-parent-change').addEventListener('click', () => {
   hasUnsavedChanges = true;
   status.textContent = '親クラスを変更しました。';
 });
+document.getElementById('target-class-search').addEventListener('input', renderTargetSearch);
+document.getElementById('search-target-kind').addEventListener('change', render);
+document.getElementById('search-new-class-parent-kind').addEventListener('change', render);
+document.getElementById('select-search-results').addEventListener('click', () => {
+  document.querySelectorAll('#target-search-results input[type="checkbox"]').forEach((checkbox) => {
+    checkbox.checked = true;
+    const option = classes.find((item) => item.id === checkbox.dataset.classId);
+    if (option) searchSelected.set(option.id, option);
+  });
+  renderTargetSearch();
+});
+document.getElementById('clear-search-selection').addEventListener('click', () => { searchSelected.clear(); renderTargetSearch(); });
+document.getElementById('apply-search-middle').addEventListener('click', () => {
+  const middleId = document.getElementById('search-target-middle').value;
+  if (!middleId || !searchSelected.size) { status.textContent = '対象クラスと付与先を選択してください。'; return; }
+  const selectedIds = [...searchSelected.keys()];
+  data.classData.relations = data.classData.relations.filter((relation) => !selectedIds.includes(relation.child));
+  selectedIds.forEach((id) => addRelation(id, middleId));
+  const count = selectedIds.length; searchSelected.clear(); hasUnsavedChanges = true;
+  status.textContent = `${count}件を中間クラスへ付与しました。`; render();
+});
+document.getElementById('create-search-class').addEventListener('click', () => {
+  if (!searchSelected.size) { status.textContent = '先に対象クラスを選択してください。'; return; }
+  const label = document.getElementById('search-new-class-label').value.trim();
+  if (!label) { status.textContent = '新しいクラス名を入力してください。'; return; }
+  const selectedIds = [...searchSelected.keys()];
+  const newKind = document.getElementById('search-target-kind').value;
+  const item = createClass(newKind, label);
+  let parentId = null;
+  if (newKind === 'middle') {
+    parentId = document.getElementById('search-new-class-parent').value;
+    if (parentId) addRelation(item.id, parentId);
+  }
+  data.classData.relations = data.classData.relations.filter((relation) => !selectedIds.includes(relation.child));
+  selectedIds.forEach((id) => addRelation(id, item.id));
+  const count = selectedIds.length; searchSelected.clear();
+  document.getElementById('search-new-class-label').value = '';
+  hasUnsavedChanges = true; status.textContent = `${count}件を「${label}」へ付与しました。`; render();
+});
 document.getElementById('download-class-list').addEventListener('click', () => download('class-list.tsv', ['種類\tID\tラベル', ...classes.map((item) => `${kind(item.id)}\t${item.id.startsWith('new-') ? '' : item.id}\t${item.label}`)]));
 document.getElementById('download-relation').addEventListener('click', () => download('class-relation.tsv', ['子クラスID\t親クラスID', ...data.classData.relations.map((item) => `${item.child}\t${item.parent}`)]));
 render();
@@ -420,6 +573,17 @@ window.addEventListener('beforeunload', (event) => {
   event.returnValue = '';
 });
 
+// 検索・管理機能はツリー／フォームから独立したタブとして表示する。
+// HTML上の既存配置をここで移動することで、初期表示時の構造も保ちつつ
+// 旧画面との互換性を確保する。
+const tabBar = document.querySelector('.tabs');
+const main = document.querySelector('main');
+const treePanel = document.getElementById('edit-tree-panel');
+const searchPanel = document.getElementById('target-search-panel');
+const managementPanel = document.getElementById('class-management-panel');
+if (searchPanel) { searchPanel.remove(); main.insertBefore(searchPanel, treePanel); }
+if (managementPanel) { managementPanel.remove(); main.insertBefore(managementPanel, treePanel); }
+
 document.querySelectorAll('[data-edit-tab]').forEach((tab) => tab.addEventListener('click', () => {
   // 編集ツリーと編集フォームは同じページ内で切り替える。選択中タブの
   // aria-selected と panel の hidden を同時に更新し、見た目と読み上げ状態を揃える。
@@ -428,9 +592,14 @@ document.querySelectorAll('[data-edit-tab]').forEach((tab) => tab.addEventListen
     item.classList.toggle('is-active', active);
     item.setAttribute('aria-selected', active ? 'true' : 'false');
   });
-  document.querySelectorAll('#edit-form-panel, #edit-tree-panel').forEach((panel) => {
+  document.querySelectorAll('#edit-form-panel, #edit-tree-panel, #target-search-panel, #class-management-panel').forEach((panel) => {
     panel.hidden = panel.id !== tab.dataset.editTab;
   });
+}));
+document.querySelectorAll('[data-management-kind]').forEach((tab) => tab.addEventListener('click', () => {
+  managementKind = tab.dataset.managementKind;
+  document.querySelectorAll('[data-management-kind]').forEach((item) => item.classList.toggle('is-active', item === tab));
+  renderClassManagement();
 }));
 
 const loadingIndicator = document.getElementById('loading-indicator');

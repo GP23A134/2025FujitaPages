@@ -26,9 +26,53 @@
       <button type="button" class="tab" data-edit-tab="edit-form-panel" aria-selected="false">
         編集フォーム
       </button>
+      <button type="button" class="tab" data-edit-tab="target-search-panel" aria-selected="false">
+        検索・付与
+      </button>
+      <button type="button" class="tab" data-edit-tab="class-management-panel" aria-selected="false">
+        クラス管理
+      </button>
     </div>
 
     <section id="edit-tree-panel" class="tab-panel">
+
+      <section id="target-search-panel" class="class-edit-panel target-search-panel" hidden>
+        <h2>対象クラスを検索して中間クラスへ付与</h2>
+        <div class="class-search">
+          <label class="class-search-text">検索ワード
+            <input id="target-class-search" type="search" placeholder="対象クラス名・IDを入力">
+          </label>
+          <button type="button" id="select-search-results" class="search-button">検索結果を全選択</button>
+          <button type="button" id="clear-search-selection" class="held-action-button">選択解除</button>
+        </div>
+        <p id="target-search-count" class="edit-status" aria-live="polite"></p>
+        <div id="target-search-results" class="target-search-results"></div>
+        <div class="class-edit-form search-result-move-form">
+          <label for="search-target-kind">付与先の種類
+            <select id="search-target-kind">
+              <option value="middle">中間クラス</option>
+              <option value="top">上位クラス</option>
+            </select>
+          </label>
+          <label for="search-target-middle">付与先の中間クラス
+            <select id="search-target-middle"></select>
+          </label>
+          <button type="button" id="apply-search-middle" class="search-button">選択した対象クラスを付与</button>
+        </div>
+        <div class="class-edit-form search-result-create-form">
+          <label for="search-new-class-parent">保存先の上位クラス
+            <select id="search-new-class-parent-kind">
+              <option value="top">上位クラス</option>
+              <option value="middle">中間クラス</option>
+            </select>
+            <select id="search-new-class-parent"></select>
+          </label>
+          <label for="search-new-class-label">選択したまとまりの名称
+            <input id="search-new-class-label" type="text" placeholder="新しいクラス名">
+          </label>
+          <button type="button" id="create-search-class" class="search-button">名称を付けて新規作成・付与</button>
+        </div>
+      </section>
 
       <div class="edit-tree-layout">
         <div id="edit-tree" class="tree" role="tree"></div>
@@ -74,6 +118,16 @@
           <button type="button" id="apply-parent-change" class="search-button">変更を反映</button>
         </div>
         <p id="edit-status" class="edit-status" role="status"></p>
+      </section>
+
+      <section id="class-management-panel" class="class-management-panel" hidden>
+        <h2>中間・上位クラス管理</h2>
+        <p class="management-note">所属件数の少ない順に表示しています。削除したクラスに所属する対象クラスは未分類へ移動します。</p>
+        <div class="management-tabs" role="tablist" aria-label="管理対象の切り替え">
+          <button type="button" class="management-tab is-active" data-management-kind="top">上位クラス</button>
+          <button type="button" class="management-tab" data-management-kind="middle">中間クラス</button>
+        </div>
+        <div id="class-management-list"></div>
       </section>
 
       <section>

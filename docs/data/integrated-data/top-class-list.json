@@ -83,6 +83,10 @@
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/t_21",
       "label": "制度管理"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/t_24",
+      "label": "交通"
     }
   ]
 }

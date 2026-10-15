@@ -190,7 +190,11 @@ public final class InstanceClassIntegrator {
         String child = value(binding, childKey);
         String parent = value(binding, parentKey);
         if (child != null && parent != null) {
-            relations.computeIfAbsent(child, ignored -> new LinkedHashSet<>()).add(parent);
+            Set<String> parents = relations.computeIfAbsent(child, ignored -> new LinkedHashSet<>());
+            // 対象クラス(c_)は所属先を1つに限定する。複数の親がクエリ結果に
+            // 含まれる場合は、入力順で最初に現れた親を採用する。
+            if (child.startsWith(CLASS_URI_PREFIX + "c_") && !parents.isEmpty()) return;
+            parents.add(parent);
         }
     }
 

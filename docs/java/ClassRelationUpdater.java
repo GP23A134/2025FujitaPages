@@ -70,7 +70,9 @@ public final class ClassRelationUpdater {
         // class-list.tsvの行を正規化し、クラスIDからラベルへのMapを作る。
         // ID欄が空の行には一時IDを発行し、関係TSVから参照できるよう対応表に登録する。
         List<String> lines = readTsv(CLASS_INPUT, "種類\tID\tラベル");
-        Map<String, Integer> next = nextNumbers(classes);
+        // 既存IDの最大値を確認してから、新規行の仮IDを採番する。
+        // classesはこのループで構築するため、読み込み前に計算すると常に0から始まってしまう。
+        Map<String, Integer> next = nextNumbersFromLines(lines);
         Set<String> inputIds = new HashSet<>();
         Set<String> inputLabels = new HashSet<>();
         for (String line : lines) {
@@ -141,8 +143,14 @@ public final class ClassRelationUpdater {
     /** 対象クラスから上位クラスへの直接関係は、そのまま保持します。
      * 未分類は画面表示時に上位クラス内の仮想グループとして生成します。 */
     private static void normalizeDirectTargetRelations(Map<String, String> classes, List<String[]> relations) {
-        // 以前は対象クラスから上位クラスへの直接関係を中間クラスへ補正していたが、
-        // 現在のWeb表示は未分類グループを仮想生成できるため、入力関係を変更しない。
+        // 対象クラスは所属先を1つに限定し、複数指定された場合は
+        // class-relation.tsvで先に現れた親を残す。
+        Set<String> assignedTargets = new HashSet<>();
+        relations.removeIf(relation -> {
+            String child = relation[0];
+            if (!child.startsWith(URI_PREFIX + "c_")) return false;
+            return !assignedTargets.add(child);
+        });
     }
 
     private static void validateAcyclic(List<String[]> relations) throws IOException {
@@ -237,6 +245,16 @@ public final class ClassRelationUpdater {
             result.put(prefix, max + 1);
         }
         return result;
+    }
+
+    private static Map<String, Integer> nextNumbersFromLines(List<String> lines) {
+        Map<String, String> existing = new LinkedHashMap<>();
+        for (String line : lines) {
+            String[] columns = line.split("\\t", -1);
+            if (columns.length != 3 || columns[1].trim().isEmpty()) continue;
+            existing.put(normalizeId(columns[1]), columns[2].trim());
+        }
+        return nextNumbers(existing);
     }
 
     private static String prefix(String type) {

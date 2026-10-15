@@ -6,6 +6,7 @@
 - `InstanceClassIntegrator`：クエリ結果からインスタンスとクラスを統合
 - `WebDataGenerator`：統合JSONからWeb用の`app.js`を生成
 - `ClassRelationUpdater`：inputのTSVからクラス一覧と親子関係を更新
+- `ClassLabelConsistencyChecker`：初回取得データと現在のクラスID・ラベル対応を照合
 
 入力データの配置:
 
@@ -29,6 +30,17 @@ mvn -f java/pom.xml compile
 mvn -f java/pom.xml exec:java "-Dexec.mainClass=InstanceClassIntegrator"
 mvn -f java/pom.xml exec:java "-Dexec.mainClass=WebDataGenerator"
 ```
+
+## クラスID・ラベル対応の検査
+
+初回取得データ（`data/query-result/`）と現在の統合データ（`data/integrated-data/class-data.json`）を照合します。
+欠落、ラベル変更、現在のみ存在するID、重複を検出し、差異がある場合は終了コード1になります。
+
+```text
+mvn -f java/pom.xml exec:java "-Dexec.mainClass=ClassLabelConsistencyChecker"
+```
+
+別の入力を指定する場合は、初回データのファイルまたはフォルダー、現在データの順に引数を渡します。
 
 `QueryDataExporter.java` 上部の `MODE` を変更して、初期データ取得モードを指定します。
 
