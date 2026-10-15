@@ -22,10 +22,6 @@ window.appData = {
         "label": "生態系"
       },
       {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/t_6",
-        "label": "鳥類コウモリ"
-      },
-      {
         "id": "https://kozaki-lab.jp/REFV-KG/class/t_7",
         "label": "植物植生"
       },
@@ -47784,46 +47780,6 @@ window.appData = {
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/c_9994",
         "label": "植物生育影響"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/t_17",
-        "label": "地域支援"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/t_18",
-        "label": "防災避難"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/t_19",
-        "label": "農業観光"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/t_20",
-        "label": "医療生活"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/t_21",
-        "label": "制度管理"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/m_18",
-        "label": "地域支援"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/m_19",
-        "label": "防災避難"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/m_20",
-        "label": "農業観光"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/m_21",
-        "label": "医療生活"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/m_22",
-        "label": "制度管理"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/t_24",
@@ -105443,31 +105399,6 @@ window.appData = {
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/c_9994",
         "parent": "https://kozaki-lab.jp/REFV-KG/class/m_7",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/m_18",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_17",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/m_19",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_18",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/m_20",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_19",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/m_21",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_20",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/m_22",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_21",
         "relation": "subClassOf"
       },
       {
@@ -307617,26 +307548,6 @@ window.appData = {
         "label": "未分類"
       },
       {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/m_18",
-        "label": "地域支援"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/m_19",
-        "label": "防災避難"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/m_20",
-        "label": "農業観光"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/m_21",
-        "label": "医療生活"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/m_22",
-        "label": "制度管理"
-      },
-      {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_26",
         "label": "道路"
       },
@@ -307685,10 +307596,6 @@ window.appData = {
         "label": "生態系"
       },
       {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/t_6",
-        "label": "鳥類コウモリ"
-      },
-      {
         "id": "https://kozaki-lab.jp/REFV-KG/class/t_7",
         "label": "植物植生"
       },
@@ -307727,26 +307634,6 @@ window.appData = {
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/t_16",
         "label": "未分類"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/t_17",
-        "label": "地域支援"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/t_18",
-        "label": "防災避難"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/t_19",
-        "label": "農業観光"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/t_20",
-        "label": "医療生活"
-      },
-      {
-        "id": "https://kozaki-lab.jp/REFV-KG/class/t_21",
-        "label": "制度管理"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/t_24",
