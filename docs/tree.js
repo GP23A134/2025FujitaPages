@@ -36,5 +36,6 @@
     return classes.filter((item) => !childIds.has(item.id) && typeOf(item.id) !== 'class')
       .map((item) => makeNode(item)).filter(Boolean);
   }
+
   global.buildTreeModel = buildTreeModel;
 })(window);

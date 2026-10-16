@@ -40,6 +40,7 @@ public final class ClassRelationUpdater {
         addInputClasses(classes, temporaryIds);
         List<String[]> relations = readRelations(classes, temporaryIds);
         normalizeDirectTargetRelations(classes, relations);
+        validateHierarchyAssignments(classes, relations);
         validateAcyclic(relations);
 
         // クラス一覧、関係一覧、上位・中間クラス一覧を同じ入力内容から出力する。
@@ -61,9 +62,51 @@ public final class ClassRelationUpdater {
                 .format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS"));
         Path processedDirectory = PROCESSED_DIRECTORY.resolve(timestamp);
         Files.createDirectories(processedDirectory);
-        Files.move(CLASS_INPUT, processedDirectory.resolve(CLASS_INPUT.getFileName()));
-        Files.move(RELATION_INPUT, processedDirectory.resolve(RELATION_INPUT.getFileName()));
-        return processedDirectory;
+        Path movedClassInput = processedDirectory.resolve(CLASS_INPUT.getFileName());
+        Path movedRelationInput = processedDirectory.resolve(RELATION_INPUT.getFileName());
+        try {
+            moveWithRetry(CLASS_INPUT, movedClassInput);
+            moveWithRetry(RELATION_INPUT, movedRelationInput);
+            return processedDirectory;
+        } catch (IOException exception) {
+            // 片方だけ移動された状態を残さないよう、可能なら元に戻す。
+            rollbackMove(movedClassInput, CLASS_INPUT);
+            rollbackMove(movedRelationInput, RELATION_INPUT);
+            throw new IOException(
+                    "入力TSVをprocessedへ移動できません。Excelやエディタなどで "
+                            + "class-list.tsv / class-relation.tsv が開かれていないか確認してください。",
+                    exception);
+        }
+    }
+
+    private static void moveWithRetry(Path source, Path target) throws IOException {
+        IOException lastException = null;
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            try {
+                Files.move(source, target);
+                return;
+            } catch (IOException exception) {
+                lastException = exception;
+                if (attempt < 5) {
+                    try {
+                        Thread.sleep(200L * attempt);
+                    } catch (InterruptedException interruptedException) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("入力TSVの移動が中断されました。", interruptedException);
+                    }
+                }
+            }
+        }
+        throw lastException;
+    }
+
+    private static void rollbackMove(Path movedFile, Path originalFile) {
+        if (!Files.exists(movedFile) || Files.exists(originalFile)) return;
+        try {
+            Files.move(movedFile, originalFile);
+        } catch (IOException ignored) {
+            // 元に戻せない場合は、元の移動例外を優先して報告する。
+        }
     }
 
     private static void addInputClasses(Map<String, String> classes, Map<String, String> temporaryIds) throws IOException {
@@ -140,8 +183,7 @@ public final class ClassRelationUpdater {
         return lines.stream().filter(line -> !line.isBlank()).toList();
     }
 
-    /** 対象クラスから上位クラスへの直接関係は、そのまま保持します。
-     * 未分類は画面表示時に上位クラス内の仮想グループとして生成します。 */
+    /** 対象クラスから上位クラスへの直接関係は、そのまま保持します。 */
     private static void normalizeDirectTargetRelations(Map<String, String> classes, List<String[]> relations) {
         // 対象クラスは所属先を1つに限定し、複数指定された場合は
         // class-relation.tsvで先に現れた親を残す。
@@ -151,6 +193,61 @@ public final class ClassRelationUpdater {
             if (!child.startsWith(URI_PREFIX + "c_")) return false;
             return !assignedTargets.add(child);
         });
+    }
+
+    /**
+     * 対象クラスが中間または上位クラスへ、中間クラスが中間または上位クラスへ
+     * 所属していることを検証します。
+     * 所属先がないクラスを出力するとWeb画面上で階層から消えるため、更新を中止します。
+     */
+    private static void validateHierarchyAssignments(Map<String, String> classes, List<String[]> relations)
+            throws IOException {
+        Map<String, List<String>> parents = new LinkedHashMap<>();
+        for (String[] relation : relations) {
+            parents.computeIfAbsent(relation[0], ignored -> new ArrayList<>()).add(relation[1]);
+        }
+
+        List<String> missingMiddle = new ArrayList<>();
+        List<String> missingTop = new ArrayList<>();
+        for (String id : classes.keySet()) {
+            String kind = classKind(id);
+            List<String> directParents = parents.getOrDefault(id, List.of());
+            if ("c_".equals(kind)
+                    && directParents.stream().noneMatch(parent -> {
+                        String parentKind = classKind(parent);
+                        return "m_".equals(parentKind) || "t_".equals(parentKind);
+                    })) {
+                missingMiddle.add(id);
+            } else if ("m_".equals(kind)
+                    && directParents.stream().noneMatch(parent -> {
+                        String parentKind = classKind(parent);
+                        return "m_".equals(parentKind) || "t_".equals(parentKind);
+                    })) {
+                missingTop.add(id);
+            }
+        }
+        if (!missingMiddle.isEmpty() || !missingTop.isEmpty()) {
+            StringBuilder message = new StringBuilder("クラス階層の所属漏れがあります。");
+            appendMissing(message, "中間または上位クラス未所属の対象クラス", missingMiddle);
+            appendMissing(message, "上位クラス未所属の中間クラス", missingTop);
+            throw new IOException(message.toString());
+        }
+    }
+
+    private static String classKind(String id) {
+        String shortId = shortId(id);
+        if (shortId.startsWith("c_")) return "c_";
+        if (shortId.startsWith("m_")) return "m_";
+        if (shortId.startsWith("t_")) return "t_";
+        return "";
+    }
+
+    private static void appendMissing(StringBuilder message, String title, List<String> ids) {
+        if (ids.isEmpty()) return;
+        message.append(" ").append(title).append(" ")
+                .append(ids.stream().limit(20).map(ClassRelationUpdater::shortId).toList());
+        if (ids.size() > 20) message.append(" (ほか ").append(ids.size() - 20).append("件)");
+        message.append("。");
     }
 
     private static void validateAcyclic(List<String[]> relations) throws IOException {
@@ -272,11 +369,10 @@ public final class ClassRelationUpdater {
     }
 
     private static boolean isVirtualUnclassified(String value, String label) {
-        // 未分類はデータ上の実クラスではなく、Web画面で表示時に作る仮想グループ。
-        // 過去にTSVへ書き出された予約IDだけを除外し、通常の同名クラスは保持する。
+        // t_0はデータ上の未分類クラスとして保持する。旧形式で残るm_0だけを除外する。
         String id = normalizeId(value);
         return "未分類".equals(label)
-                && (id.equals(URI_PREFIX + "t_00000") || id.equals(URI_PREFIX + "m_00000"));
+                && id.equals(URI_PREFIX + "m_0");
     }
 
     private static String resolveId(String value, Map<String, String> temporaryIds) {
@@ -294,6 +390,13 @@ public final class ClassRelationUpdater {
     private static void writeJson(Path path, JsonObject root) throws IOException {
         // 出力先の親フォルダを先に作成し、整形済みUTF-8 JSONを書き込む。
         Files.createDirectories(path.getParent());
-        Files.writeString(path, GSON.toJson(root), StandardCharsets.UTF_8);
+        Path temporary = path.resolveSibling(path.getFileName() + ".tmp");
+        Files.writeString(temporary, GSON.toJson(root), StandardCharsets.UTF_8);
+        try {
+            Files.move(temporary, path, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            Files.move(temporary, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 }

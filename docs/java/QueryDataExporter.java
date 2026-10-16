@@ -3,6 +3,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 import java.util.List;
 
@@ -34,7 +35,8 @@ public class QueryDataExporter {
     public static void main(String[] args) {
         ExecutionMode mode;
         try {
-            mode = ExecutionMode.fromName(MODE);
+            String modeName = args.length == 0 ? MODE : args[0];
+            mode = ExecutionMode.fromName(modeName);
         } catch (IllegalArgumentException e) {
             System.err.println(e.getMessage());
             return;
@@ -57,9 +59,22 @@ public class QueryDataExporter {
         }
 
         createOutputDirectory(outputDirectory);
+        deleteGeneratedResults(outputDirectory);
         for (Path queryFile : queryFiles) {
             Path outputFile = outputDirectory.resolve(toJsonFileName(queryFile));
             runQuery(queryFile, outputFile);
+        }
+    }
+
+    private static void deleteGeneratedResults(Path outputDirectory) {
+        try (var files = Files.list(outputDirectory)) {
+            for (Path file : files.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".json"))
+                    .toList()) {
+                Files.delete(file);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("古いクエリ結果を削除できません: " + outputDirectory, e);
         }
     }
 
@@ -100,11 +115,23 @@ public class QueryDataExporter {
     private static void runQuery(Path queryFile, Path outputFile) {
         String queryText = readQueryFile(queryFile);
 
+        Path temporaryFile = outputFile.resolveSibling(outputFile.getFileName() + ".tmp");
         try (QueryExecution queryExecution = createQueryExecution(queryText);
-                OutputStream output = Files.newOutputStream(outputFile)) {
+                OutputStream output = Files.newOutputStream(temporaryFile)) {
             ResultSetFormatter.outputAsJSON(output, queryExecution.execSelect());
+            try {
+                Files.move(temporaryFile, outputFile, StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                Files.move(temporaryFile, outputFile, StandardCopyOption.REPLACE_EXISTING);
+            }
             System.out.println("JSON出力が完了しました: " + outputFile);
         } catch (IOException e) {
+            try {
+                Files.deleteIfExists(temporaryFile);
+            } catch (IOException cleanupException) {
+                e.addSuppressed(cleanupException);
+            }
             throw new IllegalStateException("クエリ結果の出力に失敗しました: " + outputFile, e);
         }
     }

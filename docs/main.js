@@ -73,7 +73,8 @@ function renderClassLists(data) {
     });
     renderClassListRows('target-class-rows', filtered);
     downloadButton.onclick = () => {
-      const lines = ['ID\tラベル', ...filtered.map((item) => `${item.id}\t${item.label}`)];
+      const escapeTsv = (value) => String(value ?? '').replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
+      const lines = ['ID\tラベル', ...filtered.map((item) => `${escapeTsv(item.id)}\t${escapeTsv(item.label)}`)];
       const blob = new Blob([`\ufeff${lines.join('\r\n')}\r\n`], { type: 'text/tab-separated-values;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -133,19 +134,19 @@ function buildHierarchyRows(data) {
     (instance.classes || []).forEach((classInfo) => {
       if (rowsByClass.has(classInfo.id)) return;
       const path = pathFor(classInfo.id).map((id) => classMap.get(id) || { id, label: id });
-      const top = path[0] || { id: 'unclassified-top', label: '未分類' };
+      const top = path[0] || { id: 't_0', label: '未分類' };
       const leaf = path[path.length - 1] || classInfo;
       // 更新データによっては対象クラスが上位クラスへ直接つながる。
       // 階層の深さだけで判定すると、対象クラス(c_)自身を中間クラスとして表示してしまう。
       const isTargetClass = leaf.id.includes('/c_');
       const middle = path.length > 2
         ? path.slice(1, -1).map((item) => item.label).join(' / ')
-        : (isTargetClass ? '未分類' : (path[1] ? path[1].label : '未分類'));
+        : (isTargetClass ? '（上位クラス直下）' : (path[1] ? path[1].label : '未分類'));
       rowsByClass.set(classInfo.id, {
         topClass: top.label,
         topClassId: top.id,
         middleClass: middle,
-        middleClassId: path.length > 2 ? path[1].id : 'unclassified-middle',
+        middleClassId: path.length > 2 ? path[1].id : (isTargetClass ? '' : 'm_0'),
         id: leaf.id,
         label: leaf.label
       });
@@ -181,19 +182,11 @@ function renderTree(rows) {
   const countRows = (nodes) => [...nodes.values()].reduce(
     (count, node) => count + node.rows.length + countRows(node.children), 0);
 
-  const addTreeButton = (label, handler) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'tree-add-button';
-    button.textContent = label;
-    button.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); handler(); });
-    return button;
-  };
   treeElement.replaceChildren(...[...tree].map(([topClass, topNode]) => {
     const middle = topNode.middle;
     const top = document.createElement('details');
     top.className = 'tree-top-class';
-    top.open = true;
+    top.open = topClass !== '未分類';
     top.setAttribute('role', 'treeitem');
     const topSummary = document.createElement('summary');
     const topContent = document.createElement('div');
@@ -209,14 +202,38 @@ function renderTree(rows) {
     topId.textContent = displayClassId(topNode.id);
     topContent.append(topLabel, topCount, topId);
     topSummary.append(topContent);
-    topSummary.append(addTreeButton('＋中間クラス', () => addClassFromTree('middle', topClass)));
     top.append(topSummary);
     const middleList = document.createElement('ul');
+    const renderTargetRows = (rows, list) => rows.forEach((row) => {
+      const leaf = document.createElement('li');
+      const classInfo = document.createElement('div');
+      classInfo.className = 'tree-class';
+      const label = document.createElement('span');
+      label.className = 'tree-class-label';
+      label.textContent = textLabel(row.label);
+      const id = document.createElement('span');
+      id.className = 'tree-class-id';
+      id.textContent = displayClassId(row.id);
+      classInfo.append(id, label);
+      leaf.append(classInfo);
+      list.append(leaf);
+    });
     const renderMiddleNodes = (nodes, list) => [...nodes].forEach(([middleClass, node]) => {
+      if (middleClass === '（上位クラス直下）') {
+        const targetRow = document.createElement('li');
+        targetRow.className = 'tree-target-row';
+        const targetList = document.createElement('ul');
+        targetList.className = 'tree-target-list';
+        renderTargetRows(node.rows, targetList);
+        targetRow.append(targetList);
+        list.append(targetRow);
+        renderMiddleNodes(node.children, list);
+        return;
+      }
       const middleItem = document.createElement('li');
       const middleDetails = document.createElement('details');
       middleDetails.className = 'tree-middle-class';
-      middleDetails.open = isSearching;
+      middleDetails.open = false;
       const middleSummary = document.createElement('summary');
       const middleContent = document.createElement('div');
       middleContent.className = 'tree-level-content';
@@ -231,23 +248,9 @@ function renderTree(rows) {
       middleId.textContent = displayClassId(node.id);
       middleContent.append(middleLabel, middleCount, middleId);
       middleSummary.append(middleContent);
-      middleSummary.append(addTreeButton('＋対象クラス', () => addClassFromTree('class', middleClass)));
       middleDetails.append(middleSummary);
       const leafList = document.createElement('ul');
-      node.rows.forEach((row) => {
-        const leaf = document.createElement('li');
-        const classInfo = document.createElement('div');
-        classInfo.className = 'tree-class';
-        const label = document.createElement('span');
-        label.className = 'tree-class-label';
-        label.textContent = textLabel(row.label);
-        const id = document.createElement('span');
-        id.className = 'tree-class-id';
-        id.textContent = displayClassId(row.id);
-        classInfo.append(label, id);
-        leaf.append(classInfo);
-        leafList.append(leaf);
-      });
+      renderTargetRows(node.rows, leafList);
       renderMiddleNodes(node.children, leafList);
       middleDetails.append(leafList);
       middleItem.append(middleDetails);
@@ -259,7 +262,7 @@ function renderTree(rows) {
   }));
 }
 
-function addClassFromTree(type, parentLabel = '') {
+function addClassFromTree(type, parentId = '') {
   if (document.body.dataset.mode !== 'edit') return;
   const label = window.prompt(`${type === 'middle' ? '中間' : type === 'top' ? '上位' : '対象'}クラス名を入力してください`);
   if (!label || !label.trim()) return;
@@ -270,8 +273,8 @@ function addClassFromTree(type, parentLabel = '') {
   classes.push(item);
   if (type === 'top') window.appData.topClassList.classes.push(item);
   if (type === 'middle') window.appData.middleClassList.classes.push(item);
-  if (parentLabel) {
-    const parent = classes.find((candidate) => candidate.label === parentLabel);
+  if (parentId) {
+    const parent = classes.find((candidate) => candidate.id === parentId);
     if (parent) window.appData.classData.relations.push({ child: item.id, parent: parent.id, relation: 'subClassOf' });
   }
   refresh(window.appData);
@@ -320,6 +323,21 @@ function render(rows) {
   }));
 }
 
+if (window.appData) {
+  const unclassified = window.appData.classData.classes.find((item) =>
+    item.id.includes('/t_') && item.label === '未分類');
+  if (unclassified) {
+    const oldId = unclassified.id;
+    unclassified.id = oldId.replace(/\/t_\d+$/, '/t_0');
+    window.appData.classData.relations.forEach((relation) => {
+      if (relation.parent === oldId) relation.parent = unclassified.id;
+      if (relation.child === oldId) relation.child = unclassified.id;
+    });
+    [window.appData.topClassList].forEach((list) => list?.classes?.forEach((item) => {
+      if (item.id === oldId) item.id = unclassified.id;
+    }));
+  }
+}
 let hierarchyRows = window.appData ? buildHierarchyRows(window.appData) : [];
 
 function refresh(data) {

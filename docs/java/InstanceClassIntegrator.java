@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -25,7 +26,7 @@ public final class InstanceClassIntegrator {
             "https://kozaki-lab.jp/REFV-KG/class/";
     private static final String TOP_CLASS_PREFIX = "t_";
     private static final String MIDDLE_CLASS_PREFIX = "m_";
-    private static final String UNCLASSIFIED_TOP_ID = CLASS_URI_PREFIX + "t_00000";
+    private static final String UNCLASSIFIED_TOP_ID = CLASS_URI_PREFIX + "t_0";
 
     private static final Path INPUT_DIRECTORY = Paths.get("data/query-result/base-data");
     private static final Path UPPER_INPUT_DIRECTORY = Paths.get("data/query-result/upper-class-data");
@@ -80,7 +81,11 @@ public final class InstanceClassIntegrator {
             for (String classId : instance.classIds) {
                 Map<String, String> clazz = new LinkedHashMap<>();
                 clazz.put("id", classId);
-                clazz.put("label", classLabels.get(classId));
+                String classLabel = classLabels.get(classId);
+                if (classLabel == null) {
+                    throw new IOException("クラスのラベルが見つかりません: " + classId);
+                }
+                clazz.put("label", classLabel);
                 classes.add(clazz);
             }
             record.put("classes", classes);
@@ -88,9 +93,11 @@ public final class InstanceClassIntegrator {
         }
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("instances", outputInstances);
-        try (Writer writer = Files.newBufferedWriter(OUTPUT_FILE, StandardCharsets.UTF_8)) {
+        Path temporaryOutput = OUTPUT_FILE.resolveSibling(OUTPUT_FILE.getFileName() + ".tmp");
+        try (Writer writer = Files.newBufferedWriter(temporaryOutput, StandardCharsets.UTF_8)) {
             GSON.toJson(output, writer);
         }
+        replaceFile(temporaryOutput, OUTPUT_FILE);
         Map<String, Object> classOutput = new LinkedHashMap<>();
         List<Map<String, String>> classes = new ArrayList<>();
         for (Map.Entry<String, String> entry : classLabels.entrySet()) {
@@ -111,9 +118,11 @@ public final class InstanceClassIntegrator {
         }
         classOutput.put("classes", classes);
         classOutput.put("relations", relations);
-        try (Writer writer = Files.newBufferedWriter(CLASS_OUTPUT_FILE, StandardCharsets.UTF_8)) {
+        Path temporaryClassOutput = CLASS_OUTPUT_FILE.resolveSibling(CLASS_OUTPUT_FILE.getFileName() + ".tmp");
+        try (Writer writer = Files.newBufferedWriter(temporaryClassOutput, StandardCharsets.UTF_8)) {
             GSON.toJson(classOutput, writer);
         }
+        replaceFile(temporaryClassOutput, CLASS_OUTPUT_FILE);
         writeClassList(MIDDLE_CLASS_OUTPUT_FILE, classLabels, MIDDLE_CLASS_PREFIX);
         writeClassList(TOP_CLASS_OUTPUT_FILE, classLabels, TOP_CLASS_PREFIX);
         System.out.println("インスタンス・クラス統合JSONを出力しました: " + OUTPUT_FILE);
@@ -149,8 +158,19 @@ public final class InstanceClassIntegrator {
         Map<String, Object> classListOutput = new LinkedHashMap<>();
         classListOutput.put("classes", classes);
         Files.createDirectories(output.getParent());
-        try (Writer writer = Files.newBufferedWriter(output, StandardCharsets.UTF_8)) {
+        Path temporaryOutput = output.resolveSibling(output.getFileName() + ".tmp");
+        try (Writer writer = Files.newBufferedWriter(temporaryOutput, StandardCharsets.UTF_8)) {
             GSON.toJson(classListOutput, writer);
+        }
+        replaceFile(temporaryOutput, output);
+    }
+
+    private static void replaceFile(Path temporary, Path target) throws IOException {
+        try {
+            Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 

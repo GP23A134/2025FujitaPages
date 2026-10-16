@@ -65,10 +65,6 @@
       "label": "気候累積影響"
     },
     {
-      "id": "https://kozaki-lab.jp/REFV-KG/class/m_17",
-      "label": "未分類"
-    },
-    {
       "id": "https://kozaki-lab.jp/REFV-KG/class/m_26",
       "label": "道路"
     },
@@ -91,6 +87,14 @@
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/m_00035",
       "label": "除雪"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_00036",
+      "label": "風力発電"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_00037",
+      "label": "太陽光発電"
     }
   ]
 }

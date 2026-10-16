@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -26,10 +27,17 @@ public final class WebDataGenerator {
         appData.add("middleClassList", readJson("middle-class-list.json"));
         appData.add("topClassList", readJson("top-class-list.json"));
 
-        try (Writer writer = Files.newBufferedWriter(OUTPUT_FILE, StandardCharsets.UTF_8)) {
+        Path temporaryOutput = OUTPUT_FILE.resolveSibling(OUTPUT_FILE.getFileName() + ".tmp");
+        try (Writer writer = Files.newBufferedWriter(temporaryOutput, StandardCharsets.UTF_8)) {
             writer.write("window.appData = ");
             GSON.toJson(appData, writer);
             writer.write(";\n");
+        }
+        try {
+            Files.move(temporaryOutput, OUTPUT_FILE, StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            Files.move(temporaryOutput, OUTPUT_FILE, StandardCopyOption.REPLACE_EXISTING);
         }
         System.out.println("Web用app.jsを生成しました: " + OUTPUT_FILE);
     }
