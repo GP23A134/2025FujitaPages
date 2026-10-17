@@ -125,8 +125,13 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .delete-class-button:disabled { opacity: 0.45; cursor: not-allowed; }
 .edit-status { margin: 0.75rem 0 0; color: #1e40af; }
 .edit-save-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; padding: 0.75rem 1rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #334155; }
-.edit-header-save { position: absolute; top: 5.25rem; right: 2rem; color: #fff; background: #b45309; border: 1px solid #92400e; }
+.edit-header-actions { position: absolute; top: 5.25rem; right: 2rem; display: flex; gap: 0.5rem; align-items: center; }
+.edit-header-save { position: static; color: #fff; background: #b45309; border: 1px solid #92400e; }
 .edit-header-save:hover { background: #92400e; }
+.edit-id-toggle { color: #1d4ed8; background: #eff6ff; border: 1px solid #93c5fd; }
+.edit-id-toggle:hover, .edit-id-toggle[aria-pressed="true"] { color: #fff; background: #2563eb; border-color: #1d4ed8; }
+.browse-id-toggle { margin-top: 0.5rem; color: #1d4ed8; background: #eff6ff; border: 1px solid #93c5fd; }
+.browse-id-toggle:hover, .browse-id-toggle[aria-pressed="true"] { color: #fff; background: #2563eb; border-color: #1d4ed8; }
 
 /* 5. 閲覧・編集で共有するツリー */
 /* ツリー領域 */
@@ -563,6 +568,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
   font-weight: 650;
 }
 #edit-tree-panel .tree .tree-leaf-id {
+  display: none;
   margin: 0;
   color: #64748b;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -585,9 +591,10 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 }
 #edit-tree-panel .tree .tree-add-button::first-line { font-weight: 700; }
 /* 上位・中間クラスの見出し: ラベル、件数、IDをまとめる表示領域 */
-#edit-tree-panel .tree .tree-level-content { display: inline-grid; flex: 0 0 auto; grid-template-columns: max-content max-content max-content; align-items: baseline; column-gap: 0.25rem; width: max-content; min-width: max-content; margin-left: 0.2rem; padding: 0.25rem 0.35rem; }
+#edit-tree-panel .tree .tree-level-content { display: flex; flex: 0 0 auto; flex-wrap: nowrap; align-items: baseline; gap: 0.25rem; width: max-content; min-width: max-content; margin-left: 0.2rem; padding: 0.25rem 0.35rem; white-space: nowrap; }
 #edit-tree-panel .tree .tree-level-label { font-weight: 700; white-space: nowrap; writing-mode: horizontal-tb; }
-#edit-tree-panel .tree .tree-level-id { grid-column: 1 / -1; margin-left: 0; color: #94a3b8; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.65rem; font-weight: 400; overflow-wrap: anywhere; }
+#edit-tree-panel .tree .edit-count { white-space: nowrap; }
+#edit-tree-panel .tree .tree-level-id { margin-left: 0; color: #94a3b8; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.65rem; font-weight: 400; overflow-wrap: anywhere; }
 #edit-tree-panel .tree .tree-level-id { display: none; }
 .tree-add-root-button, .tree-add-button { border: 1px solid #93c5fd; border-radius: 6px; padding: 0.3rem 0.55rem; color: #1d4ed8; background: #eff6ff; cursor: pointer; font: inherit; font-size: 0.8rem; }
 .tree-add-root-button { margin: 0 0 0.75rem 0.75rem; }
@@ -627,6 +634,13 @@ body[data-mode="browse"] .tree-add-root-button, body[data-mode="browse"] .tree-a
   border: 1px solid #dbeafe; border-left: 3px solid #38bdf8; border-radius: 7px;
   color: #155e9a; background: #fff; text-align: left; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
+#tree-panel .tree .tree-leaf-class { flex-direction: column; align-items: flex-start; gap: 0.1rem; }
+#tree-panel .tree .tree-leaf-id { font-size: 0.68rem; }
+#tree-panel .tree .tree-leaf-id,
+#tree-panel .tree .tree-level-id { display: none; }
+#tree-panel .tree .tree-level-id { grid-column: auto; margin-left: 0; }
+.browse-show-ids #tree-panel .tree .tree-leaf-id,
+.browse-show-ids #tree-panel .tree .tree-leaf-id { display: inline; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-leaf-label { min-width: 0; overflow-wrap: anywhere; font-size: 0.9rem; font-weight: 650; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-leaf-id {
   flex: 0 0 auto; margin: 0; color: #64748b; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -654,9 +668,60 @@ body[data-mode="browse"] .tree-add-root-button, body[data-mode="browse"] .tree-a
 }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-level-label { font-weight: 700; white-space: nowrap; writing-mode: horizontal-tb; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-level-id { display: none; }
+.edit-show-ids #edit-tree-panel .tree .tree-leaf-id,
+.edit-show-ids #edit-tree-panel .tree .tree-level-id { display: inline; }
+#edit-tree-panel .tree .tree-level-content { display: flex; flex-wrap: nowrap; gap: 0.25rem; white-space: nowrap; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-child-middle-list,
 :is(#tree-panel, #edit-tree-panel) .tree .tree-target-list { position: relative; width: 100%; box-sizing: border-box; margin: 0; padding-left: 0; border-left: 0; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-child-middle-list { display: grid; row-gap: var(--tree-target-row-gap); }
+#tree-panel .tree .tree-middle-class > .tree-level-rows {
+  position: relative;
+}
+#tree-panel .tree .tree-middle-class > .tree-level-rows::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0.75rem;
+  border-left: 2px solid #cbd5e1;
+}
+#tree-panel .tree > details > ul > li > details.tree-middle-class {
+  margin-left: 0;
+}
+#tree-panel .tree .tree-middle-class > .tree-level-rows > .tree-child-middle-row,
+#tree-panel .tree .tree-middle-class > .tree-level-rows > .tree-target-row {
+  margin-left: 1rem;
+}
+#tree-panel .tree .tree-middle-class > .tree-level-rows > .tree-child-middle-row::before,
+#tree-panel .tree .tree-middle-class > .tree-level-rows > .tree-target-row::before {
+  left: -1rem;
+  width: 1rem;
+}
+#tree-panel .tree .tree-child-middle-list {
+  display: block !important;
+}
+#tree-panel .tree .tree-child-middle-list > li {
+  display: block !important;
+  width: 100%;
+  margin: 0;
+  padding: 0.25rem 0;
+}
+#tree-panel .tree .tree-child-middle-list > li > .tree-middle-class {
+  display: block !important;
+  width: 100%;
+}
+#tree-panel .tree > details > ul::before,
+#tree-panel .tree > details > ul > li > details > ul::before,
+#tree-panel .tree .tree-middle-class > .tree-level-rows::before {
+  border-left-color: #cbd5e1;
+}
+#tree-panel .tree > details > ul > li::before,
+#tree-panel .tree > details > ul > li > details > ul > li::before,
+#tree-panel .tree .tree-target-list > li::before,
+#tree-panel .tree .tree-child-middle-row::before,
+#tree-panel .tree .tree-target-row::before {
+  border-top-color: #cbd5e1;
+}
 #tree-panel .tree,
 #edit-tree-panel .edit-tree-layout > .tree {
   height: var(--edit-tree-content-height, calc(100vh - 200px));

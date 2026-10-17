@@ -6,6 +6,15 @@ const treeElement = document.getElementById('tree');
 const summaryElement = document.getElementById('summary');
 const modeDescription = document.getElementById('mode-description');
 
+const toggleBrowseIds = document.getElementById('toggle-browse-ids');
+if (toggleBrowseIds) {
+  toggleBrowseIds.addEventListener('click', () => {
+    const visible = document.body.classList.toggle('browse-show-ids');
+    toggleBrowseIds.setAttribute('aria-pressed', visible ? 'true' : 'false');
+    toggleBrowseIds.textContent = `クラスID表示: ${visible ? 'ON' : 'OFF'}`;
+  });
+}
+
 function renderClassListRows(elementId, items) {
   const target = document.getElementById(elementId);
   if (!target) return;
@@ -195,7 +204,7 @@ function renderTree() {
     const label = document.createElement('span'); label.className = 'tree-level-label'; label.textContent = node.label;
     const badge = document.createElement('span'); badge.className = 'count-badge edit-count'; badge.textContent = count(node);
     const id = document.createElement('span'); id.className = 'tree-level-id'; id.textContent = displayClassId(node.id);
-    content.append(label, badge, id); summary.append(content); details.append(summary);
+    content.append(id, label, badge); summary.append(content); details.append(summary);
     const list = document.createElement('ul'); list.className = 'tree-level-rows';
     if (node.children.length) {
       const row = document.createElement('li'); row.className = 'tree-child-middle-row';

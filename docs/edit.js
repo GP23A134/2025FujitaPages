@@ -11,6 +11,18 @@ const classes = data.classData.classes;
 const childSelect = document.getElementById('edit-child-class');
 const parentSelect = document.getElementById('edit-parent-class');
 const status = document.getElementById('edit-status');
+const toggleEditIds = document.getElementById('toggle-edit-ids');
+if (toggleEditIds) {
+  const setEditIdsVisible = (visible) => {
+    document.body.classList.toggle('edit-show-ids', visible);
+    toggleEditIds.setAttribute('aria-pressed', visible ? 'true' : 'false');
+    toggleEditIds.textContent = `クラスID表示: ${visible ? 'ON' : 'OFF'}`;
+  };
+  setEditIdsVisible(false);
+  toggleEditIds.addEventListener('click', () => {
+    setEditIdsVisible(!document.body.classList.contains('edit-show-ids'));
+  });
+}
 // ツリー上で選択した対象クラスを一時的に保持する。Map にすることで、
 // 同じクラスの重複選択を防ぎながら、IDを使った移動処理を行える。
 const heldInstances = new Map();
@@ -715,7 +727,7 @@ function renderTree() {
     const id = document.createElement('span');
     id.className = 'tree-level-id';
     id.textContent = displayClassId(item.id);
-    levelContent.append(label, count, id);
+    levelContent.append(id, label, count);
     if (classKind(item) === 'middle' && item.label !== '未分類') {
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';

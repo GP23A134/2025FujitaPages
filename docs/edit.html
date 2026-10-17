@@ -10,12 +10,16 @@
   <script src="edit.js" defer></script>
 </head>
 <body data-mode="edit">
+  <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>
   <header class="page-header">
     <p class="eyebrow">KNOWLEDGE GRAPH EDITOR</p>
     <h1>クラス編集</h1>
     <p class="page-description">クラスの追加と親子関係を編集します。</p>
     <p><a id="browse-link" class="page-link-button" href="index.html">閲覧画面へ</a></p>
-    <button type="button" id="save-edit-changes" class="search-button edit-header-save">編集内容を保存</button>
+    <div class="edit-header-actions">
+      <button type="button" id="toggle-edit-ids" class="search-button edit-id-toggle" aria-pressed="false">クラスID表示: OFF</button>
+      <button type="button" id="save-edit-changes" class="search-button edit-header-save">編集内容を保存</button>
+    </div>
   </header>
 
   <main>

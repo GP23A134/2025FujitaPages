@@ -9,13 +9,14 @@
     <script src="tree.js" defer></script>
     <script src="main.js" defer></script>
 </head>
-<body data-mode="browse">
+<body data-mode="browse" class="browse-show-ids">
   <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>
   <header class="page-header">
     <p class="eyebrow">KNOWLEDGE GRAPH VIEWER</p>
     <h1>クラス階層</h1>
     <p class="page-description">上位・中間クラスごとに対象クラスを検索、参照できます。</p>
     <p><a class="page-link-button" href="edit.html">編集画面へ</a></p>
+    <button type="button" id="toggle-browse-ids" class="search-button browse-id-toggle" aria-pressed="true">クラスID表示: ON</button>
   </header>
 
   <main>
