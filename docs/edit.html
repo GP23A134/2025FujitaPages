@@ -100,10 +100,22 @@
       </section>
 
       <!-- ツリー本体と、選択中クラスの操作パネル -->
+      <div class="tree-filter" role="search" aria-label="階層ツリーの絞り込み">
+        <label for="tree-filter-type">検索対象
+          <select id="tree-filter-type">
+            <option value="class">クラス</option>
+            <option value="instance">インスタンス</option>
+          </select>
+        </label>
+        <label class="tree-filter-query-label" for="tree-filter-query">ツリーを絞り込み
+          <input id="tree-filter-query" type="search" placeholder="対象クラス名・IDを入力" autocomplete="off">
+        </label>
+        <p id="tree-filter-count" aria-live="polite"></p>
+      </div>
       <div class="edit-tree-layout">
         <div id="edit-tree" class="tree" role="tree"></div>
         <aside id="held-panel" class="instance-selection">
-          <h2>保持中 <span id="held-count" class="held-count" aria-live="polite">0件</span></h2>
+          <h2><span id="held-kind-label">保持中</span> <span id="held-count" class="held-count" aria-live="polite">0件</span></h2>
           <div class="held-panel-actions">
             <button type="button" id="clear-held" class="held-action-button">全解除</button>
             <button type="button" id="move-held-unclassified" class="held-action-button">未分類へ移動</button>
@@ -184,7 +196,7 @@
   <dialog id="target-instance-dialog" class="target-instance-dialog" aria-labelledby="target-instance-title">
     <form method="dialog" class="target-instance-dialog-header">
       <h2 id="target-instance-title"></h2>
-      <button type="submit" class="target-instance-dialog-close" aria-label="閉じる">閉じる</button>
+      <button type="submit" class="target-instance-dialog-close" aria-label="閉じる">×</button>
     </form>
     <p id="target-instance-count" class="target-instance-count"></p>
     <ul id="target-instance-list" class="target-instance-list"></ul>

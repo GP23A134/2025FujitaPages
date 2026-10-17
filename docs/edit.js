@@ -15,6 +15,7 @@ const status = document.getElementById('edit-status');
 // 同じクラスの重複選択を防ぎながら、IDを使った移動処理を行える。
 const heldInstances = new Map();
 const heldMiddleClasses = new Map();
+const heldTopClasses = new Map();
 const instancesByTargetClassId = new Map();
 (data.instanceClassData.instances || []).forEach((instance) => {
   (instance.classes || []).forEach((classInfo) => {
@@ -52,6 +53,7 @@ function showRelatedInstances(targetClass) {
 }
 const targetButtonById = new Map();
 const middleCheckboxById = new Map();
+const topCheckboxById = new Map();
 const searchSelected = new Map();
 let hasUnsavedChanges = false;
 let managementKind = 'top';
@@ -117,6 +119,16 @@ function displayClassId(id) {
   return match ? `${match[1]}_${Number(match[2])}` : segment;
 }
 
+function allocateTemporaryClassId(type) {
+  const prefix = type === 'top' ? 't_' : 'm_';
+  const serial = classes.reduce((max, item) => {
+    if (kind(item.id) !== type) return max;
+    const match = String(item.id).split('/').pop().match(/^(?:new-)?[mt]_0*(\d+)$/);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0) + 1;
+  return `new-${prefix}${serial}`;
+}
+
 function createClass(type, label) {
   if (type === 'class') return null;
   const normalizedLabel = label.trim();
@@ -130,15 +142,8 @@ function createClass(type, label) {
   // 呼び出し側で親子関係を設定するため、ここでは既存クラスを再利用しない。
   // 新規IDは既存件数を基準に連番で作る。new- を付けることで、保存時に
   // まだ正式な外部IDが割り当てられていないクラスとして出力できる。
-  const prefix = type === 'top' ? 't_' : type === 'middle' ? 'm_' : 'c_';
-  // 件数ではなく既存IDの最大番号の次を使う。削除済みIDや欠番があると
-  // 件数ベースではJava側の採番とずれ、new- IDを関係TSVから解決できなくなる。
-  const serial = classes.reduce((max, item) => {
-    if (kind(item.id) !== type) return max;
-    const match = String(item.id).split('/').pop().match(/^(?:new-)?[mt]_0*(\d+)$/);
-    return match ? Math.max(max, Number(match[1])) : max;
-  }, 0) + 1;
-  const item = { id: `new-${prefix}${serial}`, label: normalizedLabel, type };
+  // 件数ではなく既存IDの最大番号の次を使い、Java側の一時ID解決と揃える。
+  const item = { id: allocateTemporaryClassId(type), label: normalizedLabel, type };
   classes.push(item);
   classById.set(item.id, item);
   return item;
@@ -208,25 +213,31 @@ function moveClassMembersToUnclassified(classId) {
 // ============================================================
 // 検索結果とクラス管理一覧の描画
 // ============================================================
-function renderTargetSearch() {
-  const input = document.getElementById('target-class-search');
-  const searchType = document.getElementById('target-search-type').value;
-  const query = input.value.trim().toLocaleLowerCase();
+function findTargetClasses(searchType, query) {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
   const instances = data.instanceClassData.instances || [];
-  let targets;
-  let matchedInstanceCount = 0;
   if (searchType === 'instance') {
     const matchedInstances = instances.filter((instance) =>
-      !query || `${instance.label || ''} ${instance.id || ''}`.toLocaleLowerCase().includes(query));
-    matchedInstanceCount = matchedInstances.length;
+      !normalizedQuery || `${instance.label || ''} ${instance.id || ''}`.toLocaleLowerCase().includes(normalizedQuery));
     const matchedClassIds = new Set(matchedInstances.flatMap((instance) =>
       (instance.classes || []).map((classInfo) => classInfo.id)
     ));
-    targets = classes.filter((item) => classKind(item) === 'class' && matchedClassIds.has(item.id));
-  } else {
-    targets = classes.filter((item) => classKind(item) === 'class' &&
-      (!query || `${item.label} ${item.id}`.toLocaleLowerCase().includes(query)));
+    return {
+      targets: classes.filter((item) => classKind(item) === 'class' && matchedClassIds.has(item.id)),
+      matchedInstanceCount: matchedInstances.length
+    };
   }
+  return {
+    targets: classes.filter((item) => classKind(item) === 'class' &&
+      (!normalizedQuery || `${item.label} ${item.id}`.toLocaleLowerCase().includes(normalizedQuery))),
+    matchedInstanceCount: 0
+  };
+}
+
+function renderTargetSearch() {
+  const input = document.getElementById('target-class-search');
+  const searchType = document.getElementById('target-search-type').value;
+  const { targets, matchedInstanceCount } = findTargetClasses(searchType, input.value);
   // 検索結果には対象クラスと直上の親だけを表示する（祖先階層はたどらない）。
   const parentsByClassId = new Map();
   data.classData.relations.forEach((relation) => {
@@ -307,7 +318,7 @@ function renderClassManagement() {
       }
       const index = classes.indexOf(item); if (index >= 0) classes.splice(index, 1);
       classById.delete(item.id);
-      heldMiddleClasses.delete(item.id); hasUnsavedChanges = true;
+      heldMiddleClasses.delete(item.id); heldTopClasses.delete(item.id); hasUnsavedChanges = true;
       status.textContent = `${item.label}を削除しました。${moved}件を未分類へ移動しました。`; render();
     });
     actions.append(rename, button); row.append(info, actions); return row;
@@ -368,14 +379,21 @@ function renderInstances() {
   const held = document.getElementById('held-instance-list');
   const panel = document.getElementById('held-panel');
   const count = document.getElementById('held-count');
+  const kindLabel = document.getElementById('held-kind-label');
+  const selectionKind = activeSelectionKind();
   panel.hidden = false;
-  if (count) count.textContent = `${heldInstances.size + heldMiddleClasses.size}件`;
+  if (kindLabel) {
+    kindLabel.textContent = selectionKind === 'top' ? '上位クラス保持中'
+      : selectionKind === 'middle' ? '中間クラス保持中'
+        : selectionKind === 'class' ? 'クラス保持中' : '保持中';
+  }
+  if (count) count.textContent = `${heldInstances.size + heldMiddleClasses.size + heldTopClasses.size}件`;
   document.querySelectorAll('.move-held-button').forEach((button) => {
     button.hidden = heldInstances.size === 0;
   });
   document.querySelectorAll('.move-held-middle-button').forEach((button) => {
-    // 中間クラスまたは対象クラスを選択中のみ、上位クラス側の移動ボタンを表示する。
-    button.hidden = heldMiddleClasses.size === 0 && heldInstances.size === 0;
+    // 上位・中間・対象クラスのいずれかを保持中なら移動先として表示する。
+    button.hidden = heldMiddleClasses.size === 0 && heldTopClasses.size === 0 && heldInstances.size === 0;
   });
   held.replaceChildren(...[...heldInstances.values()].map((instance) => {
     const item = document.createElement('div'); item.className = 'held-instance-item';
@@ -389,6 +407,7 @@ function renderInstances() {
     remove.addEventListener('click', () => {
       heldInstances.delete(instance.id);
       targetButtonById.get(instance.id)?.classList.remove('is-selected');
+      syncTargetButtonAvailability();
       renderInstances();
     });
     item.append(remove); return item;
@@ -404,14 +423,40 @@ function renderInstances() {
       renderInstances();
     });
     item.append(remove); return item;
+  }), ...[...heldTopClasses.values()].map((top) => {
+    const item = document.createElement('div'); item.className = 'held-instance-item';
+    item.textContent = `上位: ${top.label}`;
+    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '解除';
+    remove.addEventListener('click', () => {
+      heldTopClasses.delete(top.id);
+      const checkbox = topCheckboxById.get(top.id);
+      if (checkbox) checkbox.checked = false;
+      syncTargetButtonAvailability();
+      renderInstances();
+    });
+    item.append(remove); return item;
   }));
+  syncTargetButtonAvailability();
+}
+
+function activeSelectionKind() {
+  if (heldTopClasses.size) return 'top';
+  if (heldMiddleClasses.size) return 'middle';
+  if (heldInstances.size) return 'class';
+  return null;
 }
 
 function syncTargetButtonAvailability() {
-  const middleSelected = heldMiddleClasses.size > 0;
+  const selectionKind = activeSelectionKind();
   targetButtonById.forEach((button) => {
-    button.disabled = middleSelected;
-    button.title = middleSelected ? '中間クラス選択中は対象クラスを選択できません' : '';
+    button.disabled = selectionKind !== null && selectionKind !== 'class';
+    button.title = button.disabled ? '上位・中間クラス選択中は対象クラスを選択できません' : '';
+  });
+  middleCheckboxById.forEach((checkbox) => {
+    checkbox.disabled = selectionKind !== null && selectionKind !== 'middle';
+  });
+  topCheckboxById.forEach((checkbox) => {
+    checkbox.disabled = selectionKind !== null && selectionKind !== 'top';
   });
 }
 // ============================================================
@@ -468,6 +513,44 @@ function renderTree() {
   const tree = document.getElementById('edit-tree');
   targetButtonById.clear();
   middleCheckboxById.clear();
+  topCheckboxById.clear();
+
+  const filterType = document.getElementById('tree-filter-type').value;
+  const filterQuery = document.getElementById('tree-filter-query').value;
+  const filterActive = filterQuery.trim().length > 0;
+  const { targets: filteredTargets, matchedInstanceCount } = findTargetClasses(filterType, filterQuery);
+  const visibleIds = new Set();
+  const filterAncestorIds = new Set();
+  const filteredTargetIdsByAncestor = new Map();
+  if (filterActive) {
+    const parentsByChild = new Map();
+    data.classData.relations.forEach(({ child, parent }) => {
+      if (!parentsByChild.has(child)) parentsByChild.set(child, []);
+      parentsByChild.get(child).push(parent);
+    });
+    filteredTargets.forEach((target) => {
+      const pending = [target.id];
+      const visitedForTarget = new Set();
+      while (pending.length) {
+        const id = pending.pop();
+        if (visitedForTarget.has(id)) continue;
+        visitedForTarget.add(id);
+        visibleIds.add(id);
+        (parentsByChild.get(id) || []).forEach((parentId) => {
+          filterAncestorIds.add(parentId);
+          if (!filteredTargetIdsByAncestor.has(parentId)) filteredTargetIdsByAncestor.set(parentId, new Set());
+          filteredTargetIdsByAncestor.get(parentId).add(target.id);
+          pending.push(parentId);
+        });
+      }
+    });
+  }
+  const filterCount = document.getElementById('tree-filter-count');
+  filterCount.textContent = !filterActive
+    ? '検索すると、一致した対象クラスと所属階層だけを表示します。'
+    : filterType === 'instance'
+      ? `一致インスタンス ${matchedInstanceCount}件に関連する対象クラス ${filteredTargets.length}件を表示中`
+      : `一致する対象クラス ${filteredTargets.length}件を表示中`;
 
   // 関係配列を親IDから子IDへの検索用Mapに変換する。ツリーの描画中に
   // 毎回全クラスを検索せずに済むため、階層が大きくても処理を追いやすい。
@@ -499,13 +582,19 @@ function renderTree() {
     });
     return button;
   };
-  const moveHeldMiddlesToTop = (topId) => {
-    if (!heldMiddleClasses.size) return false;
-    const selected = new Set(heldMiddleClasses.keys());
-    if (selected.has(topId)) return false;
-    const descendants = new Set(selected);
+  const moveHeldClassesToTop = (topId) => {
+    if (!heldMiddleClasses.size && !heldTopClasses.size && !heldInstances.size) return false;
+    const selectedMiddleIds = new Set(heldMiddleClasses.keys());
+    const selectedTopIds = new Set(heldTopClasses.keys());
+    const selectedTargetIds = new Set(heldInstances.keys());
+    if (selectedMiddleIds.has(topId) || selectedTopIds.has(topId)) {
+      status.textContent = '移動先として選択中のクラスは指定できません。';
+      return true;
+    }
+    const movingHierarchyIds = new Set([...selectedMiddleIds, ...selectedTopIds]);
+    const descendants = new Set(movingHierarchyIds);
     const children = buildChildrenMap();
-    const pending = [...selected];
+    const pending = [...movingHierarchyIds];
     while (pending.length) {
       const current = pending.pop();
       (children.get(current) || []).forEach((childId) => {
@@ -514,11 +603,34 @@ function renderTree() {
         pending.push(childId);
       });
     }
-    if (descendants.has(topId)) { status.textContent = '子孫の中間クラスへは移動できません。'; return true; }
-    data.classData.relations = data.classData.relations.filter((relation) => !selected.has(relation.child));
-    selected.forEach((middleId) => addRelation(middleId, topId));
-    heldMiddleClasses.clear(); hasUnsavedChanges = true;
-    status.textContent = `${selected.size}件の中間クラスを移動しました。`;
+    if (descendants.has(topId)) { status.textContent = '選択クラスの配下には移動できません。'; return true; }
+
+    const convertedIds = new Map();
+    heldTopClasses.forEach((top) => {
+      const oldId = top.id;
+      const newId = allocateTemporaryClassId('middle');
+      convertedIds.set(oldId, newId);
+      classById.delete(oldId);
+      top.id = newId;
+      top.type = 'middle';
+      classById.set(newId, top);
+    });
+    const movingIds = new Set([...movingHierarchyIds, ...selectedTargetIds]);
+    data.classData.relations = data.classData.relations
+      .filter((relation) => !movingIds.has(relation.child))
+      .map((relation) => ({
+        ...relation,
+        parent: convertedIds.get(relation.parent) || relation.parent
+      }));
+    convertedIds.forEach((newId) => addRelation(newId, topId));
+    selectedMiddleIds.forEach((middleId) => addRelation(middleId, topId));
+    selectedTargetIds.forEach((targetId) => addRelation(targetId, topId));
+    const movedCount = selectedMiddleIds.size + selectedTopIds.size + selectedTargetIds.size;
+    heldMiddleClasses.clear();
+    heldTopClasses.clear();
+    heldInstances.clear();
+    hasUnsavedChanges = true;
+    status.textContent = `${selectedTopIds.size}件の上位クラスを中間クラス化し、合計${movedCount}件を移動しました。`;
     render(); return true;
   };
   const moveHeldToMiddle = (middleId) => {
@@ -572,8 +684,9 @@ function renderTree() {
       button.type = 'button';
       button.className = 'tree-add-button tree-leaf-class';
       button.dataset.instanceId = item.id;
-      button.disabled = heldMiddleClasses.size > 0;
-      button.title = button.disabled ? '中間クラス選択中は対象クラスを選択できません' : '';
+      const selectionKind = activeSelectionKind();
+      button.disabled = selectionKind !== null && selectionKind !== 'class';
+      button.title = button.disabled ? '上位・中間クラス選択中は対象クラスを選択できません' : '';
       const label = document.createElement('span');
       label.className = 'tree-leaf-label';
       label.textContent = item.label;
@@ -584,12 +697,13 @@ function renderTree() {
       button.classList.toggle('is-selected', heldInstances.has(item.id));
       targetButtonById.set(item.id, button);
       button.addEventListener('click', () => {
-        if (heldMiddleClasses.size) return;
+        if (activeSelectionKind() && activeSelectionKind() !== 'class') return;
         // 対象クラスはクリックするたびに保持・解除を切り替える。表示更新は
         // 保持中パネルにも必要なので、選択状態の変更後にrenderInstancesを呼ぶ。
         if (heldInstances.has(item.id)) heldInstances.delete(item.id);
         else heldInstances.set(item.id, item);
         button.classList.toggle('is-selected', heldInstances.has(item.id));
+        syncTargetButtonAvailability();
         renderInstances();
         status.textContent = `${heldInstances.size}件の対象クラスを保持中です。`;
       });
@@ -601,7 +715,9 @@ function renderTree() {
       // 固定位置は描画後に、親見出しと各階層の実高さから計算する。
       details.style.setProperty('--middle-sticky-z', String(14 + middleDepth));
     }
-    details.open = classKind(item) === 'top' && item.label !== '未分類';
+    details.open = filterActive
+      ? filterAncestorIds.has(item.id)
+      : classKind(item) === 'top' && item.label !== '未分類';
     const summary = document.createElement('summary');
     const levelContent = document.createElement('div');
     levelContent.className = 'tree-level-content';
@@ -610,7 +726,9 @@ function renderTree() {
     label.textContent = item.label;
     const count = document.createElement('span');
     count.className = 'count-badge edit-count';
-    count.textContent = countTargets(item.id);
+    count.textContent = filterActive
+      ? filteredTargetIdsByAncestor.get(item.id)?.size || 0
+      : countTargets(item.id);
     const id = document.createElement('span');
     id.className = 'tree-level-id';
     id.textContent = displayClassId(item.id);
@@ -619,12 +737,37 @@ function renderTree() {
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.checked = heldMiddleClasses.has(item.id);
+      checkbox.disabled = activeSelectionKind() !== null && activeSelectionKind() !== 'middle';
       middleCheckboxById.set(item.id, checkbox);
       checkbox.setAttribute('aria-label', `${item.label}を選択`);
       checkbox.addEventListener('click', (event) => event.stopPropagation());
       checkbox.addEventListener('change', () => {
+        if (checkbox.checked && (heldTopClasses.size || heldInstances.size)) {
+          checkbox.checked = false;
+          return;
+        }
         if (checkbox.checked) heldMiddleClasses.set(item.id, item);
         else heldMiddleClasses.delete(item.id);
+        syncTargetButtonAvailability();
+        renderInstances();
+      });
+      levelContent.prepend(checkbox);
+    }
+    if (classKind(item) === 'top' && item.label !== '未分類') {
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = heldTopClasses.has(item.id);
+      checkbox.disabled = activeSelectionKind() !== null && activeSelectionKind() !== 'top';
+      topCheckboxById.set(item.id, checkbox);
+      checkbox.setAttribute('aria-label', `${item.label}を中間クラスとして選択`);
+      checkbox.addEventListener('click', (event) => event.stopPropagation());
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked && (heldMiddleClasses.size || heldInstances.size)) {
+          checkbox.checked = false;
+          return;
+        }
+        if (checkbox.checked) heldTopClasses.set(item.id, item);
+        else heldTopClasses.delete(item.id);
         syncTargetButtonAvailability();
         renderInstances();
       });
@@ -641,17 +784,23 @@ function renderTree() {
       moveButton.title = '保持中の対象クラスをここへ移動';
       summary.append(moveButton);
     }
-    if (classKind(item) === 'top' && item.label !== '未分類') {
-      // 上位クラスの「＋」は、保持中の中間クラスがある場合だけ表示する。
+    if (classKind(item) === 'top') {
+      const isUnclassified = item.label === '未分類';
+      // 未分類は対象クラスだけを受け入れ、他の上位クラスは保持中クラスを受け入れる。
       const addButton = addTreeButton('＋', () => {
-        if (heldMiddleClasses.size) moveHeldMiddlesToTop(item.id);
+        if (!isUnclassified) moveHeldClassesToTop(item.id);
         else moveHeldToTop(item.id);
       });
       // 中間クラス側の移動ボタンと同じスタイルを適用する。
-      addButton.classList.add('move-held-button', 'move-held-middle-button');
-      addButton.hidden = heldMiddleClasses.size === 0 && heldInstances.size === 0;
+      addButton.classList.add('move-held-button');
+      if (!isUnclassified) addButton.classList.add('move-held-middle-button');
+      addButton.hidden = isUnclassified
+        ? heldInstances.size === 0
+        : heldMiddleClasses.size === 0 && heldTopClasses.size === 0 && heldInstances.size === 0;
       addButton.setAttribute('aria-label', 'ここへ移動');
-      addButton.title = '保持中のクラスをここへ移動';
+      addButton.title = isUnclassified
+        ? '保持中の対象クラスを未分類へ移動'
+        : '保持中のクラスをここへ移動';
       summary.append(addButton);
     }
     details.append(summary);
@@ -662,7 +811,8 @@ function renderTree() {
       const list = document.createElement('ul');
       list.className = 'tree-level-rows';
       const childItems = (children.get(item.id) || [])
-        .map((id) => classById.get(id)).filter(Boolean);
+        .map((id) => classById.get(id)).filter((child) =>
+          child && (!filterActive || visibleIds.has(child.id)));
       const directTargets = childItems.filter((child) => classKind(child) === 'class');
       const childMiddles = childItems.filter((child) => classKind(child) === 'middle');
       const appendChild = (child, parentList, childMiddleDepth) => {
@@ -732,7 +882,7 @@ function renderTree() {
     return details;
   };
   // 未分類を最上段に固定し、それ以外は配下の対象クラス件数の多い順に並べる。
-  const roots = rootCandidates.sort((a, b) => {
+  const roots = rootCandidates.filter((item) => !filterActive || visibleIds.has(item.id)).sort((a, b) => {
     const aIsUnclassified = classKind(a) === 'top' && a.label === '未分類';
     const bIsUnclassified = classKind(b) === 'top' && b.label === '未分類';
     if (aIsUnclassified !== bIsUnclassified) return aIsUnclassified ? -1 : 1;
@@ -777,11 +927,16 @@ document.getElementById('clear-held').addEventListener('click', () => {
     const checkbox = middleCheckboxById.get(middle.id);
     if (checkbox) checkbox.checked = false;
   });
+  heldTopClasses.forEach((top) => {
+    const checkbox = topCheckboxById.get(top.id);
+    if (checkbox) checkbox.checked = false;
+  });
   heldInstances.clear();
   heldMiddleClasses.clear();
+  heldTopClasses.clear();
   syncTargetButtonAvailability();
   renderInstances();
-  status.textContent = '保持中の対象クラスをすべて解除しました。';
+  status.textContent = '保持中のクラスをすべて解除しました。';
 });
 document.getElementById('move-held-unclassified').addEventListener('click', () => {
   if (!heldInstances.size) return;
@@ -831,6 +986,14 @@ document.getElementById('apply-parent-change').addEventListener('click', () => {
   hasUnsavedChanges = true;
   status.textContent = '親クラスを変更しました。';
 });
+document.getElementById('tree-filter-type').addEventListener('change', () => {
+  document.getElementById('tree-filter-query').placeholder =
+    document.getElementById('tree-filter-type').value === 'instance'
+      ? 'インスタンス名・IDを入力'
+      : '対象クラス名・IDを入力';
+  renderTree();
+});
+document.getElementById('tree-filter-query').addEventListener('input', renderTree);
 // 検索結果を使った一括付与・クラス作成
 document.getElementById('target-search-type').addEventListener('change', () => {
   // 検索対象を切り替えたら、別の検索条件で選んだクラスを持ち越さない。

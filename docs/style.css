@@ -221,6 +221,12 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
   background: linear-gradient(145deg, #f0f9ff, #f8fafc);
   box-shadow: 0 8px 20px rgba(14, 116, 144, 0.1);
 }
+.tree-filter { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; margin: 0 0 0.85rem; padding: 0.75rem 0.9rem; border: 1px solid #d8dee9; border-radius: 10px; background: #f8fafc; }
+.tree-filter label { display: flex; flex-direction: column; gap: 0.25rem; color: #475569; font-weight: 700; }
+.tree-filter select, .tree-filter input { min-width: 180px; padding: 0.5rem 0.65rem; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; font: inherit; font-weight: 400; }
+.tree-filter-query-label { flex: 1 1 24rem; min-width: min(100%, 18rem); }
+.tree-filter-query-label input { width: 100%; }
+.tree-filter p { flex: 0 0 100%; margin: 0; color: #64748b; font-size: 0.9rem; }
 .edit-tree-layout {
   --edit-tree-content-height: calc(100vh - 200px);
   display: grid;
