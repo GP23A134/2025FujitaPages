@@ -39,6 +39,15 @@
     </div>
 
     <section id="tree-panel" class="tab-panel" role="tabpanel" aria-labelledby="tree-tab">
+      <div class="tree-filter" role="search" aria-label="階層ツリーの絞り込み">
+        <label for="tree-filter-type">検索対象
+          <select id="tree-filter-type"><option value="class">クラス</option><option value="instance">インスタンス</option></select>
+        </label>
+        <label class="tree-filter-query-label" for="tree-filter-query">ツリーを絞り込み
+          <input id="tree-filter-query" type="search" placeholder="クラス名・IDを入力" autocomplete="off">
+        </label>
+        <p id="tree-filter-count" aria-live="polite"></p>
+      </div>
       <div id="tree" class="tree" role="tree"></div>
     </section>
 
@@ -103,5 +112,9 @@
       </table>
     </section>
   </main>
+  <dialog id="target-instance-dialog" class="target-instance-dialog" aria-labelledby="target-instance-title">
+    <form method="dialog" class="target-instance-dialog-header"><h2 id="target-instance-title"></h2><button type="submit" class="target-instance-dialog-close" aria-label="閉じる">×</button></form>
+    <p id="target-instance-count" class="target-instance-count"></p><ul id="target-instance-list" class="target-instance-list"></ul>
+  </dialog>
 </body>
 </html>

@@ -165,101 +165,86 @@ function displayClassId(id) {
   return match ? `${match[1]}_${Number(match[2])}` : segment;
 }
 
-function renderTree(rows) {
-  const tree = new Map();
-  const isSearching = Boolean(searchInput && searchInput.value.trim() !== '');
-  rows.forEach((row) => {
-    if (!tree.has(row.topClass)) tree.set(row.topClass, { id: row.topClassId, middle: new Map() });
-    let nodes = tree.get(row.topClass).middle;
-    row.middleClass.split(' / ').forEach((label, index, labels) => {
-      if (!nodes.has(label)) nodes.set(label, { id: row.middleClassId, children: new Map(), rows: [] });
-      const node = nodes.get(label);
-      if (index === labels.length - 1) node.rows.push(row);
-      nodes = node.children;
+function renderTree() {
+  const filterInput = document.getElementById('tree-filter-query');
+  const filterType = document.getElementById('tree-filter-type');
+  const filterCount = document.getElementById('tree-filter-count');
+  const query = filterInput?.value || '';
+  const { targets, matchedInstanceCount } = window.findTargetMatches(window.appData, filterType?.value || 'class', query);
+  const targetIds = query.trim() ? new Set(targets.map((item) => item.id)) : null;
+  const model = window.buildTreeModel(window.appData.classData, targetIds) || [];
+  const count = (node) => node.targets.length + node.children.reduce((total, child) => total + count(child), 0);
+  const makeTarget = (item) => {
+    const li = document.createElement('li');
+    const card = document.createElement('div');
+    card.className = 'tree-leaf-class';
+    const id = document.createElement('span'); id.className = 'tree-leaf-id'; id.textContent = displayClassId(item.id);
+    const label = document.createElement('span'); label.className = 'tree-leaf-label'; label.textContent = textLabel(item.label || '');
+    const info = document.createElement('button');
+    info.type = 'button'; info.className = 'tree-leaf-info-button'; info.textContent = 'i';
+    info.setAttribute('aria-label', `${item.label}に関連するインスタンスを表示`);
+    info.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); showTargetInstances(item); });
+    card.append(id, label, info); li.append(card); return li;
+  };
+  const makeHierarchy = (node, depth = 0) => {
+    const details = document.createElement('details');
+    details.className = node.type === 'top' ? 'tree-top-class' : 'tree-middle-class';
+    details.open = query.trim() ? true : node.type === 'top' && node.label !== '未分類';
+    const summary = document.createElement('summary');
+    const content = document.createElement('div'); content.className = 'tree-level-content';
+    const label = document.createElement('span'); label.className = 'tree-level-label'; label.textContent = node.label;
+    const badge = document.createElement('span'); badge.className = 'count-badge edit-count'; badge.textContent = count(node);
+    const id = document.createElement('span'); id.className = 'tree-level-id'; id.textContent = displayClassId(node.id);
+    content.append(label, badge, id); summary.append(content); details.append(summary);
+    const list = document.createElement('ul'); list.className = 'tree-level-rows';
+    if (node.children.length) {
+      const row = document.createElement('li'); row.className = 'tree-child-middle-row';
+      const children = document.createElement('ul'); children.className = 'tree-child-middle-list';
+      node.children.forEach((child) => { const li = document.createElement('li'); li.append(makeHierarchy(child, depth + 1)); children.append(li); });
+      row.append(children); list.append(row);
+    }
+    if (node.targets.length) {
+      const row = document.createElement('li'); row.className = 'tree-target-row';
+      const targetsList = document.createElement('ul'); targetsList.className = 'tree-target-list';
+      node.targets.forEach((item) => targetsList.append(makeTarget(item)));
+      row.append(targetsList); list.append(row);
+    }
+    details.append(list); return details;
+  };
+  model.sort((a, b) => (a.label === '未分類' ? -1 : b.label === '未分類' ? 1 : count(b) - count(a)));
+  treeElement.replaceChildren(...model.map(makeHierarchy));
+  requestAnimationFrame(() => treeElement.querySelectorAll('.tree-target-list').forEach((list) => {
+    let rowTop = Number.NEGATIVE_INFINITY;
+    [...list.children].forEach((item) => {
+      const top = item.getBoundingClientRect().top;
+      const isStart = Math.abs(top - rowTop) > 1;
+      item.classList.toggle('is-row-start', isStart);
+      if (isStart) rowTop = top;
     });
-  });
-
-  const countRows = (nodes) => [...nodes.values()].reduce(
-    (count, node) => count + node.rows.length + countRows(node.children), 0);
-
-  treeElement.replaceChildren(...[...tree].map(([topClass, topNode]) => {
-    const middle = topNode.middle;
-    const top = document.createElement('details');
-    top.className = 'tree-top-class';
-    top.open = topClass !== '未分類';
-    top.setAttribute('role', 'treeitem');
-    const topSummary = document.createElement('summary');
-    const topContent = document.createElement('div');
-    topContent.className = 'tree-level-content';
-    const topLabel = document.createElement('span');
-    topLabel.className = 'tree-level-label';
-    topLabel.textContent = topClass;
-    const topCount = document.createElement('span');
-    topCount.className = 'count-badge top-count';
-    topCount.textContent = countRows(middle);
-    const topId = document.createElement('span');
-    topId.className = 'tree-level-id';
-    topId.textContent = displayClassId(topNode.id);
-    topContent.append(topLabel, topCount, topId);
-    topSummary.append(topContent);
-    top.append(topSummary);
-    const middleList = document.createElement('ul');
-    const renderTargetRows = (rows, list) => rows.forEach((row) => {
-      const leaf = document.createElement('li');
-      const classInfo = document.createElement('div');
-      classInfo.className = 'tree-class';
-      const label = document.createElement('span');
-      label.className = 'tree-class-label';
-      label.textContent = textLabel(row.label);
-      const id = document.createElement('span');
-      id.className = 'tree-class-id';
-      id.textContent = displayClassId(row.id);
-      classInfo.append(id, label);
-      leaf.append(classInfo);
-      list.append(leaf);
-    });
-    const renderMiddleNodes = (nodes, list) => [...nodes].forEach(([middleClass, node]) => {
-      if (middleClass === '（上位クラス直下）') {
-        const targetRow = document.createElement('li');
-        targetRow.className = 'tree-target-row';
-        const targetList = document.createElement('ul');
-        targetList.className = 'tree-target-list';
-        renderTargetRows(node.rows, targetList);
-        targetRow.append(targetList);
-        list.append(targetRow);
-        renderMiddleNodes(node.children, list);
-        return;
-      }
-      const middleItem = document.createElement('li');
-      const middleDetails = document.createElement('details');
-      middleDetails.className = 'tree-middle-class';
-      middleDetails.open = false;
-      const middleSummary = document.createElement('summary');
-      const middleContent = document.createElement('div');
-      middleContent.className = 'tree-level-content';
-      const middleLabel = document.createElement('span');
-      middleLabel.className = 'tree-level-label';
-      middleLabel.textContent = middleClass;
-      const middleCount = document.createElement('span');
-      middleCount.className = 'count-badge middle-count';
-      middleCount.textContent = node.rows.length + countRows(node.children);
-      const middleId = document.createElement('span');
-      middleId.className = 'tree-level-id';
-      middleId.textContent = displayClassId(node.id);
-      middleContent.append(middleLabel, middleCount, middleId);
-      middleSummary.append(middleContent);
-      middleDetails.append(middleSummary);
-      const leafList = document.createElement('ul');
-      renderTargetRows(node.rows, leafList);
-      renderMiddleNodes(node.children, leafList);
-      middleDetails.append(leafList);
-      middleItem.append(middleDetails);
-      list.append(middleItem);
-    });
-    renderMiddleNodes(middle, middleList);
-    top.append(middleList);
-    return top;
   }));
+  if (filterCount) filterCount.textContent = query.trim()
+    ? filterType.value === 'instance'
+      ? `一致インスタンス ${matchedInstanceCount}件に関連するクラス ${targets.length}件を表示中`
+      : `一致するクラス ${targets.length}件を表示中`
+    : `クラス ${window.appData.classData.classes.filter((item) => item.id.includes('/c_')).length}件`;
+}
+
+function showTargetInstances(targetClass) {
+  const dialog = document.getElementById('target-instance-dialog');
+  if (!dialog) return;
+  const instances = (window.appData.instanceClassData.instances || []).filter((instance) =>
+    (instance.classes || []).some((item) => item.id === targetClass.id));
+  document.getElementById('target-instance-title').textContent = `${targetClass.label}の関連インスタンス`;
+  document.getElementById('target-instance-count').textContent = `${instances.length}件`;
+  const list = document.getElementById('target-instance-list');
+  list.replaceChildren(...instances.map((instance) => {
+    const li = document.createElement('li'); const label = document.createElement('span');
+    label.textContent = instance.label || '(ラベルなし)'; const id = document.createElement('small');
+    id.textContent = String(instance.id || '').split('/').pop(); li.append(label, id); return li;
+  }));
+  if (!instances.length) { const li = document.createElement('li'); li.textContent = '関連するインスタンスはありません。'; list.append(li); }
+  dialog.showModal();
+  dialog.onclick = (event) => { const rect = dialog.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close(); };
 }
 
 function addClassFromTree(type, parentId = '') {

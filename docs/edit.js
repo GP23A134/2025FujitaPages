@@ -214,24 +214,7 @@ function moveClassMembersToUnclassified(classId) {
 // 検索結果とクラス管理一覧の描画
 // ============================================================
 function findTargetClasses(searchType, query) {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const instances = data.instanceClassData.instances || [];
-  if (searchType === 'instance') {
-    const matchedInstances = instances.filter((instance) =>
-      !normalizedQuery || `${instance.label || ''} ${instance.id || ''}`.toLocaleLowerCase().includes(normalizedQuery));
-    const matchedClassIds = new Set(matchedInstances.flatMap((instance) =>
-      (instance.classes || []).map((classInfo) => classInfo.id)
-    ));
-    return {
-      targets: classes.filter((item) => classKind(item) === 'class' && matchedClassIds.has(item.id)),
-      matchedInstanceCount: matchedInstances.length
-    };
-  }
-  return {
-    targets: classes.filter((item) => classKind(item) === 'class' &&
-      (!normalizedQuery || `${item.label} ${item.id}`.toLocaleLowerCase().includes(normalizedQuery))),
-    matchedInstanceCount: 0
-  };
+  return window.findTargetMatches(data, searchType, query);
 }
 
 function renderTargetSearch() {
