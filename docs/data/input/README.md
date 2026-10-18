@@ -14,7 +14,7 @@
 6. 循環する親子関係や重複した関係を作らない
 
 内容を確認したら、class-list.tsv と class-relation.tsv を保存し、
-ClassRelationUpdater を実行してデータを更新してください。
+ClassDataUpdate を実行してデータを更新してください。
 ```
 
 この確認内容と操作単位は、`edit.html` / `edit.js` の編集画面を基準にします。
@@ -31,7 +31,7 @@ ClassRelationUpdater を実行してデータを更新してください。
 | 編集内容を保存 | `class-list.tsv` と `class-relation.tsv` を出力 |
 
 対象クラス自体の追加は編集画面では行いません。対象クラスやインスタンスを新規取得する場合は、
-SPARQLの取得結果を更新し、`InstanceClassIntegrator` を実行します。
+SPARQLの取得結果を更新し、`DataIntegrate` を実行します。
 
 ## 更新・移動・追加の基本ルール
 
@@ -46,7 +46,7 @@ SPARQLの取得結果を更新し、`InstanceClassIntegrator` を実行します
 
 ## 入力ファイル
 
-このフォルダーのTSVを編集してから、`ClassRelationUpdater`を実行します。
+このフォルダーのTSVを編集してから、`ClassDataUpdate`を実行します。
 
 ## class-list.tsv
 
@@ -71,7 +71,7 @@ IDは `c_00001` のような短縮形でも、完全URIでも指定できます�
 ## 実行
 
 ```text
-mvn -f java/pom.xml exec:java "-Dexec.mainClass=ClassRelationUpdater"
+mvn -f java/pom.xml exec:java "-Dexec.mainClass=ClassDataUpdate"
 ```
 
-出力先は `data/integrated-data/` の `class-data.json`、`middle-class-list.json`、`top-class-list.json` です。`instance-class-data.json` は変更しません。
+出力先は `data/integrated-data/` の `class-data.json`、`target-class-data.json`、`middle-class-list.json`、`top-class-list.json` です。`instance-class-data.json` は変更しません。

@@ -27,8 +27,10 @@ body {
 .eyebrow { margin: 0 0 0.25rem; color: #bae6fd; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; }
 .page-header h1 { margin: 0; color: inherit; letter-spacing: 0.02em; }
 .page-description { margin: 0.45rem 0 0; color: #dbeafe; }
-.page-header > p:last-child { margin: 0; }
-.page-link-button { position: absolute; top: 1.75rem; right: 2rem; display: inline-block; padding: 0.5rem 0.9rem; border: 1px solid #fff; border-radius: 999px; color: #0f3d63; text-decoration: none; background: #fff; font-weight: 700; }
+.page-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1rem; }
+.page-header-actions .page-link-button,
+.page-header-actions .search-button { position: static; display: inline-flex; align-items: center; justify-content: center; min-height: 2.65rem; margin: 0; padding: 0.5rem 0.9rem; border-radius: 999px; font: inherit; font-weight: 700; }
+.page-link-button { border: 1px solid #fff; color: #0f3d63; text-decoration: none; background: #fff; }
 .page-link-button:hover { color: #fff; background: #0f3d63; }
 main {
   width: min(1480px, calc(100% - 2rem));
@@ -125,12 +127,11 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .delete-class-button:disabled { opacity: 0.45; cursor: not-allowed; }
 .edit-status { margin: 0.75rem 0 0; color: #1e40af; }
 .edit-save-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; padding: 0.75rem 1rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #334155; }
-.edit-header-actions { position: absolute; top: 5.25rem; right: 2rem; display: flex; gap: 0.5rem; align-items: center; }
-.edit-header-save { position: static; color: #fff; background: #b45309; border: 1px solid #92400e; }
+.edit-header-save { color: #fff; background: #b45309; border: 1px solid #92400e; }
 .edit-header-save:hover { background: #92400e; }
 .edit-id-toggle { color: #1d4ed8; background: #eff6ff; border: 1px solid #93c5fd; }
 .edit-id-toggle:hover, .edit-id-toggle[aria-pressed="true"] { color: #fff; background: #2563eb; border-color: #1d4ed8; }
-.browse-id-toggle { margin-top: 0.5rem; color: #1d4ed8; background: #eff6ff; border: 1px solid #93c5fd; }
+.browse-id-toggle { color: #1d4ed8; background: #eff6ff; border: 1px solid #93c5fd; }
 .browse-id-toggle:hover, .browse-id-toggle[aria-pressed="true"] { color: #fff; background: #2563eb; border-color: #1d4ed8; }
 
 /* 5. 閲覧・編集で共有するツリー */

@@ -294,6 +294,11 @@ function render(rows) {
 }
 
 if (window.appData) {
+  // JSONでは階層クラスと対象クラスを分離し、画面内では従来どおり統合して扱う。
+  window.appData.classData.classes = [
+    ...(window.appData.classData.classes || []),
+    ...(window.appData.targetClassData?.classes || [])
+  ];
   const unclassified = window.appData.classData.classes.find((item) =>
     item.id.includes('/t_') && item.label === '未分類');
   if (unclassified) {

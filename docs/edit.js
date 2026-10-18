@@ -5,7 +5,10 @@
 // ここへ追加したクラスは保存処理とツリー表示の両方にそのまま反映される。
 const data = window.appData;
 // 編集用の配列を元データから複製し、保存前の変更が読み込み元へ混ざらないようにする。
-data.classData.classes = data.classData.classes.map((item) => ({ ...item }));
+data.classData.classes = [
+  ...(data.classData.classes || []),
+  ...(data.targetClassData?.classes || [])
+].map((item) => ({ ...item }));
 data.classData.relations = data.classData.relations.map((relation) => ({ ...relation }));
 const classes = data.classData.classes;
 const childSelect = document.getElementById('edit-child-class');
@@ -334,7 +337,7 @@ function renderSearchParentOptions() {
   const searchTargetKind = document.getElementById('search-target-kind');
   const searchParent = document.getElementById('search-target-parent');
   const selectedKind = searchTargetKind.value;
-  searchParent.parentElement.firstChild.textContent = selectedKind === 'top' ? '付与先の上位クラス' : '付与先の中間クラス';
+  searchTargetKind.parentElement.firstChild.textContent = selectedKind === 'top' ? '付与先の上位クラス' : '付与先の中間クラス';
   searchParent.replaceChildren(...classes.filter((item) => classKind(item) === selectedKind).map((item) => {
     const option = document.createElement('option'); option.value = item.id; option.textContent = `${item.label} (${displayClassId(item.id)})`; return option;
   }));

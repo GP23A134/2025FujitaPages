@@ -107,6 +107,10 @@
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/m_00040",
       "label": "原子力発電"
+    },
+    {
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_00041",
+      "label": "洋上風力発電"
     }
   ]
 }

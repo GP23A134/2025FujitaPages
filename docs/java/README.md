@@ -1,77 +1,109 @@
 # KG Tools
 
-ノートの作業順に沿って、データ作成・分類・Web表示を分離したデータ処理ツールです。
+ナレッジグラフのデータ取得、統合、クラス分類の更新、Web表示用データの生成を行うJavaツールです。
 
-- `QueryDataExporter`：SPARQLクエリを実行し、結果をJSONへ保存
-- `InstanceClassIntegrator`：クエリ結果からインスタンスとクラスを統合
-- `WebDataGenerator`：統合JSONから`data/web/`へクラスデータとインスタンスデータのJavaScriptを生成
-- `ClassRelationUpdater`：inputのTSVからクラス一覧と親子関係を更新
-- `ClassLabelConsistencyChecker`：初回取得データと現在のクラスID・ラベル対応を照合
+## ツール
 
-入力データの配置:
+| プログラム | 内容 |
+|---|---|
+| `QueryRun` | SPARQLクエリを実行し、結果をJSONで保存します。 |
+| `DataIntegrate` | クエリ結果からインスタンス、クラス、所属関係を統合します。 |
+| `ClassDataUpdate` | 入力TSVからクラス一覧とクラス間の親子関係を更新します。 |
+| `WebDataBuild` | 統合データからWeb表示用のJavaScriptを生成します。 |
+
+## 実行の流れ
+
+通常のデータ更新では、次の順に実行します。
+
+1. `QueryRun` でSPARQLクエリを実行
+2. `DataIntegrate` で取得結果を統合
+3. `WebDataBuild` でWeb表示用データを生成
+
+クラス分類を更新する場合は、`data/input/` にTSVを配置して `ClassDataUpdate` を実行します。詳細は [`data/input/README.md`](../data/input/README.md) を参照してください。
+
+## 準備
+
+以下のコマンドはリポジトリの `docs` ディレクトリから実行します。JDK（`java` と `javac`）が必要です。依存ライブラリは `lib/` にあります。
+
+### コンパイル
+
+```shell
+javac -cp "lib/*" -d bin java/*.java
+```
+
+### プログラムの実行
+
+クラスパスの区切り文字は、Windowsではセミコロン（`;`）、macOS/Linuxではコロン（`:`）です。
+
+#### Windows（PowerShell）
+
+```powershell
+java -cp "bin;lib/*" QueryRun
+java -cp "bin;lib/*" DataIntegrate
+java -cp "bin;lib/*" WebDataBuild
+```
+
+クラス分類を更新する場合：
+
+```powershell
+java -cp "bin;lib/*" ClassDataUpdate
+```
+
+#### macOS / Linux
+
+```shell
+java -cp "bin:lib/*" QueryRun
+java -cp "bin:lib/*" DataIntegrate
+java -cp "bin:lib/*" WebDataBuild
+```
+
+クラス分類を更新する場合：
+
+```shell
+java -cp "bin:lib/*" ClassDataUpdate
+```
+
+## データ取得の設定
+
+`QueryRun.java` の `MODE` で実行するクエリを選びます。
+
+- `base`：`java/querys/` のクエリを実行
+- `all`：`java/querys/` と `java/upper-class-querys/` のクエリを実行
+
+取得結果は次の場所に、クエリと同じ名前のJSONファイルとして保存されます。
+
+- `data/query-result/base-data/`：インスタンスと対象クラスの関係
+- `data/query-result/upper-class-data/`：対象・中間・上位クラスの階層情報
+
+## 出力データ
+
+`DataIntegrate` は `data/integrated-data/` に次のJSONファイルを生成します。
+
+| ファイル | 内容 |
+|---|---|
+| `instance-data.json` | インスタンスのIDとラベル |
+| `instance-class-data.json` | インスタンスと所属クラスの関係 |
+| `class-data.json` | クラス一覧とクラス間の親子関係 |
+| `target-class-data.json` | 対象クラスのIDとラベル |
+| `middle-class-list.json` | 中間クラス一覧 |
+| `top-class-list.json` | 上位クラス一覧 |
+
+`WebDataBuild` は `data/web/` に `class-data.js` と `instance-data.js` を生成します。
+
+## ディレクトリ構成
 
 ```text
+java/
+├── querys/                 # 基本クエリ
+├── upper-class-querys/     # 上位クラス取得用クエリ
+├── QueryRun.java
+├── DataIntegrate.java
+├── ClassDataUpdate.java
+└── WebDataBuild.java
+
 data/
-├─ query-result/
-│  ├─ base-data/
-│  └─ upper-class-data/
-└─ integrated-data/
-```
-
-コンパイル例（初回は Maven が必要なライブラリを取得します）:
-
-```text
-mvn -f java/pom.xml compile
-```
-
-実行例:
-
-```text
-mvn -f java/pom.xml exec:java "-Dexec.mainClass=InstanceClassIntegrator"
-mvn -f java/pom.xml exec:java "-Dexec.mainClass=WebDataGenerator"
-```
-
-## クラスID・ラベル対応の検査
-
-初回取得データ（`data/query-result/`）と現在の統合データ（`data/integrated-data/class-data.json`）を照合します。
-欠落、ラベル変更、現在のみ存在するID、重複を検出し、差異がある場合は終了コード1になります。
-
-```text
-mvn -f java/pom.xml exec:java "-Dexec.mainClass=ClassLabelConsistencyChecker"
-```
-
-別の入力を指定する場合は、初回データのファイルまたはフォルダー、現在データの順に引数を渡します。
-
-`QueryDataExporter.java` 上部の `MODE` を変更して、初期データ取得モードを指定します。
-
-```text
-mvn -f java/pom.xml exec:java "-Dexec.mainClass=QueryDataExporter"
-```
-
-`MODE = "base"` は `querys/` のみ、`MODE = "all"` は `querys/` と `upper-class-querys/` を実行します。
-
-各クエリは同名のJSONとして、`data/query-result/base-data/` または `data/query-result/upper-class-data/` に保存します。出力形式はJSONに統一しています。コマンドは `docs` ディレクトリから実行してください。
-
-`base-data` はインスタンスと対象クラスの固定関係です。`upper-class-data` は対象クラス・中間クラス・上位クラスの階層情報です。分類変更ではインスタンスと対象クラスの関係を変更しません。
-
-## インスタンスとクラスの統合
-
-クエリ結果から、主語・目的語を区別せず、インスタンスごとの所属クラスを統合します。
-
-```text
-mvn -f java/pom.xml exec:java "-Dexec.mainClass=InstanceClassIntegrator"
-```
-
-出力先は次の2ファイルです。
-
-- `data/integrated-data/instance-data.json`：インスタンス本体（ID・ラベル）
-- `data/integrated-data/instance-class-data.json`：インスタンスとクラスの関係（インスタンスID・クラスID）
-- `data/integrated-data/class-data.json`：クラス一覧とクラス間の親子関係
-- `data/integrated-data/middle-class-list.json`：中間クラス一覧
-- `data/integrated-data/top-class-list.json`：上位クラス一覧
-
-Web表示用の`data/web/class-data.js`（クラスデータ）と`data/web/instance-data.js`（インスタンスデータ）を生成する場合は、次を実行します。
-
-```text
-mvn -f java/pom.xml exec:java "-Dexec.mainClass=WebDataGenerator"
+├── input/                  # クラス更新用TSV
+├── query-result/           # SPARQLクエリの取得結果
+├── integrated-data/        # 統合JSON
+└── web/                    # Web表示用JavaScript
 ```
