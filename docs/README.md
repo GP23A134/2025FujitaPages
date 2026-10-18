@@ -21,6 +21,11 @@
 
 クラス分類を更新する場合は、`data/input/` にTSVを配置して `ClassDataUpdate` を実行します。詳細は [`data/input/README.md`](data/input/README.md) を参照してください。
 
+## 詳細
+
+- [Javaツールとクエリ](java/README.md)
+- [データフォルダの説明](data/README.md)
+
 ## 準備
 
 以下のコマンドはリポジトリの `docs` ディレクトリから実行します。JDK（`java` と `javac`）が必要です。依存ライブラリは `lib/` にあります。
@@ -102,6 +107,7 @@ tree.js
 style.css
 
 java/
+├── README.md
 ├── querys/                 # 基本クエリ
 ├── upper-class-querys/     # 上位クラス取得用クエリ
 ├── QueryRun.java
@@ -110,6 +116,7 @@ java/
 └── WebDataBuild.java
 
 data/
+├── README.md
 ├── input/                  # クラス更新用TSV
 ├── query-result/           # SPARQLクエリの取得結果
 ├── integrated-data/        # 統合JSON

@@ -70,8 +70,10 @@ IDは `c_00001` のような短縮形でも、完全URIでも指定できます�
 
 ## 実行
 
-```text
-mvn -f java/pom.xml exec:java "-Dexec.mainClass=ClassDataUpdate"
+```powershell
+java -cp "bin;lib/*" ClassDataUpdate
 ```
+
+コンパイル手順やmacOS/Linuxでの実行方法は[`java/README.md`](../../java/README.md)を参照してください。
 
 出力先は `data/integrated-data/` の `class-data.json`、`target-class-data.json`、`middle-class-list.json`、`top-class-list.json` です。`instance-class-data.json` は変更しません。
