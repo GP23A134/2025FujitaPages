@@ -25,10 +25,8 @@ public final class ClassDataUpdate {
     private static final Path INPUT_DIRECTORY = Paths.get("data/input");
     private static final Path PROCESSED_DIRECTORY = INPUT_DIRECTORY.resolve("processed");
     private static final Path INPUT_FILE = INPUT_DIRECTORY.resolve("class-update.json");
-    private static final Path CLASS_DATA = Paths.get("data/integrated-data/class-data.json");
-    private static final Path TARGET_CLASS_DATA = Paths.get("data/integrated-data/target-class-data.json");
-    private static final Path MIDDLE_LIST = Paths.get("data/integrated-data/middle-class-list.json");
-    private static final Path TOP_LIST = Paths.get("data/integrated-data/top-class-list.json");
+    private static final Path CLASS_DATA = Paths.get("data/integrated/class-data.json");
+    private static final Path TARGET_CLASS_DATA = Paths.get("data/integrated/target-class-data.json");
     private static final Path MIDDLE_TSV_LIST = Paths.get("data/output/middle-class-list.tsv");
     private static final Path TOP_TSV_LIST = Paths.get("data/output/top-class-list.tsv");
     private static final String URI_PREFIX = "https://kozaki-lab.jp/REFV-KG/class/";
@@ -49,11 +47,9 @@ public final class ClassDataUpdate {
         validateHierarchyAssignments(classes, relations);
         validateAcyclic(relations);
 
-        // クラス一覧、関係一覧、上位・中間クラス一覧を同じ入力内容から出力する。
+        // クラス一覧、関係一覧、対象クラス一覧を同じ入力内容から出力する。
         writeClassData(classes, relations);
         writeList(TARGET_CLASS_DATA, classes, "c_");
-        writeList(MIDDLE_LIST, classes, "m_");
-        writeList(TOP_LIST, classes, "t_");
         writeListTsv(MIDDLE_TSV_LIST, classes, "m_");
         writeListTsv(TOP_TSV_LIST, classes, "t_");
 
@@ -344,14 +340,14 @@ public final class ClassDataUpdate {
         writeJson(output, root);
     }
 
-    /** 上位または中間クラスのIDとラベルを、短縮ID順のTSVとして出力します。 */
+    /** 上位または中間クラスの正式ID順で、IDとラベルをTSVとして出力します。 */
     private static void writeListTsv(Path output, Map<String, String> classes, String prefix)
             throws IOException {
         StringBuilder contents = new StringBuilder("ID\tラベル\n");
         classes.entrySet().stream()
-                .filter(entry -> shortId(entry.getKey()).startsWith(prefix))
-                .sorted((first, second) -> shortId(first.getKey()).compareTo(shortId(second.getKey())))
-                .forEach(entry -> contents.append(shortId(entry.getKey()))
+                .filter(entry -> entry.getKey().startsWith(URI_PREFIX + prefix))
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> contents.append(entry.getKey())
                         .append('\t').append(entry.getValue()).append('\n'));
         Files.createDirectories(output.getParent());
         Path temporary = output.resolveSibling(output.getFileName() + ".tmp");

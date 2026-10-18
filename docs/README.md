@@ -77,12 +77,12 @@ java -cp "bin:lib/*" ClassDataUpdate
 
 取得結果は次の場所に、クエリと同じ名前のJSONファイルとして保存されます。
 
-- `data/query-result/base-data/`：インスタンスと対象クラスの関係
-- `data/query-result/upper-class-data/`：対象・中間・上位クラスの階層情報
+- `data/query-results/base/`：インスタンスと対象クラスの関係
+- `data/query-results/hierarchy/`：対象・中間・上位クラスの階層情報
 
 ## 出力データ
 
-`DataIntegrate` は `data/integrated-data/` に次のJSONファイルを生成します。
+`DataIntegrate` は `data/integrated/` に次のJSONファイルを生成します。
 
 | ファイル | 内容 |
 |---|---|
@@ -90,8 +90,8 @@ java -cp "bin:lib/*" ClassDataUpdate
 | `instance-class-data.json` | インスタンスと所属クラスの関係 |
 | `class-data.json` | クラス一覧とクラス間の親子関係 |
 | `target-class-data.json` | 対象クラスのIDとラベル |
-| `middle-class-list.json` | 中間クラス一覧 |
-| `top-class-list.json` | 上位クラス一覧 |
+
+中間・上位クラスの一覧は`class-data.json`から`WebDataBuild`が生成します。確認用TSVは`data/output/`に出力します。
 
 `WebDataBuild` は `data/web/` に `class-data.js` と `instance-data.js` を生成します。
 `DataIntegrate` と `ClassDataUpdate` は、上位クラスと中間クラスの一覧TSVを `data/output/` にも生成します。
@@ -119,8 +119,10 @@ java/
 data/
 ├── README.md
 ├── input/                  # クラス更新用JSON
-├── query-result/           # SPARQLクエリの取得結果
-├── integrated-data/        # 統合JSON
+├── query-results/          # SPARQLクエリの取得結果
+│   ├── base/               # 基本データ
+│   └── hierarchy/          # クラス階層
+├── integrated/             # 統合JSON
 ├── output/                 # 上位・中間クラス一覧TSV
 └── web/                    # Web表示用JavaScript
 ```

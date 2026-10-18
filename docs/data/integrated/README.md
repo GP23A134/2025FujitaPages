@@ -8,7 +8,6 @@
 | `instance-class-data.json` | インスタンスと対象クラスの関係 |
 | `class-data.json` | 上位・中間クラスと親子関係 |
 | `target-class-data.json` | 対象クラス一覧 |
-| `middle-class-list.json` | 中間クラス一覧 |
-| `top-class-list.json` | 上位クラス一覧 |
 
+中間・上位クラス一覧は`class-data.json`から`WebDataBuild`が生成します。確認用TSVは[`../output/`](../output/)に出力します。
 実行順や各プログラムの説明は[`../README.md`](../README.md)を参照してください。

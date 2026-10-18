@@ -22,9 +22,9 @@ public class QueryRun {
     private static final String USER_AGENT = "Example-Agent/1.0 (https://www.example.com; xxx@example.com)";
 
     private static final Path BASE_QUERY_DIRECTORY = Paths.get("java/querys");
-    private static final Path BASE_OUTPUT_DIRECTORY = Paths.get("data/query-result/base-data");
+    private static final Path BASE_OUTPUT_DIRECTORY = Paths.get("data/query-results/base");
     private static final Path UPPER_CLASS_QUERY_DIRECTORY = Paths.get("java/upper-class-querys");
-    private static final Path UPPER_CLASS_OUTPUT_DIRECTORY = Paths.get("data/query-result/upper-class-data");
+    private static final Path UPPER_CLASS_OUTPUT_DIRECTORY = Paths.get("data/query-results/hierarchy");
 
     /** base: 基本クエリのみ / all: 上位クラス用クエリも実行 */
     private static final String MODE = "base";

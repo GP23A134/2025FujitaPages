@@ -81,4 +81,4 @@ java -cp "bin;lib/*" ClassDataUpdate
 
 ## 出力
 
-クラスデータのJSONは`data/integrated-data/`に生成されます。上位・中間クラスの確認用TSVは`data/output/`に生成されます。`instance-class-data.json`は変更しません。
+クラスデータのJSONは`data/integrated/`に生成されます。上位・中間クラスの確認用TSVは`data/output/`に生成されます。`instance-class-data.json`は変更しません。

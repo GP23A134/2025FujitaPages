@@ -28,14 +28,12 @@ public final class DataIntegrate {
     private static final String MIDDLE_CLASS_PREFIX = "m_";
     private static final String UNCLASSIFIED_TOP_ID = CLASS_URI_PREFIX + "t_0";
 
-    private static final Path INPUT_DIRECTORY = Paths.get("data/query-result/base-data");
-    private static final Path UPPER_INPUT_DIRECTORY = Paths.get("data/query-result/upper-class-data");
-    private static final Path INSTANCE_OUTPUT_FILE = Paths.get("data/integrated-data/instance-data.json");
-    private static final Path INSTANCE_CLASS_OUTPUT_FILE = Paths.get("data/integrated-data/instance-class-data.json");
-    private static final Path CLASS_OUTPUT_FILE = Paths.get("data/integrated-data/class-data.json");
-    private static final Path TARGET_CLASS_OUTPUT_FILE = Paths.get("data/integrated-data/target-class-data.json");
-    private static final Path MIDDLE_CLASS_OUTPUT_FILE = Paths.get("data/integrated-data/middle-class-list.json");
-    private static final Path TOP_CLASS_OUTPUT_FILE = Paths.get("data/integrated-data/top-class-list.json");
+    private static final Path INPUT_DIRECTORY = Paths.get("data/query-results/base");
+    private static final Path UPPER_INPUT_DIRECTORY = Paths.get("data/query-results/hierarchy");
+    private static final Path INSTANCE_OUTPUT_FILE = Paths.get("data/integrated/instance-data.json");
+    private static final Path INSTANCE_CLASS_OUTPUT_FILE = Paths.get("data/integrated/instance-class-data.json");
+    private static final Path CLASS_OUTPUT_FILE = Paths.get("data/integrated/class-data.json");
+    private static final Path TARGET_CLASS_OUTPUT_FILE = Paths.get("data/integrated/target-class-data.json");
     private static final Path MIDDLE_CLASS_TSV_OUTPUT_FILE = Paths.get("data/output/middle-class-list.tsv");
     private static final Path TOP_CLASS_TSV_OUTPUT_FILE = Paths.get("data/output/top-class-list.tsv");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -133,8 +131,6 @@ public final class DataIntegrate {
         }
         replaceFile(temporaryClassOutput, CLASS_OUTPUT_FILE);
         writeClassList(TARGET_CLASS_OUTPUT_FILE, targetClasses);
-        writeClassList(MIDDLE_CLASS_OUTPUT_FILE, classLabels, MIDDLE_CLASS_PREFIX);
-        writeClassList(TOP_CLASS_OUTPUT_FILE, classLabels, TOP_CLASS_PREFIX);
         writeClassListTsv(MIDDLE_CLASS_TSV_OUTPUT_FILE, classLabels, MIDDLE_CLASS_PREFIX);
         writeClassListTsv(TOP_CLASS_TSV_OUTPUT_FILE, classLabels, TOP_CLASS_PREFIX);
         System.out.println("インスタンスJSONを出力しました: " + INSTANCE_OUTPUT_FILE);
@@ -158,22 +154,6 @@ public final class DataIntegrate {
         }
     }
 
-    /**
-     * 指定したID接頭辞に一致するクラスだけを、一覧JSONとして出力します。
-     */
-    private static void writeClassList(Path output, Map<String, String> classLabels, String idPrefix)
-            throws IOException {
-        List<Map<String, String>> classes = new ArrayList<>();
-        for (Map.Entry<String, String> entry : classLabels.entrySet()) {
-            if (!entry.getKey().startsWith(CLASS_URI_PREFIX + idPrefix)) continue;
-            Map<String, String> clazz = new LinkedHashMap<>();
-            clazz.put("id", entry.getKey());
-            clazz.put("label", entry.getValue());
-            classes.add(clazz);
-        }
-        writeClassList(output, classes);
-    }
-
     private static void writeClassList(Path output, List<Map<String, String>> classes) throws IOException {
         Map<String, Object> classListOutput = new LinkedHashMap<>();
         classListOutput.put("classes", classes);
@@ -185,14 +165,14 @@ public final class DataIntegrate {
         replaceFile(temporaryOutput, output);
     }
 
-    /** 上位または中間クラスのIDとラベルを、短縮ID順のTSVとして出力します。 */
+    /** 上位または中間クラスの正式ID順で、IDとラベルをTSVとして出力します。 */
     private static void writeClassListTsv(Path output, Map<String, String> classLabels, String idPrefix)
             throws IOException {
         StringBuilder contents = new StringBuilder("ID\tラベル\n");
         classLabels.entrySet().stream()
                 .filter(entry -> entry.getKey().startsWith(CLASS_URI_PREFIX + idPrefix))
                 .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> contents.append(entry.getKey().substring(CLASS_URI_PREFIX.length()))
+                .forEach(entry -> contents.append(entry.getKey())
                         .append('\t').append(entry.getValue()).append('\n'));
         writeTextAtomically(output, contents.toString());
     }
