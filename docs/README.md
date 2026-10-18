@@ -19,7 +19,7 @@
 2. `DataIntegrate` で取得結果を統合
 3. `WebDataBuild` でWeb表示用データを生成
 
-クラス分類を更新する場合は、`data/input/` にTSVを配置して `ClassDataUpdate` を実行します。詳細は [`data/input/README.md`](../data/input/README.md) を参照してください。
+クラス分類を更新する場合は、`data/input/` にTSVを配置して `ClassDataUpdate` を実行します。詳細は [`data/input/README.md`](data/input/README.md) を参照してください。
 
 ## 準備
 
@@ -93,6 +93,14 @@ java -cp "bin:lib/*" ClassDataUpdate
 ## ディレクトリ構成
 
 ```text
+README.md
+index.html
+edit.html
+main.js
+edit.js
+tree.js
+style.css
+
 java/
 ├── querys/                 # 基本クエリ
 ├── upper-class-querys/     # 上位クラス取得用クエリ
