@@ -160,14 +160,23 @@
     options.afterRender?.(container);
   }
 
-  function findTargetMatches(data, searchType, query) {
+  function findTargetMatches(data, searchType, query, matchMode) {
     const normalizedQuery = String(query || '').trim().toLocaleLowerCase();
+    const terms = (Array.isArray(query) ? query : [normalizedQuery])
+      .map((term) => String(term || '').trim().toLocaleLowerCase()).filter(Boolean);
+    const matchesQuery = (text) => {
+      if (!terms.length) return true;
+      const normalizedText = String(text || '').toLocaleLowerCase();
+      if (matchMode === 'OR') return terms.some((term) => normalizedText.includes(term));
+      if (matchMode === 'AND') return terms.every((term) => normalizedText.includes(term));
+      return normalizedText.includes(normalizedQuery);
+    };
     const classes = data.classData?.classes || [];
     if (searchType === 'instance') {
       const instances = data.instanceData?.instances || [];
       const relations = data.instanceClassData?.relations || [];
       const matchedInstances = instances.filter((instance) =>
-        !normalizedQuery || `${instance.label || ''} ${instance.id || ''}`.toLocaleLowerCase().includes(normalizedQuery));
+        matchesQuery(`${instance.label || ''} ${instance.id || ''}`));
       const matchedInstanceIds = new Set(matchedInstances.map((instance) => instance.id));
       const matchedClassIds = new Set(relations
         .filter((relation) => matchedInstanceIds.has(relation.instance))
@@ -179,7 +188,7 @@
     }
     return {
       targets: classes.filter((item) => classType(item.id) === 'class' &&
-        (!normalizedQuery || `${item.label || ''} ${item.id}`.toLocaleLowerCase().includes(normalizedQuery))),
+        matchesQuery(`${item.label || ''} ${item.id}`)),
       matchedInstanceCount: 0
     };
   }

@@ -75,7 +75,7 @@
 java -cp "bin;lib/*" ClassDataUpdate
 ```
 
-実行前に、編集画面からダウンロードした`class-update.json`をこのフォルダーに置いてください。処理が成功すると、入力JSONは`processed/日時/`へ移動されます。処理に失敗した場合は、入力JSONをそのまま残します。
+実行前に、編集画面からダウンロードした`class-update.json`をこのフォルダーに置いてください。処理が成功すると、入力JSONは[`history/`](history/)へ`class-update-YYYYMMDD-HHmmss-SSS.json`という名前で移動されます。処理に失敗した場合は、入力JSONをそのまま残します。
 
 コンパイル手順やmacOS/Linuxでの実行方法は[`java/README.md`](../../java/README.md)を参照してください。
 

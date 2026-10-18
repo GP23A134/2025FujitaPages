@@ -15,7 +15,7 @@
   <header class="page-header">
     <p class="eyebrow">KNOWLEDGE GRAPH EDITOR</p>
     <h1>クラス編集</h1>
-    <p class="page-description">クラスの追加と親子関係を編集します。</p>
+    <p class="page-description">既存クラスの所属を整理します。</p>
     <div class="page-header-actions">
       <a id="browse-link" class="page-link-button" href="index.html">閲覧画面へ</a>
       <button type="button" id="toggle-edit-ids" class="search-button edit-id-toggle" aria-pressed="false">クラスID表示: OFF</button>
@@ -36,7 +36,7 @@
         クラス管理
       </button>
       <button type="button" class="tab" data-edit-tab="edit-form-panel" aria-selected="false">
-        クラス追加・親変更
+        クラス一覧
       </button>
     </div>
 
@@ -45,68 +45,126 @@
     <!-- 階層ツリーと対象クラスの検索・一括付与 -->
     <section id="edit-tree-panel" class="tab-panel">
 
-      <section id="target-search-panel" class="class-edit-panel target-search-panel" hidden>
+      <section id="target-search-panel" class="target-search-panel" hidden>
         <h2>クラス／インスタンスを検索して対象クラスを付与</h2>
-        <div class="class-search">
-          <label for="target-search-type">検索対象
-            <select id="target-search-type">
-              <option value="class">クラス</option>
-              <option value="instance">インスタンス</option>
-            </select>
-          </label>
-          <label class="class-search-text">検索ワード
-            <input id="target-class-search" type="search" placeholder="対象クラス名・IDを入力">
-          </label>
-          <button type="button" id="select-search-results" class="search-button">検索結果を全選択</button>
-          <button type="button" id="clear-search-selection" class="held-action-button">選択解除</button>
-        </div>
-        <section class="search-apply-section" aria-labelledby="search-apply-title">
-          <h3 id="search-apply-title">選択したクラスを反映</h3>
-          <div class="class-edit-form search-result-apply-form">
-            <label for="search-apply-mode">反映方法
-              <select id="search-apply-mode">
-                <option value="existing">既存クラスへ付与</option>
-                <option value="create">新しいクラスを作成して付与</option>
-              </select>
-            </label>
-            <div id="search-existing-fields" class="search-apply-fields">
-              <label for="search-target-kind">付与先の種類
-                <select id="search-target-kind">
-                  <option value="middle">中間クラス</option>
-                  <option value="top">上位クラス</option>
-                </select>
-              </label>
-              <label for="search-target-parent">付与先のクラス
-                <select id="search-target-parent"></select>
-              </label>
+        <details class="search-panel-disclosure search-conditions-disclosure">
+          <summary>検索条件</summary>
+          <div class="search-panel-disclosure-content">
+            <div class="search-condition-tabs" role="tablist" aria-label="検索条件の種類">
+              <button type="button" id="search-condition-keyword-tab" class="search-condition-tab is-active" role="tab" aria-selected="true" aria-controls="search-keyword-view">キーワード検索</button>
+              <button type="button" id="search-condition-hierarchy-tab" class="search-condition-tab" role="tab" aria-selected="false" aria-controls="search-hierarchy-view">所属クラスで絞り込み</button>
             </div>
-            <div id="search-create-fields" class="search-apply-fields" hidden>
-              <label for="search-new-class-kind">作成するクラスの種類
-                <select id="search-new-class-kind">
-                  <option value="middle">中間クラス</option>
-                  <option value="top">上位クラス</option>
-                </select>
-              </label>
-              <div id="search-new-class-parent-fields" class="search-new-class-parent-fields" hidden>
-                <label for="search-new-class-parent-kind">親クラスの種類
-                  <select id="search-new-class-parent-kind">
-                    <option value="top">上位クラス</option>
-                    <option value="middle">中間クラス</option>
+            <div id="search-keyword-view" class="search-condition-view" role="tabpanel" aria-labelledby="search-condition-keyword-tab">
+              <div class="class-search">
+                <label for="target-search-type">検索対象
+                  <select id="target-search-type" class="search-type-select is-class">
+                    <option value="class">クラス</option>
+                    <option value="instance">インスタンス</option>
                   </select>
                 </label>
-                <label for="search-new-class-parent">親クラス
-                  <select id="search-new-class-parent"></select>
-                </label>
+                <div class="class-search-text">
+                  <label for="target-class-search">検索ワード</label>
+                  <input id="target-class-search" type="search" placeholder="対象クラス名・IDを入力">
+                </div>
+                <button type="button" id="target-search-submit" class="search-button">検索</button>
               </div>
-              <label for="search-new-class-label">新しいクラス名
-                <input id="search-new-class-label" type="text" placeholder="新しいクラス名">
-              </label>
             </div>
-            <button type="button" id="apply-search-selection" class="search-button">既存クラスへ付与</button>
+            <div id="search-hierarchy-view" class="search-condition-view" role="tabpanel" aria-labelledby="search-condition-hierarchy-tab" hidden>
+              <section class="search-hierarchy-filters">
+                <div class="search-hierarchy-filter-fields">
+                  <div class="search-hierarchy-filter-group is-top">
+                    <span class="search-hierarchy-filter-label">上位クラス</span>
+                    <button type="button" id="search-filter-top-toggle" class="search-hierarchy-filter-toggle" aria-expanded="false" aria-controls="search-filter-top-list">上位クラスを選択</button>
+                    <div id="search-filter-top-list" class="search-hierarchy-filter-list" hidden></div>
+                  </div>
+                  <div class="search-hierarchy-filter-group is-middle">
+                    <span class="search-hierarchy-filter-label">中間クラス</span>
+                    <button type="button" id="search-filter-middle-toggle" class="search-hierarchy-filter-toggle" aria-expanded="false" aria-controls="search-filter-middle-list">中間クラスを選択</button>
+                    <div id="search-filter-middle-list" class="search-hierarchy-filter-list" hidden></div>
+                  </div>
+                </div>
+                <div class="search-hierarchy-filter-footer">
+                  <p class="search-hierarchy-filter-hint">選択したクラス名のボタンを押すと個別解除できます。未選択の場合はすべて表示します。</p>
+                </div>
+              </section>
+            </div>
+            <div class="search-active-filters" aria-label="現在の絞り込み条件">
+              <div class="search-active-filter-row">
+                <span class="search-active-filter-label">検索ワード</span>
+                <div id="target-search-keyword-chip" class="search-hierarchy-selected"></div>
+                <button type="button" id="target-search-clear" class="held-action-button">解除</button>
+              </div>
+              <div class="search-active-filter-row">
+                <span class="search-active-filter-label">所属クラス</span>
+                <div id="search-hierarchy-selected-classes" class="search-hierarchy-selected"></div>
+                <button type="button" id="clear-hierarchy-filters" class="held-action-button">全解除</button>
+              </div>
+            </div>
           </div>
-        </section>
-        <p id="target-search-count" class="edit-status search-selection-summary" aria-live="polite"></p>
-        <div id="target-search-results" class="target-search-results"></div>
+        </details>
+        <details class="search-panel-disclosure search-results-disclosure" open>
+          <summary>検索結果一覧</summary>
+          <div class="search-panel-disclosure-content">
+            <p id="target-search-loading" class="target-search-loading" role="status" aria-live="polite" hidden>検索結果を読み込み中…</p>
+            <div class="target-search-toolbar">
+              <p id="target-search-count" class="edit-status search-selection-summary" aria-live="polite"></p>
+              <div class="target-search-selection-actions">
+                <button type="button" id="select-search-results" class="search-button">全選択</button>
+                <button type="button" id="clear-search-selection" class="held-action-button">選択解除</button>
+              </div>
+            </div>
+            <div id="target-search-results" class="target-search-results"></div>
+          </div>
+        </details>
+        <details class="search-panel-disclosure">
+          <summary>選択したクラスを反映</summary>
+          <div class="search-panel-disclosure-content">
+            <section class="search-apply-section" aria-label="選択したクラスを反映">
+              <div class="class-edit-form search-result-apply-form">
+                <label for="search-apply-mode">反映方法
+                  <select id="search-apply-mode">
+                    <option value="existing">既存クラスへ付与</option>
+                    <option value="create">新しいクラスを生成して付与</option>
+                  </select>
+                </label>
+                <div id="search-existing-fields" class="search-apply-fields">
+                  <label for="search-target-kind">付与先の種類
+                    <select id="search-target-kind">
+                      <option value="middle">中間クラス</option>
+                      <option value="top">上位クラス</option>
+                    </select>
+                  </label>
+                  <label for="search-target-parent">付与先のクラス
+                    <select id="search-target-parent"></select>
+                  </label>
+                </div>
+                <div id="search-create-fields" class="search-apply-fields" hidden>
+                  <label for="search-new-class-kind">生成するクラスの種類
+                    <select id="search-new-class-kind">
+                      <option value="middle">中間クラス</option>
+                      <option value="top">上位クラス</option>
+                    </select>
+                  </label>
+                  <div id="search-new-class-parent-fields" class="search-new-class-parent-fields" hidden>
+                    <label for="search-new-class-parent-kind">親クラスの種類
+                      <select id="search-new-class-parent-kind">
+                        <option value="top">上位クラス</option>
+                        <option value="middle">中間クラス</option>
+                      </select>
+                    </label>
+                    <label for="search-new-class-parent">親クラス
+                      <select id="search-new-class-parent"></select>
+                    </label>
+                  </div>
+                  <label for="search-new-class-label">新しいクラス名
+                    <input id="search-new-class-label" type="text" placeholder="新しいクラス名">
+                  </label>
+                </div>
+                <button type="button" id="apply-search-selection" class="search-button">既存クラスへ付与</button>
+              </div>
+            </section>
+          </div>
+        </details>
       </section>
 
       <!-- ツリー本体と、選択中クラスの操作パネル -->
@@ -125,51 +183,31 @@
       <div class="edit-tree-layout">
         <div id="edit-tree" class="tree" role="tree"></div>
         <aside id="held-panel" class="instance-selection">
-          <h2><span id="held-kind-label">保持中</span> <span id="held-count" class="held-count" aria-live="polite">0件</span></h2>
-          <div class="held-panel-actions">
-            <button type="button" id="clear-held" class="held-action-button">全解除</button>
-            <button type="button" id="move-held-unclassified" class="held-action-button">未分類へ移動</button>
+          <div class="held-panel-header">
+            <h2><span id="held-kind-label">保持中</span> <span id="held-count" class="held-count" aria-live="polite">0件</span></h2>
+            <button type="button" id="toggle-held-panel-view" class="held-panel-toggle" aria-controls="held-list-view held-destination-picker" aria-pressed="false">一覧へ</button>
           </div>
-          <div id="held-instance-list" class="held-instance-list"></div>
+          <div id="held-list-view" role="tabpanel">
+            <div class="held-panel-actions">
+              <button type="button" id="clear-held" class="held-action-button">全解除</button>
+              <button type="button" id="move-held-unclassified" class="held-action-button">未分類へ移動</button>
+            </div>
+            <div id="held-instance-list" class="held-instance-list"></div>
+          </div>
+          <section id="held-destination-picker" class="held-destination-picker" aria-label="移動先を選択" hidden>
+            <div class="held-destination-tabs" role="tablist" aria-label="移動先の種類">
+              <button type="button" class="held-destination-tab is-active" data-destination-kind="middle" role="tab" aria-selected="true">中間クラス</button>
+              <button type="button" class="held-destination-tab" data-destination-kind="top" role="tab" aria-selected="false">上位クラス</button>
+            </div>
+            <div id="held-destination-list" class="held-destination-list"></div>
+            <button type="button" id="apply-held-destination" class="held-action-button" disabled>選択先へ移動</button>
+          </section>
         </aside>
       </div>
     </section>
 
-    <!-- クラス追加・親子関係変更・一覧表示 -->
+    <!-- 現在のクラス一覧 -->
     <section id="edit-form-panel" class="tab-panel" hidden>
-      <section class="class-edit-panel">
-        <!-- 新しい上位・中間クラスを追加 -->
-        <h2>クラスを追加</h2>
-        <div class="class-edit-form">
-          <label for="new-class-type">
-            種類
-            <select id="new-class-type">
-              <option value="top">上位クラス</option>
-              <option value="middle">中間クラス</option>
-            </select>
-          </label>
-          <label for="new-class-label">
-            ラベル
-            <input id="new-class-label" type="text">
-          </label>
-          <button type="button" id="add-class" class="search-button">追加</button>
-        </div>
-
-        <!-- 既存クラスの親子関係を変更 -->
-        <h2>親クラスを変更</h2>
-        <div class="class-edit-form">
-          <label for="edit-child-class">
-            子クラス
-            <select id="edit-child-class"></select>
-          </label>
-          <label for="edit-parent-class">
-            親クラス
-            <select id="edit-parent-class"></select>
-          </label>
-          <button type="button" id="apply-parent-change" class="search-button">変更を反映</button>
-        </div>
-      </section>
-
       <!-- 上位・中間クラスの名称変更と削除 -->
       <section id="class-management-panel" class="class-management-panel" hidden>
         <h2>中間・上位クラス管理</h2>

@@ -11,8 +11,8 @@ data.classData.classes = [
 ].map((item) => ({ ...item }));
 data.classData.relations = data.classData.relations.map((relation) => ({ ...relation }));
 const classes = data.classData.classes;
-const childSelect = document.getElementById('edit-child-class');
-const parentSelect = document.getElementById('edit-parent-class');
+// 検索語を空白で分割して判定する。AND検索へ変更する場合は 'AND' にする。
+const TARGET_SEARCH_MATCH_MODE = 'OR';
 const status = document.getElementById('edit-status');
 const toggleEditIds = document.getElementById('toggle-edit-ids');
 if (toggleEditIds) {
@@ -74,6 +74,13 @@ const searchSelected = new Map();
 let hasUnsavedChanges = false;
 let managementKind = 'top';
 let searchDestinationId = '';
+let heldPanelView = 'held';
+let heldDestinationKind = 'middle';
+let heldDestinationId = '';
+let targetSearchRenderSequence = 0;
+let targetSearchHasRendered = false;
+let targetSearchOptionsPrepared = false;
+let targetSearchQuery = [];
 
 // 未分類の上位クラスは予約ID t_0 に統一する（旧データの t_16 なども移行）。
 const unclassifiedTop = classes.find((item) => classKind(item) === 'top' && item.label === '未分類');
@@ -170,11 +177,6 @@ function createClass(type, label) {
     classById.set(item.id, item);
     return item;
   }
-  // Java側と同じく、同じ種類・ラベルのクラスは重複作成しない。
-  // 呼び出し側で親子関係を設定するため、既存クラスの再利用もしない。
-  // 新規IDは既存件数を基準に連番で作る。new- を付けることで、保存時に
-  // まだ正式な外部IDが割り当てられていないクラスとして出力できる。
-  // 件数ではなく既存IDの最大番号の次を使い、Java側の一時ID解決と揃える。
   const item = { id: allocateTemporaryClassId(type), label: normalizedLabel, type };
   classes.push(item);
   classById.set(item.id, item);
@@ -228,7 +230,12 @@ function ensureUnclassified() {
   // 「未分類」は上位クラスとして扱い、対象クラスを直接ぶら下げる。
   // 中間クラスを作らないことで、ツリー上でも未分類の対象を直接確認できる。
   let top = classes.find((item) => classKind(item) === 'top' && item.label === '未分類');
-  if (!top) top = createClass('top', '未分類');
+  if (!top) {
+    const id = classes.some((item) => item.id === 't_0') ? allocateTemporaryClassId('top') : 't_0';
+    top = { id, label: '未分類', type: 'top' };
+    classes.push(top);
+    classById.set(id, top);
+  }
   return { top };
 }
 
@@ -246,38 +253,111 @@ function moveClassMembersToUnclassified(classId) {
 // 検索結果とクラス管理一覧の描画
 // ============================================================
 function findTargetClasses(searchType, query) {
-  return window.findTargetMatches(data, searchType, query);
+  return window.findTargetMatches(data, searchType, query, TARGET_SEARCH_MATCH_MODE);
+}
+
+function renderTargetSearchKeywordChips() {
+  const container = document.getElementById('target-search-keyword-chip');
+  container.replaceChildren(...targetSearchQuery.map((term, index) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'search-hierarchy-selected-button';
+    chip.textContent = term;
+    chip.setAttribute('aria-label', `検索ワード「${term}」を解除`);
+    chip.title = 'クリックして検索ワードを解除';
+    chip.addEventListener('click', () => {
+      targetSearchQuery.splice(index, 1);
+      renderTargetSearchKeywordChips();
+      searchSelected.clear();
+      renderTargetSearch();
+    });
+    return chip;
+  }));
 }
 
 function renderTargetSearch() {
   const input = document.getElementById('target-class-search');
   const searchType = document.getElementById('target-search-type').value;
-  const { targets, matchedInstanceCount } = findTargetClasses(searchType, input.value);
-  // 検索結果には対象クラスと直上の親だけを表示する（祖先階層はたどらない）。
+  const query = targetSearchQuery;
+  const result = document.getElementById('target-search-results');
+  const count = document.getElementById('target-search-count');
+  const loading = document.getElementById('target-search-loading');
+  const getFilterIds = (listId) => new Set([...document.querySelectorAll(`#${listId} input[type="checkbox"]:checked`)].map((input) => input.value));
+  const topIds = getFilterIds('search-filter-top-list');
+  const middleIds = getFilterIds('search-filter-middle-list');
+  const sequence = ++targetSearchRenderSequence;
+  const showInitialProgress = !targetSearchHasRendered;
+  if (showInitialProgress) {
+    loading.hidden = false;
+    loading.textContent = '検索中…';
+  } else {
+    loading.hidden = true;
+  }
+  count.textContent = '';
+  result.replaceChildren();
+
+  window.setTimeout(() => {
+    if (sequence !== targetSearchRenderSequence) return;
+  const { targets: matchedTargets, matchedInstanceCount } = findTargetClasses(searchType, query);
+  // 上位・中間クラスの絞り込みと、結果行の所属表示に使う親クラス表を作る。
   const parentsByClassId = new Map();
   data.classData.relations.forEach((relation) => {
     if (!parentsByClassId.has(relation.child)) parentsByClassId.set(relation.child, []);
     const parent = classById.get(relation.parent);
     if (parent) parentsByClassId.get(relation.child).push(parent);
   });
-  const result = document.getElementById('target-search-results');
-  result.replaceChildren(...targets.map((item) => {
+  const hasAncestor = (classId, ancestorId) => {
+    const pending = [...(parentsByClassId.get(classId) || [])].map((parent) => parent.id);
+    const visited = new Set();
+    while (pending.length) {
+      const current = pending.pop();
+      if (current === ancestorId) return true;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      (parentsByClassId.get(current) || []).forEach((parent) => pending.push(parent.id));
+    }
+    return false;
+  };
+  const targets = matchedTargets.filter((item) =>
+    (!topIds.size || [...topIds].some((id) => hasAncestor(item.id, id)))
+    && (!middleIds.size || [...middleIds].some((id) => hasAncestor(item.id, id))));
+  const renderCountSummary = () => {
+    const stats = searchType === 'instance'
+      ? [['一致インスタンス', matchedInstanceCount], ['表示クラス', targets.length], ['選択中', searchSelected.size]]
+      : [['表示件数', targets.length], ['選択中', searchSelected.size]];
+    count.replaceChildren(...stats.map(([label, value]) => {
+      const stat = document.createElement('span');
+      stat.className = `search-count-stat${label === '選択中' && value ? ' is-selected' : ''}`;
+      if (label === '一致インスタンス') stat.classList.add('is-instance');
+      const name = document.createElement('span'); name.className = 'search-count-label'; name.textContent = label;
+      const number = document.createElement('strong'); number.className = 'search-count-value'; number.textContent = `${value}件`;
+      stat.append(name, number);
+      return stat;
+    }));
+  };
+  const makeResultRow = (item) => {
     const row = document.createElement('div'); row.className = 'target-search-result-option';
     const label = document.createElement('label'); label.className = 'target-search-option';
     const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = searchSelected.has(item.id); checkbox.dataset.classId = item.id;
     checkbox.addEventListener('change', () => {
       if (checkbox.checked) searchSelected.set(item.id, item);
       else searchSelected.delete(item.id);
-      document.getElementById('target-search-count').textContent = searchType === 'instance'
-        ? `一致インスタンス ${matchedInstanceCount}件 / 表示クラス ${targets.length}件 / 選択中 ${searchSelected.size}件`
-        : `表示 ${targets.length}件 / 選択中 ${searchSelected.size}件`;
+      renderCountSummary();
     });
     const content = document.createElement('span'); content.className = 'target-search-option-content';
     const parentText = document.createElement('span'); parentText.className = 'target-search-parent';
     const parents = parentsByClassId.get(item.id) || [];
-    parentText.textContent = parents.length
-      ? parents.map((parent) => `${classKind(parent) === 'top' ? '上位' : '中間'}: ${parent.label} (${displayClassId(parent.id)})`).join('、')
-      : '所属なし';
+    if (parents.length) {
+      parentText.replaceChildren(...parents.map((parent) => {
+        const badge = document.createElement('span');
+        const parentKind = classKind(parent);
+        badge.className = `target-search-parent-badge ${parentKind === 'top' ? 'is-top' : 'is-middle'}`;
+        badge.textContent = `${parentKind === 'top' ? '上位' : '中間'}: ${parent.label} (${displayClassId(parent.id)})`;
+        return badge;
+      }));
+    } else {
+      parentText.textContent = '所属なし';
+    }
     const classText = document.createElement('span'); classText.className = 'target-search-class';
     classText.textContent = `${item.label} (${displayClassId(item.id)})`;
     content.append(parentText, classText);
@@ -295,11 +375,37 @@ function renderTargetSearch() {
     });
     row.append(label, infoButton);
     return row;
-  }));
-  document.getElementById('target-search-count').textContent =
-    searchType === 'instance'
-      ? `一致インスタンス ${matchedInstanceCount}件 / 表示クラス ${targets.length}件 / 選択中 ${searchSelected.size}件`
-      : `表示 ${targets.length}件 / 選択中 ${searchSelected.size}件`;
+  };
+  if (!targets.length) {
+    const empty = document.createElement('p');
+    empty.className = 'target-search-empty';
+    empty.textContent = '一致するクラスはありません。';
+    result.append(empty);
+    loading.hidden = true;
+    targetSearchHasRendered = true;
+    renderCountSummary();
+    return;
+  }
+
+  let rendered = 0;
+  const renderBatch = () => {
+    if (sequence !== targetSearchRenderSequence) return;
+    const fragment = document.createDocumentFragment();
+    const end = Math.min(rendered + 160, targets.length);
+    for (; rendered < end; rendered += 1) fragment.append(makeResultRow(targets[rendered]));
+    result.append(fragment);
+    if (rendered < targets.length) {
+      if (showInitialProgress) loading.textContent = `検索結果を表示中… ${rendered} / ${targets.length}件`;
+      window.setTimeout(renderBatch, 0);
+      return;
+    }
+    loading.hidden = true;
+    targetSearchHasRendered = true;
+    renderCountSummary();
+  };
+  if (showInitialProgress) loading.textContent = `検索結果を表示中… 0 / ${targets.length}件`;
+  window.setTimeout(renderBatch, 0);
+  }, 0);
 }
 
 function renderClassManagement() {
@@ -347,12 +453,6 @@ function renderClassManagement() {
 // ============================================================
 // フォーム・一覧・保持中パネルの描画
 // ============================================================
-// 子クラス・親クラスの選択欄を現在のクラス配列から作り直す。
-function fillSelect(select) {
-  select.replaceChildren(...classes.map((item) => {
-    const option = document.createElement('option'); option.value = item.id; option.textContent = `${item.label} (${displayClassId(item.id)})`; return option;
-  }));
-}
 function renderSearchParentOptions() {
   const searchTargetKind = document.getElementById('search-target-kind');
   const searchParent = document.getElementById('search-target-parent');
@@ -368,9 +468,66 @@ function renderSearchParentOptions() {
   }));
   document.getElementById('search-new-class-parent-fields').hidden =
     document.getElementById('search-new-class-kind').value !== 'middle';
+  const countTargets = createTargetCounter(buildChildrenMap());
+  const renderSelectedHierarchyClasses = () => {
+    const selected = document.getElementById('search-hierarchy-selected-classes');
+    const selectedItems = [
+      { listId: 'search-filter-top-list', toggleId: 'search-filter-top-toggle', label: '上位' },
+      { listId: 'search-filter-middle-list', toggleId: 'search-filter-middle-toggle', label: '中間' }
+    ].flatMap(({ listId, toggleId, label }) => {
+      const list = document.getElementById(listId);
+      const toggle = document.getElementById(toggleId);
+      return [...list.querySelectorAll('input[type="checkbox"]:checked')].map((checkbox) => ({
+        item: classById.get(checkbox.value), checkbox, list, toggle, label
+      }));
+    }).filter(({ item }) => item);
+    selected.replaceChildren(...selectedItems.map(({ item, checkbox, list, toggle, label }) => {
+      const chip = document.createElement('button'); chip.type = 'button';
+      chip.className = `search-hierarchy-selected-button ${label === '上位' ? 'is-top' : 'is-middle'}`;
+      chip.textContent = `${label}: ${item.label}`;
+      chip.setAttribute('aria-label', `${label}クラス「${item.label}」の選択を解除`);
+      chip.title = 'クリックして選択解除';
+      chip.addEventListener('click', () => {
+        checkbox.checked = false;
+        updateFilterToggleLabel(toggle, list, `${label}クラス`);
+        renderSelectedHierarchyClasses();
+        renderTargetSearch();
+      });
+      return chip;
+    }));
+  };
+  const fillHierarchyFilter = (listId, toggleId, kindName, label) => {
+    const list = document.getElementById(listId);
+    const toggle = document.getElementById(toggleId);
+    const selectedIds = new Set([...list.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value));
+    const options = classes.filter((item) => classKind(item) === kindName).map((item) => {
+      const row = document.createElement('label'); row.className = 'search-hierarchy-filter-option';
+      const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.value = item.id; checkbox.checked = selectedIds.has(item.id);
+      checkbox.addEventListener('change', () => {
+        updateFilterToggleLabel(toggle, list, label);
+        renderSelectedHierarchyClasses();
+        renderTargetSearch();
+      });
+      const name = document.createElement('span'); name.className = 'search-hierarchy-filter-option-name';
+      name.textContent = `${item.label} (${displayClassId(item.id)})`;
+      const count = document.createElement('span'); count.className = 'search-hierarchy-filter-option-count';
+      count.textContent = `${countTargets(item.id)}件`;
+      row.append(checkbox, name, count);
+      return row;
+    });
+    list.replaceChildren(...options);
+    updateFilterToggleLabel(toggle, list, label);
+  };
+  fillHierarchyFilter('search-filter-top-list', 'search-filter-top-toggle', 'top', '上位クラス');
+  fillHierarchyFilter('search-filter-middle-list', 'search-filter-middle-toggle', 'middle', '中間クラス');
+  renderSelectedHierarchyClasses();
+}
+
+function updateFilterToggleLabel(toggle, list, label) {
+  const selectedCount = list.querySelectorAll('input[type="checkbox"]:checked').length;
+  toggle.textContent = selectedCount ? `${label}（${selectedCount}件選択中）` : `${label}を選択`;
 }
 function renderEditForm() {
-  fillSelect(childSelect); fillSelect(parentSelect);
   document.getElementById('edit-class-rows').replaceChildren(...classes.map((item) => {
     const row = document.createElement('tr');
     [classKind(item), displayClassId(item.id), item.label].forEach((value) => {
@@ -401,11 +558,26 @@ function renderInstances() {
   const kindLabel = document.getElementById('held-kind-label');
   const selectionKind = activeSelectionKind();
   panel.hidden = false;
+  const heldListView = document.getElementById('held-list-view');
+  const destinationPicker = document.getElementById('held-destination-picker');
+  const destinationList = document.getElementById('held-destination-list');
+  const applyDestination = document.getElementById('apply-held-destination');
+  const viewToggle = document.getElementById('toggle-held-panel-view');
+  heldListView.hidden = heldPanelView !== 'held';
+  destinationPicker.hidden = heldPanelView !== 'list';
+  document.querySelectorAll('.held-destination-tab').forEach((tab) => {
+    const isActive = tab.dataset.destinationKind === heldDestinationKind;
+    tab.classList.toggle('is-active', isActive);
+    tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
   if (kindLabel) {
-    kindLabel.textContent = selectionKind === 'top' ? '上位クラス保持中'
-      : selectionKind === 'middle' ? '中間クラス保持中'
-        : selectionKind === 'class' ? 'クラス保持中' : '保持中';
+    kindLabel.textContent = heldPanelView === 'list' ? '移動先一覧'
+      : heldInstances.size ? '対象クラスを保持中'
+        : heldMiddleClasses.size || heldTopClasses.size ? 'クラスを保持中' : '保持中';
   }
+  if (count) count.hidden = heldPanelView !== 'held';
+  viewToggle.textContent = heldPanelView === 'held' ? '一覧へ' : '保持中へ';
+  viewToggle.setAttribute('aria-pressed', heldPanelView === 'list' ? 'true' : 'false');
   if (count) count.textContent = `${heldInstances.size + heldMiddleClasses.size + heldTopClasses.size}件`;
   document.querySelectorAll('.move-held-button').forEach((button) => {
     button.hidden = heldInstances.size === 0;
@@ -455,6 +627,30 @@ function renderInstances() {
     });
     item.append(remove); return item;
   }));
+  const destinationClasses = classes
+    .filter((item) => classKind(item) === heldDestinationKind && item.label !== '未分類')
+    .sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'ja'));
+  destinationList.replaceChildren(...destinationClasses.map((destination) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'held-destination-option';
+    button.classList.toggle('is-selected', heldDestinationId === destination.id);
+    button.textContent = destination.label || '(ラベルなし)';
+    button.setAttribute('aria-pressed', heldDestinationId === destination.id ? 'true' : 'false');
+    button.addEventListener('click', () => {
+      heldDestinationId = heldDestinationId === destination.id ? '' : destination.id;
+      renderInstances();
+    });
+    return button;
+  }));
+  if (!destinationClasses.length) {
+    const empty = document.createElement('p');
+    empty.className = 'held-destination-empty';
+    empty.textContent = '移動先にできるクラスがありません。';
+    destinationList.append(empty);
+  }
+  applyDestination.disabled = !heldDestinationId || !selectionKind
+    || (heldDestinationKind === 'middle' && selectionKind !== 'class');
   syncTargetButtonAvailability();
 }
 
@@ -477,6 +673,83 @@ function syncTargetButtonAvailability() {
   topCheckboxById.forEach((checkbox) => {
     checkbox.disabled = selectionKind !== null && selectionKind !== 'top';
   });
+}
+
+function moveHeldClassesToTop(topId) {
+  if (!heldMiddleClasses.size && !heldTopClasses.size && !heldInstances.size) return false;
+  const selectedMiddleIds = new Set(heldMiddleClasses.keys());
+  const selectedTopIds = new Set(heldTopClasses.keys());
+  const selectedTargetIds = new Set(heldInstances.keys());
+  if (selectedMiddleIds.has(topId) || selectedTopIds.has(topId)) {
+    status.textContent = '移動先として選択中のクラスは指定できません。';
+    return true;
+  }
+  const movingHierarchyIds = new Set([...selectedMiddleIds, ...selectedTopIds]);
+  const descendants = new Set(movingHierarchyIds);
+  const children = buildChildrenMap();
+  const pending = [...movingHierarchyIds];
+  while (pending.length) {
+    const current = pending.pop();
+    (children.get(current) || []).forEach((childId) => {
+      if (descendants.has(childId)) return;
+      descendants.add(childId);
+      pending.push(childId);
+    });
+  }
+  if (descendants.has(topId)) { status.textContent = '選択クラスの配下には移動できません。'; return true; }
+
+  const convertedIds = new Map();
+  heldTopClasses.forEach((top) => {
+    const oldId = top.id;
+    const newId = allocateTemporaryClassId('middle');
+    convertedIds.set(oldId, newId);
+    classById.delete(oldId);
+    top.id = newId;
+    top.type = 'middle';
+    classById.set(newId, top);
+  });
+  const movingIds = new Set([...movingHierarchyIds, ...selectedTargetIds]);
+  data.classData.relations = data.classData.relations
+    .filter((relation) => !movingIds.has(relation.child))
+    .map((relation) => ({ ...relation, parent: convertedIds.get(relation.parent) || relation.parent }));
+  convertedIds.forEach((newId) => addRelation(newId, topId));
+  selectedMiddleIds.forEach((middleId) => addRelation(middleId, topId));
+  selectedTargetIds.forEach((targetId) => addRelation(targetId, topId));
+  const movedCount = selectedMiddleIds.size + selectedTopIds.size + selectedTargetIds.size;
+  heldMiddleClasses.clear();
+  heldTopClasses.clear();
+  heldInstances.clear();
+  heldDestinationId = '';
+  hasUnsavedChanges = true;
+  status.textContent = `${selectedTopIds.size}件の上位クラスを中間クラス化し、合計${movedCount}件を移動しました。`;
+  render();
+  return true;
+}
+
+function moveHeldToMiddle(middleId) {
+  if (!heldInstances.size) { status.textContent = '先に対象クラスを選択してください。'; return; }
+  const selectedIds = new Set(heldInstances.keys());
+  data.classData.relations = data.classData.relations.filter((relation) => !selectedIds.has(relation.child));
+  selectedIds.forEach((child) => data.classData.relations.push({ child, parent: middleId, relation: 'subClassOf' }));
+  const movedCount = selectedIds.size;
+  heldInstances.clear();
+  heldDestinationId = '';
+  hasUnsavedChanges = true;
+  status.textContent = `${movedCount}件を中間クラスへ移動しました。`;
+  render();
+}
+
+function moveHeldToTop(topId) {
+  if (!heldInstances.size) { status.textContent = '先に対象クラスを選択してください。'; return; }
+  const selectedIds = new Set(heldInstances.keys());
+  data.classData.relations = data.classData.relations.filter((relation) => !selectedIds.has(relation.child));
+  selectedIds.forEach((child) => addRelation(child, topId));
+  const movedCount = selectedIds.size;
+  heldInstances.clear();
+  heldDestinationId = '';
+  hasUnsavedChanges = true;
+  status.textContent = `${movedCount}件を上位クラスへ直接移動しました。`;
+  render();
 }
 // ============================================================
 // 階層ツリーの描画とツリー上の編集操作
@@ -563,16 +836,6 @@ function renderTree() {
   const rootCandidates = classes.filter((item) => !childIds.has(item.id));
   // 各クラスの配下件数は描画中に一度だけ計算する。
   const countTargets = createTargetCounter(children);
-  const addRow = (label, handler, prefix = '＋') => {
-    const row = document.createElement('li');
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'tree-add-button tree-add-row';
-    button.textContent = `${prefix} ${label}`;
-    button.addEventListener('click', handler);
-    row.append(button);
-    return row;
-  };
   const addTreeButton = (label, handler) => {
     const button = document.createElement('button');
     button.type = 'button';
@@ -584,101 +847,6 @@ function renderTree() {
       handler();
     });
     return button;
-  };
-  const moveHeldClassesToTop = (topId) => {
-    if (!heldMiddleClasses.size && !heldTopClasses.size && !heldInstances.size) return false;
-    const selectedMiddleIds = new Set(heldMiddleClasses.keys());
-    const selectedTopIds = new Set(heldTopClasses.keys());
-    const selectedTargetIds = new Set(heldInstances.keys());
-    if (selectedMiddleIds.has(topId) || selectedTopIds.has(topId)) {
-      status.textContent = '移動先として選択中のクラスは指定できません。';
-      return true;
-    }
-    const movingHierarchyIds = new Set([...selectedMiddleIds, ...selectedTopIds]);
-    const descendants = new Set(movingHierarchyIds);
-    const children = buildChildrenMap();
-    const pending = [...movingHierarchyIds];
-    while (pending.length) {
-      const current = pending.pop();
-      (children.get(current) || []).forEach((childId) => {
-        if (descendants.has(childId)) return;
-        descendants.add(childId);
-        pending.push(childId);
-      });
-    }
-    if (descendants.has(topId)) { status.textContent = '選択クラスの配下には移動できません。'; return true; }
-
-    const convertedIds = new Map();
-    heldTopClasses.forEach((top) => {
-      const oldId = top.id;
-      const newId = allocateTemporaryClassId('middle');
-      convertedIds.set(oldId, newId);
-      classById.delete(oldId);
-      top.id = newId;
-      top.type = 'middle';
-      classById.set(newId, top);
-    });
-    const movingIds = new Set([...movingHierarchyIds, ...selectedTargetIds]);
-    data.classData.relations = data.classData.relations
-      .filter((relation) => !movingIds.has(relation.child))
-      .map((relation) => ({
-        ...relation,
-        parent: convertedIds.get(relation.parent) || relation.parent
-      }));
-    convertedIds.forEach((newId) => addRelation(newId, topId));
-    selectedMiddleIds.forEach((middleId) => addRelation(middleId, topId));
-    selectedTargetIds.forEach((targetId) => addRelation(targetId, topId));
-    const movedCount = selectedMiddleIds.size + selectedTopIds.size + selectedTargetIds.size;
-    heldMiddleClasses.clear();
-    heldTopClasses.clear();
-    heldInstances.clear();
-    hasUnsavedChanges = true;
-    status.textContent = `${selectedTopIds.size}件の上位クラスを中間クラス化し、合計${movedCount}件を移動しました。`;
-    render(); return true;
-  };
-  const moveHeldToMiddle = (middleId) => {
-    // 保持中の対象クラスから既存の親子関係をすべて外し、選択した中間クラスへ
-    // 付け替える。移動後は保持状態を空にして、同じ対象を誤って再移動しないようにする。
-    if (!heldInstances.size) { status.textContent = '先に対象クラスを選択してください。'; return; }
-    const selectedIds = new Set(heldInstances.keys());
-    data.classData.relations = data.classData.relations.filter((relation) => !selectedIds.has(relation.child));
-    selectedIds.forEach((child) => data.classData.relations.push({ child, parent: middleId, relation: 'subClassOf' }));
-    const movedCount = selectedIds.size;
-    heldInstances.clear(); hasUnsavedChanges = true;
-    status.textContent = `${movedCount}件を中間クラスへ移動しました。`;
-    render();
-  };
-  const moveHeldToTop = (topId) => {
-    if (!heldInstances.size) { status.textContent = '先に対象クラスを選択してください。'; return; }
-    const selectedIds = new Set(heldInstances.keys());
-    data.classData.relations = data.classData.relations.filter((relation) => !selectedIds.has(relation.child));
-    selectedIds.forEach((child) => addRelation(child, topId));
-    const movedCount = selectedIds.size;
-    heldInstances.clear(); hasUnsavedChanges = true;
-    status.textContent = `${movedCount}件を上位クラスへ直接移動しました。`;
-    render();
-  };
-  const createFromTree = (type, parentId = null) => {
-    const label = window.prompt(`${type === 'middle' ? '中間' : '対象'}クラス名を入力してください`);
-    if (!label || !label.trim()) return;
-    const item = createClass(type, label);
-    if (!item) return;
-    if (parentId) addRelation(item.id, parentId);
-    if (heldInstances.size) {
-      const selectedIds = [...heldInstances.keys()];
-      const selectedIdSet = new Set(selectedIds);
-      data.classData.relations = data.classData.relations.filter((relation) => !selectedIdSet.has(relation.child));
-      if (type === 'middle') {
-        selectedIds.forEach((child) => addRelation(child, item.id));
-       } else if (type === 'top') {
-         selectedIds.forEach((child) => addRelation(child, item.id));
-      }
-      heldInstances.clear();
-      status.textContent = `${item.label}を追加し、保持中の対象クラスを移動しました。`;
-    }
-    hasUnsavedChanges = true;
-    if (!status.textContent.includes('移動しました')) status.textContent = `${item.label}を追加しました。`;
-    render();
   };
   const build = (item, middleDepth = classKind(item) === 'middle' ? 1 : 0) => {
     // 対象クラスは選択可能な葉として描画し、上位・中間クラスは details として
@@ -827,12 +995,6 @@ function renderTree() {
         }
         return li;
       };
-      if (classKind(item) === 'middle' && item.label !== '未分類') {
-        list.append(addRow('中間クラスを追加', () => createFromTree('middle', item.id)));
-      }
-      if (classKind(item) === 'top' && item.label !== '未分類') {
-        list.append(addRow('中間クラスを追加', () => createFromTree('middle', item.id)));
-      }
       window.appendTreeLevelRows(
         list,
         childMiddles,
@@ -856,10 +1018,7 @@ function renderTree() {
     if (aIsUnclassified !== bIsUnclassified) return aIsUnclassified ? -1 : 1;
     return countTargets(b.id) - countTargets(a.id) || a.label.localeCompare(b.label, 'ja');
   });
-  const topRows = roots.map((item) => build(item));
-  // 上位クラスの追加は、他の追加操作と区別しやすいよう「追加」と表示する。
-  topRows.push(addRow('上位クラス', () => createFromTree('top'), '追加'));
-  tree.replaceChildren(...topRows);
+  tree.replaceChildren(...roots.map((item) => build(item)));
   scheduleTargetConnectorLayout();
 }
 // ============================================================
@@ -885,6 +1044,21 @@ function saveEditChanges() {
 // ============================================================
 // 保存・保持状態の操作
 document.getElementById('save-edit-changes').addEventListener('click', saveEditChanges);
+document.getElementById('toggle-held-panel-view').addEventListener('click', () => {
+  heldPanelView = heldPanelView === 'held' ? 'list' : 'held';
+  renderInstances();
+});
+document.querySelectorAll('.held-destination-tab').forEach((tab) => tab.addEventListener('click', () => {
+  heldDestinationKind = tab.dataset.destinationKind;
+  heldDestinationId = '';
+  renderInstances();
+}));
+document.getElementById('apply-held-destination').addEventListener('click', () => {
+  if (!heldDestinationId) return;
+  if (heldDestinationKind === 'middle') moveHeldToMiddle(heldDestinationId);
+  else if (activeSelectionKind() === 'class') moveHeldToTop(heldDestinationId);
+  else moveHeldClassesToTop(heldDestinationId);
+});
 document.getElementById('clear-held').addEventListener('click', () => {
   heldInstances.forEach((instance) => targetButtonById.get(instance.id)?.classList.remove('is-selected'));
   heldMiddleClasses.forEach((middle) => {
@@ -898,6 +1072,7 @@ document.getElementById('clear-held').addEventListener('click', () => {
   heldInstances.clear();
   heldMiddleClasses.clear();
   heldTopClasses.clear();
+  heldDestinationId = '';
   syncTargetButtonAvailability();
   renderInstances();
   status.textContent = '保持中のクラスをすべて解除しました。';
@@ -926,31 +1101,6 @@ document.getElementById('move-held-unclassified').addEventListener('click', () =
   });
   heldInstances.clear(); hasUnsavedChanges = true; status.textContent = `${selected.length}件を上位クラスへ直接移動しました。`; render();
 });
-document.getElementById('add-class').addEventListener('click', () => {
-  // フォームからの追加は、ツリーからの追加と同じ createClass を使うことで
-  // ID採番と配列への登録方法を統一する。
-  const type = document.getElementById('new-class-type').value;
-  const label = document.getElementById('new-class-label').value.trim();
-  if (!label) return;
-  const item = createClass(type, label);
-  if (!item) return;
-  document.getElementById('new-class-label').value = '';
-  hasUnsavedChanges = true;
-  status.textContent = `${label}を追加しました。`;
-  render();
-});
-document.getElementById('apply-parent-change').addEventListener('click', () => {
-  // 親を変更する際は現在の関係配列を使う。初期配列を保持したままにすると、
-  // 複数回の変更で直前の編集内容を上書きしてしまう。
-  if (childSelect.value === parentSelect.value) return;
-  const descendants = descendantIds(childSelect.value);
-  descendants.add(childSelect.value);
-  if (descendants.has(parentSelect.value)) { status.textContent = '循環する親子関係は設定できません。'; return; }
-  data.classData.relations = data.classData.relations.filter((item) => item.child !== childSelect.value);
-  addRelation(childSelect.value, parentSelect.value);
-  hasUnsavedChanges = true;
-  status.textContent = '親クラスを変更しました。';
-});
 document.getElementById('tree-filter-type').addEventListener('change', () => {
   document.getElementById('tree-filter-query').placeholder =
     document.getElementById('tree-filter-type').value === 'instance'
@@ -959,9 +1109,12 @@ document.getElementById('tree-filter-type').addEventListener('change', () => {
   renderTree();
 });
 document.getElementById('tree-filter-query').addEventListener('input', renderTree);
-// 検索結果を使った一括付与・クラス作成
+// 検索結果を既存クラスへ一括付与
 document.getElementById('target-search-type').addEventListener('change', () => {
   // 検索対象を切り替えたら、別の検索条件で選んだクラスを持ち越さない。
+  const searchTypeSelect = document.getElementById('target-search-type');
+  searchTypeSelect.classList.toggle('is-instance', searchTypeSelect.value === 'instance');
+  searchTypeSelect.classList.toggle('is-class', searchTypeSelect.value !== 'instance');
   searchSelected.clear();
   document.getElementById('search-new-class-label').value = '';
   document.getElementById('target-class-search').placeholder =
@@ -971,12 +1124,68 @@ document.getElementById('target-search-type').addEventListener('change', () => {
   renderTargetSearch();
 });
 document.getElementById('target-class-search').addEventListener('input', () => {
-  // 検索語を変えたら、前回の検索で保持した対象やクラス名を次の付与へ持ち越さない。
+  // 検索語は検索ボタンで確定し、確定後は下のチップに蓄積する。
+});
+const runTargetSearch = () => {
+  const input = document.getElementById('target-class-search');
+  const term = input.value.trim();
+  if (term && !targetSearchQuery.some((existing) => existing.toLocaleLowerCase() === term.toLocaleLowerCase())) {
+    targetSearchQuery.push(term);
+  }
+  input.value = '';
+  renderTargetSearchKeywordChips();
   searchSelected.clear();
   document.getElementById('search-new-class-label').value = '';
   renderTargetSearch();
+};
+document.getElementById('target-search-submit').addEventListener('click', runTargetSearch);
+document.getElementById('target-class-search').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') { event.preventDefault(); runTargetSearch(); }
+});
+document.getElementById('target-search-clear').addEventListener('click', () => {
+  const input = document.getElementById('target-class-search');
+  input.value = '';
+  targetSearchQuery = [];
+  renderTargetSearchKeywordChips();
+  searchSelected.clear();
+  document.getElementById('search-new-class-label').value = '';
+  renderTargetSearch();
+  input.focus();
 });
 document.getElementById('search-target-kind').addEventListener('change', render);
+[
+  { buttonId: 'search-condition-keyword-tab', viewId: 'search-keyword-view' },
+  { buttonId: 'search-condition-hierarchy-tab', viewId: 'search-hierarchy-view' }
+].forEach(({ buttonId, viewId }) => {
+  document.getElementById(buttonId).addEventListener('click', () => {
+    [
+      ['search-condition-keyword-tab', 'search-keyword-view'],
+      ['search-condition-hierarchy-tab', 'search-hierarchy-view']
+    ].forEach(([candidateButtonId, candidateViewId]) => {
+      const selected = candidateButtonId === buttonId;
+      const tab = document.getElementById(candidateButtonId);
+      tab.classList.toggle('is-active', selected);
+      tab.setAttribute('aria-selected', String(selected));
+      document.getElementById(candidateViewId).hidden = !selected;
+    });
+  });
+});
+[['search-filter-top-toggle', 'search-filter-top-list'], ['search-filter-middle-toggle', 'search-filter-middle-list']].forEach(([toggleId, listId]) => {
+  const toggle = document.getElementById(toggleId);
+  const list = document.getElementById(listId);
+  toggle.addEventListener('click', () => {
+    const opening = list.hidden;
+    list.hidden = !opening;
+    toggle.setAttribute('aria-expanded', String(opening));
+  });
+});
+document.getElementById('clear-hierarchy-filters').addEventListener('click', () => {
+  ['search-filter-top-list', 'search-filter-middle-list'].forEach((listId) => {
+    document.querySelectorAll(`#${listId} input[type="checkbox"]`).forEach((checkbox) => { checkbox.checked = false; });
+  });
+  renderSearchParentOptions();
+  renderTargetSearch();
+});
 document.getElementById('search-new-class-parent-kind').addEventListener('change', render);
 document.getElementById('search-new-class-kind').addEventListener('change', render);
 document.getElementById('search-apply-mode').addEventListener('change', () => {
@@ -984,8 +1193,9 @@ document.getElementById('search-apply-mode').addEventListener('change', () => {
   document.getElementById('search-existing-fields').hidden = creating;
   document.getElementById('search-create-fields').hidden = !creating;
   document.getElementById('apply-search-selection').textContent = creating
-    ? '作成して付与'
+    ? '生成して付与'
     : '既存クラスへ付与';
+  renderSearchParentOptions();
 });
 document.getElementById('select-search-results').addEventListener('click', () => {
   document.querySelectorAll('#target-search-results input[type="checkbox"]').forEach((checkbox) => {
@@ -1004,14 +1214,7 @@ document.getElementById('apply-search-selection').addEventListener('click', () =
   const selectedIds = [...searchSelected.keys()];
   const selectedIdSet = new Set(selectedIds);
   const creating = document.getElementById('search-apply-mode').value === 'create';
-  if (!creating) {
-    const parentId = document.getElementById('search-target-parent').value;
-    if (!parentId) { status.textContent = '付与先のクラスを選択してください。'; return; }
-    data.classData.relations = data.classData.relations.filter((relation) => !selectedIdSet.has(relation.child));
-    selectedIds.forEach((id) => addRelation(id, parentId));
-    const parentKind = document.getElementById('search-target-kind').value;
-    status.textContent = `${selectedIds.length}件を${parentKind === 'top' ? '上位' : '中間'}クラスへ付与しました。`;
-  } else {
+  if (creating) {
     const label = document.getElementById('search-new-class-label').value.trim();
     if (!label) { status.textContent = '新しいクラス名を入力してください。'; return; }
     const newKind = document.getElementById('search-new-class-kind').value;
@@ -1028,6 +1231,13 @@ document.getElementById('apply-search-selection').addEventListener('click', () =
     selectedIds.forEach((id) => addRelation(id, item.id));
     status.textContent = `${selectedIds.length}件を「${label}」へ付与しました。`;
     document.getElementById('search-new-class-label').value = '';
+  } else {
+    const parentId = document.getElementById('search-target-parent').value;
+    if (!parentId) { status.textContent = '付与先のクラスを選択してください。'; return; }
+    data.classData.relations = data.classData.relations.filter((relation) => !selectedIdSet.has(relation.child));
+    selectedIds.forEach((id) => addRelation(id, parentId));
+    const parentKind = document.getElementById('search-target-kind').value;
+    status.textContent = `${selectedIds.length}件を${parentKind === 'top' ? '上位' : '中間'}クラスへ付与しました。`;
   }
   searchSelected.clear();
   document.getElementById('target-class-search').value = '';
@@ -1079,10 +1289,26 @@ document.querySelectorAll('[data-edit-tab]').forEach((tab) => tab.addEventListen
   document.querySelectorAll('#edit-form-panel, #edit-tree-panel, #target-search-panel, #class-management-panel').forEach((panel) => {
     panel.hidden = panel.id !== tab.dataset.editTab;
   });
+  if (tab.dataset.editTab !== 'target-search-panel') {
+    targetSearchRenderSequence += 1;
+    document.getElementById('target-search-loading').hidden = true;
+  }
   if (tab.dataset.editTab === 'edit-form-panel') renderEditForm();
   if (tab.dataset.editTab === 'target-search-panel') {
-    renderSearchParentOptions();
-    renderTargetSearch();
+    const loading = document.getElementById('target-search-loading');
+    const prepareOptions = !targetSearchOptionsPrepared;
+    if (prepareOptions && !targetSearchHasRendered) {
+      loading.hidden = false;
+      loading.textContent = '検索結果を読み込み中…';
+    }
+    window.requestAnimationFrame(() => window.setTimeout(() => {
+      if (searchPanel.hidden) return;
+      if (prepareOptions) {
+        renderSearchParentOptions();
+        targetSearchOptionsPrepared = true;
+      }
+      renderTargetSearch();
+    }, 0));
   }
   if (tab.dataset.editTab === 'class-management-panel') renderClassManagement();
 }));

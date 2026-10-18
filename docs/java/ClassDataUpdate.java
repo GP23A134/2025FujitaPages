@@ -23,7 +23,7 @@ import com.google.gson.JsonParser;
 /** inputのJSONを使ってクラス一覧とクラス間関係を更新します。 */
 public final class ClassDataUpdate {
     private static final Path INPUT_DIRECTORY = Paths.get("data/input");
-    private static final Path PROCESSED_DIRECTORY = INPUT_DIRECTORY.resolve("processed");
+    private static final Path HISTORY_DIRECTORY = INPUT_DIRECTORY.resolve("history");
     private static final Path INPUT_FILE = INPUT_DIRECTORY.resolve("class-update.json");
     private static final Path CLASS_DATA = Paths.get("data/integrated/class-data.json");
     private static final Path TARGET_CLASS_DATA = Paths.get("data/integrated/target-class-data.json");
@@ -37,7 +37,7 @@ public final class ClassDataUpdate {
     public static void main(String[] args) throws IOException {
         // JSONの既存内容には依存せず、入力JSONを唯一の入力として再生成する。
         // この順序で検証を先に行うため、入力に問題がある場合はJSONを更新せず、
-        // 入力JSONもprocessedへ移動しない。
+        // 入力JSONもhistoryへ移動しない。
         InputData input = readInput();
         Map<String, String> classes = new LinkedHashMap<>();
         Map<String, String> temporaryIds = new LinkedHashMap<>();
@@ -54,24 +54,23 @@ public final class ClassDataUpdate {
         writeListTsv(TOP_TSV_LIST, classes, "t_");
 
         // 出力がすべて成功した後で、入力を履歴フォルダへ移動する。
-        Path processedDirectory = moveInputFile();
+        Path archivedInput = moveInputFile();
         System.out.printf("クラス一覧と親子関係を再生成しました。クラス: %d件、関係: %d件%n",
                 classes.size(), relations.size());
         System.out.println("中間クラスTSVを出力しました: " + MIDDLE_TSV_LIST);
         System.out.println("上位クラスTSVを出力しました: " + TOP_TSV_LIST);
-        System.out.println("入力JSONを移動しました: " + processedDirectory);
+        System.out.println("入力JSONを履歴に保存しました: " + archivedInput);
     }
 
     private static Path moveInputFile() throws IOException {
-        // 同じファイル名の入力を上書きしないよう、実行時刻ごとのフォルダを作る。
+        // 実行日時をファイル名に含め、履歴フォルダ直下に保存する。
         // ミリ秒まで含めることで、短時間に連続実行した場合も衝突しにくくする。
         String timestamp = LocalDateTime.now()
                 .format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS"));
-        Path processedDirectory = PROCESSED_DIRECTORY.resolve(timestamp);
-        Files.createDirectories(processedDirectory);
-        Path movedInput = processedDirectory.resolve(INPUT_FILE.getFileName());
+        Files.createDirectories(HISTORY_DIRECTORY);
+        Path movedInput = HISTORY_DIRECTORY.resolve("class-update-" + timestamp + ".json");
         moveWithRetry(INPUT_FILE, movedInput);
-        return processedDirectory;
+        return movedInput;
     }
 
     private static void moveWithRetry(Path source, Path target) throws IOException {
