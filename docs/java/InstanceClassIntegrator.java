@@ -30,7 +30,8 @@ public final class InstanceClassIntegrator {
 
     private static final Path INPUT_DIRECTORY = Paths.get("data/query-result/base-data");
     private static final Path UPPER_INPUT_DIRECTORY = Paths.get("data/query-result/upper-class-data");
-    private static final Path OUTPUT_FILE = Paths.get("data/integrated-data/instance-class-data.json");
+    private static final Path INSTANCE_OUTPUT_FILE = Paths.get("data/integrated-data/instance-data.json");
+    private static final Path INSTANCE_CLASS_OUTPUT_FILE = Paths.get("data/integrated-data/instance-class-data.json");
     private static final Path CLASS_OUTPUT_FILE = Paths.get("data/integrated-data/class-data.json");
     private static final Path MIDDLE_CLASS_OUTPUT_FILE = Paths.get("data/integrated-data/middle-class-list.json");
     private static final Path TOP_CLASS_OUTPUT_FILE = Paths.get("data/integrated-data/top-class-list.json");
@@ -71,33 +72,36 @@ public final class InstanceClassIntegrator {
             addUnclassifiedHierarchy(instances, classLabels, classRelations);
         }
 
-        Files.createDirectories(OUTPUT_FILE.getParent());
-        List<Map<String, Object>> outputInstances = new ArrayList<>();
+        Files.createDirectories(INSTANCE_OUTPUT_FILE.getParent());
+        List<Map<String, String>> outputInstances = new ArrayList<>();
+        List<Map<String, String>> outputRelations = new ArrayList<>();
         for (Instance instance : instances.values()) {
-            Map<String, Object> record = new LinkedHashMap<>();
+            Map<String, String> record = new LinkedHashMap<>();
             record.put("id", instance.id);
             record.put("label", instanceLabels.get(instance.id));
-            List<Map<String, String>> classes = new ArrayList<>();
-            for (String classId : instance.classIds) {
-                Map<String, String> clazz = new LinkedHashMap<>();
-                clazz.put("id", classId);
-                String classLabel = classLabels.get(classId);
-                if (classLabel == null) {
-                    throw new IOException("クラスのラベルが見つかりません: " + classId);
-                }
-                clazz.put("label", classLabel);
-                classes.add(clazz);
-            }
-            record.put("classes", classes);
             outputInstances.add(record);
+            for (String classId : instance.classIds) {
+                if (!classLabels.containsKey(classId)) throw new IOException("クラスのラベルが見つかりません: " + classId);
+                Map<String, String> relation = new LinkedHashMap<>();
+                relation.put("instance", instance.id);
+                relation.put("class", classId);
+                outputRelations.add(relation);
+            }
         }
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("instances", outputInstances);
-        Path temporaryOutput = OUTPUT_FILE.resolveSibling(OUTPUT_FILE.getFileName() + ".tmp");
+        Path temporaryOutput = INSTANCE_OUTPUT_FILE.resolveSibling(INSTANCE_OUTPUT_FILE.getFileName() + ".tmp");
         try (Writer writer = Files.newBufferedWriter(temporaryOutput, StandardCharsets.UTF_8)) {
             GSON.toJson(output, writer);
         }
-        replaceFile(temporaryOutput, OUTPUT_FILE);
+        replaceFile(temporaryOutput, INSTANCE_OUTPUT_FILE);
+        Map<String, Object> instanceClassOutput = new LinkedHashMap<>();
+        instanceClassOutput.put("relations", outputRelations);
+        Path temporaryInstanceClassOutput = INSTANCE_CLASS_OUTPUT_FILE.resolveSibling(INSTANCE_CLASS_OUTPUT_FILE.getFileName() + ".tmp");
+        try (Writer writer = Files.newBufferedWriter(temporaryInstanceClassOutput, StandardCharsets.UTF_8)) {
+            GSON.toJson(instanceClassOutput, writer);
+        }
+        replaceFile(temporaryInstanceClassOutput, INSTANCE_CLASS_OUTPUT_FILE);
         Map<String, Object> classOutput = new LinkedHashMap<>();
         List<Map<String, String>> classes = new ArrayList<>();
         for (Map.Entry<String, String> entry : classLabels.entrySet()) {
@@ -125,7 +129,8 @@ public final class InstanceClassIntegrator {
         replaceFile(temporaryClassOutput, CLASS_OUTPUT_FILE);
         writeClassList(MIDDLE_CLASS_OUTPUT_FILE, classLabels, MIDDLE_CLASS_PREFIX);
         writeClassList(TOP_CLASS_OUTPUT_FILE, classLabels, TOP_CLASS_PREFIX);
-        System.out.println("インスタンス・クラス統合JSONを出力しました: " + OUTPUT_FILE);
+        System.out.println("インスタンスJSONを出力しました: " + INSTANCE_OUTPUT_FILE);
+        System.out.println("インスタンス・クラス関係JSONを出力しました: " + INSTANCE_CLASS_OUTPUT_FILE);
         System.out.println("クラス統合JSONを出力しました: " + CLASS_OUTPUT_FILE);
     }
 

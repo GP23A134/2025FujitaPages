@@ -641,7 +641,7 @@ body[data-mode="browse"] .tree-add-root-button, body[data-mode="browse"] .tree-a
 #tree-panel .tree .tree-level-id { grid-column: auto; margin-left: 0; }
 .browse-show-ids #tree-panel .tree .tree-leaf-id,
 .browse-show-ids #tree-panel .tree .tree-leaf-id { display: inline; }
-:is(#tree-panel, #edit-tree-panel) .tree .tree-leaf-label { min-width: 0; overflow-wrap: anywhere; font-size: 0.9rem; font-weight: 650; }
+:is(#tree-panel, #edit-tree-panel) .tree .tree-leaf-label { min-width: 0; overflow-wrap: anywhere; font-size: 0.8rem; font-weight: 650; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-leaf-id {
   flex: 0 0 auto; margin: 0; color: #64748b; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 0.72rem; font-weight: 400; white-space: nowrap;
@@ -742,7 +742,7 @@ body[data-mode="browse"] .tree-add-root-button, body[data-mode="browse"] .tree-a
 :is(#tree-panel, #edit-tree-panel) .tree .tree-child-middle-row::before,
 :is(#tree-panel, #edit-tree-panel) .tree .tree-target-row::before { display: none; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-target-list > li.is-row-start::before { left: -1rem; width: 1rem; }
-:is(#tree-panel, #edit-tree-panel) .tree .tree-target-list > li:not(.is-row-start)::before { left: -6rem; width: 6.5rem; }
+:is(#tree-panel, #edit-tree-panel) .tree .tree-target-list > li:not(.is-row-start)::before { left: -3rem; width: 4rem; }
 @media (max-width: 720px) {
   #tree-panel .tree { height: calc(100vh - 300px); }
 }

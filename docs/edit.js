@@ -1,7 +1,7 @@
 // ============================================================
 // 編集画面の状態と共有データ
 // ============================================================
-// app.js が読み込んだ編集対象データを共有する。classes は同じ配列を参照するため、
+// クラスデータJavaScriptが読み込んだ編集対象データを共有する。classes は同じ配列を参照するため、
 // ここへ追加したクラスは保存処理とツリー表示の両方にそのまま反映される。
 const data = window.appData;
 // 編集用の配列を元データから複製し、保存前の変更が読み込み元へ混ざらないようにする。
@@ -29,11 +29,12 @@ const heldInstances = new Map();
 const heldMiddleClasses = new Map();
 const heldTopClasses = new Map();
 const instancesByTargetClassId = new Map();
-(data.instanceClassData.instances || []).forEach((instance) => {
-  (instance.classes || []).forEach((classInfo) => {
-    if (!instancesByTargetClassId.has(classInfo.id)) instancesByTargetClassId.set(classInfo.id, []);
-    instancesByTargetClassId.get(classInfo.id).push(instance);
-  });
+const instancesById = new Map((data.instanceData?.instances || []).map((instance) => [instance.id, instance]));
+(data.instanceClassData.relations || []).forEach((relation) => {
+  const instance = instancesById.get(relation.instance);
+  if (!instance) return;
+  if (!instancesByTargetClassId.has(relation.class)) instancesByTargetClassId.set(relation.class, []);
+  instancesByTargetClassId.get(relation.class).push(instance);
 });
 const targetInstanceDialog = document.getElementById('target-instance-dialog');
 targetInstanceDialog.addEventListener('click', (event) => {
@@ -470,20 +471,6 @@ function scheduleTargetConnectorLayout() {
       summary,
       summary.getBoundingClientRect().height
     ]));
-    const listRows = lists.map((list) => {
-      let previousRowTop = Number.NEGATIVE_INFINITY;
-      const rowStarts = new Set();
-      const items = [...list.children].filter((item) =>
-        item.firstElementChild?.classList.contains('tree-leaf-class')
-      );
-      const positions = items.map((item) => item.getBoundingClientRect().top);
-      positions.forEach((rowTop, index) => {
-        const isRowStart = Math.abs(rowTop - previousRowTop) > 1;
-        if (isRowStart) rowStarts.add(items[index]);
-        if (isRowStart) previousRowTop = rowTop;
-      });
-      return { items, rowStarts };
-    });
     const stickyOffsets = [...panel.querySelectorAll('.tree-middle-class')].map((details) => {
       const topClass = details.parentElement?.closest('.tree-top-class');
       let offset = (topClass && summaryHeights.get(topClass.querySelector(':scope > summary'))) || 0;
@@ -497,9 +484,7 @@ function scheduleTargetConnectorLayout() {
     });
     // 全ての計測後にまとめて反映する。
     stickyOffsets.forEach(({ details, offset }) => details.style.setProperty('--middle-sticky-top', `${offset}px`));
-    listRows.forEach(({ items, rowStarts }) => {
-      items.forEach((item) => item.classList.toggle('is-row-start', rowStarts.has(item)));
-    });
+    window.updateTreeTargetRowStarts(panel);
   });
 }
 window.addEventListener('resize', scheduleTargetConnectorLayout);
@@ -704,8 +689,13 @@ function renderTree() {
       });
       return button;
     }
-    const details = document.createElement('details');
-    details.className = classKind(item) === 'top' ? 'tree-top-class' : 'tree-middle-class';
+    const treeLevel = window.createTreeLevel(item, {
+      displayId: displayClassId,
+      count: filterActive
+        ? filteredTargetIdsByAncestor.get(item.id)?.size || 0
+        : countTargets(item.id)
+    });
+    const { details, summary, content: levelContent } = treeLevel;
     if (classKind(item) === 'middle') {
       // 固定位置は描画後に、親見出しと各階層の実高さから計算する。
       details.style.setProperty('--middle-sticky-z', String(14 + middleDepth));
@@ -713,21 +703,6 @@ function renderTree() {
     details.open = filterActive
       ? filterAncestorIds.has(item.id)
       : classKind(item) === 'top' && item.label !== '未分類';
-    const summary = document.createElement('summary');
-    const levelContent = document.createElement('div');
-    levelContent.className = 'tree-level-content';
-    const label = document.createElement('span');
-    label.className = 'tree-level-label';
-    label.textContent = item.label;
-    const count = document.createElement('span');
-    count.className = 'count-badge edit-count';
-    count.textContent = filterActive
-      ? filteredTargetIdsByAncestor.get(item.id)?.size || 0
-      : countTargets(item.id);
-    const id = document.createElement('span');
-    id.className = 'tree-level-id';
-    id.textContent = displayClassId(item.id);
-    levelContent.append(id, label, count);
     if (classKind(item) === 'middle' && item.label !== '未分類') {
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
@@ -798,7 +773,6 @@ function renderTree() {
         : '保持中のクラスをここへ移動';
       summary.append(addButton);
     }
-    details.append(summary);
     let childrenRendered = false;
     const renderChildren = () => {
       if (childrenRendered) return;
@@ -810,7 +784,7 @@ function renderTree() {
           child && (!filterActive || visibleIds.has(child.id)));
       const directTargets = childItems.filter((child) => classKind(child) === 'class');
       const childMiddles = childItems.filter((child) => classKind(child) === 'middle');
-      const appendChild = (child, parentList, childMiddleDepth) => {
+      const renderChild = (child, childMiddleDepth) => {
         const li = document.createElement('li');
         li.append(build(child, childMiddleDepth));
         if (classKind(child) === 'class') {
@@ -827,7 +801,7 @@ function renderTree() {
           });
           li.append(infoButton);
         }
-        parentList.append(li);
+        return li;
       };
       if (classKind(item) === 'middle' && item.label !== '未分類') {
         list.append(addRow('中間クラスを追加', () => createFromTree('middle', item.id)));
@@ -835,38 +809,13 @@ function renderTree() {
       if (classKind(item) === 'top' && item.label !== '未分類') {
         list.append(addRow('中間クラスを追加', () => createFromTree('middle', item.id)));
       }
-      if (childMiddles.length) {
-        const middleRow = document.createElement('li');
-        middleRow.className = 'tree-child-middle-row';
-        const middleList = document.createElement('ul');
-        middleList.className = 'tree-child-middle-list';
-        childMiddles.forEach((child) => appendChild(
-          child,
-          middleList,
-          classKind(item) === 'top' ? 1 : middleDepth + 1
-        ));
-        middleRow.append(middleList);
-        list.append(middleRow);
-      }
-      if (classKind(item) === 'middle' && directTargets.length) {
-        const targetRow = document.createElement('li');
-        targetRow.className = 'tree-target-row';
-        const targetList = document.createElement('ul');
-        targetList.className = 'tree-target-list';
-        directTargets.forEach((child) => appendChild(child, targetList));
-        targetRow.append(targetList);
-        list.append(targetRow);
-      }
-      if (classKind(item) === 'top' && directTargets.length) {
-        // 上位クラス直下の対象クラスは中間クラスを介さず、そのまま表示する。
-        const targetRow = document.createElement('li');
-        targetRow.className = 'tree-target-row';
-        const targetList = document.createElement('ul');
-        targetList.className = 'tree-target-list';
-        directTargets.forEach((child) => appendChild(child, targetList));
-        targetRow.append(targetList);
-        list.append(targetRow);
-      }
+      window.appendTreeLevelRows(
+        list,
+        childMiddles,
+        directTargets,
+        (child) => renderChild(child, classKind(item) === 'top' ? 1 : middleDepth + 1),
+        (target) => renderChild(target, 0)
+      );
       details.append(list);
       scheduleTargetConnectorLayout();
     };

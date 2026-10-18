@@ -5,6 +5,7 @@ const rowsElement = document.getElementById('rows');
 const treeElement = document.getElementById('tree');
 const summaryElement = document.getElementById('summary');
 const modeDescription = document.getElementById('mode-description');
+let renderTargetClassList = null;
 
 const toggleBrowseIds = document.getElementById('toggle-browse-ids');
 if (toggleBrowseIds) {
@@ -96,7 +97,8 @@ function renderClassLists(data) {
   [topFilter, middleFilter, textFilter].forEach((element) => {
     element.oninput = updateTargets;
   });
-  updateTargets();
+  renderTargetClassList = updateTargets;
+  if (document.getElementById('target-class-panel')?.hidden === false) updateTargets();
 }
 
 document.querySelectorAll('.mode-button').forEach((button) => {
@@ -139,8 +141,11 @@ function buildHierarchyRows(data) {
   // インスタンス単位ではなく対象クラス単位で行を作る。同じ対象クラスに
   // 複数のインスタンスが属していても、階層上は1件だけ表示する。
   const rowsByClass = new Map();
-  (data.instanceClassData.instances || []).forEach((instance) => {
-    (instance.classes || []).forEach((classInfo) => {
+  const instancesById = new Map((data.instanceData?.instances || []).map((instance) => [instance.id, instance]));
+  (data.instanceClassData.relations || []).forEach((relation) => {
+    const instance = instancesById.get(relation.instance);
+    const classInfo = classMap.get(relation.class);
+    if (!instance || !classInfo) return;
       if (rowsByClass.has(classInfo.id)) return;
       const path = pathFor(classInfo.id).map((id) => classMap.get(id) || { id, label: id });
       const top = path[0] || { id: 't_0', label: '未分類' };
@@ -159,7 +164,6 @@ function buildHierarchyRows(data) {
         id: leaf.id,
         label: leaf.label
       });
-    });
   });
   return [...rowsByClass.values()];
 }
@@ -182,7 +186,6 @@ function renderTree() {
   const { targets, matchedInstanceCount } = window.findTargetMatches(window.appData, filterType?.value || 'class', query);
   const targetIds = query.trim() ? new Set(targets.map((item) => item.id)) : null;
   const model = window.buildTreeModel(window.appData.classData, targetIds) || [];
-  const count = (node) => node.targets.length + node.children.reduce((total, child) => total + count(child), 0);
   const makeTarget = (item) => {
     const li = document.createElement('li');
     const card = document.createElement('div');
@@ -195,42 +198,13 @@ function renderTree() {
     info.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); showTargetInstances(item); });
     card.append(id, label, info); li.append(card); return li;
   };
-  const makeHierarchy = (node, depth = 0) => {
-    const details = document.createElement('details');
-    details.className = node.type === 'top' ? 'tree-top-class' : 'tree-middle-class';
-    details.open = query.trim() ? true : node.type === 'top' && node.label !== '未分類';
-    const summary = document.createElement('summary');
-    const content = document.createElement('div'); content.className = 'tree-level-content';
-    const label = document.createElement('span'); label.className = 'tree-level-label'; label.textContent = node.label;
-    const badge = document.createElement('span'); badge.className = 'count-badge edit-count'; badge.textContent = count(node);
-    const id = document.createElement('span'); id.className = 'tree-level-id'; id.textContent = displayClassId(node.id);
-    content.append(id, label, badge); summary.append(content); details.append(summary);
-    const list = document.createElement('ul'); list.className = 'tree-level-rows';
-    if (node.children.length) {
-      const row = document.createElement('li'); row.className = 'tree-child-middle-row';
-      const children = document.createElement('ul'); children.className = 'tree-child-middle-list';
-      node.children.forEach((child) => { const li = document.createElement('li'); li.append(makeHierarchy(child, depth + 1)); children.append(li); });
-      row.append(children); list.append(row);
-    }
-    if (node.targets.length) {
-      const row = document.createElement('li'); row.className = 'tree-target-row';
-      const targetsList = document.createElement('ul'); targetsList.className = 'tree-target-list';
-      node.targets.forEach((item) => targetsList.append(makeTarget(item)));
-      row.append(targetsList); list.append(row);
-    }
-    details.append(list); return details;
-  };
-  model.sort((a, b) => (a.label === '未分類' ? -1 : b.label === '未分類' ? 1 : count(b) - count(a)));
-  treeElement.replaceChildren(...model.map(makeHierarchy));
-  requestAnimationFrame(() => treeElement.querySelectorAll('.tree-target-list').forEach((list) => {
-    let rowTop = Number.NEGATIVE_INFINITY;
-    [...list.children].forEach((item) => {
-      const top = item.getBoundingClientRect().top;
-      const isStart = Math.abs(top - rowTop) > 1;
-      item.classList.toggle('is-row-start', isStart);
-      if (isStart) rowTop = top;
-    });
-  }));
+  window.renderHierarchyTree(treeElement, model, {
+    isOpen: (node) => query.trim() ? true : node.type === 'top' && node.label !== '未分類',
+    renderTarget: makeTarget,
+    displayId: displayClassId,
+    afterChildren: () => requestAnimationFrame(() => window.updateTreeTargetRowStarts(treeElement)),
+    afterRender: (container) => requestAnimationFrame(() => window.updateTreeTargetRowStarts(container))
+  });
   if (filterCount) filterCount.textContent = query.trim()
     ? filterType.value === 'instance'
       ? `一致インスタンス ${matchedInstanceCount}件に関連するクラス ${targets.length}件を表示中`
@@ -241,8 +215,10 @@ function renderTree() {
 function showTargetInstances(targetClass) {
   const dialog = document.getElementById('target-instance-dialog');
   if (!dialog) return;
-  const instances = (window.appData.instanceClassData.instances || []).filter((instance) =>
-    (instance.classes || []).some((item) => item.id === targetClass.id));
+  const instancesById = new Map((window.appData.instanceData?.instances || []).map((instance) => [instance.id, instance]));
+  const instances = (window.appData.instanceClassData.relations || [])
+    .filter((relation) => relation.class === targetClass.id)
+    .map((relation) => instancesById.get(relation.instance)).filter(Boolean);
   document.getElementById('target-instance-title').textContent = `${targetClass.label}の関連インスタンス`;
   document.getElementById('target-instance-count').textContent = `${instances.length}件`;
   const list = document.getElementById('target-instance-list');
@@ -332,7 +308,7 @@ if (window.appData) {
     }));
   }
 }
-let hierarchyRows = window.appData ? buildHierarchyRows(window.appData) : [];
+let hierarchyRows = [];
 
 function refresh(data) {
   hierarchyRows = buildHierarchyRows(data);
@@ -373,8 +349,12 @@ document.querySelectorAll('.tab').forEach((tab) => {
       panel.hidden = !isActive;
       panel.style.display = isActive ? '' : 'none';
     });
+    if (tab.id === 'target-class-tab') renderTargetClassList?.();
   });
 });
 
 const loadingIndicator = document.getElementById('loading-indicator');
 if (loadingIndicator) loadingIndicator.hidden = true;
+document.getElementById('tree-filter-type')?.addEventListener('change', renderTree);
+document.getElementById('tree-filter-query')?.addEventListener('input', renderTree);
+window.addEventListener('resize', () => requestAnimationFrame(() => window.updateTreeTargetRowStarts(treeElement)));

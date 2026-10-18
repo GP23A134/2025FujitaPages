@@ -37,15 +37,141 @@
     return roots.map((item) => makeNode(item)).filter(Boolean);
   }
 
+  function createTreeLevel(node, options = {}) {
+    const type = node.type || classType(node.id);
+    const details = document.createElement('details');
+    details.className = type === 'top' ? 'tree-top-class' : 'tree-middle-class';
+    const summary = document.createElement('summary');
+    const content = document.createElement('div');
+    content.className = 'tree-level-content';
+    const id = document.createElement('span');
+    id.className = 'tree-level-id';
+    id.textContent = options.displayId ? options.displayId(node.id) : String(node.id).split('/').pop();
+    const label = document.createElement('span');
+    label.className = 'tree-level-label';
+    label.textContent = node.label || '';
+    const badge = document.createElement('span');
+    badge.className = 'count-badge edit-count';
+    badge.textContent = options.count ?? 0;
+    content.append(id, label, badge);
+    summary.append(content);
+    details.append(summary);
+    return { details, summary, content, id, label, badge };
+  }
+
+  function appendTreeLevelRows(list, children, targets, renderChild, renderTarget) {
+    if (children.length) {
+      const row = document.createElement('li');
+      row.className = 'tree-child-middle-row';
+      const childList = document.createElement('ul');
+      childList.className = 'tree-child-middle-list';
+      children.forEach((child) => childList.append(renderChild(child)));
+      row.append(childList);
+      list.append(row);
+    }
+    if (targets.length) {
+      const row = document.createElement('li');
+      row.className = 'tree-target-row';
+      const targetList = document.createElement('ul');
+      targetList.className = 'tree-target-list';
+      targets.forEach((target) => targetList.append(renderTarget(target)));
+      row.append(targetList);
+      list.append(row);
+    }
+  }
+
+  function updateTreeTargetRowStarts(root) {
+    root.querySelectorAll('.tree-target-list').forEach((list) => {
+      let previousRowTop = Number.NEGATIVE_INFINITY;
+      const items = [...list.children].filter((item) =>
+        item.firstElementChild?.classList.contains('tree-leaf-class')
+      );
+      const positions = items.map((item) => item.getBoundingClientRect().top);
+      positions.forEach((rowTop, index) => {
+        const isRowStart = Math.abs(rowTop - previousRowTop) > 1;
+        items[index].classList.toggle('is-row-start', isRowStart);
+        if (isRowStart) previousRowTop = rowTop;
+      });
+    });
+  }
+
+  function renderHierarchyTree(container, roots, options = {}) {
+    const countTargets = (node) => node.targets.length + node.children.reduce((sum, child) => sum + countTargets(child), 0);
+    const countFor = options.countFor || countTargets;
+    const makeDefaultTarget = (item) => {
+      const li = document.createElement('li');
+      const card = document.createElement('div');
+      card.className = 'tree-leaf-class';
+      const id = document.createElement('span');
+      id.className = 'tree-leaf-id';
+      id.textContent = options.displayId ? options.displayId(item.id) : String(item.id).split('/').pop();
+      const label = document.createElement('span');
+      label.className = 'tree-leaf-label';
+      label.textContent = item.label || '';
+      card.append(id, label);
+      li.append(card);
+      return li;
+    };
+    const makeTarget = options.renderTarget || makeDefaultTarget;
+    const renderNode = (node, depth = 0) => {
+      const { details, summary, content } = createTreeLevel(node, {
+        displayId: options.displayId,
+        count: countFor(node)
+      });
+      if (options.configureDetails) options.configureDetails(details, node, depth);
+      details.open = options.isOpen
+        ? options.isOpen(node, depth)
+        : node.type === 'top' && node.label !== '未分類';
+      if (options.decorateSummary) options.decorateSummary(summary, content, node, depth);
+
+      let childrenRendered = false;
+      const renderChildren = () => {
+        if (childrenRendered) return;
+        childrenRendered = true;
+        const list = document.createElement('ul');
+        list.className = 'tree-level-rows';
+        if (options.beforeChildren) options.beforeChildren(node, list, depth);
+        appendTreeLevelRows(
+          list,
+          node.children,
+          node.targets,
+          (child) => { const row = document.createElement('li'); row.append(renderNode(child, depth + 1)); return row; },
+          (target) => makeTarget(target, node, depth)
+        );
+        if (options.afterChildren) options.afterChildren(node, list, depth);
+        details.append(list);
+      };
+      details.addEventListener('toggle', () => { if (details.open) renderChildren(); });
+      if (details.open) renderChildren();
+      return details;
+    };
+
+    const orderedRoots = [...roots].sort((a, b) => {
+      if (options.sortRoots) return options.sortRoots(a, b, countFor);
+      const aUnclassified = a.type === 'top' && a.label === '未分類';
+      const bUnclassified = b.type === 'top' && b.label === '未分類';
+      if (aUnclassified !== bUnclassified) return aUnclassified ? -1 : 1;
+      return countFor(b) - countFor(a) || a.label.localeCompare(b.label, 'ja');
+    });
+    const elements = orderedRoots.map((node) => renderNode(node));
+    const extra = options.renderRootExtra?.();
+    if (extra) elements.push(extra);
+    container.replaceChildren(...elements);
+    options.afterRender?.(container);
+  }
+
   function findTargetMatches(data, searchType, query) {
     const normalizedQuery = String(query || '').trim().toLocaleLowerCase();
     const classes = data.classData?.classes || [];
     if (searchType === 'instance') {
-      const matchedInstances = (data.instanceClassData?.instances || []).filter((instance) =>
+      const instances = data.instanceData?.instances || [];
+      const relations = data.instanceClassData?.relations || [];
+      const matchedInstances = instances.filter((instance) =>
         !normalizedQuery || `${instance.label || ''} ${instance.id || ''}`.toLocaleLowerCase().includes(normalizedQuery));
-      const matchedClassIds = new Set(matchedInstances.flatMap((instance) =>
-        (instance.classes || []).map((classInfo) => classInfo.id)
-      ));
+      const matchedInstanceIds = new Set(matchedInstances.map((instance) => instance.id));
+      const matchedClassIds = new Set(relations
+        .filter((relation) => matchedInstanceIds.has(relation.instance))
+        .map((relation) => relation.class));
       return {
         targets: classes.filter((item) => classType(item.id) === 'class' && matchedClassIds.has(item.id)),
         matchedInstanceCount: matchedInstances.length
@@ -59,5 +185,9 @@
   }
 
   global.buildTreeModel = buildTreeModel;
+  global.createTreeLevel = createTreeLevel;
+  global.appendTreeLevelRows = appendTreeLevelRows;
+  global.updateTreeTargetRowStarts = updateTreeTargetRowStarts;
+  global.renderHierarchyTree = renderHierarchyTree;
   global.findTargetMatches = findTargetMatches;
 })(window);

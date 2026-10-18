@@ -4,7 +4,7 @@
 
 - `QueryDataExporter`：SPARQLクエリを実行し、結果をJSONへ保存
 - `InstanceClassIntegrator`：クエリ結果からインスタンスとクラスを統合
-- `WebDataGenerator`：統合JSONからWeb用の`app.js`を生成
+- `WebDataGenerator`：統合JSONから`data/web/`へクラスデータとインスタンスデータのJavaScriptを生成
 - `ClassRelationUpdater`：inputのTSVからクラス一覧と親子関係を更新
 - `ClassLabelConsistencyChecker`：初回取得データと現在のクラスID・ラベル対応を照合
 
@@ -64,12 +64,13 @@ mvn -f java/pom.xml exec:java "-Dexec.mainClass=InstanceClassIntegrator"
 
 出力先は次の2ファイルです。
 
-- `data/integrated-data/instance-class-data.json`：インスタンスと所属クラス
+- `data/integrated-data/instance-data.json`：インスタンス本体（ID・ラベル）
+- `data/integrated-data/instance-class-data.json`：インスタンスとクラスの関係（インスタンスID・クラスID）
 - `data/integrated-data/class-data.json`：クラス一覧とクラス間の親子関係
 - `data/integrated-data/middle-class-list.json`：中間クラス一覧
 - `data/integrated-data/top-class-list.json`：上位クラス一覧
 
-Web表示用の`app.js`を生成する場合は、次を実行します。
+Web表示用の`data/web/class-data.js`（クラスデータ）と`data/web/instance-data.js`（インスタンスデータ）を生成する場合は、次を実行します。
 
 ```text
 mvn -f java/pom.xml exec:java "-Dexec.mainClass=WebDataGenerator"
