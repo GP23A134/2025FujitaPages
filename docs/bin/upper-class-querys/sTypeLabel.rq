@@ -4,7 +4,7 @@ PREFIX kg:    <https://kozaki-lab.jp/REFV-KG/data/>
 PREFIX cls:   <https://kozaki-lab.jp/REFV-KG/class/>
 PREFIX prop:  <https://kozaki-lab.jp/REFV-KG/prop/>
 
-SELECT DISTINCT  ?sClass ?sClassLabel ?sType ?sTypeLabel
+SELECT DISTINCT  ?sClass ?sType ?sTypeLabel
 WHERE {
   GRAPH ?g {
     ?s ?p ?o .

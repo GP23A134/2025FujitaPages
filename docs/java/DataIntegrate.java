@@ -36,6 +36,8 @@ public final class DataIntegrate {
     private static final Path TARGET_CLASS_OUTPUT_FILE = Paths.get("data/integrated-data/target-class-data.json");
     private static final Path MIDDLE_CLASS_OUTPUT_FILE = Paths.get("data/integrated-data/middle-class-list.json");
     private static final Path TOP_CLASS_OUTPUT_FILE = Paths.get("data/integrated-data/top-class-list.json");
+    private static final Path MIDDLE_CLASS_TSV_OUTPUT_FILE = Paths.get("data/output/middle-class-list.tsv");
+    private static final Path TOP_CLASS_TSV_OUTPUT_FILE = Paths.get("data/output/top-class-list.tsv");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private DataIntegrate() {}
@@ -133,10 +135,14 @@ public final class DataIntegrate {
         writeClassList(TARGET_CLASS_OUTPUT_FILE, targetClasses);
         writeClassList(MIDDLE_CLASS_OUTPUT_FILE, classLabels, MIDDLE_CLASS_PREFIX);
         writeClassList(TOP_CLASS_OUTPUT_FILE, classLabels, TOP_CLASS_PREFIX);
+        writeClassListTsv(MIDDLE_CLASS_TSV_OUTPUT_FILE, classLabels, MIDDLE_CLASS_PREFIX);
+        writeClassListTsv(TOP_CLASS_TSV_OUTPUT_FILE, classLabels, TOP_CLASS_PREFIX);
         System.out.println("インスタンスJSONを出力しました: " + INSTANCE_OUTPUT_FILE);
         System.out.println("インスタンス・クラス関係JSONを出力しました: " + INSTANCE_CLASS_OUTPUT_FILE);
         System.out.println("クラス統合JSONを出力しました: " + CLASS_OUTPUT_FILE);
         System.out.println("対象クラスJSONを出力しました: " + TARGET_CLASS_OUTPUT_FILE);
+        System.out.println("中間クラスTSVを出力しました: " + MIDDLE_CLASS_TSV_OUTPUT_FILE);
+        System.out.println("上位クラスTSVを出力しました: " + TOP_CLASS_TSV_OUTPUT_FILE);
     }
 
     private static void addUnclassifiedHierarchy(Map<String, Instance> instances,
@@ -177,6 +183,25 @@ public final class DataIntegrate {
             GSON.toJson(classListOutput, writer);
         }
         replaceFile(temporaryOutput, output);
+    }
+
+    /** 上位または中間クラスのIDとラベルを、短縮ID順のTSVとして出力します。 */
+    private static void writeClassListTsv(Path output, Map<String, String> classLabels, String idPrefix)
+            throws IOException {
+        StringBuilder contents = new StringBuilder("ID\tラベル\n");
+        classLabels.entrySet().stream()
+                .filter(entry -> entry.getKey().startsWith(CLASS_URI_PREFIX + idPrefix))
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> contents.append(entry.getKey().substring(CLASS_URI_PREFIX.length()))
+                        .append('\t').append(entry.getValue()).append('\n'));
+        writeTextAtomically(output, contents.toString());
+    }
+
+    private static void writeTextAtomically(Path output, String contents) throws IOException {
+        Files.createDirectories(output.getParent());
+        Path temporary = output.resolveSibling(output.getFileName() + ".tmp");
+        Files.writeString(temporary, contents, StandardCharsets.UTF_8);
+        replaceFile(temporary, output);
     }
 
     private static void replaceFile(Path temporary, Path target) throws IOException {
@@ -221,8 +246,8 @@ public final class DataIntegrate {
      */
     private static void collectClassRelation(JsonObject binding, String childKey, String parentKey,
             Map<String, Set<String>> relations) {
-        String child = value(binding, childKey);
-        String parent = value(binding, parentKey);
+        String child = normalizeHierarchyId(value(binding, childKey));
+        String parent = normalizeHierarchyId(value(binding, parentKey));
         if (child != null && parent != null) {
             Set<String> parents = relations.computeIfAbsent(child, ignored -> new LinkedHashSet<>());
             // 対象クラス(c_)は所属先を1つに限定する。複数の親がクエリ結果に
@@ -236,7 +261,17 @@ public final class DataIntegrate {
             Map<String, String> labels) {
         String id = value(binding, idKey);
         String label = value(binding, labelKey);
+        if (isClassBindingKey(idKey)) id = normalizeHierarchyId(id);
         if (id != null && label != null) labels.putIfAbsent(id, label);
+    }
+
+    private static boolean isClassBindingKey(String key) {
+        return key.endsWith("Class") || key.endsWith("Type");
+    }
+
+    private static String normalizeHierarchyId(String id) {
+        if (id == null) return null;
+        return id.replaceFirst("(?<=/class/)([mt])_0+(\\d+)$", "$1_$2");
     }
 
     private static void collectRelation(JsonObject binding, String instanceKey, String classKey,

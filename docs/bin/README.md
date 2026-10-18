@@ -8,7 +8,7 @@
 |---|---|
 | `QueryRun.java` | SPARQLクエリを実行し、結果をJSONで保存します。 |
 | `DataIntegrate.java` | クエリ結果からインスタンスやクラスのデータを統合します。 |
-| `ClassDataUpdate.java` | `data/input/` のTSVからクラス一覧と親子関係を更新します。 |
+| `ClassDataUpdate.java` | `data/input/class-update.json`からクラス一覧と親子関係を更新します。 |
 | `WebDataBuild.java` | 統合データからWeb表示用のJavaScriptを生成します。 |
 
 ## クエリ
@@ -44,4 +44,4 @@ java -cp "bin:lib/*" ClassDataUpdate
 java -cp "bin:lib/*" WebDataBuild
 ```
 
-`ClassDataUpdate`が読むTSVの形式や更新ルールは[`data/input/README.md`](../data/input/README.md)に記載しています。
+`ClassDataUpdate`が読むJSONの形式や更新ルールは[`data/input/README.md`](../data/input/README.md)に記載しています。

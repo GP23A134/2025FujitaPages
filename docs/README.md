@@ -8,7 +8,7 @@
 |---|---|
 | `QueryRun` | SPARQLクエリを実行し、結果をJSONで保存します。 |
 | `DataIntegrate` | クエリ結果からインスタンス、クラス、所属関係を統合します。 |
-| `ClassDataUpdate` | 入力TSVからクラス一覧とクラス間の親子関係を更新します。 |
+| `ClassDataUpdate` | 入力JSONからクラス一覧とクラス間の親子関係を更新します。 |
 | `WebDataBuild` | 統合データからWeb表示用のJavaScriptを生成します。 |
 
 ## 実行の流れ
@@ -19,7 +19,7 @@
 2. `DataIntegrate` で取得結果を統合
 3. `WebDataBuild` でWeb表示用データを生成
 
-クラス分類を更新する場合は、`data/input/` にTSVを配置して `ClassDataUpdate` を実行します。詳細は [`data/input/README.md`](data/input/README.md) を参照してください。
+クラス分類を更新する場合は、編集画面から保存したJSONを `data/input/` に配置して `ClassDataUpdate` を実行します。詳細は [`data/input/README.md`](data/input/README.md) を参照してください。
 
 ## 詳細
 
@@ -94,6 +94,7 @@ java -cp "bin:lib/*" ClassDataUpdate
 | `top-class-list.json` | 上位クラス一覧 |
 
 `WebDataBuild` は `data/web/` に `class-data.js` と `instance-data.js` を生成します。
+`DataIntegrate` と `ClassDataUpdate` は、上位クラスと中間クラスの一覧TSVを `data/output/` にも生成します。
 
 ## ディレクトリ構成
 
@@ -117,8 +118,9 @@ java/
 
 data/
 ├── README.md
-├── input/                  # クラス更新用TSV
+├── input/                  # クラス更新用JSON
 ├── query-result/           # SPARQLクエリの取得結果
 ├── integrated-data/        # 統合JSON
+├── output/                 # 上位・中間クラス一覧TSV
 └── web/                    # Web表示用JavaScript
 ```

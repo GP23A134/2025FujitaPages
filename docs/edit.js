@@ -129,6 +129,18 @@ function classKind(item) {
   return item.type || kind(item.id);
 }
 
+function hasClassLabelConflict(type, label, excludedId = null) {
+  const normalizedLabel = label.trim();
+  return classes.some((item) => item.id !== excludedId
+    && classKind(item) === type
+    && String(item.label ?? '').trim() === normalizedLabel);
+}
+
+function classLabelConflictMessage(type, label) {
+  const typeLabel = type === 'top' ? '上位' : '中間';
+  return `同じ種類の「${typeLabel}クラス」に「${label}」は既にあります。別の名前を入力してください。`;
+}
+
 function displayClassId(id) {
   const segment = id.split('/').pop();
   const match = segment.match(/^([cmt])_0*(\d+)$/);
@@ -148,14 +160,18 @@ function allocateTemporaryClassId(type) {
 function createClass(type, label) {
   if (type === 'class') return null;
   const normalizedLabel = label.trim();
+  if (hasClassLabelConflict(type, normalizedLabel)) {
+    status.textContent = classLabelConflictMessage(type, normalizedLabel);
+    return null;
+  }
   if (type === 'top' && normalizedLabel === '未分類' && !classes.some((item) => item.id === 't_0')) {
     const item = { id: 't_0', label: normalizedLabel, type };
     classes.push(item);
     classById.set(item.id, item);
     return item;
   }
-  // 同じラベルでも所属先が異なる中間クラスは別クラスとして作成する。
-  // 呼び出し側で親子関係を設定するため、ここでは既存クラスを再利用しない。
+  // Java側と同じく、同じ種類・ラベルのクラスは重複作成しない。
+  // 呼び出し側で親子関係を設定するため、既存クラスの再利用もしない。
   // 新規IDは既存件数を基準に連番で作る。new- を付けることで、保存時に
   // まだ正式な外部IDが割り当てられていないクラスとして出力できる。
   // 件数ではなく既存IDの最大番号の次を使い、Java側の一時ID解決と揃える。
@@ -301,6 +317,10 @@ function renderClassManagement() {
     rename.addEventListener('click', () => {
       const nextLabel = window.prompt('新しいクラス名を入力してください。', item.label);
       if (!nextLabel || !nextLabel.trim() || nextLabel.trim() === item.label) return;
+      if (hasClassLabelConflict(classKind(item), nextLabel, item.id)) {
+        status.textContent = classLabelConflictMessage(classKind(item), nextLabel.trim());
+        return;
+      }
       item.label = nextLabel.trim(); hasUnsavedChanges = true;
       status.textContent = `クラス名を「${item.label}」に変更しました。`; render();
     });
@@ -642,6 +662,7 @@ function renderTree() {
     const label = window.prompt(`${type === 'middle' ? '中間' : '対象'}クラス名を入力してください`);
     if (!label || !label.trim()) return;
     const item = createClass(type, label);
+    if (!item) return;
     if (parentId) addRelation(item.id, parentId);
     if (heldInstances.size) {
       const selectedIds = [...heldInstances.keys()];
@@ -842,25 +863,21 @@ function renderTree() {
   scheduleTargetConnectorLayout();
 }
 // ============================================================
-// TSV出力と保存
+// JSON出力と保存
 // ============================================================
-function download(name, lines) {
-  // TSVはExcel等でも文字化けしにくいようUTF-8 BOM付きで作り、ブラウザーの
-  // 一時的なObject URLを使ってダウンロードを開始する。
-  const blob = new Blob([`\ufeff${lines.join('\r\n')}\r\n`], { type: 'text/tab-separated-values;charset=utf-8' });
+function downloadJson(name, value) {
+  const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], { type: 'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a'); link.href = url; link.download = name; link.click();
-  URL.revokeObjectURL(url);
-}
-function escapeTsv(value) {
-  return String(value ?? '').replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function saveEditChanges() {
-  // クラス一覧と関係一覧を別ファイルで保存する。保存成功後だけ未保存フラグを解除し、
-  // ブラウザー移動時の警告が出ない状態にする。
-  download('class-list.tsv', ['種類\tID\tラベル', ...classes.map((item) => `${escapeTsv(kind(item.id))}\t${escapeTsv(item.id.startsWith('new-') ? '' : item.id)}\t${escapeTsv(item.label)}`)]);
-  download('class-relation.tsv', ['子クラスID\t親クラスID', ...data.classData.relations.map((item) => `${escapeTsv(item.child)}\t${escapeTsv(item.parent)}`)]);
-  status.textContent = '編集内容を保存しました。';
+  const exportData = {
+    classes: classes.map((item) => ({ type: kind(item.id), id: item.id, label: item.label })),
+    relations: data.classData.relations.map(({ child, parent }) => ({ child, parent }))
+  };
+  downloadJson('class-update.json', exportData);
+  status.textContent = 'class-update.jsonをダウンロードしました。data/input/に配置してClassDataUpdateを実行してください。';
   hasUnsavedChanges = false;
 }
 // ============================================================
@@ -915,7 +932,8 @@ document.getElementById('add-class').addEventListener('click', () => {
   const type = document.getElementById('new-class-type').value;
   const label = document.getElementById('new-class-label').value.trim();
   if (!label) return;
-  createClass(type, label);
+  const item = createClass(type, label);
+  if (!item) return;
   document.getElementById('new-class-label').value = '';
   hasUnsavedChanges = true;
   status.textContent = `${label}を追加しました。`;
@@ -997,13 +1015,14 @@ document.getElementById('apply-search-selection').addEventListener('click', () =
     const label = document.getElementById('search-new-class-label').value.trim();
     if (!label) { status.textContent = '新しいクラス名を入力してください。'; return; }
     const newKind = document.getElementById('search-new-class-kind').value;
-    if (classes.some((item) => classKind(item) === newKind && item.label === label)) {
-      status.textContent = `同じ種類・名称のクラス「${label}」が既に存在します。`;
+    if (hasClassLabelConflict(newKind, label)) {
+      status.textContent = classLabelConflictMessage(newKind, label);
       return;
     }
     const parentId = newKind === 'middle' ? document.getElementById('search-new-class-parent').value : '';
     if (newKind === 'middle' && !parentId) { status.textContent = '新しい中間クラスの親を選択してください。'; return; }
     const item = createClass(newKind, label);
+    if (!item) return;
     if (parentId) addRelation(item.id, parentId);
     data.classData.relations = data.classData.relations.filter((relation) => !selectedIdSet.has(relation.child));
     selectedIds.forEach((id) => addRelation(id, item.id));
@@ -1015,8 +1034,7 @@ document.getElementById('apply-search-selection').addEventListener('click', () =
   hasUnsavedChanges = true;
   render();
 });
-document.getElementById('download-class-list').addEventListener('click', () => download('class-list.tsv', ['種類\tID\tラベル', ...classes.map((item) => `${escapeTsv(kind(item.id))}\t${escapeTsv(item.id.startsWith('new-') ? '' : item.id)}\t${escapeTsv(item.label)}`)]));
-document.getElementById('download-relation').addEventListener('click', () => download('class-relation.tsv', ['子クラスID\t親クラスID', ...data.classData.relations.map((item) => `${escapeTsv(item.child)}\t${escapeTsv(item.parent)}`)]));
+document.getElementById('download-class-update').addEventListener('click', saveEditChanges);
 // 初期表示
 render();
 
@@ -1043,7 +1061,6 @@ window.addEventListener('beforeunload', (event) => {
 // 検索・管理機能はツリー／フォームから独立したタブとして表示する。
 // HTML上の既存配置をここで移動することで、初期表示時の構造も保ちつつ
 // 旧画面との互換性を確保する。
-const tabBar = document.querySelector('.tabs');
 const main = document.querySelector('main');
 const treePanel = document.getElementById('edit-tree-panel');
 const searchPanel = document.getElementById('target-search-panel');

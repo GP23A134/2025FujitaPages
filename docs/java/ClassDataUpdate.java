@@ -1,4 +1,5 @@
 import java.io.IOException;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,31 +16,35 @@ import java.util.Set;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
-/** inputのTSVを使ってクラス一覧とクラス間関係を更新します。 */
+/** inputのJSONを使ってクラス一覧とクラス間関係を更新します。 */
 public final class ClassDataUpdate {
     private static final Path INPUT_DIRECTORY = Paths.get("data/input");
     private static final Path PROCESSED_DIRECTORY = INPUT_DIRECTORY.resolve("processed");
-    private static final Path CLASS_INPUT = INPUT_DIRECTORY.resolve("class-list.tsv");
-    private static final Path RELATION_INPUT = INPUT_DIRECTORY.resolve("class-relation.tsv");
+    private static final Path INPUT_FILE = INPUT_DIRECTORY.resolve("class-update.json");
     private static final Path CLASS_DATA = Paths.get("data/integrated-data/class-data.json");
     private static final Path TARGET_CLASS_DATA = Paths.get("data/integrated-data/target-class-data.json");
     private static final Path MIDDLE_LIST = Paths.get("data/integrated-data/middle-class-list.json");
     private static final Path TOP_LIST = Paths.get("data/integrated-data/top-class-list.json");
+    private static final Path MIDDLE_TSV_LIST = Paths.get("data/output/middle-class-list.tsv");
+    private static final Path TOP_TSV_LIST = Paths.get("data/output/top-class-list.tsv");
     private static final String URI_PREFIX = "https://kozaki-lab.jp/REFV-KG/class/";
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private ClassDataUpdate() {}
 
     public static void main(String[] args) throws IOException {
-        // JSONの既存内容には依存せず、2つのTSVを唯一の入力として再生成する。
+        // JSONの既存内容には依存せず、入力JSONを唯一の入力として再生成する。
         // この順序で検証を先に行うため、入力に問題がある場合はJSONを更新せず、
-        // 入力TSVもprocessedへ移動しない。
+        // 入力JSONもprocessedへ移動しない。
+        InputData input = readInput();
         Map<String, String> classes = new LinkedHashMap<>();
         Map<String, String> temporaryIds = new LinkedHashMap<>();
-        addInputClasses(classes, temporaryIds);
-        List<String[]> relations = readRelations(classes, temporaryIds);
+        addInputClasses(classes, temporaryIds, input.classes());
+        List<String[]> relations = readRelations(classes, temporaryIds, input.relations());
         normalizeDirectTargetRelations(classes, relations);
         validateHierarchyAssignments(classes, relations);
         validateAcyclic(relations);
@@ -49,36 +54,28 @@ public final class ClassDataUpdate {
         writeList(TARGET_CLASS_DATA, classes, "c_");
         writeList(MIDDLE_LIST, classes, "m_");
         writeList(TOP_LIST, classes, "t_");
+        writeListTsv(MIDDLE_TSV_LIST, classes, "m_");
+        writeListTsv(TOP_TSV_LIST, classes, "t_");
 
         // 出力がすべて成功した後で、入力を履歴フォルダへ移動する。
-        Path processedDirectory = moveInputFiles();
+        Path processedDirectory = moveInputFile();
         System.out.printf("クラス一覧と親子関係を再生成しました。クラス: %d件、関係: %d件%n",
                 classes.size(), relations.size());
-        System.out.println("入力TSVを移動しました: " + processedDirectory);
+        System.out.println("中間クラスTSVを出力しました: " + MIDDLE_TSV_LIST);
+        System.out.println("上位クラスTSVを出力しました: " + TOP_TSV_LIST);
+        System.out.println("入力JSONを移動しました: " + processedDirectory);
     }
 
-    private static Path moveInputFiles() throws IOException {
+    private static Path moveInputFile() throws IOException {
         // 同じファイル名の入力を上書きしないよう、実行時刻ごとのフォルダを作る。
         // ミリ秒まで含めることで、短時間に連続実行した場合も衝突しにくくする。
         String timestamp = LocalDateTime.now()
                 .format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS"));
         Path processedDirectory = PROCESSED_DIRECTORY.resolve(timestamp);
         Files.createDirectories(processedDirectory);
-        Path movedClassInput = processedDirectory.resolve(CLASS_INPUT.getFileName());
-        Path movedRelationInput = processedDirectory.resolve(RELATION_INPUT.getFileName());
-        try {
-            moveWithRetry(CLASS_INPUT, movedClassInput);
-            moveWithRetry(RELATION_INPUT, movedRelationInput);
-            return processedDirectory;
-        } catch (IOException exception) {
-            // 片方だけ移動された状態を残さないよう、可能なら元に戻す。
-            rollbackMove(movedClassInput, CLASS_INPUT);
-            rollbackMove(movedRelationInput, RELATION_INPUT);
-            throw new IOException(
-                    "入力TSVをprocessedへ移動できません。Excelやエディタなどで "
-                            + "class-list.tsv / class-relation.tsv が開かれていないか確認してください。",
-                    exception);
-        }
+        Path movedInput = processedDirectory.resolve(INPUT_FILE.getFileName());
+        moveWithRetry(INPUT_FILE, movedInput);
+        return processedDirectory;
     }
 
     private static void moveWithRetry(Path source, Path target) throws IOException {
@@ -94,71 +91,112 @@ public final class ClassDataUpdate {
                         Thread.sleep(200L * attempt);
                     } catch (InterruptedException interruptedException) {
                         Thread.currentThread().interrupt();
-                        throw new IOException("入力TSVの移動が中断されました。", interruptedException);
+                        throw new IOException("入力JSONの移動が中断されました。", interruptedException);
                     }
                 }
             }
         }
         if (lastException != null) throw lastException;
-        throw new IOException("入力TSVの移動に失敗しました。");
+        throw new IOException("入力JSONの移動に失敗しました。");
     }
 
-    private static void rollbackMove(Path movedFile, Path originalFile) {
-        if (!Files.exists(movedFile) || Files.exists(originalFile)) return;
-        try {
-            Files.move(movedFile, originalFile);
-        } catch (IOException ignored) {
-            // 元に戻せない場合は、元の移動例外を優先して報告する。
+    private static InputData readInput() throws IOException {
+        if (!Files.isRegularFile(INPUT_FILE)) {
+            throw new IOException("入力JSONが見つかりません: " + INPUT_FILE);
+        }
+        try (Reader reader = Files.newBufferedReader(INPUT_FILE, StandardCharsets.UTF_8)) {
+            JsonElement parsed = JsonParser.parseReader(reader);
+            if (!parsed.isJsonObject()) throw new IOException("入力JSONのルートはオブジェクトにしてください。");
+            JsonObject root = parsed.getAsJsonObject();
+            JsonArray classArray = requireArray(root, "classes");
+            JsonArray relationArray = requireArray(root, "relations");
+            List<String[]> classes = new ArrayList<>();
+            List<String[]> relations = new ArrayList<>();
+            for (JsonElement element : classArray) {
+                if (!element.isJsonObject()) throw new IOException("classesの要素はオブジェクトにしてください。");
+                JsonObject item = element.getAsJsonObject();
+                classes.add(new String[] {
+                    requiredString(item, "type"), requiredString(item, "id"), requiredString(item, "label")
+                });
+            }
+            for (JsonElement element : relationArray) {
+                if (!element.isJsonObject()) throw new IOException("relationsの要素はオブジェクトにしてください。");
+                JsonObject item = element.getAsJsonObject();
+                relations.add(new String[] { requiredString(item, "child"), requiredString(item, "parent") });
+            }
+            return new InputData(classes, relations);
+        } catch (com.google.gson.JsonParseException exception) {
+            throw new IOException("入力JSONを読み込めません。JSONの構文を確認してください。", exception);
         }
     }
 
-    private static void addInputClasses(Map<String, String> classes, Map<String, String> temporaryIds) throws IOException {
-        // class-list.tsvの行を正規化し、クラスIDからラベルへのMapを作る。
-        // ID欄が空の行には一時IDを発行し、関係TSVから参照できるよう対応表に登録する。
-        List<String> lines = readTsv(CLASS_INPUT, "種類\tID\tラベル");
-        // 既存IDの最大値を確認してから、新規行の仮IDを採番する。
-        // classesはこのループで構築するため、読み込み前に計算すると常に0から始まってしまう。
-        Map<String, Integer> next = nextNumbersFromLines(lines);
+    private static JsonArray requireArray(JsonObject root, String name) throws IOException {
+        if (!root.has(name) || !root.get(name).isJsonArray()) {
+            throw new IOException("入力JSONに配列 '" + name + "' が必要です。");
+        }
+        return root.getAsJsonArray(name);
+    }
+
+    private static String requiredString(JsonObject object, String name) throws IOException {
+        if (!object.has(name) || object.get(name).isJsonNull()
+                || !object.get(name).isJsonPrimitive()
+                || !object.getAsJsonPrimitive(name).isString()) {
+            throw new IOException("入力JSONの '" + name + "' は文字列で指定してください。");
+        }
+        return object.get(name).getAsString();
+    }
+
+    private static void addInputClasses(Map<String, String> classes, Map<String, String> temporaryIds,
+            List<String[]> rows) throws IOException {
+        Map<String, Integer> next = nextNumbersFromClasses(rows);
         Set<String> inputIds = new HashSet<>();
         Set<String> inputLabels = new HashSet<>();
-        for (String line : lines) {
-            String[] columns = line.split("\\t", -1);
-            if (columns.length != 3) throw new IOException("class-list.tsvの列数が不正です: " + line);
+        Set<String> temporaryInputIds = new HashSet<>();
+        for (String[] columns : rows) {
+            if (columns.length != 3) throw new IOException("classesの要素にtype、id、labelが必要です。");
             String type = columns[0].trim().toLowerCase();
             String id = columns[1].trim();
             String label = columns[2].trim();
             String prefix = prefix(type);
-            if (prefix == null || label.isEmpty()) throw new IOException("種類またはラベルが不正です: " + line);
-            if (id.isEmpty()) {
-                // 新規クラスは既存の最大番号の次を採番する。表示用のnew- IDと、
-                // 出力する正式URIの両方をtemporaryIdsで解決できるようにする。
+            if (prefix == null || label.isEmpty()) {
+                throw new IOException("classesの種類またはラベルが不正です: " + String.join(" / ", columns));
+            }
+            if (id.isEmpty() || id.startsWith("new-")) {
+                // 新規クラスは既存の最大番号の次を採番し、入力JSONのnew- IDから
+                // 正式URIへ関係を解決できるよう対応表に登録する。
+                String requestedTemporaryId = id;
+                if (!id.isEmpty() && !id.matches("new-" + prefix + "\\d+")) {
+                    throw new IOException("新規クラスIDと種類が一致しません: " + id);
+                }
+                if (!id.isEmpty() && !temporaryInputIds.add(id)) {
+                    throw new IOException("classesに一時IDの重複があります: " + id);
+                }
                 int number = next.compute(prefix, (key, value) -> value + 1) - 1;
-                id = URI_PREFIX + prefix + String.format("%05d", number);
+                id = URI_PREFIX + prefix + number;
+                if (!requestedTemporaryId.isEmpty()) temporaryIds.put(requestedTemporaryId, id);
                 temporaryIds.put("new-" + prefix + number, id);
-                temporaryIds.put("new-" + prefix + String.format("%05d", number), id);
             } else {
                 id = normalizeId(id);
             }
-            // 未分類は画面表示時に生成する仮想グループであり、過去のTSVには
+            // 未分類は画面表示時に生成する仮想グループであり、過去の入力には
             // classとして書き出された仮想IDが残っている場合がある。
             if (isVirtualUnclassified(id, label)) continue;
-            if (!inputIds.add(id)) throw new IOException("class-list.tsvにIDの重複があります: " + id);
+            if (!inputIds.add(id)) throw new IOException("classesにIDの重複があります: " + id);
             if (!inputLabels.add(type + "\t" + label)) {
-                throw new IOException("class-list.tsvに同じ種類・ラベルの重複があります: " + line);
+                throw new IOException("classesに同じ種類・ラベルの重複があります: " + label);
             }
-            if (classes.containsKey(id)) throw new IOException("class-list.tsvにIDの重複があります: " + id);
+            if (classes.containsKey(id)) throw new IOException("classesにIDの重複があります: " + id);
             classes.put(id, label);
         }
     }
 
-    private static List<String[]> readRelations(Map<String, String> classes, Map<String, String> temporaryIds) throws IOException {
-        // 関係は「子ID、親ID」の順で読み込み、入力に登場したクラスだけを参照できるよう検証する。
-        // 同じ親子関係の重複もここで検出する。
+    private static List<String[]> readRelations(Map<String, String> classes, Map<String, String> temporaryIds,
+            List<String[]> inputRelations) throws IOException {
         List<String[]> result = new ArrayList<>();
         Set<String> relationKeys = new HashSet<>();
-        for (String line : readRelationTsv()) {
-            String[] columns = line.split("\\t", -1);
-            if (columns.length != 2) throw new IOException("class-relation.tsvの列数が不正です: " + line);
+        for (String[] columns : inputRelations) {
+            if (columns.length != 2) throw new IOException("relationsの要素にchildとparentが必要です。");
+            String line = columns[0] + " -> " + columns[1];
             if (isVirtualUnclassified(columns[0], "未分類")
                     || isVirtualUnclassified(columns[1], "未分類")) continue;
             String child = resolveId(columns[0], temporaryIds);
@@ -167,29 +205,17 @@ public final class ClassDataUpdate {
                 throw new IOException("一覧にないクラスIDです: " + line);
             }
             if (!relationKeys.add(child + "\t" + parent)) {
-                throw new IOException("class-relation.tsvに親子関係の重複があります: " + line);
+                throw new IOException("relationsに親子関係の重複があります: " + line);
             }
             result.add(new String[] { child, parent });
         }
         return result;
     }
 
-    private static List<String> readRelationTsv() throws IOException {
-        // 関係TSVは旧形式のヘッダーなしファイルも存在するため、ヘッダーがあれば読み飛ばし、
-        // なければ1行目からデータとして扱う。class-list.tsvはreadTsvでヘッダー必須のままにする。
-        List<String> lines = Files.readAllLines(RELATION_INPUT, StandardCharsets.UTF_8);
-        if (lines.isEmpty()) return List.of();
-        String firstLine = lines.get(0).replace("\ufeff", "");
-        String expectedHeader = "子クラスID\t親クラスID";
-        if (firstLine.trim().equals(expectedHeader)) return lines.subList(1, lines.size()).stream()
-                .filter(line -> !line.isBlank()).toList();
-        return lines.stream().filter(line -> !line.isBlank()).toList();
-    }
-
     /** 対象クラスから上位クラスへの直接関係は、そのまま保持します。 */
     private static void normalizeDirectTargetRelations(Map<String, String> classes, List<String[]> relations) {
         // 対象クラスは所属先を1つに限定し、複数指定された場合は
-        // class-relation.tsvで先に現れた親を残す。
+        // JSON内で先に現れた親を残す。
         Set<String> assignedTargets = new HashSet<>();
         relations.removeIf(relation -> {
             String child = relation[0];
@@ -318,20 +344,24 @@ public final class ClassDataUpdate {
         writeJson(output, root);
     }
 
-    private static List<String> readTsv(Path file, String header) throws IOException {
-        // UTF-8で読み込み、先頭のBOMを除去してからヘッダーを比較する。
-        // 空行は入力ミスとして扱わず、データ行から除外する。
-        List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
-        String actualHeader = lines.isEmpty() ? "" : lines.get(0).replace("\ufeff", "");
-        String normalizedHeader = String.join("\t", actualHeader.split("\t", -1)).trim();
-        normalizedHeader = String.join("\t", java.util.Arrays.stream(normalizedHeader.split("\t", -1))
-                .map(value -> value.trim()).toList());
-        String expectedHeader = String.join("\t", java.util.Arrays.stream(header.split("\t", -1))
-                .map(value -> value.trim()).toList());
-        if (lines.isEmpty() || !normalizedHeader.equals(expectedHeader)) {
-            throw new IOException("TSVヘッダーが不正です: " + file);
+    /** 上位または中間クラスのIDとラベルを、短縮ID順のTSVとして出力します。 */
+    private static void writeListTsv(Path output, Map<String, String> classes, String prefix)
+            throws IOException {
+        StringBuilder contents = new StringBuilder("ID\tラベル\n");
+        classes.entrySet().stream()
+                .filter(entry -> shortId(entry.getKey()).startsWith(prefix))
+                .sorted((first, second) -> shortId(first.getKey()).compareTo(shortId(second.getKey())))
+                .forEach(entry -> contents.append(shortId(entry.getKey()))
+                        .append('\t').append(entry.getValue()).append('\n'));
+        Files.createDirectories(output.getParent());
+        Path temporary = output.resolveSibling(output.getFileName() + ".tmp");
+        Files.writeString(temporary, contents.toString(), StandardCharsets.UTF_8);
+        try {
+            Files.move(temporary, output, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            Files.move(temporary, output, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         }
-        return lines.subList(1, lines.size()).stream().filter(line -> !line.isBlank()).toList();
     }
 
     private static Map<String, Integer> nextNumbers(Map<String, String> classes) {
@@ -347,12 +377,11 @@ public final class ClassDataUpdate {
         return result;
     }
 
-    private static Map<String, Integer> nextNumbersFromLines(List<String> lines) {
+    private static Map<String, Integer> nextNumbersFromClasses(List<String[]> rows) {
         Map<String, String> existing = new LinkedHashMap<>();
-        for (String line : lines) {
-            String[] columns = line.split("\\t", -1);
-            if (columns.length != 3 || columns[1].trim().isEmpty()) continue;
-            existing.put(normalizeId(columns[1]), columns[2].trim());
+        for (String[] columns : rows) {
+            if (columns.length != 3 || columns[1].trim().isEmpty() || columns[1].trim().startsWith("new-")) continue;
+            existing.put(normalizeId(columns[1].trim()), columns[2].trim());
         }
         return nextNumbers(existing);
     }
@@ -367,8 +396,10 @@ public final class ClassDataUpdate {
     private static String normalizeId(String value) {
         // <...> 形式、正式なURI、短縮IDの3形式を正式URIへ統一する。
         String id = value.trim();
-        return id.startsWith("<") && id.endsWith(">") ? id.substring(1, id.length() - 1) :
+        id = id.startsWith("<") && id.endsWith(">") ? id.substring(1, id.length() - 1) :
                 (id.startsWith("http") ? id : URI_PREFIX + id);
+        // 上位・中間クラスは先頭ゼロを除いたIDに統一する。
+        return id.replaceFirst("(?<=/class/)([mt])_0+(\\d+)$", "$1_$2");
     }
 
     private static boolean isVirtualUnclassified(String value, String label) {
@@ -379,7 +410,7 @@ public final class ClassDataUpdate {
     }
 
     private static String resolveId(String value, Map<String, String> temporaryIds) {
-        // 関係TSVのnew-形式は、クラス一覧の読み込み時に発行した正式URIへ解決する。
+        // 入力JSONのnew-形式は、クラス一覧の読み込み時に発行した正式URIへ解決する。
         // 対応表にない値は通常のID正規化へ回し、既存クラスの参照も受け付ける。
         String trimmed = value.trim();
         return temporaryIds.getOrDefault(trimmed, normalizeId(trimmed));
@@ -402,4 +433,6 @@ public final class ClassDataUpdate {
             Files.move(temporary, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         }
     }
+
+    private record InputData(List<String[]> classes, List<String[]> relations) {}
 }

@@ -35,7 +35,12 @@
       <button type="button" class="tab" data-edit-tab="class-management-panel" aria-selected="false">
         クラス管理
       </button>
+      <button type="button" class="tab" data-edit-tab="edit-form-panel" aria-selected="false">
+        クラス追加・親変更
+      </button>
     </div>
+
+    <p id="edit-status" class="edit-status" role="status" aria-live="polite"></p>
 
     <!-- 階層ツリーと対象クラスの検索・一括付与 -->
     <section id="edit-tree-panel" class="tab-panel">
@@ -163,7 +168,6 @@
           </label>
           <button type="button" id="apply-parent-change" class="search-button">変更を反映</button>
         </div>
-        <p id="edit-status" class="edit-status" role="status"></p>
       </section>
 
       <!-- 上位・中間クラスの名称変更と削除 -->
@@ -193,8 +197,7 @@
       </section>
 
       <div>
-        <button type="button" id="download-class-list" class="search-button">class-list.tsvを保存</button>
-        <button type="button" id="download-relation" class="search-button">class-relation.tsvを保存</button>
+        <button type="button" id="download-class-update" class="search-button">class-update.jsonを保存</button>
       </div>
     </section>
   </main>

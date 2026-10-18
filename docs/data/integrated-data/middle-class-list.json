@@ -85,31 +85,31 @@
       "label": "交通安全"
     },
     {
-      "id": "https://kozaki-lab.jp/REFV-KG/class/m_00035",
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_35",
       "label": "除雪"
     },
     {
-      "id": "https://kozaki-lab.jp/REFV-KG/class/m_00036",
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_36",
       "label": "風力発電"
     },
     {
-      "id": "https://kozaki-lab.jp/REFV-KG/class/m_00037",
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_37",
       "label": "太陽光発電"
     },
     {
-      "id": "https://kozaki-lab.jp/REFV-KG/class/m_00038",
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_38",
       "label": "水力発電"
     },
     {
-      "id": "https://kozaki-lab.jp/REFV-KG/class/m_00039",
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_39",
       "label": "火力発電"
     },
     {
-      "id": "https://kozaki-lab.jp/REFV-KG/class/m_00040",
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_40",
       "label": "原子力発電"
     },
     {
-      "id": "https://kozaki-lab.jp/REFV-KG/class/m_00041",
+      "id": "https://kozaki-lab.jp/REFV-KG/class/m_41",
       "label": "洋上風力発電"
     }
   ]
