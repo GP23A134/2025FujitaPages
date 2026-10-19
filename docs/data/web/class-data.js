@@ -127,7 +127,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/t_5",
-        "label": "行政情報"
+        "label": "行政対応"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_27",
@@ -11369,11 +11369,6 @@ window.appData = {
       },
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/c_2668",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_0",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_2669",
         "parent": "https://kozaki-lab.jp/REFV-KG/class/t_0",
         "relation": "subClassOf"
       },
@@ -59886,6 +59881,11 @@ window.appData = {
         "child": "https://kozaki-lab.jp/REFV-KG/class/c_7871",
         "parent": "https://kozaki-lab.jp/REFV-KG/class/t_2",
         "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_2669",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_2",
+        "relation": "subClassOf"
       }
     ]
   },
@@ -60041,7 +60041,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/t_5",
-        "label": "行政情報"
+        "label": "行政対応"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/t_6",
