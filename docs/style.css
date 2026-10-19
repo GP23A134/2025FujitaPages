@@ -159,7 +159,8 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .search-hierarchy-selected-button { display: inline-flex; max-width: 100%; align-items: center; padding: 0.3rem 0.55rem; border: 1px solid #7dd3fc; border-radius: 999px; color: #075985; background: #e0f2fe; cursor: pointer; font: inherit; font-size: 0.95rem; overflow-wrap: anywhere; }
 .search-hierarchy-selected-button::after { margin-left: 0.4rem; color: #0369a1; content: "×"; font-size: 1rem; line-height: 1; }
 .search-hierarchy-selected-button:hover, .search-hierarchy-selected-button:focus-visible { border-color: #0284c7; background: #bae6fd; }
-.search-hierarchy-selected-button.is-top, .search-hierarchy-selected-button.is-middle { border-color: #7dd3fc; color: #075985; background: #e0f2fe; }
+.search-hierarchy-selected-button.is-top { border-color: #6ee7b7; color: #047857; background: #ecfdf5; }
+.search-hierarchy-selected-button.is-middle { border-color: #c4b5fd; color: #6d28d9; background: #f5f3ff; }
 .search-hierarchy-filter-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }
 .search-hierarchy-filter-hint { margin: 0; color: #64748b; font-size: 0.8rem; }
 .target-search-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.35rem 0.75rem; max-height: 38rem; overflow: auto; margin: 0.75rem 0; padding: 0.65rem; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
