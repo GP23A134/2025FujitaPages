@@ -52,11 +52,19 @@
     label.textContent = node.label || '';
     const badge = document.createElement('span');
     badge.className = 'count-badge edit-count';
-    badge.textContent = options.count ?? 0;
+    const totalCount = options.count ?? 0;
+    const directCount = options.directCount ?? 0;
+    const updateCount = (isOpen) => {
+      badge.textContent = isOpen
+        ? ` ${totalCount}件（直接 ${directCount}件）`
+        : ` ${totalCount}件`;
+    };
+    updateCount(false);
+    details.addEventListener('toggle', () => updateCount(details.open));
     content.append(id, label, badge);
     summary.append(content);
     details.append(summary);
-    return { details, summary, content, id, label, badge };
+    return { details, summary, content, id, label, badge, updateCount };
   }
 
   function appendTreeLevelRows(list, children, targets, renderChild, renderTarget) {
@@ -116,7 +124,8 @@
     const renderNode = (node, depth = 0) => {
       const { details, summary, content } = createTreeLevel(node, {
         displayId: options.displayId,
-        count: countFor(node)
+        count: countFor(node),
+        directCount: node.targets.length
       });
       if (options.configureDetails) options.configureDetails(details, node, depth);
       details.open = options.isOpen
