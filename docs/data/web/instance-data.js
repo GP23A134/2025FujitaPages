@@ -168195,7 +168195,7 @@ Object.assign(window.appData, {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/c_2975",
-        "label": "社会支援"
+        "label": "社会問題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/c_3037",
@@ -189623,7 +189623,7 @@ Object.assign(window.appData, {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/c_10714",
-        "label": "社会問題"
+        "label": "社会問題（対象）"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/c_10715",
