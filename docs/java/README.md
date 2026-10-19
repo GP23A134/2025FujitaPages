@@ -7,8 +7,9 @@
 | ファイル | 役割 |
 |---|---|
 | `QueryRun.java` | SPARQLクエリを実行し、結果をJSONで保存します。 |
-| `DataIntegrate.java` | クエリ結果からインスタンスやクラスのデータを統合します。 |
-| `ClassDataUpdate.java` | `data/input/class-update.json`の全件JSONまたは差分JSONを適用してクラス一覧と親子関係を更新します。上位・中間クラスIDを連番に揃え、差分適用前の全件データは履歴に保存します。 |
+| `DataIntegrate.java` | クエリ結果からインスタンスやクラスのデータを統合し、現在のクラスデータ版情報を更新します。 |
+| `ClassDataUpdate.java` | `data/input/class-update.json`の全件JSONまたは差分JSONを適用してクラス一覧と親子関係を更新します。差分の版情報を検証し、上位・中間クラスIDを連番に揃え、更新前の全件データは履歴に保存します。 |
+| `ClassDataVersion.java` | 現在のクラスデータのSHA-256を計算し、差分JSONの元データが最新か検証します。 |
 | `WebDataBuild.java` | 統合データからWeb表示用のJavaScriptを生成します。 |
 
 ## クエリ

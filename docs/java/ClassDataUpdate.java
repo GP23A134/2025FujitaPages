@@ -61,6 +61,7 @@ public final class ClassDataUpdate {
         writeList(TARGET_CLASS_DATA, classes, "c_");
         writeListTsv(MIDDLE_TSV_LIST, classes, "m_");
         writeListTsv(TOP_TSV_LIST, classes, "t_");
+        ClassDataVersion.writeCurrentHash();
 
         // 出力がすべて成功した後で、入力を履歴フォルダへ移動する。
         Path archivedInput = moveInputFile();
@@ -112,6 +113,7 @@ public final class ClassDataUpdate {
             if (!parsed.isJsonObject()) throw new IOException("入力JSONのルートはオブジェクトにしてください。");
             JsonObject root = parsed.getAsJsonObject();
             if (!root.has("classes") && !root.has("relations")) {
+                validatePatchVersion(root);
                 return applyPatch(root, existingTargetLabels);
             }
             JsonArray classArray = requireArray(root, "classes");
@@ -141,6 +143,22 @@ public final class ClassDataUpdate {
             return new InputData(classes, relations);
         } catch (com.google.gson.JsonParseException exception) {
             throw new IOException("入力JSONを読み込めません。JSONの構文を確認してください。", exception);
+        }
+    }
+
+    /** 古いデータを元にした差分の適用を止め、IDのずれによる誤分類を防ぎます。 */
+    private static void validatePatchVersion(JsonObject patch) throws IOException {
+        if (!patch.has("baseDataHash") || !patch.get("baseDataHash").isJsonPrimitive()
+                || !patch.getAsJsonPrimitive("baseDataHash").isString()) {
+            throw new IOException("差分JSONにbaseDataHashがありません。"
+                    + " data/input/current-class-data-version.txtをAIへ渡し、差分を作り直してください。");
+        }
+        String expected = patch.get("baseDataHash").getAsString().trim();
+        String actual = ClassDataVersion.currentHash();
+        if (!expected.equalsIgnoreCase(actual)) {
+            throw new IOException("差分JSONのbaseDataHashが現在のクラスデータと一致しません。"
+                    + " data/input/current-class-data-version.txtをAIへ渡し、差分を作り直してください。"
+                    + " (expected=" + expected + ", current=" + actual + ")");
         }
     }
 

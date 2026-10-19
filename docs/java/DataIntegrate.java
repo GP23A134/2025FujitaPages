@@ -133,6 +133,7 @@ public final class DataIntegrate {
         writeClassList(TARGET_CLASS_OUTPUT_FILE, targetClasses);
         writeClassListTsv(MIDDLE_CLASS_TSV_OUTPUT_FILE, classLabels, MIDDLE_CLASS_PREFIX);
         writeClassListTsv(TOP_CLASS_TSV_OUTPUT_FILE, classLabels, TOP_CLASS_PREFIX);
+        ClassDataVersion.writeCurrentHash();
         System.out.println("インスタンスJSONを出力しました: " + INSTANCE_OUTPUT_FILE);
         System.out.println("インスタンス・クラス関係JSONを出力しました: " + INSTANCE_CLASS_OUTPUT_FILE);
         System.out.println("クラス統合JSONを出力しました: " + CLASS_OUTPUT_FILE);

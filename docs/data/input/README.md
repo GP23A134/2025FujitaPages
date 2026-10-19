@@ -2,6 +2,8 @@
 
 クラス分類を更新するときは、編集画面から全件JSONを保存する方法と、AIに変更差分だけを作成させる方法があります。どちらも`class-update.json`としてこのフォルダーに置き、`ClassDataUpdate`を実行してください。AI用の指示は[`classification-prompt.md`](classification-prompt.md)を参照してください。
 
+差分JSONには、必ず[`current-class-data-version.txt`](current-class-data-version.txt)の値を`baseDataHash`として含めます。これはAIへ現在のクラス一覧と一緒に渡してください。差分作成後に元データが更新されていた場合や版情報がない場合、更新プログラムは適用を止め、差分の作り直しを促します。全件JSONによる復元には`baseDataHash`は不要です。
+
 ## 更新前に確認すること
 
 ```text
@@ -52,6 +54,7 @@
 
 ```json
 {
+  "baseDataHash": "current-class-data-version.txtの内容",
   "addClasses": [
     { "type": "middle", "id": "new-m_1", "label": "新しい中間クラス" }
   ],
@@ -85,7 +88,7 @@
 ## 更新ルール
 
 - 追加できるのは上位クラスと中間クラスです。
-- 新規クラスIDは既存の最大番号の次から採番し、欠番は再利用しません。
+- 差分内の新規クラスIDは一時IDを指定します。更新後、上位クラスは`t_0`（未分類）と`t_1`以降、中間クラスは`m_1`以降の連番に整理され、親子関係のIDも合わせて更新します。削除などで既存IDが変わる場合があるため、AI差分には版情報を必須とします。
 - 所属先のないクラス、重複したID・ラベル・親子関係、循環する親子関係があると更新を中止します。
 - 「未分類」上位クラスの下に中間クラスを配置した場合、または差分で同名上位クラスがある中間クラスを新設・改名した場合は更新を中止します。既存の同名クラスはそのまま維持します。
 - 親子関係は必ず「子 → 親」の向きで記録します。
@@ -100,7 +103,7 @@
 java -cp "bin;lib/*" ClassDataUpdate
 ```
 
-実行前に、編集画面またはAIが作成した`class-update.json`をこのフォルダーに置いてください。実行前の全件データを、入力形式にかかわらず`history/class-data-before-update-YYYYMMDD-HHmmss-SSS.json`として自動保存します。成功すると入力JSONも[`history/`](history/)へ`class-update-YYYYMMDD-HHmmss-SSS.json`として移動します。処理に失敗した場合は統合データを更新せず、入力JSONを残します。
+実行前に、編集画面またはAIが作成した`class-update.json`をこのフォルダーに置いてください。実行前の全件データを、入力形式にかかわらず`history/class-data-before-update-YYYYMMDD-HHmmss-SSS.json`として自動保存します。成功すると入力JSONも[`history/`](history/)へ`class-update-YYYYMMDD-HHmmss-SSS.json`として移動します。処理に失敗した場合は統合データを更新せず、入力JSONを残します。`ClassDataUpdate`と`DataIntegrate`は成功後に版情報ファイルを更新します。
 
 ### 変更前へ戻す
 
