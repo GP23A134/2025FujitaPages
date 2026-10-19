@@ -1,13 +1,5 @@
-ID`tラベル
+ID	ラベル
 https://kozaki-lab.jp/REFV-KG/class/m_1	発電施設
-https://kozaki-lab.jp/REFV-KG/class/m_2	計画設計
-https://kozaki-lab.jp/REFV-KG/class/m_3	調査評価
-https://kozaki-lab.jp/REFV-KG/class/m_4	鳥類コウモリ
-https://kozaki-lab.jp/REFV-KG/class/m_5	保全低減対策
-https://kozaki-lab.jp/REFV-KG/class/m_6	運転維持管理
-https://kozaki-lab.jp/REFV-KG/class/m_7	気候累積影響
-https://kozaki-lab.jp/REFV-KG/class/m_8	道路
-https://kozaki-lab.jp/REFV-KG/class/m_9	車両
 https://kozaki-lab.jp/REFV-KG/class/m_10	鉄道
 https://kozaki-lab.jp/REFV-KG/class/m_11	公共交通
 https://kozaki-lab.jp/REFV-KG/class/m_12	交通安全
@@ -18,6 +10,7 @@ https://kozaki-lab.jp/REFV-KG/class/m_16	水力発電
 https://kozaki-lab.jp/REFV-KG/class/m_17	火力発電
 https://kozaki-lab.jp/REFV-KG/class/m_18	原子力発電
 https://kozaki-lab.jp/REFV-KG/class/m_19	洋上風力発電
+https://kozaki-lab.jp/REFV-KG/class/m_2	計画設計
 https://kozaki-lab.jp/REFV-KG/class/m_20	医療
 https://kozaki-lab.jp/REFV-KG/class/m_21	健康
 https://kozaki-lab.jp/REFV-KG/class/m_22	感染症
@@ -28,5 +21,12 @@ https://kozaki-lab.jp/REFV-KG/class/m_26	地域支援
 https://kozaki-lab.jp/REFV-KG/class/m_27	植物
 https://kozaki-lab.jp/REFV-KG/class/m_28	水土壌
 https://kozaki-lab.jp/REFV-KG/class/m_29	景観
+https://kozaki-lab.jp/REFV-KG/class/m_3	調査評価
 https://kozaki-lab.jp/REFV-KG/class/m_30	防災
 https://kozaki-lab.jp/REFV-KG/class/m_31	環境評価
+https://kozaki-lab.jp/REFV-KG/class/m_4	鳥類コウモリ
+https://kozaki-lab.jp/REFV-KG/class/m_5	保全低減対策
+https://kozaki-lab.jp/REFV-KG/class/m_6	運転維持管理
+https://kozaki-lab.jp/REFV-KG/class/m_7	気候累積影響
+https://kozaki-lab.jp/REFV-KG/class/m_8	道路
+https://kozaki-lab.jp/REFV-KG/class/m_9	車両
