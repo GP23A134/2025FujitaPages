@@ -848,6 +848,53 @@ function renderTree() {
     });
     return button;
   };
+  const addTreeRow = (label, handler) => {
+    const row = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tree-add-button tree-add-row';
+    button.textContent = `＋ ${label}`;
+    button.addEventListener('click', handler);
+    row.append(button);
+    return row;
+  };
+  const addMiddleClass = (parentId) => {
+    const label = window.prompt('中間クラス名を入力してください');
+    if (!label || !label.trim()) return;
+    const item = createClass('middle', label);
+    if (!item) return;
+    addRelation(item.id, parentId);
+    if (heldInstances.size) {
+      const selectedIds = [...heldInstances.keys()];
+      const selectedIdSet = new Set(selectedIds);
+      data.classData.relations = data.classData.relations.filter((relation) => !selectedIdSet.has(relation.child));
+      selectedIds.forEach((childId) => addRelation(childId, item.id));
+      heldInstances.clear();
+      status.textContent = `${item.label}を追加し、保持中の対象クラスを移動しました。`;
+    } else {
+      status.textContent = `中間クラス「${item.label}」を追加しました。`;
+    }
+    hasUnsavedChanges = true;
+    render();
+  };
+  const addTopClass = () => {
+    const label = window.prompt('上位クラス名を入力してください');
+    if (!label || !label.trim()) return;
+    const item = createClass('top', label);
+    if (!item) return;
+    if (heldInstances.size) {
+      const selectedIds = [...heldInstances.keys()];
+      const selectedIdSet = new Set(selectedIds);
+      data.classData.relations = data.classData.relations.filter((relation) => !selectedIdSet.has(relation.child));
+      selectedIds.forEach((childId) => addRelation(childId, item.id));
+      heldInstances.clear();
+      status.textContent = `${item.label}を追加し、保持中の対象クラスを移動しました。`;
+    } else {
+      status.textContent = `上位クラス「${item.label}」を追加しました。`;
+    }
+    hasUnsavedChanges = true;
+    render();
+  };
   const build = (item, middleDepth = classKind(item) === 'middle' ? 1 : 0) => {
     // 対象クラスは選択可能な葉として描画し、上位・中間クラスは details として
     // 描画する。details の初期状態は上位だけを開き、最初の画面を見やすくする。
@@ -877,7 +924,6 @@ function renderTree() {
         button.classList.toggle('is-selected', heldInstances.has(item.id));
         syncTargetButtonAvailability();
         renderInstances();
-        status.textContent = `${heldInstances.size}件の対象クラスを保持中です。`;
       });
       return button;
     }
@@ -995,6 +1041,12 @@ function renderTree() {
         }
         return li;
       };
+      if (classKind(item) === 'middle' && item.label !== '未分類') {
+        list.append(addTreeRow('中間クラスを追加', () => addMiddleClass(item.id)));
+      }
+      if (classKind(item) === 'top' && item.label !== '未分類') {
+        list.append(addTreeRow('中間クラスを追加', () => addMiddleClass(item.id)));
+      }
       window.appendTreeLevelRows(
         list,
         childMiddles,
@@ -1018,7 +1070,9 @@ function renderTree() {
     if (aIsUnclassified !== bIsUnclassified) return aIsUnclassified ? -1 : 1;
     return countTargets(b.id) - countTargets(a.id) || a.label.localeCompare(b.label, 'ja');
   });
-  tree.replaceChildren(...roots.map((item) => build(item)));
+  const topRows = roots.map((item) => build(item));
+  topRows.push(addTreeRow('上位クラスを追加', addTopClass));
+  tree.replaceChildren(...topRows);
   scheduleTargetConnectorLayout();
 }
 // ============================================================

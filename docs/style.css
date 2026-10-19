@@ -545,6 +545,14 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
   font-size: 0.95rem;
 }
 
+#edit-tree-panel .tree .tree-add-row {
+  width: 100%;
+  max-width: none;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
 #edit-tree-panel .tree .tree-add-button.move-held-button {
   border-color: #c2410c;
   color: #fff;

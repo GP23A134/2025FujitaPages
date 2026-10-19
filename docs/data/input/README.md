@@ -1,6 +1,6 @@
 # データ更新・移動・追加
 
-クラス分類を更新するときは、編集画面で変更内容を作成し、`class-update.json`として保存します。ファイルをこのフォルダーに置いてから`ClassDataUpdate`を実行してください。
+クラス分類を更新するときは、編集画面から全件JSONを保存する方法と、AIに変更差分だけを作成させる方法があります。どちらも`class-update.json`としてこのフォルダーに置き、`ClassDataUpdate`を実行してください。AI用の指示は[`classification-prompt.md`](classification-prompt.md)を参照してください。
 
 ## 更新前に確認すること
 
@@ -30,14 +30,14 @@
 
 ## 入力ファイル
 
-入力ファイル名は`class-update.json`です。UTF-8のJSONオブジェクトで、`classes`と`relations`の配列を含めます。
+入力ファイル名は`class-update.json`です。UTF-8のJSONオブジェクトを指定します。編集画面は従来どおり全件の`classes`と`relations`を出力します。AI用の差分形式では、次の6配列で変更内容だけを指定します。差分は最新の`data/integrated/`へ適用されます。
 
 ```json
 {
   "classes": [
     { "type": "top", "id": "t_1", "label": "上位クラス" },
     { "type": "middle", "id": "new-m_1", "label": "中間クラス" },
-    { "type": "class", "id": "c_00001", "label": "対象クラス" }
+    { "type": "class", "id": "c_00001" }
   ],
   "relations": [
     { "child": "new-m_1", "parent": "t_1" },
@@ -46,23 +46,48 @@
 }
 ```
 
+### AI用の差分形式
+
+変更しない配列も省略せず、空配列として指定します。クラス移動では既存の関係を`removeRelations`で削除し、新しい関係を`addRelations`で追加します。
+
+```json
+{
+  "addClasses": [
+    { "type": "middle", "id": "new-m_1", "label": "新しい中間クラス" }
+  ],
+  "renameClasses": [],
+  "removeRelations": [
+    { "child": "c_00001", "parent": "m_00001" }
+  ],
+  "addRelations": [
+    { "child": "new-m_1", "parent": "t_00001" },
+    { "child": "c_00001", "parent": "new-m_1" }
+  ],
+  "moveChildren": [],
+  "removeClasses": []
+}
+```
+
+`moveChildren`は指定した中間クラスの直接の子を別の親へまとめて移します。`removeClasses`でクラスを削除する場合、そのクラスに関係が残っていてはいけません。差分適用時は、削除する関係が現在のデータに存在すること、追加先のクラスIDが存在すること、循環や所属漏れがないことを確認します。対象クラスのラベルは既存データから引き継ぎます。
+
 ### `classes`
 
-各要素には`type`、`id`、`label`を指定します。
+各要素には`type`と`id`を指定します。上位・中間クラスには`label`が必要です。対象クラスの`label`は省略でき、省略時は既存の[`target-class-data.json`](../integrated/target-class-data.json)から引き継ぎます。
 
 - `type`は`top`（上位）、`middle`（中間）、`class`（対象）です。
 - `id`は既存クラスの短縮IDまたは完全URIです。編集画面で追加したクラスには`new-m_1`のような一時IDが付き、実行時に既存IDの最大番号の次へ採番されます。
-- `label`は空にできません。同じ種類・ラベルの重複は登録できません。
+- 上位・中間クラスの`label`は空にできません。同じ種類・ラベルの重複は登録できません。対象クラスの`label`は省略でき、既存データから引き継がれます。
 
 ### `relations`
 
-各要素には`child`と`parent`を指定します。両方のIDは`classes`に含まれている必要があります。IDは短縮ID、完全URI、一時IDのいずれも指定できます。対象クラスの親は1つに限ります。
+各要素には`child`と`parent`を指定します。両方のIDは`classes`に含まれている必要があります。IDは短縮ID、完全URI、一時IDのいずれも指定できます。対象クラスと中間クラスの親はそれぞれ1つに限ります。中間クラスは別の中間クラスの下に配置できます。
 
 ## 更新ルール
 
 - 追加できるのは上位クラスと中間クラスです。
 - 新規クラスIDは既存の最大番号の次から採番し、欠番は再利用しません。
 - 所属先のないクラス、重複したID・ラベル・親子関係、循環する親子関係があると更新を中止します。
+- 「未分類」上位クラスの下に中間クラスを配置した場合、または差分で同名上位クラスがある中間クラスを新設・改名した場合は更新を中止します。既存の同名クラスはそのまま維持します。
 - 親子関係は必ず「子 → 親」の向きで記録します。
 - インスタンスと対象クラスの関係は変更しません。
 - 画面で未保存の変更がある状態で画面を移動・更新すると、保存確認が表示されます。
@@ -75,7 +100,16 @@
 java -cp "bin;lib/*" ClassDataUpdate
 ```
 
-実行前に、編集画面からダウンロードした`class-update.json`をこのフォルダーに置いてください。処理が成功すると、入力JSONは[`history/`](history/)へ`class-update-YYYYMMDD-HHmmss-SSS.json`という名前で移動されます。処理に失敗した場合は、入力JSONをそのまま残します。
+実行前に、編集画面またはAIが作成した`class-update.json`をこのフォルダーに置いてください。実行前の全件データを、入力形式にかかわらず`history/class-data-before-update-YYYYMMDD-HHmmss-SSS.json`として自動保存します。成功すると入力JSONも[`history/`](history/)へ`class-update-YYYYMMDD-HHmmss-SSS.json`として移動します。処理に失敗した場合は統合データを更新せず、入力JSONを残します。
+
+### 変更前へ戻す
+
+履歴に保存された`class-data-before-update-*.json`から戻したい時点のファイルを選び、`class-update.json`として入力フォルダーへコピーして、上記の`ClassDataUpdate`を再実行します。これは全件JSONなので、差分ではなく選択した時点のクラス分類全体を復元します。
+
+```powershell
+Copy-Item -LiteralPath data\input\history\class-data-before-update-YYYYMMDD-HHmmss-SSS.json -Destination data\input\class-update.json
+java -cp "bin;lib/*" ClassDataUpdate
+```
 
 コンパイル手順やmacOS/Linuxでの実行方法は[`java/README.md`](../../java/README.md)を参照してください。
 

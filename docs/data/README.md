@@ -16,7 +16,7 @@
 
 1. `java/QueryRun.java`がクエリ結果を`query-results/`に保存します。
 2. `java/DataIntegrate.java`が取得結果を統合し、`integrated/`に保存します。
-3. クラス分類を変更する場合は、`input/`の`class-update.json`を使って`java/ClassDataUpdate.java`を実行します。
+3. クラス分類を変更する場合は、`input/class-update.json`に編集画面の全件JSONまたはAI作成の差分JSONを置いて`java/ClassDataUpdate.java`を実行します。実行前の全件データは入力形式にかかわらず`input/history/`に自動保存されます。
 4. `DataIntegrate`または`ClassDataUpdate`が上位・中間クラス一覧TSVを`output/`に生成します。
 5. `java/WebDataBuild.java`が統合JSONから`web/`のJavaScriptを生成します。
 

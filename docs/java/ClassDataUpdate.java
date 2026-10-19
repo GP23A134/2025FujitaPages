@@ -35,17 +35,23 @@ public final class ClassDataUpdate {
     private ClassDataUpdate() {}
 
     public static void main(String[] args) throws IOException {
-        // JSONの既存内容には依存せず、入力JSONを唯一の入力として再生成する。
+        // 全件JSONなら入力内容を使い、差分JSONなら現在データへ適用する。対象クラスのラベルは既存一覧から引き継ぐ。
         // この順序で検証を先に行うため、入力に問題がある場合はJSONを更新せず、
         // 入力JSONもhistoryへ移動しない。
-        InputData input = readInput();
+        Map<String, String> existingTargetLabels = readTargetClassLabels();
+        InputData input = readInput(existingTargetLabels);
         Map<String, String> classes = new LinkedHashMap<>();
         Map<String, String> temporaryIds = new LinkedHashMap<>();
-        addInputClasses(classes, temporaryIds, input.classes());
+        addInputClasses(classes, temporaryIds, input.classes(), existingTargetLabels);
         List<String[]> relations = readRelations(classes, temporaryIds, input.relations());
+        validateRelationStructure(relations);
         normalizeDirectTargetRelations(classes, relations);
         validateHierarchyAssignments(classes, relations);
+        validateUnclassifiedHasNoMiddleChildren(classes, relations);
         validateAcyclic(relations);
+
+        Path snapshot = writeBeforeUpdateSnapshot(existingTargetLabels);
+        System.out.println("変更前データを履歴に保存しました: " + snapshot);
 
         // クラス一覧、関係一覧、対象クラス一覧を同じ入力内容から出力する。
         writeClassData(classes, relations);
@@ -68,7 +74,7 @@ public final class ClassDataUpdate {
         String timestamp = LocalDateTime.now()
                 .format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS"));
         Files.createDirectories(HISTORY_DIRECTORY);
-        Path movedInput = HISTORY_DIRECTORY.resolve("class-update-" + timestamp + ".json");
+        Path movedInput = uniqueHistoryPath("class-update-" + timestamp);
         moveWithRetry(INPUT_FILE, movedInput);
         return movedInput;
     }
@@ -95,7 +101,7 @@ public final class ClassDataUpdate {
         throw new IOException("入力JSONの移動に失敗しました。");
     }
 
-    private static InputData readInput() throws IOException {
+    private static InputData readInput(Map<String, String> existingTargetLabels) throws IOException {
         if (!Files.isRegularFile(INPUT_FILE)) {
             throw new IOException("入力JSONが見つかりません: " + INPUT_FILE);
         }
@@ -103,6 +109,9 @@ public final class ClassDataUpdate {
             JsonElement parsed = JsonParser.parseReader(reader);
             if (!parsed.isJsonObject()) throw new IOException("入力JSONのルートはオブジェクトにしてください。");
             JsonObject root = parsed.getAsJsonObject();
+            if (!root.has("classes") && !root.has("relations")) {
+                return applyPatch(root, existingTargetLabels);
+            }
             JsonArray classArray = requireArray(root, "classes");
             JsonArray relationArray = requireArray(root, "relations");
             List<String[]> classes = new ArrayList<>();
@@ -110,9 +119,17 @@ public final class ClassDataUpdate {
             for (JsonElement element : classArray) {
                 if (!element.isJsonObject()) throw new IOException("classesの要素はオブジェクトにしてください。");
                 JsonObject item = element.getAsJsonObject();
-                classes.add(new String[] {
-                    requiredString(item, "type"), requiredString(item, "id"), requiredString(item, "label")
-                });
+                String type = requiredString(item, "type");
+                String id = requiredString(item, "id");
+                String label = "";
+                if (item.has("label") && !item.get("label").isJsonNull()
+                        && item.get("label").isJsonPrimitive()
+                        && item.getAsJsonPrimitive("label").isString()) {
+                    label = item.get("label").getAsString();
+                } else if (!"c_".equals(prefix(type))) {
+                    throw new IOException("入力JSONの 'label' は上位・中間クラスに必要です。");
+                }
+                classes.add(new String[] { type, id, label });
             }
             for (JsonElement element : relationArray) {
                 if (!element.isJsonObject()) throw new IOException("relationsの要素はオブジェクトにしてください。");
@@ -122,6 +139,237 @@ public final class ClassDataUpdate {
             return new InputData(classes, relations);
         } catch (com.google.gson.JsonParseException exception) {
             throw new IOException("入力JSONを読み込めません。JSONの構文を確認してください。", exception);
+        }
+    }
+
+    /** 差分JSONを現在の統合データへ適用し、従来の全件入力と同じ内部形式にします。 */
+    private static InputData applyPatch(JsonObject patch, Map<String, String> existingTargetLabels)
+            throws IOException {
+        List<String[]> classes = new ArrayList<>();
+        List<String[]> relations = new ArrayList<>();
+        readCurrentClassData(classes, relations, existingTargetLabels);
+
+        JsonArray addedClasses = requireArray(patch, "addClasses");
+        JsonArray renamedClasses = requireArray(patch, "renameClasses");
+        JsonArray removedRelations = requireArray(patch, "removeRelations");
+        JsonArray addedRelations = requireArray(patch, "addRelations");
+        JsonArray movedChildren = requireArray(patch, "moveChildren");
+        JsonArray removedClasses = requireArray(patch, "removeClasses");
+
+        Set<String> upperLabels = new HashSet<>();
+        Set<String> addedOrRenamedMiddleLabels = new HashSet<>();
+        for (String[] row : classes) {
+            if ("top".equals(row[0])) upperLabels.add(row[2].trim());
+        }
+
+        for (JsonElement element : addedClasses) {
+            if (!element.isJsonObject()) throw new IOException("addClassesの要素はオブジェクトにしてください。");
+            JsonObject item = element.getAsJsonObject();
+            String type = requiredString(item, "type");
+            String id = requiredString(item, "id");
+            String label = requiredString(item, "label").trim();
+            String classPrefix = prefix(type);
+            if (!"m_".equals(classPrefix) && !"t_".equals(classPrefix)) {
+                throw new IOException("差分で追加できるのは上位・中間クラスです: " + type);
+            }
+            if ("m_".equals(classPrefix) && upperLabels.contains(label)) {
+                throw new IOException("同名の上位クラスがあるため、中間クラスを追加できません: " + label);
+            }
+            if ("m_".equals(classPrefix) && "未分類".equals(label)) {
+                throw new IOException("未分類という中間クラスは追加できません。");
+            }
+            if ("m_".equals(classPrefix)) addedOrRenamedMiddleLabels.add(label);
+            classes.add(new String[] { type, id, label });
+        }
+
+        for (JsonElement element : renamedClasses) {
+            if (!element.isJsonObject()) throw new IOException("renameClassesの要素はオブジェクトにしてください。");
+            JsonObject item = element.getAsJsonObject();
+            String id = normalizeId(requiredString(item, "id"));
+            String label = requiredString(item, "label").trim();
+            String[] existing = classes.stream()
+                    .filter(row -> normalizeId(row[1]).equals(id))
+                    .findFirst().orElse(null);
+            if (existing == null || "class".equals(existing[0])) {
+                throw new IOException("名称変更の対象は既存の上位・中間クラスにしてください: " + id);
+            }
+            if ("middle".equals(existing[0]) && "未分類".equals(label)) {
+                throw new IOException("未分類という中間クラス名は使用できません。");
+            }
+            String oldLabel = existing[2].trim();
+            if ("middle".equals(existing[0]) && upperLabels.contains(label)
+                    && !oldLabel.equals(label)) {
+                throw new IOException("同名の上位クラスがあるため、中間クラスをその名称に変更できません: " + label);
+            }
+            existing[2] = label;
+            if ("middle".equals(existing[0]) && !oldLabel.equals(label)) {
+                addedOrRenamedMiddleLabels.add(label);
+            }
+        }
+
+        // 同じ差分内で追加・改名された上位クラスとの重複も確認する。
+        upperLabels.clear();
+        for (String[] row : classes) {
+            if ("top".equals(row[0])) upperLabels.add(row[2].trim());
+        }
+        for (String label : addedOrRenamedMiddleLabels) {
+            if (upperLabels.contains(label)) {
+                throw new IOException("同名の上位クラスがあるため、中間クラスを追加・改名できません: " + label);
+            }
+        }
+
+        for (JsonElement element : removedRelations) {
+            if (!element.isJsonObject()) throw new IOException("removeRelationsの要素はオブジェクトにしてください。");
+            JsonObject item = element.getAsJsonObject();
+            String child = normalizeId(requiredString(item, "child"));
+            String parent = normalizeId(requiredString(item, "parent"));
+            int relationIndex = -1;
+            for (int index = 0; index < relations.size(); index++) {
+                if (normalizeId(relations.get(index)[0]).equals(child)
+                        && normalizeId(relations.get(index)[1]).equals(parent)) {
+                    relationIndex = index;
+                    break;
+                }
+            }
+            if (relationIndex < 0) {
+                throw new IOException("削除対象の親子関係が現在のデータにありません: " + child + " -> " + parent);
+            }
+            relations.remove(relationIndex);
+        }
+
+        for (JsonElement element : addedRelations) {
+            if (!element.isJsonObject()) throw new IOException("addRelationsの要素はオブジェクトにしてください。");
+            JsonObject item = element.getAsJsonObject();
+            relations.add(new String[] {
+                requiredString(item, "child"), requiredString(item, "parent")
+            });
+        }
+
+        for (JsonElement element : movedChildren) {
+            if (!element.isJsonObject()) throw new IOException("moveChildrenの要素はオブジェクトにしてください。");
+            JsonObject item = element.getAsJsonObject();
+            String from = normalizeId(requiredString(item, "from"));
+            String to = normalizeId(requiredString(item, "to"));
+            String[] sourceClass = classes.stream()
+                    .filter(row -> normalizeId(row[1]).equals(from))
+                    .findFirst().orElse(null);
+            String[] destinationClass = classes.stream()
+                    .filter(row -> normalizeId(row[1]).equals(to))
+                    .findFirst().orElse(null);
+            if (sourceClass == null || !"middle".equals(sourceClass[0])
+                    || destinationClass == null
+                    || !("top".equals(destinationClass[0]) || "middle".equals(destinationClass[0]))) {
+                throw new IOException("moveChildrenは既存の中間クラスから上位・中間クラスへの移動に限ります。");
+            }
+            int movedCount = 0;
+            for (String[] relation : relations) {
+                if (normalizeId(relation[1]).equals(from)) {
+                    relation[1] = to;
+                    movedCount++;
+                }
+            }
+            if (movedCount == 0) {
+                throw new IOException("移動元の中間クラスに子クラスがありません: " + shortId(from));
+            }
+        }
+
+        for (JsonElement element : removedClasses) {
+            if (!element.isJsonObject()) throw new IOException("removeClassesの要素はオブジェクトにしてください。");
+            JsonObject item = element.getAsJsonObject();
+            String id = normalizeId(requiredString(item, "id"));
+            int classIndex = -1;
+            for (int index = 0; index < classes.size(); index++) {
+                if (normalizeId(classes.get(index)[1]).equals(id)) {
+                    classIndex = index;
+                    break;
+                }
+            }
+            if (classIndex < 0 || "class".equals(classes.get(classIndex)[0])) {
+                throw new IOException("削除対象は既存の上位・中間クラスにしてください: " + shortId(id));
+            }
+            boolean stillReferenced = relations.stream().anyMatch(relation ->
+                    normalizeId(relation[0]).equals(id) || normalizeId(relation[1]).equals(id));
+            if (stillReferenced) {
+                throw new IOException("親子関係が残っているクラスは削除できません: " + shortId(id));
+            }
+            classes.remove(classIndex);
+        }
+
+        return new InputData(classes, relations);
+    }
+
+    /** 差分適用前の全データを、復元可能な全件JSONとして履歴に保存します。 */
+    private static Path writeBeforeUpdateSnapshot(Map<String, String> targetLabels) throws IOException {
+        List<String[]> classes = new ArrayList<>();
+        List<String[]> relations = new ArrayList<>();
+        readCurrentClassData(classes, relations, targetLabels);
+
+        JsonObject root = new JsonObject();
+        JsonArray classArray = new JsonArray();
+        for (String[] row : classes) {
+            JsonObject item = new JsonObject();
+            item.addProperty("type", row[0]);
+            item.addProperty("id", row[1]);
+            item.addProperty("label", row[2]);
+            classArray.add(item);
+        }
+        JsonArray relationArray = new JsonArray();
+        for (String[] row : relations) {
+            JsonObject item = new JsonObject();
+            item.addProperty("child", row[0]);
+            item.addProperty("parent", row[1]);
+            relationArray.add(item);
+        }
+        root.add("classes", classArray);
+        root.add("relations", relationArray);
+
+        Files.createDirectories(HISTORY_DIRECTORY);
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS"));
+        Path snapshot = uniqueHistoryPath("class-data-before-update-" + timestamp);
+        writeJson(snapshot, root);
+        return snapshot;
+    }
+
+    private static Path uniqueHistoryPath(String baseName) {
+        Path candidate = HISTORY_DIRECTORY.resolve(baseName + ".json");
+        int suffix = 1;
+        while (Files.exists(candidate)) {
+            candidate = HISTORY_DIRECTORY.resolve(baseName + "-" + suffix++ + ".json");
+        }
+        return candidate;
+    }
+
+    private static void readCurrentClassData(List<String[]> classes, List<String[]> relations,
+            Map<String, String> targetLabels) throws IOException {
+        if (!Files.isRegularFile(CLASS_DATA)) {
+            throw new IOException("現在のクラスデータが見つかりません: " + CLASS_DATA);
+        }
+        try (Reader reader = Files.newBufferedReader(CLASS_DATA, StandardCharsets.UTF_8)) {
+            JsonElement parsed = JsonParser.parseReader(reader);
+            if (!parsed.isJsonObject()) throw new IOException("現在のクラスデータのルートはオブジェクトにしてください。");
+            JsonObject root = parsed.getAsJsonObject();
+            for (JsonElement element : requireArray(root, "classes")) {
+                if (!element.isJsonObject()) throw new IOException("現在のクラスデータの要素はオブジェクトにしてください。");
+                JsonObject item = element.getAsJsonObject();
+                String id = normalizeId(requiredString(item, "id"));
+                String label = requiredString(item, "label");
+                String kind = classKind(id);
+                String type = "t_".equals(kind) ? "top" : "m_".equals(kind) ? "middle" : "";
+                if (type.isEmpty()) throw new IOException("現在のクラスデータに不明なクラスIDがあります: " + id);
+                classes.add(new String[] { type, id, label });
+            }
+            for (Map.Entry<String, String> entry : targetLabels.entrySet()) {
+                classes.add(new String[] { "class", entry.getKey(), entry.getValue() });
+            }
+            for (JsonElement element : requireArray(root, "relations")) {
+                if (!element.isJsonObject()) throw new IOException("現在の親子関係の要素はオブジェクトにしてください。");
+                JsonObject item = element.getAsJsonObject();
+                relations.add(new String[] {
+                    requiredString(item, "child"), requiredString(item, "parent")
+                });
+            }
+        } catch (com.google.gson.JsonParseException exception) {
+            throw new IOException("現在のクラスデータを読み込めません。JSONの構文を確認してください。", exception);
         }
     }
 
@@ -141,8 +389,31 @@ public final class ClassDataUpdate {
         return object.get(name).getAsString();
     }
 
+    /** 対象クラスのラベルは入力JSONで省略できるため、現在の一覧から引き継ぎます。 */
+    private static Map<String, String> readTargetClassLabels() throws IOException {
+        Map<String, String> labels = new LinkedHashMap<>();
+        if (!Files.isRegularFile(TARGET_CLASS_DATA)) {
+            throw new IOException("対象クラス一覧が見つかりません: " + TARGET_CLASS_DATA);
+        }
+        try (Reader reader = Files.newBufferedReader(TARGET_CLASS_DATA, StandardCharsets.UTF_8)) {
+            JsonElement parsed = JsonParser.parseReader(reader);
+            if (!parsed.isJsonObject()) throw new IOException("対象クラス一覧のルートはオブジェクトにしてください。");
+            JsonArray targetClasses = requireArray(parsed.getAsJsonObject(), "classes");
+            for (JsonElement element : targetClasses) {
+                if (!element.isJsonObject()) throw new IOException("対象クラス一覧の要素はオブジェクトにしてください。");
+                JsonObject item = element.getAsJsonObject();
+                String id = normalizeId(requiredString(item, "id"));
+                String label = requiredString(item, "label").trim();
+                labels.put(id, label);
+            }
+            return labels;
+        } catch (com.google.gson.JsonParseException exception) {
+            throw new IOException("対象クラス一覧を読み込めません。JSONの構文を確認してください。", exception);
+        }
+    }
+
     private static void addInputClasses(Map<String, String> classes, Map<String, String> temporaryIds,
-            List<String[]> rows) throws IOException {
+            List<String[]> rows, Map<String, String> existingTargetLabels) throws IOException {
         Map<String, Integer> next = nextNumbersFromClasses(rows);
         Set<String> inputIds = new HashSet<>();
         Set<String> inputLabels = new HashSet<>();
@@ -153,7 +424,7 @@ public final class ClassDataUpdate {
             String id = columns[1].trim();
             String label = columns[2].trim();
             String prefix = prefix(type);
-            if (prefix == null || label.isEmpty()) {
+            if (prefix == null) {
                 throw new IOException("classesの種類またはラベルが不正です: " + String.join(" / ", columns));
             }
             if (id.isEmpty() || id.startsWith("new-")) {
@@ -172,6 +443,12 @@ public final class ClassDataUpdate {
                 temporaryIds.put("new-" + prefix + number, id);
             } else {
                 id = normalizeId(id);
+            }
+            if (label.isEmpty() && "c_".equals(prefix)) {
+                label = existingTargetLabels.getOrDefault(id, "");
+            }
+            if (label.isEmpty()) {
+                throw new IOException("ラベルが空、または既存データから対象クラスのラベルを取得できません: " + id);
             }
             // 未分類は画面表示時に生成する仮想グループであり、過去の入力には
             // classとして書き出された仮想IDが残っている場合がある。
@@ -255,6 +532,36 @@ public final class ClassDataUpdate {
             appendMissing(message, "中間または上位クラス未所属の対象クラス", missingMiddle);
             appendMissing(message, "上位クラス未所属の中間クラス", missingTop);
             throw new IOException(message.toString());
+        }
+    }
+
+    private static void validateUnclassifiedHasNoMiddleChildren(Map<String, String> classes,
+            List<String[]> relations) throws IOException {
+        for (String[] relation : relations) {
+            String child = relation[0];
+            String parent = relation[1];
+            if ("m_".equals(classKind(child)) && "t_".equals(classKind(parent))
+                    && "未分類".equals(classes.get(parent))) {
+                throw new IOException("未分類の上位クラスには中間クラスを配置できません: " + shortId(child));
+            }
+        }
+    }
+
+    private static void validateRelationStructure(List<String[]> relations) throws IOException {
+        Map<String, Integer> parentCounts = new LinkedHashMap<>();
+        for (String[] relation : relations) {
+            String childKind = classKind(relation[0]);
+            String parentKind = classKind(relation[1]);
+            if (!("c_".equals(childKind) || "m_".equals(childKind))
+                    || !("m_".equals(parentKind) || "t_".equals(parentKind))) {
+                throw new IOException("親子関係のクラス種別が不正です: "
+                        + shortId(relation[0]) + " -> " + shortId(relation[1]));
+            }
+            int count = parentCounts.merge(relation[0], 1, Integer::sum);
+            if (count > 1) {
+                throw new IOException("対象クラス・中間クラスの親は1つにしてください: "
+                        + shortId(relation[0]));
+            }
         }
     }
 
