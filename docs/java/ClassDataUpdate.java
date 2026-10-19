@@ -30,6 +30,8 @@ public final class ClassDataUpdate {
     private static final Path MIDDLE_TSV_LIST = Paths.get("data/output/middle-class-list.tsv");
     private static final Path TOP_TSV_LIST = Paths.get("data/output/top-class-list.tsv");
     private static final String URI_PREFIX = "https://kozaki-lab.jp/REFV-KG/class/";
+    private static final DateTimeFormatter HISTORY_TIMESTAMP_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private ClassDataUpdate() {}
@@ -44,6 +46,7 @@ public final class ClassDataUpdate {
         Map<String, String> temporaryIds = new LinkedHashMap<>();
         addInputClasses(classes, temporaryIds, input.classes(), existingTargetLabels);
         List<String[]> relations = readRelations(classes, temporaryIds, input.relations());
+        renumberHierarchyIds(classes, relations);
         validateRelationStructure(relations);
         normalizeDirectTargetRelations(classes, relations);
         validateHierarchyAssignments(classes, relations);
@@ -71,8 +74,7 @@ public final class ClassDataUpdate {
     private static Path moveInputFile() throws IOException {
         // 実行日時をファイル名に含め、履歴フォルダ直下に保存する。
         // ミリ秒まで含めることで、短時間に連続実行した場合も衝突しにくくする。
-        String timestamp = LocalDateTime.now()
-                .format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS"));
+        String timestamp = LocalDateTime.now().format(HISTORY_TIMESTAMP_FORMATTER);
         Files.createDirectories(HISTORY_DIRECTORY);
         Path movedInput = uniqueHistoryPath("class-update-" + timestamp);
         moveWithRetry(INPUT_FILE, movedInput);
@@ -324,7 +326,7 @@ public final class ClassDataUpdate {
         root.add("relations", relationArray);
 
         Files.createDirectories(HISTORY_DIRECTORY);
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS"));
+        String timestamp = LocalDateTime.now().format(HISTORY_TIMESTAMP_FORMATTER);
         Path snapshot = uniqueHistoryPath("class-data-before-update-" + timestamp);
         writeJson(snapshot, root);
         return snapshot;
@@ -496,6 +498,40 @@ public final class ClassDataUpdate {
         });
     }
 
+    /** 上位・中間クラスのIDを連番に揃え、親子関係の参照も同時に更新します。 */
+    private static void renumberHierarchyIds(Map<String, String> classes, List<String[]> relations) {
+        Map<String, String> replacements = new LinkedHashMap<>();
+        for (String prefix : List.of("t_", "m_")) {
+            List<String> ids = classes.keySet().stream()
+                    .filter(id -> id.startsWith(URI_PREFIX + prefix))
+                    .sorted((left, right) -> Integer.compare(
+                            numericSuffix(left, prefix), numericSuffix(right, prefix)))
+                    .toList();
+            int next = 1;
+            for (String id : ids) {
+                if ("t_".equals(prefix) && numericSuffix(id, prefix) == 0) {
+                    replacements.put(id, id);
+                } else {
+                    replacements.put(id, URI_PREFIX + prefix + next++);
+                }
+            }
+        }
+
+        Map<String, String> renumberedClasses = new LinkedHashMap<>();
+        classes.forEach((id, label) -> renumberedClasses.put(replacements.getOrDefault(id, id), label));
+        classes.clear();
+        classes.putAll(renumberedClasses);
+
+        for (String[] relation : relations) {
+            relation[0] = replacements.getOrDefault(relation[0], relation[0]);
+            relation[1] = replacements.getOrDefault(relation[1], relation[1]);
+        }
+    }
+
+    private static int numericSuffix(String id, String prefix) {
+        return Integer.parseInt(id.substring((URI_PREFIX + prefix).length()));
+    }
+
     /**
      * 対象クラスが中間または上位クラスへ、中間クラスが中間または上位クラスへ
      * 所属していることを検証します。
@@ -557,7 +593,8 @@ public final class ClassDataUpdate {
                 throw new IOException("親子関係のクラス種別が不正です: "
                         + shortId(relation[0]) + " -> " + shortId(relation[1]));
             }
-            int count = parentCounts.merge(relation[0], 1, Integer::sum);
+            int count = parentCounts.merge(relation[0], 1,
+                    (current, added) -> current.intValue() + added.intValue());
             if (count > 1) {
                 throw new IOException("対象クラス・中間クラスの親は1つにしてください: "
                         + shortId(relation[0]));
@@ -655,15 +692,7 @@ public final class ClassDataUpdate {
                 .sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> contents.append(entry.getKey())
                         .append('\t').append(entry.getValue()).append('\n'));
-        Files.createDirectories(output.getParent());
-        Path temporary = output.resolveSibling(output.getFileName() + ".tmp");
-        Files.writeString(temporary, contents.toString(), StandardCharsets.UTF_8);
-        try {
-            Files.move(temporary, output, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
-            Files.move(temporary, output, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-        }
+        writeTextAtomically(output, contents.toString());
     }
 
     private static Map<String, Integer> nextNumbers(Map<String, String> classes) {
@@ -724,15 +753,23 @@ public final class ClassDataUpdate {
     }
 
     private static void writeJson(Path path, JsonObject root) throws IOException {
-        // 出力先の親フォルダを先に作成し、整形済みUTF-8 JSONを書き込む。
-        Files.createDirectories(path.getParent());
-        Path temporary = path.resolveSibling(path.getFileName() + ".tmp");
-        Files.writeString(temporary, GSON.toJson(root), StandardCharsets.UTF_8);
+        writeTextAtomically(path, GSON.toJson(root));
+    }
+
+    private static void writeTextAtomically(Path output, String contents) throws IOException {
+        Path parent = output.getParent();
+        Files.createDirectories(parent);
+        Path temporary = Files.createTempFile(parent, output.getFileName() + ".", ".tmp");
         try {
-            Files.move(temporary, path, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
-            Files.move(temporary, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            Files.writeString(temporary, contents, StandardCharsets.UTF_8);
+            try {
+                Files.move(temporary, output, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.nio.file.AtomicMoveNotSupportedException exception) {
+                Files.move(temporary, output, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temporary);
         }
     }
 
