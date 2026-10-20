@@ -7,6 +7,10 @@ const summaryElement = document.getElementById('summary');
 const modeDescription = document.getElementById('mode-description');
 let renderTargetClassList = null;
 
+document.querySelector('[data-close-all-tree]')?.addEventListener('click', () => {
+  treeElement.querySelectorAll('details[open]').forEach((details) => { details.open = false; });
+});
+
 const toggleBrowseIds = document.getElementById('toggle-browse-ids');
 if (toggleBrowseIds) {
   toggleBrowseIds.addEventListener('click', () => {
@@ -138,7 +142,7 @@ function buildHierarchyRows(data) {
     }
     return path.reverse();
   };
-  // インスタンス単位ではなく対象クラス単位で行を作る。同じ対象クラスに
+  // インスタンス単位ではなくクラス単位で行を作る。同じクラスに
   // 複数のインスタンスが属していても、階層上は1件だけ表示する。
   const rowsByClass = new Map();
   const instancesById = new Map((data.instanceData?.instances || []).map((instance) => [instance.id, instance]));
@@ -150,8 +154,8 @@ function buildHierarchyRows(data) {
       const path = pathFor(classInfo.id).map((id) => classMap.get(id) || { id, label: id });
       const top = path[0] || { id: 't_0', label: '未分類' };
       const leaf = path[path.length - 1] || classInfo;
-      // 更新データによっては対象クラスが上位クラスへ直接つながる。
-      // 階層の深さだけで判定すると、対象クラス(c_)自身を中間クラスとして表示してしまう。
+      // 更新データによってはクラスが上位クラスへ直接つながる。
+      // 階層の深さだけで判定すると、クラス(c_)自身を中間クラスとして表示してしまう。
       const isTargetClass = leaf.id.includes('/c_');
       const middle = path.length > 2
         ? path.slice(1, -1).map((item) => item.label).join(' / ')
@@ -168,48 +172,105 @@ function buildHierarchyRows(data) {
   return [...rowsByClass.values()];
 }
 
-function textLabel(value) {
-  return value.replace(/^"|"@[^@]+$/g, '');
-}
-
 function displayClassId(id) {
   const segment = String(id).split('/').pop();
   const match = segment.match(/^([cmt])_0*(\d+)$/);
   return match ? `${match[1]}_${Number(match[2])}` : segment;
 }
 
+let treeCountRangeDefaultsInitialized = false;
+let treeCountRangeTouched = false;
+let treeCountFilterEnabled = false;
+let treeExactCountValues = [0];
+let treeExactSelectedCount = null;
 function renderTree() {
   const filterInput = document.getElementById('tree-filter-query');
   const filterType = document.getElementById('tree-filter-type');
   const filterCount = document.getElementById('tree-filter-count');
   const query = filterInput?.value || '';
-  const { targets, matchedInstanceCount } = window.findTargetMatches(window.appData, filterType?.value || 'class', query);
-  const targetIds = query.trim() ? new Set(targets.map((item) => item.id)) : null;
-  const model = window.buildTreeModel(window.appData.classData, targetIds) || [];
-  const makeTarget = (item) => {
+  const instanceCountByClassId = new Map();
+  const knownInstanceIds = new Set((window.appData.instanceData?.instances || []).map((instance) => instance.id));
+  (window.appData.instanceClassData?.relations || []).forEach((relation) => {
+    if (!knownInstanceIds.has(relation.instance)) return;
+    if (!instanceCountByClassId.has(relation.class)) instanceCountByClassId.set(relation.class, new Set());
+    instanceCountByClassId.get(relation.class).add(relation.instance);
+  });
+  const instanceCount = (classId) => instanceCountByClassId.get(classId)?.size || 0;
+  treeExactCountValues = [...new Set(
+    window.findTargetMatches(window.appData, 'class', '').targets.map((item) => instanceCount(item.id))
+  )].sort((a, b) => a - b);
+  if (!treeExactCountValues.length) treeExactCountValues = [0];
+  if (treeExactSelectedCount === null || !treeExactCountValues.includes(treeExactSelectedCount)) {
+    treeExactSelectedCount = treeExactCountValues.reduce((nearest, value) =>
+      Math.abs(value - (treeExactSelectedCount ?? 0)) < Math.abs(nearest - (treeExactSelectedCount ?? 0))
+        ? value : nearest, treeExactCountValues[0]);
+  }
+  const exactInput = document.getElementById('tree-filter-count-exact-input');
+  exactInput.min = '0';
+  exactInput.max = String(treeExactCountValues.length - 1);
+  exactInput.value = String(treeExactCountValues.indexOf(treeExactSelectedCount));
+  document.getElementById('tree-filter-count-exact-value').textContent = `${treeExactSelectedCount}件`;
+  document.getElementById('tree-filter-count-exact-min').textContent = `${treeExactCountValues[0]}件`;
+  document.getElementById('tree-filter-count-exact-max').textContent = `${treeExactCountValues.at(-1)}件`;
+  const minInput = document.getElementById('tree-filter-count-min');
+  const maxInput = document.getElementById('tree-filter-count-max');
+  if (!treeCountRangeDefaultsInitialized) {
+    if (minInput.value === '') minInput.value = '0';
+    if (maxInput.value === '') {
+      const largestClassCount = [...instanceCountByClassId.values()].reduce((largest, ids) => Math.max(largest, ids.size), 0);
+      maxInput.value = String(largestClassCount);
+    }
+    treeCountRangeDefaultsInitialized = true;
+  }
+  const minValue = minInput.value;
+  const maxValue = maxInput.value;
+  const minCount = minValue === '' || minValue == null ? null : Number(minValue);
+  const maxCount = maxValue === '' || maxValue == null ? null : Number(maxValue);
+  const countMode = document.getElementById('tree-filter-count-mode')?.value || 'range';
+  const exactCount = treeExactSelectedCount;
+  const countFilterActive = treeCountFilterEnabled && (countMode === 'exact'
+    ? exactCount !== null
+    : treeCountRangeTouched && (minCount !== null || maxCount !== null));
+  const effectiveSearchType = query.trim() ? (filterType?.value || 'class') : 'class';
+  const { targets: matchedTargets } = window.findTargetMatches(window.appData, effectiveSearchType, query);
+  const targets = matchedTargets.filter((item) =>
+    (!countFilterActive || (countMode === 'exact'
+      ? instanceCount(item.id) === exactCount
+      : (minCount === null || instanceCount(item.id) >= minCount)
+        && (maxCount === null || instanceCount(item.id) <= maxCount))));
+  const filterActive = query.trim().length > 0 || countFilterActive;
+  const targetIds = filterActive ? new Set(targets.map((item) => item.id)) : null;
+  const preserveHierarchy = countFilterActive && !query.trim();
+  const model = window.buildTreeModel(window.appData.classData, targetIds, preserveHierarchy) || [];
+  const openNodeIds = query.trim()
+    ? window.treeAncestorIds(window.appData.classData, targetIds)
+    : new Set();
+  const makeTarget = (item, _parent, depth) => {
     const li = document.createElement('li');
+    const levelColor = window.treeDepthColor(depth);
+    li.style.setProperty('--tree-level-color', levelColor);
     const card = document.createElement('div');
     card.className = 'tree-leaf-class';
+    card.style.setProperty('--tree-level-color', levelColor);
     const id = document.createElement('span'); id.className = 'tree-leaf-id'; id.textContent = displayClassId(item.id);
-    const label = document.createElement('span'); label.className = 'tree-leaf-label'; label.textContent = textLabel(item.label || '');
+    const label = document.createElement('span'); label.className = 'tree-leaf-label'; label.textContent = window.treeLabel(item.label);
+    const count = document.createElement('span'); count.className = 'target-instance-count-badge';
+    count.textContent = `(${instanceCount(item.id)}件)`;
     const info = document.createElement('button');
     info.type = 'button'; info.className = 'tree-leaf-info-button'; info.textContent = 'i';
     info.setAttribute('aria-label', `${item.label}に関連するインスタンスを表示`);
     info.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); showTargetInstances(item); });
-    card.append(id, label, info); li.append(card); return li;
+    card.append(id, label, count, info); li.append(card); return li;
   };
   window.renderHierarchyTree(treeElement, model, {
-    isOpen: (node) => query.trim() ? true : node.type === 'top' && node.label !== '未分類',
+    isOpen: (node) => openNodeIds.has(node.id),
     renderTarget: makeTarget,
+    targetCountFor: (item) => instanceCount(item.id),
     displayId: displayClassId,
     afterChildren: () => requestAnimationFrame(() => window.updateTreeTargetRowStarts(treeElement)),
     afterRender: (container) => requestAnimationFrame(() => window.updateTreeTargetRowStarts(container))
   });
-  if (filterCount) filterCount.textContent = query.trim()
-    ? filterType.value === 'instance'
-      ? `一致インスタンス ${matchedInstanceCount}件に関連するクラス ${targets.length}件を表示中`
-      : `一致するクラス ${targets.length}件を表示中`
-    : `クラス ${window.appData.classData.classes.filter((item) => item.id.includes('/c_')).length}件`;
+  if (filterCount) filterCount.textContent = `${targets.length}件`;
 }
 
 function showTargetInstances(targetClass) {
@@ -294,7 +355,7 @@ function render(rows) {
 }
 
 if (window.appData) {
-  // JSONでは階層クラスと対象クラスを分離し、画面内では従来どおり統合して扱う。
+  // JSONでは階層クラスとクラスを分離し、画面内では従来どおり統合して扱う。
   window.appData.classData.classes = [
     ...(window.appData.classData.classes || []),
     ...(window.appData.targetClassData?.classes || [])
@@ -360,6 +421,37 @@ document.querySelectorAll('.tab').forEach((tab) => {
 
 const loadingIndicator = document.getElementById('loading-indicator');
 if (loadingIndicator) loadingIndicator.hidden = true;
-document.getElementById('tree-filter-type')?.addEventListener('change', renderTree);
+document.getElementById('tree-filter-type')?.addEventListener('change', (event) => {
+  const queryInput = document.getElementById('tree-filter-query');
+  if (queryInput) queryInput.placeholder = '名前・IDで検索';
+  renderTree();
+});
 document.getElementById('tree-filter-query')?.addEventListener('input', renderTree);
+function setTreeFilterMethod(method) {
+  if (method === 'count') treeCountFilterEnabled = true;
+  document.querySelector('.tree-filter-search-controls').hidden = method !== 'keyword';
+  document.querySelector('.tree-filter-count-settings').hidden = method !== 'count';
+  document.querySelectorAll('[data-tree-filter-method]').forEach((button) => {
+    const active = button.dataset.treeFilterMethod === method;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+  renderTree();
+}
+document.querySelectorAll('[data-tree-filter-method]').forEach((button) => {
+  button.addEventListener('click', () => setTreeFilterMethod(button.dataset.treeFilterMethod));
+});
+document.getElementById('tree-filter-count-min')?.addEventListener('input', () => { treeCountRangeTouched = true; renderTree(); });
+document.getElementById('tree-filter-count-max')?.addEventListener('input', () => { treeCountRangeTouched = true; renderTree(); });
+document.getElementById('tree-filter-count-exact-input')?.addEventListener('input', (event) => {
+  treeExactSelectedCount = treeExactCountValues[Number(event.target.value)] ?? treeExactCountValues[0];
+  document.getElementById('tree-filter-count-exact-value').textContent = `${treeExactSelectedCount}件`;
+  renderTree();
+});
+document.getElementById('tree-filter-count-mode')?.addEventListener('change', (event) => {
+  const exactMode = event.target.value === 'exact';
+  document.getElementById('tree-filter-count-range').hidden = exactMode;
+  document.getElementById('tree-filter-count-exact').hidden = !exactMode;
+  renderTree();
+});
 window.addEventListener('resize', () => requestAnimationFrame(() => window.updateTreeTargetRowStarts(treeElement)));

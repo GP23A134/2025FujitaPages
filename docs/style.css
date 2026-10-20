@@ -1,5 +1,6 @@
 /* 1. 基本レイアウト */
 * { box-sizing: border-box; }
+button, input, select, textarea { font: inherit; }
 
 /* ローディング表示 */
 .loading-indicator { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; color: #075985; background: rgba(248, 250, 252, 0.94); font-size: 1.1rem; font-weight: 700; }
@@ -27,11 +28,20 @@ body {
 .eyebrow { margin: 0 0 0.25rem; color: #bae6fd; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; }
 .page-header h1 { margin: 0; color: inherit; letter-spacing: 0.02em; }
 .page-description { margin: 0.45rem 0 0; color: #dbeafe; }
-.page-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1rem; }
+.page-header-actions { position: absolute; top: 1.75rem; right: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0; }
 .page-header-actions .page-link-button,
 .page-header-actions .search-button { position: static; display: inline-flex; align-items: center; justify-content: center; min-height: 2.65rem; margin: 0; padding: 0.5rem 0.9rem; border-radius: 999px; font: inherit; font-weight: 700; }
 .page-link-button { border: 1px solid #fff; color: #0f3d63; text-decoration: none; background: #fff; }
 .page-link-button:hover { color: #fff; background: #0f3d63; }
+.edit-taskbar { position: sticky; top: 0; z-index: 100; display: flex; width: min(1480px, calc(100% - 2rem)); min-height: 3.5rem; align-items: center; gap: 0.45rem; margin: 0 auto; padding: 0.45rem 2rem; border-bottom: 1px solid #d8dee9; background: #fff; box-shadow: 0 5px 12px rgba(15, 23, 42, 0.08); }
+.edit-taskbar-group { display: flex; align-items: center; gap: 0.35rem; }
+.edit-taskbar-spacer { flex: 1; }
+.edit-taskbar-button { display: inline-flex; min-height: 2.35rem; align-items: center; justify-content: center; padding: 0.4rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 7px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.88rem; font-weight: 650; white-space: nowrap; }
+.edit-taskbar-button:hover:not(:disabled), .edit-taskbar-button:focus-visible:not(:disabled) { border-color: #7dd3fc; color: #075985; background: #f0f9ff; }
+.edit-taskbar-button:disabled { color: #94a3b8; background: #f8fafc; cursor: not-allowed; opacity: 0.7; }
+.tree-toolbar { display: flex; align-items: center; justify-content: flex-end; margin: 0 0 0.45rem; }
+.tree-toolbar-button { display: inline-flex; min-height: 2.35rem; align-items: center; justify-content: center; padding: 0.4rem 0.75rem; border: 1px solid #93c5fd; border-radius: 7px; color: #1d4ed8; background: #eff6ff; cursor: pointer; font: inherit; font-size: 0.88rem; font-weight: 650; white-space: nowrap; }
+.tree-toolbar-button:hover, .tree-toolbar-button[aria-pressed="true"] { color: #fff; background: #2563eb; border-color: #1d4ed8; }
 main {
   width: min(1480px, calc(100% - 2rem));
   margin: 0 auto 4rem;
@@ -76,13 +86,12 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .class-list-grid section { min-width: 0; }
 .class-list-grid h3 { margin: 0 0 0.5rem; color: #334155; }
 .class-list-grid table { font-size: 0.85rem; }
-.class-list-grid td:first-child { max-width: 260px; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; }
+.class-list-grid td:first-child { max-width: 260px; overflow-wrap: anywhere; font-size: 0.75rem; }
 
 /* 4. クラス検索・編集・管理 */
 .class-search { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; margin-bottom: 1rem; padding: 0.9rem; border: 1px solid #d8dee9; border-radius: 12px; background: #f8fafc; }
 .class-search label { display: flex; flex-direction: column; gap: 0.25rem; color: #475569; font-size: 0.95rem; font-weight: 700; }
-.class-search select, .class-search input { min-width: 180px; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; font: inherit; font-size: 0.95rem; font-weight: 400; }
-.class-search select, .class-search input { min-height: 2.65rem; box-sizing: border-box; }
+.class-search select, .class-search input { box-sizing: border-box; min-width: 180px; min-height: 2.65rem; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; font: inherit; font-size: 0.95rem; font-weight: 400; }
 .class-search-text { display: flex; flex: 1; flex-direction: column; gap: 0.25rem; }
 .class-search-text input { width: 100%; }
 .search-active-filters { display: grid; gap: 0; margin: 0.75rem 0 0.8rem; padding: 0.35rem 0.65rem; border: 1px solid #cbd5e1; border-radius: 9px; background: transparent; }
@@ -179,6 +188,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .search-count-stat.is-selected .search-count-value { color: #b45309; }
 .search-count-stat.is-instance .search-count-value { color: #92400e; }
 @keyframes search-loading-spin { to { transform: rotate(360deg); } }
+/* 検索結果のクラス選択と、選択後の付与フォーム */
 .target-search-result-option { display: flex; min-width: 0; align-items: center; gap: 0.35rem; padding-left: 0.45rem; border-bottom: 1px solid #e2e8f0; border-left: 4px solid #bfdbfe; }
 .target-search-option { display: flex; flex: 1; min-width: 0; gap: 0.5rem; align-items: center; padding: 0.35rem; overflow-wrap: anywhere; }
 .target-search-option-content { display: grid; min-width: 0; gap: 0.15rem; }
@@ -192,6 +202,9 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .search-apply-section h3 { margin: 0 0 0.6rem; color: #0f3d63; font-size: 0.95rem; }
 .search-result-apply-form label { color: #475569; font-size: 0.95rem; }
 .search-result-apply-form select, .search-result-apply-form input { font-size: 0.95rem; }
+.class-search select,
+.search-result-apply-form select,
+.tree-filter select { font-size: 0.95rem; text-align: center; }
 .search-result-apply-form { margin-top: 0.75rem; }
 .search-apply-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; }
 .search-apply-fields[hidden] { display: none; }
@@ -213,18 +226,14 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .edit-save-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; padding: 0.75rem 1rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #334155; }
 .edit-header-save { color: #fff; background: #b45309; border: 1px solid #92400e; }
 .edit-header-save:hover { background: #92400e; }
-.edit-id-toggle { color: #1d4ed8; background: #eff6ff; border: 1px solid #93c5fd; }
-.edit-id-toggle:hover, .edit-id-toggle[aria-pressed="true"] { color: #fff; background: #2563eb; border-color: #1d4ed8; }
-.browse-id-toggle { color: #1d4ed8; background: #eff6ff; border: 1px solid #93c5fd; }
-.browse-id-toggle:hover, .browse-id-toggle[aria-pressed="true"] { color: #fff; background: #2563eb; border-color: #1d4ed8; }
 
 /* 5. 閲覧・編集で共有するツリー */
-/* ツリー領域 */
+/* ツリー全体の寸法と階層ごとの間隔 */
 .tree {
-  --tree-target-width: 220px;
+  --tree-target-width: 240px;
   --tree-target-connector-y: 1rem;
-  --tree-target-row-gap: 0.55rem;
-  --tree-target-column-gap: 0.25rem;
+  --tree-target-row-gap: 0.15rem;
+  --tree-target-column-gap: 0.95rem;
   margin: 0;
   padding: 0 0.075rem;
   border: none;
@@ -238,12 +247,12 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 }
 #tree-panel { display: flex; height: calc(200vh - 200px); min-height: 0; margin-inline: -1rem; }
 
-/* 階層・関係線 */
+/* 開閉式の階層見出し、子リスト、接続線 */
 .tree details { margin: 0.35rem 0; }
 .tree summary { cursor: pointer; font-weight: 600; padding: 0.45rem 0.6rem; border-radius: 6px; }
-.tree-level-id { display: inline; margin-left: 0.75rem; color: #64748b; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.72rem; font-weight: 400; overflow-wrap: anywhere; }
+.tree-level-id { display: inline; margin-left: 0.75rem; color: #64748b; font-size: 0.72rem; font-weight: 400; overflow-wrap: anywhere; }
 .tree details > summary:hover { background: #e0f2fe; }
-.browse-level-id { display: block; flex-basis: 100%; width: 100%; margin-left: 0.1rem; color: #94a3b8; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.65rem; font-weight: 400; overflow-wrap: anywhere; word-break: break-all; }
+.browse-level-id { display: block; flex-basis: 100%; width: 100%; margin-left: 0.1rem; color: #94a3b8; font-size: 0.65rem; font-weight: 400; overflow-wrap: anywhere; word-break: break-all; }
 .tree ul { margin: 0.45rem 0 0.75rem 1.25rem; padding: 0; list-style: none; }
 /* 横線・終端マスクの配置基準を各項目にし、--tree-connector-yを共有する。 */
 .tree li { position: relative; --tree-connector-y: 50%; margin: 0.4rem 0; }
@@ -257,7 +266,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .tree > details > ul > li::before { content: ""; position: absolute; left: -1.15rem; top: var(--tree-connector-y); transform: translateY(-50%); width: 1.15rem; border-top: 2px solid #7dd3fc; }
 .tree > details > ul > li > details > ul { position: relative; border-left: 0; }
 .tree > details > ul > li > details > ul::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0.75rem; border-left: 2px solid #cbd5e1; }
-/* 対象クラスを表示する階層では、上位クラス側の縦線だけを残す。 */
+/* クラスを表示する階層では、上位クラス側の縦線だけを残す。 */
 .tree > details > ul > li > details:has(> ul > .tree-target-row) > ul::before { display: none; }
 .tree > details > ul > li > details > ul {
   display: grid;
@@ -272,13 +281,6 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .tree > details > ul > li > details > ul > li::before { content: ""; position: absolute; left: -1rem; top: var(--tree-connector-y); transform: translateY(-50%); width: 1rem; border-top: 1px solid #cbd5e1; }
 .tree .tree-target-list > li::before { content: ""; position: absolute; left: -1rem; top: var(--tree-connector-y); transform: translateY(-50%); width: 1rem; border-top: 1px solid #cbd5e1; }
 .tree .tree-target-list > li { --tree-connector-y: var(--tree-target-connector-y); }
-.tree .tree-target-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--tree-target-row-gap) var(--tree-target-column-gap);
-  padding: 0;
-  margin: 0;
-}
 .tree > details > ul > li > details > ul > .tree-target-row { grid-column: 1 / -1; }
 .tree li:has(> .tree-class),
 .tree li:has(> .tree-leaf-class) {
@@ -300,9 +302,10 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .middle-count { background: #e2e8f0; color: #475569; }
 .tree-class { display: flex; flex-direction: row; align-items: baseline; gap: 0.35rem; padding: 0.4rem 0.65rem; color: #155e9a; background: #fff; border: 1px solid #dbeafe; border-left: 3px solid #38bdf8; border-radius: 7px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
 .tree-class-label { font-size: 0.9rem; font-weight: 650; }
-.tree-class-id { color: #64748b; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.72rem; overflow-wrap: anywhere; word-break: break-all; }
+.tree-class-id { color: #64748b; font-size: 0.72rem; overflow-wrap: anywhere; word-break: break-all; }
 
 /* 6. 編集画面: 保持中パネルとツリー操作 */
+/* 保持中の選択内容と、ツリー絞り込み欄 */
 .instance-selection {
   margin-top: 2rem;
   padding: 1rem;
@@ -311,20 +314,69 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
   background: linear-gradient(145deg, #f0f9ff, #f8fafc);
   box-shadow: 0 8px 20px rgba(14, 116, 144, 0.1);
 }
-.tree-filter { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; margin: 0 0 0.85rem; padding: 0.75rem 0.9rem; border: 1px solid #d8dee9; border-radius: 10px; background: #f8fafc; }
-.tree-filter label { display: flex; flex-direction: column; gap: 0.25rem; color: #475569; font-weight: 700; }
-.tree-filter select, .tree-filter input { min-width: 180px; padding: 0.5rem 0.65rem; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; font: inherit; font-weight: 400; }
-.tree-filter-query-label { flex: 1 1 24rem; min-width: min(100%, 18rem); }
+.tree-filter { margin: 0 0 0.85rem; border: 1px solid #d8dee9; border-radius: 10px; background: #f8fafc; }
+.tree-filter-heading { display: flex; min-height: 2.8rem; align-items: center; justify-content: space-between; padding: 0.4rem 0.85rem; border-radius: 9px; color: #334155; background: #f1f5f9; cursor: pointer; font-size: var(--tree-panel-heading-font-size, 1.3rem); font-weight: 700; line-height: 1.35; list-style: none; }
+.tree-filter-heading::-webkit-details-marker { display: none; }
+.tree-filter-heading::after { content: "▾"; color: #64748b; font-size: 1rem; }
+.tree-filter[open] > .tree-filter-heading { border-bottom: 1px solid #cbd5e1; border-radius: 9px 9px 0 0; }
+.tree-filter[open] > .tree-filter-heading::after { content: "▴"; }
+.tree-filter-heading:hover, .tree-filter-heading:focus-visible { background: #e2e8f0; outline: none; }
+.tree-filter-count { margin-left: auto; margin-right: 0.65rem; padding: 0.1rem 0.55rem; border: 1px solid #cbd5e1; border-radius: 999px; color: #475569; background: #fff; font-size: 0.78rem; font-weight: 700; line-height: 1.5; }
+.tree-filter-body { display: flex; flex-wrap: wrap; align-items: end; gap: 0.7rem; padding: 0.75rem 0.85rem; }
+.tree-filter-search-controls { display: contents; }
+.tree-filter label { display: flex; min-width: 0; flex-direction: column; gap: 0.3rem; color: #475569; font-size: 0.78rem; font-weight: 700; }
+.tree-filter select, .tree-filter input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 2.7rem; padding: 0.5rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font: inherit; font-weight: 400; }
+.tree-filter select:focus-visible, .tree-filter input:focus-visible { border-color: #0284c7; outline: 3px solid rgba(56, 189, 248, 0.2); }
 .tree-filter-query-label input { width: 100%; }
-.tree-filter p { flex: 0 0 100%; margin: 0; color: #64748b; font-size: 0.9rem; }
+.tree-filter-query-label { flex: 1 1 14rem; }
+.tree-filter-count-settings { display: contents; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; }
+.tree-filter-count-settings > label,
+.tree-filter-count-settings > .tree-filter-count-range,
+.tree-filter-count-settings > .tree-filter-count-exact { flex: 1 1 14rem; min-width: 0; }
+.tree-filter-count-settings[hidden] { display: none; }
+#tree-filter-type,
+#tree-filter-count-mode { width: 8rem; min-width: 8rem; max-width: 8rem; }
+.tree-filter-count-mode-label { flex: 0 0 8rem !important; width: 8rem; }
+.tree-filter-mode-switch { display: inline-flex; flex: 0 0 auto; align-self: end; align-items: center; gap: 0.2rem; width: fit-content; max-width: 100%; height: 2.7rem; box-sizing: border-box; padding: 0.15rem; border: 1px solid #cbd5e1; border-radius: 8px; background: #f1f5f9; }
+.tree-filter-mode-switch button { height: 100%; padding: 0.35rem 0.85rem; border: 1px solid transparent; border-radius: 6px; color: #475569; background: transparent; cursor: pointer; font: inherit; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.tree-filter-mode-switch button.is-active { border-color: #94a3b8; color: #1e3a5f; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1); }
+.tree-filter-mode-switch button:hover { background: #e2e8f0; }
+.tree-filter-mode-switch button.is-active:hover { background: #fff; }
+.tree-filter-mode-switch button:focus-visible { outline: 2px solid #0284c7; outline-offset: 2px; }
+.tree-filter-count-settings > .tree-filter-count-range,
+.tree-filter-count-settings > .tree-filter-count-exact { flex: 1 1 0; min-width: 0; }
+.tree-filter-search-controls[hidden] { display: none; }
+.tree-filter-count-settings > legend { padding: 0 0.25rem; color: #475569; font-size: 0.85rem; font-weight: 700; }
+.tree-filter-exact-slider-row { display: flex; flex: 1 1 auto; align-items: center; gap: 0.55rem; width: 100%; min-width: 0; color: #64748b; font-size: 0.75rem; font-weight: 500; }
+.tree-filter .tree-filter-exact-slider { flex: 1 1 auto; width: 100%; min-width: 4rem; min-height: auto; padding: 0; border: 0; background: transparent; accent-color: #64748b; }
+.tree-filter-count-exact output { color: #334155; font-weight: 700; }
+.tree-filter-count-exact-title { white-space: nowrap; }
+#tree-filter-count-range[hidden],
+#tree-filter-count-exact[hidden] { display: none; }
+.tree-filter-count-range { display: flex; flex: 1 1 0; align-items: end; gap: 0.55rem; box-sizing: border-box; width: 100%; min-width: 0; min-inline-size: 0; margin: 0; padding: 0; border: 0; background: transparent; }
+.tree-filter-range-bound { display: flex !important; flex: 1 1 0; flex-direction: row !important; align-items: center; gap: 0.35rem !important; min-width: 0; white-space: nowrap; }
+.tree-filter-range-bound input { flex: 1 1 0; width: 100%; min-width: 0; padding: 0.4rem 0.5rem; text-align: center; }
+.tree-filter-range-separator { flex: 0 0 auto; color: #64748b; }
+/* ツリーと保持中パネルの横幅 */
 .edit-tree-layout {
-  --edit-tree-content-height: calc(100vh - 200px);
+  --edit-tree-content-height: calc(100vh - 10px);
+  --held-panel-width: 240px;
+  --tree-panel-heading-font-size: 1rem;
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
 }
-.edit-tree-layout:has(.instance-selection:not([hidden])) { grid-template-columns: minmax(0, 1fr) minmax(220px, 260px); }
+.edit-tree-layout:has(.instance-selection:not([hidden])) { grid-template-columns: minmax(0, 1fr) minmax(190px, var(--held-panel-width)); }
+.edit-tree-layout:has(.instance-selection.is-collapsed) { grid-template-columns: minmax(0, 1fr); }
+.held-panel-spacer { display: none; min-width: 0; }
+body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection:not([hidden])) .held-panel-spacer { display: block; }
+body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed) { grid-template-columns: minmax(0, 1fr); }
+body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed) .held-panel-spacer { display: none; }
+.edit-tree-pane { display: flex; min-width: 0; min-height: 0; flex-direction: column; height: var(--edit-tree-content-height); max-height: var(--edit-tree-content-height); }
+.edit-tree-layout:has(.instance-selection.is-collapsed) .tree-filter { width: calc(100% - var(--held-panel-width) - 1rem); box-sizing: border-box; }
+body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed) .tree-filter { width: calc(100% - var(--held-panel-width) - 1rem); }
 .edit-tree-layout .instance-selection {
   display: flex;
   flex-direction: column;
@@ -336,12 +388,66 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
   top: 1rem;
   overflow-y: auto;
 }
+body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .tree-filter {
+  position: sticky;
+  top: 4.5rem;
+  z-index: 50;
+}
+body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection:not(.is-collapsed) {
+  position: fixed;
+  top: 4.5rem;
+  right: max(3rem, calc((100vw - 1480px) / 2 + 2rem));
+  z-index: 60;
+  width: min(var(--held-panel-width), calc(100vw - 6rem));
+  height: calc(100vh - 5.5rem);
+  max-height: calc(100vh - 5.5rem);
+}
+body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection.is-collapsed {
+  position: fixed;
+  inset: auto;
+  top: 4.5rem;
+  right: max(3rem, calc((100vw - 1480px) / 2 + 2rem));
+  z-index: 60;
+  width: min(var(--held-panel-width), calc(100vw - 6rem));
+}
+body:not(.edit-panes-pinned) #edit-tree-panel .edit-tree-layout .instance-selection:not(.is-collapsed) {
+  position: static;
+  top: auto;
+}
 .edit-tree-layout .instance-selection[hidden] { display: none; }
+.edit-tree-layout .instance-selection.is-collapsed {
+  position: absolute;
+  z-index: 30;
+  inset: 0 0 auto auto;
+  width: min(var(--held-panel-width), 100%);
+  box-sizing: border-box;
+  height: var(--held-collapsed-height, auto);
+  min-height: 0;
+  max-height: none;
+  padding: 0.4rem 0.65rem;
+  overflow: hidden;
+}
+.instance-selection.is-collapsed .held-panel-header { min-height: 2.8rem; margin: 0; }
+.instance-selection.is-collapsed .held-panel-heading { min-height: 2.8rem; font-size: var(--tree-panel-heading-font-size, 1.3rem); }
+.instance-selection.is-collapsed .held-panel-toggle { display: none; }
+.instance-selection.is-collapsed #held-list-view:not([hidden]) { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; margin-top: 0.25rem; overflow: hidden; }
+.instance-selection.is-collapsed .held-panel-actions { display: none; }
+.instance-selection.is-collapsed .held-instance-list { flex: 1 1 auto; min-height: 2.5rem; max-height: none; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
 #edit-tree-panel { overflow: visible; }
 #edit-tree-panel .edit-tree-layout { overflow: visible; }
+/* 編集ツリーの上位・中間見出しをスクロール中も追従させる。 */
 #edit-tree-panel .tree { --edit-top-sticky-offset: 3.35rem; }
 #edit-tree-panel .tree-top-class > summary { position: sticky; top: 0; z-index: 20; color: #075985; background: #e0f2fe; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.12); }
 #edit-tree-panel .tree-middle-class > summary { position: sticky; top: var(--middle-sticky-top, var(--edit-top-sticky-offset)); z-index: var(--middle-sticky-z, 15); margin-top: 0.35rem; background: #f8fafc; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.1); }
+#edit-tree-panel .tree-middle-class > summary { border-left: 3px solid var(--tree-level-color, #38bdf8); }
+#edit-tree-panel .tree-top-class > summary,
+#edit-tree-panel .tree-middle-class > summary { list-style: none; }
+#edit-tree-panel .tree-top-class > summary::-webkit-details-marker,
+#edit-tree-panel .tree-middle-class > summary::-webkit-details-marker { display: none; }
+#edit-tree-panel .tree-top-class > summary::before,
+#edit-tree-panel .tree-middle-class > summary::before { content: "▸"; flex: 0 0 1rem; color: #075985; font-size: 0.85rem; text-align: center; }
+#edit-tree-panel .tree-top-class[open] > summary::before,
+#edit-tree-panel .tree-middle-class[open] > summary::before { content: "▾"; }
 #edit-tree-panel .tree-child-middle-list > li > .tree-middle-class > summary {
   display: flex;
   align-self: start;
@@ -362,7 +468,12 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .held-action-button { flex: 1; padding: 0.35rem 0.45rem; border: 1px solid #f59e0b; border-radius: 6px; color: #9a3412; background: #ffedd5; cursor: pointer; font: inherit; font-size: 0.78rem; font-weight: 700; }
 .held-action-button:hover, .held-action-button:focus-visible { color: #fff; background: #ea580c; }
 .held-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin: 0.15rem 0 0.75rem; }
-.held-panel-header h2 { min-width: 0; margin: 0; font-size: 1.05rem; }
+.held-panel-heading { display: flex; flex: 1 1 auto; align-items: center; justify-content: flex-start; gap: 0.5rem; min-width: 0; padding: 0; border: 0; color: #0f3d63; background: transparent; cursor: pointer; text-align: left; font: inherit; font-size: 1.05rem; font-weight: 700; }
+.held-panel-heading:focus-visible { outline: 2px solid #0284c7; outline-offset: 3px; border-radius: 4px; }
+.held-panel-title { min-width: 0; }
+.held-panel-collapse-icon { display: inline-flex; flex: 0 0 1rem; align-items: center; justify-content: center; color: #075985; font-size: 0.85rem; line-height: 1; }
+.held-panel-collapse-icon::before { content: "▾"; }
+.instance-selection.is-collapsed .held-panel-collapse-icon::before { content: "▸"; }
 .held-panel-toggle { flex: 0 0 auto; min-height: 1.9rem; padding: 0.3rem 0.6rem; border: 1px solid #0e7490; border-radius: 999px; color: #fff; background: linear-gradient(135deg, #0891b2, #0369a1); box-shadow: 0 2px 5px rgba(3, 105, 161, 0.2); cursor: pointer; font: inherit; font-size: 0.76rem; font-weight: 700; white-space: nowrap; transition: filter 140ms ease, box-shadow 140ms ease, transform 140ms ease; }
 .held-panel-toggle:hover { filter: brightness(1.06); box-shadow: 0 4px 9px rgba(3, 105, 161, 0.24); transform: translateY(-1px); }
 .held-panel-toggle:focus-visible { outline: 2px solid #0284c7; outline-offset: 2px; }
@@ -371,11 +482,22 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .held-destination-tabs { display: flex; gap: 0.35rem; margin-bottom: 0.5rem; }
 .held-destination-tab { flex: 1; padding: 0.35rem; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.78rem; }
 .held-destination-tab.is-active { border-color: #0284c7; color: #075985; background: #e0f2fe; font-weight: 700; }
+/* 移動先の検索欄、候補一覧、最近使った候補 */
+.held-destination-search-label { display: flex; flex: 0 0 auto; flex-direction: column; gap: 0.25rem; margin-bottom: 0.5rem; color: #475569; font-size: 0.76rem; font-weight: 700; }
+.held-destination-search-label input { width: 100%; min-height: 2.4rem; padding: 0.4rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; font: inherit; font-weight: 400; }
+.held-destination-search-label input:focus-visible { border-color: #0284c7; outline: 3px solid rgba(56, 189, 248, 0.2); }
+.held-destination-recent { flex: 0 0 auto; margin-top: 0.45rem; }
+.held-destination-recent h3 { margin: 0 0 0.25rem; color: #64748b; font-size: 0.72rem; font-weight: 700; }
+.held-destination-recent-list { display: grid; gap: 0.2rem; max-height: 5rem; overflow-y: auto; }
 .held-destination-list { display: flex; flex: 1 1 auto; flex-direction: column; gap: 0.25rem; min-height: 0; overflow-y: auto; padding: 0.3rem; border: 1px solid #d8dee9; border-radius: 8px; background: #fff; }
-.held-destination-option { padding: 0.4rem 0.5rem; border: 1px solid transparent; border-radius: 5px; color: #334155; background: transparent; cursor: pointer; font: inherit; font-size: 0.82rem; text-align: left; overflow-wrap: anywhere; }
+.held-destination-option { display: grid; flex: 0 0 3.2rem; grid-template-rows: 1.1rem 0.9rem; align-content: center; gap: 0.1rem; box-sizing: border-box; height: 3.2rem; min-height: 3.2rem; padding: 0.3rem 0.5rem; border: 1px solid transparent; border-radius: 5px; color: #334155; background: transparent; cursor: pointer; font: inherit; font-size: 0.82rem; text-align: left; }
+.held-destination-option-name { overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.held-destination-option-path { overflow: hidden; color: #64748b; font-size: 0.7rem; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.held-destination-option-path[hidden] { display: block; visibility: hidden; }
+.held-destination-option.is-recent { padding-block: 0.3rem; }
 .held-destination-option:hover, .held-destination-option.is-selected { border-color: #7dd3fc; color: #075985; background: #e0f2fe; }
 .held-destination-empty { margin: 0; padding: 0.5rem; color: #64748b; font-size: 0.8rem; }
-#apply-held-destination { width: 100%; margin-top: 0.5rem; }
+#apply-held-destination { width: 100%; margin: 0 0 0.55rem; }
 #apply-held-destination:disabled { opacity: 0.5; cursor: not-allowed; }
 .held-count { display: inline-block; margin-left: 0.35rem; padding: 0.15rem 0.55rem; border-radius: 999px; color: #075985; background: #bae6fd; font-size: 0.8em; font-weight: 700; vertical-align: middle; }
 .instance-selection-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
@@ -383,32 +505,32 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .instance-option { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.5rem; border-bottom: 1px solid #e2e8f0; cursor: pointer; }
 .instance-option span { overflow-wrap: anywhere; }
 .held-instance-list {
-  min-height: 2.5rem;
-  max-height: min(60vh, 30rem);
+  min-height: 47rem;
+  max-height: min(60vh, 80rem);
   overflow-y: auto;
-  padding: 0.5rem;
+  padding: 0.25rem;
   border: 1px solid #bae6fd;
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.85);
 }
 
 .held-instance-item {
   display: flex;
   align-items: baseline;
-  gap: 0.35rem;
-  padding: 0.4rem 0.65rem;
+  gap: 0.25rem;
+  padding: 0.25rem 0.4rem;
   border: 1px solid #dbeafe;
-  border-left: 3px solid #38bdf8;
-  border-radius: 7px;
+  border-left: 2px solid #38bdf8;
+  border-radius: 5px;
   color: #155e9a;
   background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  font-size: 0.82rem;
   overflow-wrap: anywhere;
 }
 
-.held-instance-id { margin-right: 0; color: #64748b; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.72rem; white-space: nowrap; }
+.held-instance-id { margin-right: 0; color: #64748b; font-size: 0.72rem; white-space: nowrap; }
 
-.held-instance-item > span:not(.held-instance-id) { font-size: 0.9rem; font-weight: 650; }
+.held-instance-item > span:not(.held-instance-id) { font-size: 0.82rem; font-weight: 650; }
 
 .held-instance-item:last-child { border-bottom: 0; }
 
@@ -417,7 +539,9 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
   flex: 0 0 auto;
   border: 1px solid #bfdbfe;
   border-radius: 999px;
-  padding: 0.2rem 0.55rem;
+  padding: 0.1rem 0.4rem;
+  font: inherit;
+  font-size: 0.72rem;
   color: #1e40af;
   background: #eff6ff;
   cursor: pointer;
@@ -439,13 +563,6 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
   background: transparent;
 }
 
-#edit-tree-panel .edit-tree-layout > .tree {
-  height: var(--edit-tree-content-height);
-  max-height: var(--edit-tree-content-height);
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
 #edit-tree-panel .tree details { margin: 0.45rem 0; }
 
 #edit-tree-panel .tree summary {
@@ -453,6 +570,13 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
   align-items: center;
   padding: 0.45rem 0.6rem;
   list-style-position: outside;
+}
+
+/* 上位・中間クラスの見出しを「中間クラスを追加」行と同じ縦寸法にする。 */
+#edit-tree-panel .tree-top-class > summary,
+#edit-tree-panel .tree-middle-class > summary {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.95rem;
 }
 
 #edit-tree-panel .tree summary::marker { color: #2563eb; }
@@ -485,7 +609,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 #edit-tree-panel .tree .tree-child-middle-list > li::before,
 #edit-tree-panel .tree .tree-child-middle-list > li:has(> .tree-middle-class)::before,
 #edit-tree-panel .tree .tree-target-list > li::before {
-  /* 中間クラス・対象クラスのリスト専用接続線。色は対象リストで上書きする。 */
+  /* 中間クラス・クラスのリスト専用接続線。色は対象リストで上書きする。 */
   content: "";
   display: block;
   position: absolute;
@@ -495,7 +619,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
   width: 1.2rem;
   border-top: 2px solid #93c5fd;
 }
-/* 対象クラスは共通変数、中間クラス行はリスト中央を接点にする。 */
+/* クラスは共通変数、中間クラス行はリスト中央を接点にする。 */
 #edit-tree-panel .tree .tree-target-list > li { --tree-connector-y: var(--tree-target-connector-y); }
 #edit-tree-panel .tree .tree-child-middle-list > li { --tree-connector-y: 50%; }
 #edit-tree-panel .tree .tree-child-middle-list > li:has(> .tree-middle-class) { --tree-connector-y: 2rem; }
@@ -504,6 +628,9 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 #edit-tree-panel .tree .tree-child-middle-list > li:has(> .tree-middle-class)::before,
 #edit-tree-panel .tree .tree-target-list > li::before { top: var(--tree-connector-y); }
 #edit-tree-panel .tree .tree-target-list > li::before { border-top-color: #cbd5e1; }
+#edit-tree-panel .tree > details > ul::before,
+#edit-tree-panel .tree .tree-level-rows::before { border-left-color: var(--tree-level-color, #0284c7); }
+#edit-tree-panel .tree .tree-level-rows { border-left-color: var(--tree-level-color, #0284c7); }
 #edit-tree-panel .tree .tree-child-middle-row::before,
 #edit-tree-panel .tree .tree-target-row::before { display: none; }
 #edit-tree-panel .tree .tree-child-middle-list,
@@ -534,20 +661,30 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .tree li > .tree-add-button { position: relative; z-index: 1; }
 .tree > details { position: relative; z-index: 1; }
 
+/* 追加ボタンの共通幅・左余白・文字・基本見た目。 */
 #edit-tree-panel .tree .tree-add-button {
+  box-sizing: border-box;
   width: min(100%, 640px);
-  padding: 0.35rem 0.55rem;
+  margin-left: 0.65rem;
+  padding: 0.25rem 0.55rem;
   border: 0;
   border-radius: 6px;
   color: #1e293b;
   background: transparent;
+  cursor: pointer;
+  font: inherit;
   text-align: left;
   font-size: 0.95rem;
 }
 
+/* ＋追加行は配置先のリスト幅いっぱいに広げる。 */
 #edit-tree-panel .tree .tree-add-row {
+  display: block;
   width: 100%;
   max-width: none;
+  margin-left: 0rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
   border: 1px solid #bfdbfe;
   color: #1d4ed8;
   background: #eff6ff;
@@ -557,6 +694,12 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
   border-color: #c2410c;
   color: #fff;
   background: #f97316;
+}
+#edit-tree-panel .tree summary > button.move-held-button {
+  flex: 0 0 4em;
+  width: 4em;
+  max-width: 4em;
+  margin-left: auto;
 }
 #edit-tree-panel .tree .tree-add-button.move-held-button:hover,
 #edit-tree-panel .tree .tree-add-button.move-held-button:focus-visible {
@@ -571,7 +714,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 }
 
 #edit-tree-panel .tree .tree-leaf-class {
-  /* 対象クラスの葉ノード。クリックすると保持中へ追加・解除する。 */
+  /* クラスの葉ノード。クリックすると保持中へ追加・解除する。 */
   display: flex;
   flex-direction: row;
   align-items: baseline;
@@ -627,19 +770,11 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .target-instance-count { margin: 0.75rem 0; color: #64748b; }
 .target-instance-list { max-height: 55vh; overflow: auto; margin: 0; padding: 0; list-style: none; }
 .target-instance-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem 1rem; padding: 0.65rem 0.4rem; border-bottom: 1px solid #e2e8f0; }
-.target-instance-list small { color: #64748b; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.target-instance-list small { color: #64748b; }
 
 #edit-tree-panel .tree .tree-leaf-class:hover {
   border-color: #2563eb;
   background: #eff6ff;
-}
-
-#edit-tree-panel .tree ul:has(> li > .tree-leaf-class) {
-  /* 閲覧モードと同じ対象クラスカードの複数列レイアウトにする。 */
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  row-gap: 0.5px;
-  column-gap: var(--tree-target-column-gap);
 }
 
 #edit-tree-panel .tree ul:has(> li > .tree-leaf-class) > li {
@@ -647,14 +782,14 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 }
 
 #edit-tree-panel .tree ul:has(> li > .tree-leaf-class) > li.is-row-start::before {
-  /* 実際の表示位置で各行の左端と判定された対象クラス。 */
+  /* 実際の表示位置で各行の左端と判定されたクラス。 */
   left: -1rem;
   width: 1rem;
 }
 
 #edit-tree-panel .tree ul:has(> li > .tree-leaf-class) > li:not(.is-row-start)::before {
-  /* 各行の左端以外に来る対象クラスの横線。 */
-  left: -6rem;
+  /* 各行の左端以外に来るクラスの横線。 */
+  left: -1rem;
   width: 6.5rem;
 }
 
@@ -676,7 +811,6 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
   display: none;
   margin: 0;
   color: #64748b;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 0.72rem;
   font-weight: 400;
   flex: 0 0 auto;
@@ -689,11 +823,9 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 #edit-tree-panel .tree .tree-level-content { display: flex; flex: 0 0 auto; flex-wrap: nowrap; align-items: baseline; gap: 0.25rem; width: max-content; min-width: max-content; margin-left: 0.2rem; padding: 0.25rem 0.35rem; white-space: nowrap; }
 #edit-tree-panel .tree .tree-level-label { font-weight: 700; white-space: nowrap; writing-mode: horizontal-tb; }
 #edit-tree-panel .tree .edit-count { white-space: nowrap; }
-#edit-tree-panel .tree .tree-level-id { margin-left: 0; color: #94a3b8; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.65rem; font-weight: 400; overflow-wrap: anywhere; }
+#edit-tree-panel .tree .tree-level-id { margin-left: 0; color: #94a3b8; font-size: 0.65rem; font-weight: 400; overflow-wrap: anywhere; }
 #edit-tree-panel .tree .tree-level-id { display: none; }
-.tree-add-button { border: 1px solid #93c5fd; border-radius: 6px; padding: 0.3rem 0.55rem; color: #1d4ed8; background: #eff6ff; cursor: pointer; font: inherit; font-size: 0.8rem; }
-.tree-add-button { margin-left: 0.65rem; }
-/* 保持中の対象クラスを中間クラスへ移動する操作。未選択時はJSがhiddenにする。 */
+/* 保持中のクラスを中間クラスへ移動する操作。未選択時はJSがhiddenにする。 */
 .move-held-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 4em; width: 4em; height: 1.55rem; margin-left: auto; padding: 0 0.35rem; border: 1px solid #c2410c; border-radius: 5px; color: #fff; background: #f97316; cursor: pointer; font-size: 0.72rem; font-weight: 800; line-height: 1; }
 .move-held-button:hover, .move-held-button:focus-visible { border-color: #9a3412; background: #ea580c; box-shadow: 0 0 0 2px #fed7aa; }
 .move-held-button[hidden] { display: none; }
@@ -722,13 +854,18 @@ body[data-mode="browse"] .tree-add-button { display: none; }
   position: sticky; top: var(--middle-sticky-top, 3.35rem); z-index: var(--middle-sticky-z, 15);
   margin-top: 0.35rem; background: #f8fafc; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.1);
 }
+#tree-panel .tree-top-class > summary,
+#tree-panel .tree-middle-class > summary {
+  display: flex; align-items: center; padding: 0.25rem 0.55rem; font-size: 0.95rem;
+}
+#tree-panel .tree .tree-level-content { display: flex; flex-wrap: nowrap; gap: 0.25rem; white-space: nowrap; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-leaf-class {
   display: flex; flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 0.35rem;
   width: 100%; max-width: 100%; margin: 0; padding: 0.4rem 2.4rem 0.4rem 0.65rem;
   border: 1px solid #dbeafe; border-left: 3px solid #38bdf8; border-radius: 7px;
   color: #155e9a; background: #fff; text-align: left; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
-#tree-panel .tree .tree-leaf-class { flex-direction: column; align-items: flex-start; gap: 0.1rem; }
+#edit-tree-panel .tree .tree-leaf-class { border-left-color: var(--tree-level-color, #38bdf8); }
 #tree-panel .tree .tree-leaf-id { font-size: 0.68rem; }
 #tree-panel .tree .tree-leaf-id,
 #tree-panel .tree .tree-level-id { display: none; }
@@ -736,8 +873,9 @@ body[data-mode="browse"] .tree-add-button { display: none; }
 .browse-show-ids #tree-panel .tree .tree-leaf-id,
 .browse-show-ids #tree-panel .tree .tree-leaf-id { display: inline; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-leaf-label { min-width: 0; overflow-wrap: anywhere; font-size: 0.8rem; font-weight: 650; }
+.target-instance-count-badge { flex: 0 0 auto; color: #64748b; font-size: 0.7rem; font-weight: 500; white-space: nowrap; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-leaf-id {
-  flex: 0 0 auto; margin: 0; color: #64748b; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  flex: 0 0 auto; margin: 0; color: #64748b;
   font-size: 0.72rem; font-weight: 400; white-space: nowrap;
 }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-leaf-info-button {
@@ -747,13 +885,20 @@ body[data-mode="browse"] .tree-add-button { display: none; }
 }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-leaf-info-button:hover,
 :is(#tree-panel, #edit-tree-panel) .tree .tree-leaf-info-button:focus-visible { color: #fff; background: #0f6a9d; }
+/* クラスの列幅・カード幅・間隔は閲覧／編集で共有する。 */
+:is(#tree-panel, #edit-tree-panel) .tree ul:has(> li > .tree-leaf-class),
+:is(#tree-panel, #edit-tree-panel) .tree .tree-target-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--tree-target-width)), var(--tree-target-width)));
+}
 :is(#tree-panel, #edit-tree-panel) .tree ul:has(> li > .tree-leaf-class) {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  row-gap: 0.5px; column-gap: var(--tree-target-column-gap);
+  row-gap: 0.5px;
+  column-gap: var(--tree-target-column-gap);
 }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-target-list {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: var(--tree-target-row-gap) var(--tree-target-column-gap); padding: 0; margin: 0;
+  gap: var(--tree-target-row-gap) var(--tree-target-column-gap);
+  padding: 0;
+  margin: 0;
 }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-level-content {
   display: inline-grid; flex: 0 0 auto; grid-template-columns: max-content max-content max-content;
@@ -764,6 +909,7 @@ body[data-mode="browse"] .tree-add-button { display: none; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-level-id { display: none; }
 .edit-show-ids #edit-tree-panel .tree .tree-leaf-id,
 .edit-show-ids #edit-tree-panel .tree .tree-level-id { display: inline; }
+.browse-show-ids #tree-panel .tree .tree-level-id { display: inline; }
 #edit-tree-panel .tree .tree-level-content { display: flex; flex-wrap: nowrap; gap: 0.25rem; white-space: nowrap; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-child-middle-list,
 :is(#tree-panel, #edit-tree-panel) .tree .tree-target-list { position: relative; width: 100%; box-sizing: border-box; margin: 0; padding-left: 0; border-left: 0; }
@@ -816,13 +962,14 @@ body[data-mode="browse"] .tree-add-button { display: none; }
 #tree-panel .tree .tree-target-row::before {
   border-top-color: #cbd5e1;
 }
-#tree-panel .tree,
-#edit-tree-panel .edit-tree-layout > .tree {
+#tree-panel .tree {
   height: var(--edit-tree-content-height, calc(100vh - 200px));
   max-height: var(--edit-tree-content-height, calc(100vh - 200px));
   overflow-y: auto;
   overflow-x: hidden;
 }
+#edit-tree-panel .edit-tree-pane > .tree { flex: 1 1 auto; min-width: 0; min-height: 0; height: auto; max-height: none; overflow-x: hidden; overflow-y: auto; }
+#edit-tree-panel .tree { padding-inline: 0.0rem; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-child-middle-list > li,
 :is(#tree-panel, #edit-tree-panel) .tree .tree-target-list > li { --tree-connector-y: 50%; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-child-middle-list > li:has(> .tree-middle-class) { --tree-connector-y: 2rem; }
@@ -833,6 +980,9 @@ body[data-mode="browse"] .tree-add-button { display: none; }
   transform: translateY(-50%); border-top: 2px solid #93c5fd;
 }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-target-list > li::before { border-top-color: #cbd5e1; }
+#edit-tree-panel .tree .tree-child-middle-list > li::before,
+#edit-tree-panel .tree .tree-target-list > li::before { border-top-color: var(--tree-level-color, #0284c7); }
+#edit-tree-panel .tree > details > ul > li::before { border-top-color: var(--tree-level-color, #7dd3fc); }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-child-middle-row::before,
 :is(#tree-panel, #edit-tree-panel) .tree .tree-target-row::before { display: none; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-target-list > li.is-row-start::before { left: -1rem; width: 1rem; }
@@ -851,11 +1001,22 @@ tbody tr:hover { background: #eff6ff; }
 /* 8. レスポンシブ調整 */
 @media (max-width: 760px) {
   .edit-tree-layout { grid-template-columns: 1fr; }
-  .edit-tree-layout .instance-selection { position: static; }
+  .edit-tree-layout .tree-filter,
+  .edit-tree-layout:has(.instance-selection.is-collapsed) .tree-filter { width: 100%; }
+  .edit-tree-layout .instance-selection,
+  .edit-tree-layout .instance-selection.is-collapsed { position: static; width: auto; }
 }
 
 @media (max-width: 640px) {
+  .tree-filter-body { gap: 0.55rem; padding: 0.65rem; }
+  .tree-filter-count-settings > .tree-filter-count-range,
+  .tree-filter-count-settings > .tree-filter-count-exact { min-width: min(100%, 14rem); }
   .page-header { width: 100%; margin: 1rem 0 0; padding: 0 1rem 0.75rem; }
+  .page-header-actions { top: 0.75rem; right: 1rem; }
+  .page-header h1, .page-header .page-description { padding-right: 9rem; }
+  .edit-taskbar { width: 100%; flex-wrap: wrap; padding: 0.5rem 1rem; }
+  .edit-taskbar-button { min-height: 2.2rem; padding-inline: 0.55rem; font-size: 0.8rem; }
+  .tree-toolbar-button { min-height: 2.2rem; padding-inline: 0.55rem; font-size: 0.8rem; }
   main { width: 100%; margin: 0; padding: 1rem; border-radius: 0; }
   #target-search-panel .class-search { grid-template-columns: minmax(0, 1fr) auto; gap: 0.65rem; }
   #target-search-panel .class-search > label,
@@ -873,3 +1034,20 @@ tbody tr:hover { background: #eff6ff; }
   #table-panel { overflow-x: auto; }
   table { min-width: 720px; }
 }
+
+@media (max-width: 420px) {
+  .tree-filter-search-controls { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* 閲覧ツリーも、見出しと同じ階層の接続線に同じ深さ色を使う。
+   先行する固定の灰色指定より詳細度を上げ、上書き漏れを防ぐ。 */
+#tree-panel .tree .tree-middle-class > summary { border-left: 3px solid var(--tree-level-color, #38bdf8); }
+#tree-panel .tree .tree-leaf-class { border-left-color: var(--tree-level-color, #38bdf8); }
+#tree-panel .tree > details > ul::before,
+#tree-panel .tree > details > ul > li > details > ul::before,
+#tree-panel .tree .tree-middle-class > .tree-level-rows::before { border-left-color: var(--tree-level-color, #7dd3fc); }
+#tree-panel .tree > details > ul > li::before,
+#tree-panel .tree > details > ul > li > details > ul > li::before,
+#tree-panel .tree .tree-target-list > li::before,
+#tree-panel .tree .tree-child-middle-list > li::before,
+#tree-panel .tree .tree-child-middle-list > li:has(> .tree-middle-class)::before { border-top-color: var(--tree-level-color, #7dd3fc); }

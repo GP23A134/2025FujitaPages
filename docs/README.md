@@ -77,7 +77,7 @@ java -cp "bin:lib/*" ClassDataUpdate
 
 取得結果は次の場所に、クエリと同じ名前のJSONファイルとして保存されます。
 
-- `data/query-results/base/`：インスタンスと対象クラスの関係
+- `data/query-results/base/`：インスタンスとクラスの関係
 - `data/query-results/hierarchy/`：対象・中間・上位クラスの階層情報
 
 ## 出力データ
@@ -89,7 +89,7 @@ java -cp "bin:lib/*" ClassDataUpdate
 | `instance-data.json` | インスタンスのIDとラベル |
 | `instance-class-data.json` | インスタンスと所属クラスの関係 |
 | `class-data.json` | クラス一覧とクラス間の親子関係 |
-| `target-class-data.json` | 対象クラスのIDとラベル |
+| `target-class-data.json` | クラスのIDとラベル |
 
 中間・上位クラスの一覧は`class-data.json`から`WebDataBuild`が生成します。確認用TSVは`data/output/`に出力します。
 

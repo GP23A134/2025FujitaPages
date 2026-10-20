@@ -18,10 +18,19 @@
     <p class="page-description">既存クラスの所属を整理します。</p>
     <div class="page-header-actions">
       <a id="browse-link" class="page-link-button" href="index.html">閲覧画面へ</a>
-      <button type="button" id="toggle-edit-ids" class="search-button edit-id-toggle" aria-pressed="false">クラスID表示: OFF</button>
-      <button type="button" id="save-edit-changes" class="search-button edit-header-save">編集内容を保存</button>
     </div>
   </header>
+  <div class="edit-taskbar" role="toolbar" aria-label="編集操作">
+    <div class="edit-taskbar-group" aria-label="操作履歴">
+      <button type="button" id="undo-edit" class="edit-taskbar-button" disabled title="元に戻す履歴はありません">元に戻す</button>
+      <button type="button" id="redo-edit" class="edit-taskbar-button" disabled title="やり直す履歴はありません">やり直し</button>
+    </div>
+    <div class="edit-taskbar-spacer" aria-hidden="true"></div>
+    <button type="button" id="close-all-tree" class="edit-taskbar-button tree-toolbar-button" hidden>すべて閉じる</button>
+    <button type="button" id="toggle-edit-ids" class="edit-taskbar-button tree-toolbar-button" aria-pressed="false">クラスID表示: OFF</button>
+    <button type="button" id="toggle-edit-panes-pin" class="edit-taskbar-button" aria-pressed="false">検索・保持欄固定: OFF</button>
+    <button type="button" id="save-edit-changes" class="edit-taskbar-button edit-header-save">編集内容を保存</button>
+  </div>
 
   <main>
     <!-- 編集画面の機能を切り替えるタブ -->
@@ -37,11 +46,11 @@
       </button>
     </div>
 
-    <!-- 階層ツリーと対象クラスの検索・一括付与 -->
+    <!-- 階層ツリーとクラスの検索・一括付与 -->
     <section id="edit-tree-panel" class="tab-panel">
 
       <section id="target-search-panel" class="target-search-panel" hidden>
-        <h2>クラス／インスタンスを検索して対象クラスを付与</h2>
+        <h2>クラス／インスタンスを検索してクラスを付与</h2>
         <details class="search-panel-disclosure search-conditions-disclosure">
           <summary>検索条件</summary>
           <div class="search-panel-disclosure-content">
@@ -59,7 +68,7 @@
                 </label>
                 <div class="class-search-text">
                   <label for="target-class-search">検索ワード</label>
-                  <input id="target-class-search" type="search" placeholder="対象クラス名・IDを入力">
+                  <input id="target-class-search" type="search" placeholder="クラス名・IDを入力">
                 </div>
                 <button type="button" id="target-search-submit" class="search-button">検索</button>
               </div>
@@ -162,40 +171,77 @@
         </details>
       </section>
 
-      <!-- ツリー本体と、選択中クラスの操作パネル -->
-      <div class="tree-filter" role="search" aria-label="階層ツリーの絞り込み">
-        <label for="tree-filter-type">検索対象
-          <select id="tree-filter-type">
-            <option value="class">クラス</option>
-            <option value="instance">インスタンス</option>
-          </select>
-        </label>
-        <label class="tree-filter-query-label" for="tree-filter-query">ツリーを絞り込み
-          <input id="tree-filter-query" type="search" placeholder="対象クラス名・IDを入力" autocomplete="off">
-        </label>
-        <p id="tree-filter-count" aria-live="polite"></p>
-      </div>
+      <!-- 検索・ツリーと保持中パネルを左右に配置 -->
       <div class="edit-tree-layout">
-        <div id="edit-tree" class="tree" role="tree"></div>
+        <div class="edit-tree-pane">
+          <details class="tree-filter" role="search" aria-label="階層ツリーの絞り込み" open>
+            <summary class="tree-filter-heading"><span>検索</span><span id="tree-filter-count" class="tree-filter-count" aria-live="polite"></span></summary>
+            <div class="tree-filter-body">
+              <div class="tree-filter-mode-switch" role="group" aria-label="絞り込み方式">
+                <button type="button" class="is-active" data-tree-filter-method="keyword" aria-pressed="true">キーワード検索</button>
+                <button type="button" data-tree-filter-method="count" aria-pressed="false">件数</button>
+              </div>
+              <div class="tree-filter-search-controls">
+                <label for="tree-filter-type">検索対象
+                  <select id="tree-filter-type">
+                    <option value="class">クラス</option>
+                    <option value="instance">インスタンス</option>
+                  </select>
+                </label>
+                <label class="tree-filter-query-label" for="tree-filter-query">検索語
+                  <input id="tree-filter-query" type="search" aria-label="検索語" placeholder="名前・IDで検索" autocomplete="off">
+                </label>
+              </div>
+              <fieldset class="tree-filter-count-settings" hidden>
+                <label class="tree-filter-count-mode-label" for="tree-filter-count-mode">インスタンス件数
+                  <select id="tree-filter-count-mode" aria-label="件数指定方法"><option value="range">範囲指定</option><option value="exact" selected>指定件数</option></select>
+                </label>
+                <fieldset id="tree-filter-count-range" class="tree-filter-count-range" hidden>
+                  <label class="tree-filter-range-bound" for="tree-filter-count-min">最小
+                    <input id="tree-filter-count-min" type="number" min="0" step="1" inputmode="numeric" aria-label="最小件数" value="0"><span>件</span>
+                  </label>
+                  <span class="tree-filter-range-separator" aria-hidden="true">～</span>
+                  <label class="tree-filter-range-bound" for="tree-filter-count-max">最大
+                    <input id="tree-filter-count-max" type="number" min="0" step="1" inputmode="numeric" aria-label="最大件数"><span>件</span>
+                  </label>
+                </fieldset>
+                <label id="tree-filter-count-exact" class="tree-filter-count-exact"><span class="tree-filter-count-exact-title">指定件数：<output id="tree-filter-count-exact-value">0件</output></span>
+                  <span class="tree-filter-exact-slider-row"><span id="tree-filter-count-exact-min">0件</span><input id="tree-filter-count-exact-input" class="tree-filter-exact-slider" type="range" min="0" max="0" step="1" value="0" aria-label="指定件数"><span id="tree-filter-count-exact-max">0件</span></span>
+                </label>
+              </fieldset>
+            </div>
+          </details>
+          <div id="edit-tree" class="tree" role="tree"></div>
+        </div>
+        <div class="held-panel-spacer" aria-hidden="true"></div>
         <aside id="held-panel" class="instance-selection">
           <div class="held-panel-header">
-            <h2><span id="held-kind-label">保持中</span> <span id="held-count" class="held-count" aria-live="polite">0件</span></h2>
+            <button type="button" id="toggle-held-panel-collapse" class="held-panel-heading" aria-expanded="true" aria-controls="held-list-view held-destination-picker" title="保持中欄を折りたたむ">
+              <span class="held-panel-collapse-icon" aria-hidden="true"></span>
+              <span class="held-panel-title"><span id="held-kind-label">保持中</span> <span id="held-count" class="held-count" aria-live="polite">0件</span></span>
+            </button>
             <button type="button" id="toggle-held-panel-view" class="held-panel-toggle" aria-controls="held-list-view held-destination-picker" aria-pressed="false">一覧へ</button>
           </div>
           <div id="held-list-view" role="tabpanel">
             <div class="held-panel-actions">
               <button type="button" id="clear-held" class="held-action-button">全解除</button>
-              <button type="button" id="move-held-unclassified" class="held-action-button">未分類へ移動</button>
             </div>
             <div id="held-instance-list" class="held-instance-list"></div>
           </div>
           <section id="held-destination-picker" class="held-destination-picker" aria-label="移動先を選択" hidden>
             <div class="held-destination-tabs" role="tablist" aria-label="移動先の種類">
-              <button type="button" class="held-destination-tab is-active" data-destination-kind="middle" role="tab" aria-selected="true">中間クラス</button>
-              <button type="button" class="held-destination-tab" data-destination-kind="top" role="tab" aria-selected="false">上位クラス</button>
+              <button type="button" class="held-destination-tab is-active" data-destination-kind="top" role="tab" aria-selected="true">上位クラス</button>
+              <button type="button" class="held-destination-tab" data-destination-kind="middle" role="tab" aria-selected="false">中間クラス</button>
             </div>
-            <div id="held-destination-list" class="held-destination-list"></div>
             <button type="button" id="apply-held-destination" class="held-action-button" disabled>選択先へ移動</button>
+            <label class="held-destination-search-label" for="held-destination-search">移動先を検索
+              <input id="held-destination-search" type="search" placeholder="クラス名・所属階層" autocomplete="off">
+            </label>
+            <div id="held-destination-list" class="held-destination-list"></div>
+            <section id="held-destination-recent" class="held-destination-recent" aria-label="最近使った移動先" hidden>
+              <h3>最近使った移動先</h3>
+              <div id="held-destination-recent-list" class="held-destination-recent-list"></div>
+            </section>
           </section>
         </aside>
       </div>
@@ -206,7 +252,7 @@
       <!-- 上位・中間クラスの名称変更と削除 -->
       <section id="class-management-panel" class="class-management-panel" hidden>
         <h2>中間・上位クラス管理</h2>
-        <p class="management-note">所属件数の少ない順に表示しています。削除したクラスに所属する対象クラスは未分類へ移動します。</p>
+        <p class="management-note">所属件数の少ない順に表示しています。削除したクラスに所属するクラスは未分類へ移動します。</p>
         <div class="management-tabs" role="tablist" aria-label="管理対象の切り替え">
           <button type="button" class="management-tab is-active" data-management-kind="top">上位クラス</button>
           <button type="button" class="management-tab" data-management-kind="middle">中間クラス</button>

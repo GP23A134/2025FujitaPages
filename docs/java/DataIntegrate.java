@@ -137,7 +137,7 @@ public final class DataIntegrate {
         System.out.println("インスタンスJSONを出力しました: " + INSTANCE_OUTPUT_FILE);
         System.out.println("インスタンス・クラス関係JSONを出力しました: " + INSTANCE_CLASS_OUTPUT_FILE);
         System.out.println("クラス統合JSONを出力しました: " + CLASS_OUTPUT_FILE);
-        System.out.println("対象クラスJSONを出力しました: " + TARGET_CLASS_OUTPUT_FILE);
+        System.out.println("クラスJSONを出力しました: " + TARGET_CLASS_OUTPUT_FILE);
         System.out.println("中間クラスTSVを出力しました: " + MIDDLE_CLASS_TSV_OUTPUT_FILE);
         System.out.println("上位クラスTSVを出力しました: " + TOP_CLASS_TSV_OUTPUT_FILE);
     }
@@ -231,7 +231,7 @@ public final class DataIntegrate {
         String parent = normalizeHierarchyId(value(binding, parentKey));
         if (child != null && parent != null) {
             Set<String> parents = relations.computeIfAbsent(child, ignored -> new LinkedHashSet<>());
-            // 対象クラス(c_)は所属先を1つに限定する。複数の親がクエリ結果に
+            // クラス(c_)は所属先を1つに限定する。複数の親がクエリ結果に
             // 含まれる場合は、入力順で最初に現れた親を採用する。
             if (child.startsWith(CLASS_URI_PREFIX + "c_") && !parents.isEmpty()) return;
             parents.add(parent);

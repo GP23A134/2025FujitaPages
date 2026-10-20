@@ -37,7 +37,7 @@ public final class ClassDataUpdate {
     private ClassDataUpdate() {}
 
     public static void main(String[] args) throws IOException {
-        // 全件JSONなら入力内容を使い、差分JSONなら現在データへ適用する。対象クラスのラベルは既存一覧から引き継ぐ。
+        // 全件JSONなら入力内容を使い、差分JSONなら現在データへ適用する。クラスのラベルは既存一覧から引き継ぐ。
         // この順序で検証を先に行うため、入力に問題がある場合はJSONを更新せず、
         // 入力JSONもhistoryへ移動しない。
         Map<String, String> existingTargetLabels = readTargetClassLabels();
@@ -56,7 +56,7 @@ public final class ClassDataUpdate {
         Path snapshot = writeBeforeUpdateSnapshot(existingTargetLabels);
         System.out.println("変更前データを履歴に保存しました: " + snapshot);
 
-        // クラス一覧、関係一覧、対象クラス一覧を同じ入力内容から出力する。
+        // クラス一覧、関係一覧、クラス一覧を同じ入力内容から出力する。
         writeClassData(classes, relations);
         writeList(TARGET_CLASS_DATA, classes, "c_");
         writeListTsv(MIDDLE_TSV_LIST, classes, "m_");
@@ -409,18 +409,18 @@ public final class ClassDataUpdate {
         return object.get(name).getAsString();
     }
 
-    /** 対象クラスのラベルは入力JSONで省略できるため、現在の一覧から引き継ぎます。 */
+    /** クラスのラベルは入力JSONで省略できるため、現在の一覧から引き継ぎます。 */
     private static Map<String, String> readTargetClassLabels() throws IOException {
         Map<String, String> labels = new LinkedHashMap<>();
         if (!Files.isRegularFile(TARGET_CLASS_DATA)) {
-            throw new IOException("対象クラス一覧が見つかりません: " + TARGET_CLASS_DATA);
+            throw new IOException("クラス一覧が見つかりません: " + TARGET_CLASS_DATA);
         }
         try (Reader reader = Files.newBufferedReader(TARGET_CLASS_DATA, StandardCharsets.UTF_8)) {
             JsonElement parsed = JsonParser.parseReader(reader);
-            if (!parsed.isJsonObject()) throw new IOException("対象クラス一覧のルートはオブジェクトにしてください。");
+            if (!parsed.isJsonObject()) throw new IOException("クラス一覧のルートはオブジェクトにしてください。");
             JsonArray targetClasses = requireArray(parsed.getAsJsonObject(), "classes");
             for (JsonElement element : targetClasses) {
-                if (!element.isJsonObject()) throw new IOException("対象クラス一覧の要素はオブジェクトにしてください。");
+                if (!element.isJsonObject()) throw new IOException("クラス一覧の要素はオブジェクトにしてください。");
                 JsonObject item = element.getAsJsonObject();
                 String id = normalizeId(requiredString(item, "id"));
                 String label = requiredString(item, "label").trim();
@@ -428,7 +428,7 @@ public final class ClassDataUpdate {
             }
             return labels;
         } catch (com.google.gson.JsonParseException exception) {
-            throw new IOException("対象クラス一覧を読み込めません。JSONの構文を確認してください。", exception);
+            throw new IOException("クラス一覧を読み込めません。JSONの構文を確認してください。", exception);
         }
     }
 
@@ -468,7 +468,7 @@ public final class ClassDataUpdate {
                 label = existingTargetLabels.getOrDefault(id, "");
             }
             if (label.isEmpty()) {
-                throw new IOException("ラベルが空、または既存データから対象クラスのラベルを取得できません: " + id);
+                throw new IOException("ラベルが空、または既存データからクラスのラベルを取得できません: " + id);
             }
             // 未分類は画面表示時に生成する仮想グループであり、過去の入力には
             // classとして書き出された仮想IDが残っている場合がある。
@@ -504,9 +504,9 @@ public final class ClassDataUpdate {
         return result;
     }
 
-    /** 対象クラスから上位クラスへの直接関係は、そのまま保持します。 */
+    /** クラスから上位クラスへの直接関係は、そのまま保持します。 */
     private static void normalizeDirectTargetRelations(Map<String, String> classes, List<String[]> relations) {
-        // 対象クラスは所属先を1つに限定し、複数指定された場合は
+        // クラスは所属先を1つに限定し、複数指定された場合は
         // JSON内で先に現れた親を残す。
         Set<String> assignedTargets = new HashSet<>();
         relations.removeIf(relation -> {
@@ -551,7 +551,7 @@ public final class ClassDataUpdate {
     }
 
     /**
-     * 対象クラスが中間または上位クラスへ、中間クラスが中間または上位クラスへ
+     * クラスが中間または上位クラスへ、中間クラスが中間または上位クラスへ
      * 所属していることを検証します。
      * 所属先がないクラスを出力するとWeb画面上で階層から消えるため、更新を中止します。
      */
@@ -583,7 +583,7 @@ public final class ClassDataUpdate {
         }
         if (!missingMiddle.isEmpty() || !missingTop.isEmpty()) {
             StringBuilder message = new StringBuilder("クラス階層の所属漏れがあります。");
-            appendMissing(message, "中間または上位クラス未所属の対象クラス", missingMiddle);
+            appendMissing(message, "中間または上位クラス未所属のクラス", missingMiddle);
             appendMissing(message, "上位クラス未所属の中間クラス", missingTop);
             throw new IOException(message.toString());
         }
@@ -614,7 +614,7 @@ public final class ClassDataUpdate {
             int count = parentCounts.merge(relation[0], 1,
                     (current, added) -> current.intValue() + added.intValue());
             if (count > 1) {
-                throw new IOException("対象クラス・中間クラスの親は1つにしてください: "
+                throw new IOException("クラス・中間クラスの親は1つにしてください: "
                         + shortId(relation[0]));
             }
         }
@@ -662,7 +662,7 @@ public final class ClassDataUpdate {
     }
 
     private static void writeClassData(Map<String, String> classes, List<String[]> relations) throws IOException {
-        // 中間・上位クラスの定義と、対象クラスから上位階層への関係をまとめる。
+        // 中間・上位クラスの定義と、クラスから上位階層への関係をまとめる。
         // Gsonで生成するため、ラベルにタブや特殊文字が含まれてもJSONとして安全に出力できる。
         JsonObject root = new JsonObject();
         JsonArray classArray = new JsonArray();
@@ -737,7 +737,7 @@ public final class ClassDataUpdate {
 
     private static String prefix(String type) {
         // TSVで許容する英語・日本語の種別名を、ID生成用の接頭辞へ変換する。
-        return switch (type) { case "class", "対象", "対象クラス" -> "c_";
+        return switch (type) { case "class", "対象", "クラス" -> "c_";
             case "middle", "中間", "中間クラス" -> "m_";
             case "top", "上位", "上位クラス" -> "t_"; default -> null; };
     }
