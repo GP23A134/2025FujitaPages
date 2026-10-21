@@ -126,6 +126,25 @@
     });
   }
 
+  // 上位・中間クラス見出しの高さから、入れ子の中間クラスの追従位置を算出する。
+  // 閲覧・編集のどちらも同じツリー構造を使うため、この計算も共有する。
+  function updateTreeStickyOffsets(panel) {
+    if (!panel) return;
+    const summaries = [...panel.querySelectorAll('.tree-top-class > summary, .tree-middle-class > summary')];
+    const heights = new Map(summaries.map((summary) => [summary, summary.getBoundingClientRect().height]));
+    [...panel.querySelectorAll('.tree-middle-class')].forEach((details) => {
+      const topClass = details.parentElement?.closest('.tree-top-class');
+      let offset = (topClass && heights.get(topClass.querySelector(':scope > summary'))) || 0;
+      offset += 6;
+      let ancestor = details.parentElement?.closest('.tree-middle-class');
+      while (ancestor) {
+        offset += (heights.get(ancestor.querySelector(':scope > summary')) || 0) + 6;
+        ancestor = ancestor.parentElement?.closest('.tree-middle-class');
+      }
+      details.style.setProperty('--middle-sticky-top', `${offset}px`);
+    });
+  }
+
   function renderHierarchyTree(container, roots, options = {}) {
     const targetCountCache = new WeakMap();
     const countTargets = (node) => {
@@ -158,6 +177,7 @@
         directCount: node.targets.length
       });
       details.style.setProperty('--tree-level-color', treeDepthColor(depth));
+      details.style.setProperty('--tree-own-level-color', treeDepthColor(depth));
       if (options.configureDetails) options.configureDetails(details, node, depth);
       details.open = options.isOpen
         ? options.isOpen(node, depth)
@@ -264,6 +284,7 @@
   global.treeDepthColor = treeDepthColor;
   global.treeLabel = treeLabel;
   global.updateTreeTargetRowStarts = updateTreeTargetRowStarts;
+  global.updateTreeStickyOffsets = updateTreeStickyOffsets;
   global.renderHierarchyTree = renderHierarchyTree;
   global.findTargetMatches = findTargetMatches;
 })(window);

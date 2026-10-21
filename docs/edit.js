@@ -38,6 +38,7 @@ const syncPinnedHeldPanelBounds = () => {
     const layout = document.querySelector('#edit-tree-panel .edit-tree-layout');
     if (!panel) return;
     if (!document.body.classList.contains('edit-panes-pinned') || !layout || document.getElementById('edit-tree-panel')?.hidden || panel.hidden || window.innerWidth <= 760) {
+      document.body.style.removeProperty('--edit-panes-sticky-top');
       panel.style.removeProperty('top');
       panel.style.removeProperty('height');
       panel.style.removeProperty('max-height');
@@ -46,7 +47,9 @@ const syncPinnedHeldPanelBounds = () => {
     }
     const layoutBounds = layout.getBoundingClientRect();
     const toolbarBounds = document.querySelector('.edit-taskbar')?.getBoundingClientRect();
-    const top = Math.max(layoutBounds.top, (toolbarBounds?.bottom ?? 0) + 8);
+    const stickyTop = (toolbarBounds?.bottom ?? 0) + 8;
+    document.body.style.setProperty('--edit-panes-sticky-top', `${stickyTop}px`);
+    const top = Math.max(layoutBounds.top, stickyTop);
     const bottom = Math.min(layoutBounds.bottom, window.innerHeight - 8);
     if (bottom <= top) {
       panel.style.visibility = 'hidden';
@@ -747,10 +750,7 @@ function renderInstances() {
   undoButton.title = undoEntry ? `元に戻す: ${undoEntry.actionLabel}` : '元に戻す履歴はありません';
   redoButton.disabled = !redoEntry;
   redoButton.title = redoEntry ? `やり直す: ${redoEntry.actionLabel}` : 'やり直す履歴はありません';
-  const hasHeldItems = heldInstances.size + heldMiddleClasses.size + heldTopClasses.size > 0;
-  const treeFilterIsOpen = document.querySelector('.tree-filter')?.open === true;
-  const showHeldList = heldPanelView === 'held'
-    && (!heldPanelCollapsed || (treeFilterIsOpen && hasHeldItems));
+  const showHeldList = heldPanelView === 'held' && !heldPanelCollapsed;
   heldListView.hidden = !showHeldList;
   destinationPicker.hidden = heldPanelCollapsed || heldPanelView !== 'list';
   panel.classList.toggle('is-collapsed', heldPanelCollapsed);
@@ -1043,26 +1043,8 @@ function scheduleTargetConnectorLayout() {
   targetConnectorLayoutFrame = requestAnimationFrame(() => {
     targetConnectorLayoutFrame = 0;
     const panel = document.getElementById('edit-tree-panel');
-    const lists = [...panel.querySelectorAll('.tree-target-list')];
-    const stickySummaries = [...panel.querySelectorAll('.tree-top-class > summary, .tree-middle-class > summary')];
-    // 位置・高さを先にまとめて読む。DOM更新後の再計測を避ける。
-    const summaryHeights = new Map(stickySummaries.map((summary) => [
-      summary,
-      summary.getBoundingClientRect().height
-    ]));
-    const stickyOffsets = [...panel.querySelectorAll('.tree-middle-class')].map((details) => {
-      const topClass = details.parentElement?.closest('.tree-top-class');
-      let offset = (topClass && summaryHeights.get(topClass.querySelector(':scope > summary'))) || 0;
-      offset += 6;
-      let ancestor = details.parentElement?.closest('.tree-middle-class');
-      while (ancestor) {
-        offset += (summaryHeights.get(ancestor.querySelector(':scope > summary')) || 0) + 6;
-        ancestor = ancestor.parentElement?.closest('.tree-middle-class');
-      }
-      return { details, offset };
-    });
-    // 全ての計測後にまとめて反映する。
-    stickyOffsets.forEach(({ details, offset }) => details.style.setProperty('--middle-sticky-top', `${offset}px`));
+    if (!panel) return;
+    window.updateTreeStickyOffsets(panel);
     window.updateTreeTargetRowStarts(panel);
   });
 }
@@ -1334,7 +1316,8 @@ function renderTree() {
       });
       levelContent.prepend(checkbox);
     }
-    if (treeHierarchyEditModeEnabled && (classKind(item) === 'top' || classKind(item) === 'middle')) {
+    if (treeHierarchyEditModeEnabled && item.label !== '未分類'
+      && (classKind(item) === 'top' || classKind(item) === 'middle')) {
       const actions = document.createElement('span');
       actions.className = 'tree-class-edit-actions';
       actions.addEventListener('click', (event) => event.stopPropagation());
@@ -1456,6 +1439,7 @@ document.getElementById('toggle-held-panel-view').addEventListener('click', () =
 });
 document.getElementById('toggle-held-panel-collapse').addEventListener('click', () => {
   heldPanelCollapsed = !heldPanelCollapsed;
+  if (treeFilter) treeFilter.open = !heldPanelCollapsed;
   renderInstances();
 });
 const treeFilter = document.querySelector('.tree-filter');
@@ -1463,6 +1447,7 @@ const heldPanel = document.getElementById('held-panel');
 if (treeFilter && heldPanel && 'ResizeObserver' in window) {
   const syncCollapsedHeldPanelHeight = () => {
     heldPanel.style.setProperty('--held-collapsed-height', `${treeFilter.getBoundingClientRect().height}px`);
+    syncPinnedHeldPanelBounds();
   };
   new ResizeObserver(syncCollapsedHeldPanelHeight).observe(treeFilter);
   syncCollapsedHeldPanelHeight();
@@ -1474,6 +1459,7 @@ window.addEventListener('resize', syncPinnedHeldPanelBounds);
 if (heldPanel) new MutationObserver(syncPinnedHeldPanelBounds).observe(heldPanel, { attributes: true, attributeFilter: ['class', 'hidden'] });
 syncPinnedHeldPanelBounds();
 treeFilter?.addEventListener('toggle', () => {
+  heldPanelCollapsed = !treeFilter.open;
   renderTree();
   renderInstances();
 });
@@ -1811,6 +1797,10 @@ document.querySelectorAll('[data-edit-tab]').forEach((tab) => tab.addEventListen
   });
   syncPinnedHeldPanelBounds();
   document.getElementById('close-all-tree').hidden = tab.dataset.editTab !== 'edit-tree-panel';
+  const searchAssignmentActive = tab.dataset.editTab === 'target-search-panel';
+  ['toggle-edit-ids', 'toggle-tree-edit-mode', 'toggle-edit-panes-pin'].forEach((id) => {
+    document.getElementById(id).hidden = searchAssignmentActive;
+  });
   if (tab.dataset.editTab !== 'target-search-panel') {
     targetSearchRenderSequence += 1;
     document.getElementById('target-search-loading').hidden = true;

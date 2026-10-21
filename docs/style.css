@@ -51,6 +51,7 @@ body {
 .edit-taskbar-group { display: flex; align-items: center; gap: 0.35rem; }
 .edit-taskbar-spacer { flex: 1; }
 .edit-taskbar-button { display: inline-flex; min-height: 2.35rem; align-items: center; justify-content: center; padding: 0.4rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 7px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.88rem; font-weight: 650; white-space: nowrap; }
+.edit-taskbar-button[hidden], .tree-toolbar-button[hidden] { display: none; }
 .edit-taskbar-button:hover:not(:disabled), .edit-taskbar-button:focus-visible:not(:disabled) { border-color: #7dd3fc; color: #075985; background: #f0f9ff; }
 .edit-taskbar-button:disabled { color: #94a3b8; background: #f8fafc; cursor: not-allowed; opacity: 0.7; }
 .tree-toolbar { display: flex; align-items: center; justify-content: flex-end; margin: 0 0 0.45rem; }
@@ -248,7 +249,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 /* 4. 階層ツリーの共通構造 */
 /* ツリー領域の寸法とクラスカード間隔 */
 .tree {
-  --tree-target-width: 240px;
+  --tree-target-width: 230px;
   --tree-target-row-gap: 0.15rem;
   --tree-target-column-gap: 0.95rem;
   margin: 0;
@@ -410,12 +411,12 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selectio
 }
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .tree-filter {
   position: sticky;
-  top: 4.5rem;
+  top: var(--edit-panes-sticky-top, 4.5rem);
   z-index: 50;
 }
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection:not(.is-collapsed) {
   position: fixed;
-  top: 4.5rem;
+  top: var(--edit-panes-sticky-top, 4.5rem);
   right: 3rem;
   z-index: 60;
   width: min(var(--held-panel-width), calc(100vw - 6rem));
@@ -425,7 +426,7 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection:no
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection.is-collapsed {
   position: fixed;
   inset: auto;
-  top: 4.5rem;
+  top: var(--edit-panes-sticky-top, 4.5rem);
   right: 3rem;
   z-index: 60;
   width: min(var(--held-panel-width), calc(100vw - 6rem));
@@ -460,14 +461,6 @@ body:not(.edit-panes-pinned) #edit-tree-panel .edit-tree-layout .instance-select
 #edit-tree-panel .tree-top-class > summary { position: sticky; top: 0; z-index: 20; color: #075985; background: #e0f2fe; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.12); }
 #edit-tree-panel .tree-middle-class > summary { position: sticky; top: var(--middle-sticky-top, var(--edit-top-sticky-offset)); z-index: var(--middle-sticky-z, 15); margin-top: 0.35rem; background: #f8fafc; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.1); }
 #edit-tree-panel .tree-middle-class > summary { border-left: 3px solid var(--tree-level-color, #38bdf8); }
-#edit-tree-panel .tree-top-class > summary,
-#edit-tree-panel .tree-middle-class > summary { list-style: none; }
-#edit-tree-panel .tree-top-class > summary::-webkit-details-marker,
-#edit-tree-panel .tree-middle-class > summary::-webkit-details-marker { display: none; }
-#edit-tree-panel .tree-top-class > summary::before,
-#edit-tree-panel .tree-middle-class > summary::before { content: "▸"; flex: 0 0 1rem; color: #075985; font-size: 0.85rem; text-align: center; }
-#edit-tree-panel .tree-top-class[open] > summary::before,
-#edit-tree-panel .tree-middle-class[open] > summary::before { content: "▾"; }
 #edit-tree-panel .tree-child-middle-list > li > .tree-middle-class > summary {
   display: flex;
   align-self: start;
@@ -587,15 +580,33 @@ body:not(.edit-panes-pinned) #edit-tree-panel .edit-tree-layout .instance-select
   position: sticky; top: 0; z-index: 20; color: #075985;
   background: #e0f2fe; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.12);
 }
+#tree-panel .tree-top-class > summary,
+#edit-tree-panel .tree-top-class > summary,
+#tree-panel .tree-middle-class > summary,
+#edit-tree-panel .tree-middle-class > summary {
+  display: flex; align-items: center; list-style: none;
+}
+#tree-panel .tree-top-class > summary::-webkit-details-marker,
+#edit-tree-panel .tree-top-class > summary::-webkit-details-marker,
+#tree-panel .tree-middle-class > summary::-webkit-details-marker,
+#edit-tree-panel .tree-middle-class > summary::-webkit-details-marker { display: none; }
+#tree-panel .tree-top-class > summary::before,
+#edit-tree-panel .tree-top-class > summary::before,
+#tree-panel .tree-middle-class > summary::before,
+#edit-tree-panel .tree-middle-class > summary::before {
+  content: "▸"; flex: 0 0 1rem; color: var(--tree-level-color, #075985); font-size: 0.85rem; text-align: center;
+}
+#tree-panel .tree-top-class[open] > summary::before,
+#edit-tree-panel .tree-top-class[open] > summary::before,
+#tree-panel .tree-middle-class[open] > summary::before,
+#edit-tree-panel .tree-middle-class[open] > summary::before { content: "▾"; }
 #tree-panel .tree-middle-class > summary,
 #edit-tree-panel .tree-middle-class > summary {
   position: sticky; top: var(--middle-sticky-top, 3.35rem); z-index: var(--middle-sticky-z, 15);
   margin-top: 0.35rem; background: #f8fafc; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.1);
 }
 #tree-panel .tree-top-class > summary,
-#tree-panel .tree-middle-class > summary {
-  display: flex; align-items: center; padding: 0.25rem 0.55rem; font-size: 0.95rem;
-}
+#tree-panel .tree-middle-class > summary { padding: 0.25rem 0.55rem; font-size: 0.95rem; }
 #tree-panel .tree .tree-level-content { display: flex; flex-wrap: nowrap; gap: 0.25rem; white-space: nowrap; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-leaf-class {
   display: flex; flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 0.35rem;
@@ -667,6 +678,10 @@ body:not(.edit-panes-pinned) #edit-tree-panel .edit-tree-layout .instance-select
 #tree-panel .tree .tree-middle-class > .tree-level-rows > .tree-target-row {
   margin-left: 1rem;
 }
+#tree-panel .tree .tree-middle-class > .tree-level-rows > .tree-child-middle-row {
+  /* 下位中間クラスを上位直下の中間クラスと同じ1.15remのインデントにする。 */
+  margin-left: 1.15rem;
+}
 #tree-panel .tree .tree-middle-class > .tree-level-rows > .tree-child-middle-row::before,
 #tree-panel .tree .tree-middle-class > .tree-level-rows > .tree-target-row::before {
   left: -1rem;
@@ -698,11 +713,17 @@ body:not(.edit-panes-pinned) #edit-tree-panel .edit-tree-layout .instance-select
   border-top-color: var(--tree-level-color, #7dd3fd);
 }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-child-middle-list > li::before,
-:is(#tree-panel, #edit-tree-panel) .tree .tree-child-middle-list > li:has(> .tree-middle-class)::before,
 :is(#tree-panel, #edit-tree-panel) .tree .tree-target-list > li::before {
-  content: ""; position: absolute; top: var(--tree-connector-y); left: -1rem; width: 1.2rem;
+  content: ""; position: absolute; top: var(--tree-connector-y); left: -0.9rem; width: 0.9rem;
   transform: translateY(-50%); border-top: 2px solid var(--tree-level-color, #7dd3fd);
 }
+:is(#tree-panel, #edit-tree-panel) .tree .tree-middle-class > summary::after {
+  /* 固定追従する中間クラス見出しに横線を付け、スクロール時のずれを防ぐ。 */
+  content: ""; position: absolute; top: 50%; left: -1.2rem; width: 1.2rem;
+  transform: translateY(-50%); border-top: 2px solid var(--tree-level-color, #7dd3fd);
+  pointer-events: none;
+}
+:is(#tree-panel, #edit-tree-panel) .tree li:has(> .tree-middle-class)::before { display: none; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-target-list > li::before { border-top-color: var(--tree-level-color, #7dd3fd); }
 #edit-tree-panel .tree .tree-child-middle-list > li::before,
 #edit-tree-panel .tree .tree-target-list > li::before { border-top-color: var(--tree-level-color, #0284c7); }
@@ -771,7 +792,6 @@ body:not(.edit-panes-pinned) #edit-tree-panel .edit-tree-layout .instance-select
 #edit-tree-panel .tree .tree-child-middle-row::before,
 #edit-tree-panel .tree .tree-target-row::before,
 #edit-tree-panel .tree .tree-child-middle-list > li::before,
-#edit-tree-panel .tree .tree-child-middle-list > li:has(> .tree-middle-class)::before,
 #edit-tree-panel .tree .tree-target-list > li::before {
   /* 中間クラス・クラスのリスト専用接続線。色は対象リストで上書きする。 */
   content: "";
@@ -779,14 +799,13 @@ body:not(.edit-panes-pinned) #edit-tree-panel .edit-tree-layout .instance-select
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  left: -1rem;
+  left: -1.2rem;
   width: 1.2rem;
   border-top: 2px solid var(--tree-level-color, #7dd3fd);
 }
 /* クラスは共通変数、中間クラス行はリスト中央を接点にする。 */
 /* 上記接点高さを専用横線にも適用し、同じ高さから最後の縦線を隠す。 */
 #edit-tree-panel .tree .tree-child-middle-list > li::before,
-#edit-tree-panel .tree .tree-child-middle-list > li:has(> .tree-middle-class)::before,
 #edit-tree-panel .tree .tree-target-list > li::before { top: var(--tree-connector-y); }
 #edit-tree-panel .tree .tree-target-list > li::before { border-top-color: var(--tree-level-color, #7dd3fd); }
 #edit-tree-panel .tree > details > ul::before,
@@ -1003,16 +1022,25 @@ body[data-mode="browse"] .tree-add-button { display: none; }
   overflow-y: auto;
   overflow-x: hidden;
 }
+#tree-panel .tree details { margin-block: 0.15rem; }
+#tree-panel .tree > details > .tree-level-rows,
+#tree-panel .tree .tree-middle-class > .tree-level-rows { margin-block: 0.1rem; }
+#tree-panel .tree > .tree-top-class { margin-block: 0.35rem; }
+#tree-panel .tree > .tree-top-class > .tree-level-rows { margin-block: 0.45rem 0.75rem; }
+#tree-panel .tree .tree-middle-class > summary { margin-top: 0.1rem; }
+#tree-panel .tree .tree-child-middle-list { row-gap: 0.1rem; }
+#tree-panel .tree .tree-child-middle-list > li { padding-block: 0.1rem; }
 #tree-panel .tree > details > ul > li > details.tree-middle-class { width: calc(100% + 2rem); }
 #tree-panel .tree .tree-middle-class > summary { border-left: 3px solid var(--tree-level-color, #38bdf8); }
 #tree-panel .tree > details > ul::before,
 #tree-panel .tree > details > ul > li > details > ul::before,
-#tree-panel .tree .tree-middle-class > .tree-level-rows::before { border-left-color: var(--tree-level-color, #7dd3fc); }
+#tree-panel .tree .tree-middle-class > .tree-level-rows::before {
+  border-left-color: var(--tree-own-level-color, var(--tree-level-color, #7dd3fc));
+}
 #tree-panel .tree > details > ul > li::before,
 #tree-panel .tree > details > ul > li > details > ul > li::before,
 #tree-panel .tree .tree-target-list > li::before,
-#tree-panel .tree .tree-child-middle-list > li::before,
-#tree-panel .tree .tree-child-middle-list > li:has(> .tree-middle-class)::before { border-top-color: var(--tree-level-color, #7dd3fc); }
+#tree-panel .tree .tree-child-middle-list > li::before { border-top-color: var(--tree-level-color, #7dd3fc); }
 
 /* 9. 一覧表 */
 table { border-collapse: collapse; width: 100%; font-size: 0.94rem; overflow: hidden; border-radius: 14px; }

@@ -10,7 +10,7 @@
     <script src="tree.js" defer></script>
     <script src="main.js" defer></script>
 </head>
-<body data-mode="browse" class="browse-show-ids">
+<body data-mode="browse">
   <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>
   <header class="page-header">
     <p class="eyebrow">KNOWLEDGE GRAPH VIEWER</p>
@@ -44,7 +44,7 @@
     <section id="tree-panel" class="tab-panel" role="tabpanel" aria-labelledby="tree-tab">
       <div class="tree-toolbar" role="toolbar" aria-label="ツリー操作">
         <button type="button" class="tree-toolbar-button" data-close-all-tree>すべて閉じる</button>
-        <button type="button" id="toggle-browse-ids" class="tree-toolbar-button" aria-pressed="true">クラスID表示: ON</button>
+        <button type="button" id="toggle-browse-ids" class="tree-toolbar-button" aria-pressed="false">クラスID表示: OFF</button>
       </div>
       <details class="tree-filter" role="search" aria-label="階層ツリーの絞り込み" open>
         <summary class="tree-filter-heading"><span>検索</span><span id="tree-filter-count" class="tree-filter-count" aria-live="polite"></span></summary>

@@ -6,6 +6,18 @@ const treeElement = document.getElementById('tree');
 const summaryElement = document.getElementById('summary');
 const modeDescription = document.getElementById('mode-description');
 let renderTargetClassList = null;
+let treeStickyLayoutFrame = 0;
+
+function scheduleBrowseTreeLayout() {
+  if (treeStickyLayoutFrame) return;
+  treeStickyLayoutFrame = requestAnimationFrame(() => {
+    treeStickyLayoutFrame = 0;
+    window.updateTreeStickyOffsets(treeElement);
+    window.updateTreeTargetRowStarts(treeElement);
+  });
+}
+
+window.addEventListener('resize', scheduleBrowseTreeLayout);
 
 document.querySelector('[data-close-all-tree]')?.addEventListener('click', () => {
   treeElement.querySelectorAll('details[open]').forEach((details) => { details.open = false; });
@@ -280,8 +292,8 @@ function renderTree() {
     renderTarget: makeTarget,
     targetCountFor: (item) => instanceCount(item.id),
     displayId: displayClassId,
-    afterChildren: () => requestAnimationFrame(() => window.updateTreeTargetRowStarts(treeElement)),
-    afterRender: (container) => requestAnimationFrame(() => window.updateTreeTargetRowStarts(container))
+    afterChildren: scheduleBrowseTreeLayout,
+    afterRender: scheduleBrowseTreeLayout
   });
   if (filterCount) filterCount.textContent = `${targets.length}件`;
 }
