@@ -187,7 +187,8 @@ function renderTree() {
   const filterInput = document.getElementById('tree-filter-query');
   const filterType = document.getElementById('tree-filter-type');
   const filterCount = document.getElementById('tree-filter-count');
-  const query = filterInput?.value || '';
+  const filterPanelOpen = document.querySelector('.tree-filter')?.open === true;
+  const query = filterPanelOpen ? (filterInput?.value || '') : '';
   const instanceCountByClassId = new Map();
   const knownInstanceIds = new Set((window.appData.instanceData?.instances || []).map((instance) => instance.id));
   (window.appData.instanceClassData?.relations || []).forEach((relation) => {
@@ -210,6 +211,9 @@ function renderTree() {
   exactInput.max = String(treeExactCountValues.length - 1);
   exactInput.value = String(treeExactCountValues.indexOf(treeExactSelectedCount));
   document.getElementById('tree-filter-count-exact-value').textContent = `${treeExactSelectedCount}件`;
+  const exactBubble = document.getElementById('tree-filter-count-exact-bubble');
+  exactBubble.textContent = `${treeExactSelectedCount}件`;
+  exactBubble.style.left = `clamp(1rem, ${(Number(exactInput.value) / Math.max(1, treeExactCountValues.length - 1)) * 100}%, calc(100% - 1rem))`;
   document.getElementById('tree-filter-count-exact-min').textContent = `${treeExactCountValues[0]}件`;
   document.getElementById('tree-filter-count-exact-max').textContent = `${treeExactCountValues.at(-1)}件`;
   const minInput = document.getElementById('tree-filter-count-min');
@@ -228,7 +232,7 @@ function renderTree() {
   const maxCount = maxValue === '' || maxValue == null ? null : Number(maxValue);
   const countMode = document.getElementById('tree-filter-count-mode')?.value || 'range';
   const exactCount = treeExactSelectedCount;
-  const countFilterActive = treeCountFilterEnabled && (countMode === 'exact'
+  const countFilterActive = filterPanelOpen && treeCountFilterEnabled && (countMode === 'exact'
     ? exactCount !== null
     : treeCountRangeTouched && (minCount !== null || maxCount !== null));
   const effectiveSearchType = query.trim() ? (filterType?.value || 'class') : 'class';
@@ -240,7 +244,7 @@ function renderTree() {
         && (maxCount === null || instanceCount(item.id) <= maxCount))));
   const filterActive = query.trim().length > 0 || countFilterActive;
   const targetIds = filterActive ? new Set(targets.map((item) => item.id)) : null;
-  const preserveHierarchy = countFilterActive && !query.trim();
+  const preserveHierarchy = filterActive;
   const model = window.buildTreeModel(window.appData.classData, targetIds, preserveHierarchy) || [];
   const openNodeIds = query.trim()
     ? window.treeAncestorIds(window.appData.classData, targetIds)
@@ -441,11 +445,31 @@ function setTreeFilterMethod(method) {
 document.querySelectorAll('[data-tree-filter-method]').forEach((button) => {
   button.addEventListener('click', () => setTreeFilterMethod(button.dataset.treeFilterMethod));
 });
+document.querySelector('.tree-filter')?.addEventListener('toggle', renderTree);
 document.getElementById('tree-filter-count-min')?.addEventListener('input', () => { treeCountRangeTouched = true; renderTree(); });
 document.getElementById('tree-filter-count-max')?.addEventListener('input', () => { treeCountRangeTouched = true; renderTree(); });
+const treeExactSlider = document.getElementById('tree-filter-count-exact-input');
+const treeExactSliderWrap = document.querySelector('.tree-filter-exact-slider-wrap');
+let treeExactBubbleTimer = 0;
+function showTreeExactBubble() {
+  window.clearTimeout(treeExactBubbleTimer);
+  treeExactSliderWrap.classList.add('is-adjusting');
+}
+function hideTreeExactBubbleSoon() {
+  window.clearTimeout(treeExactBubbleTimer);
+  treeExactBubbleTimer = window.setTimeout(() => treeExactSliderWrap.classList.remove('is-adjusting'), 700);
+}
+treeExactSlider.addEventListener('pointerdown', showTreeExactBubble);
+treeExactSlider.addEventListener('pointerup', hideTreeExactBubbleSoon);
+treeExactSlider.addEventListener('focus', showTreeExactBubble);
+treeExactSlider.addEventListener('blur', hideTreeExactBubbleSoon);
+treeExactSlider.addEventListener('keydown', showTreeExactBubble);
+treeExactSlider.addEventListener('keyup', hideTreeExactBubbleSoon);
 document.getElementById('tree-filter-count-exact-input')?.addEventListener('input', (event) => {
   treeExactSelectedCount = treeExactCountValues[Number(event.target.value)] ?? treeExactCountValues[0];
   document.getElementById('tree-filter-count-exact-value').textContent = `${treeExactSelectedCount}件`;
+  document.getElementById('tree-filter-count-exact-bubble').textContent = `${treeExactSelectedCount}件`;
+  showTreeExactBubble();
   renderTree();
 });
 document.getElementById('tree-filter-count-mode')?.addEventListener('change', (event) => {

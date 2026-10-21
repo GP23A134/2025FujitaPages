@@ -544,6 +544,43 @@ function renderTargetSearch() {
   }, 0);
 }
 
+function renameClass(item) {
+  const nextLabel = window.prompt('新しいクラス名を入力してください。', item.label);
+  if (!nextLabel || !nextLabel.trim() || nextLabel.trim() === item.label) return;
+  if (hasClassLabelConflict(classKind(item), nextLabel, item.id)) {
+    logEditAction(classLabelConflictMessage(classKind(item), nextLabel.trim()), 'warn');
+    return;
+  }
+  const undoBefore = snapshotEditState();
+  item.label = nextLabel.trim();
+  hasUnsavedChanges = true;
+  recordEditHistory(undoBefore, '', '名称変更');
+  logEditAction(`クラス名を「${item.label}」に変更しました。`);
+  render();
+}
+
+function deleteClass(item) {
+  if (item.label === '未分類') return;
+  if (!window.confirm(`「${item.label}」を削除しますか？所属するクラスは未分類へ移動します。`)) return;
+  const undoBefore = snapshotEditState();
+  const moved = moveClassMembersToUnclassified(item.id);
+  const childIds = new Set(data.classData.relations.filter((relation) => relation.parent === item.id).map((relation) => relation.child));
+  data.classData.relations = data.classData.relations.filter((relation) => relation.child !== item.id && relation.parent !== item.id);
+  if (classKind(item) === 'top') {
+    const { top } = ensureUnclassified();
+    childIds.forEach((childId) => { if (classById.has(childId)) addRelation(childId, top.id); });
+  }
+  const index = classes.indexOf(item);
+  if (index >= 0) classes.splice(index, 1);
+  classById.delete(item.id);
+  heldMiddleClasses.delete(item.id);
+  heldTopClasses.delete(item.id);
+  hasUnsavedChanges = true;
+  recordEditHistory(undoBefore, '', '削除');
+  logEditAction(`${item.label}を削除しました。${moved}件を未分類へ移動しました。`);
+  render();
+}
+
 function renderClassManagement() {
   const list = document.getElementById('class-management-list');
   if (!list) return;
@@ -556,36 +593,10 @@ function renderClassManagement() {
     const info = document.createElement('span'); info.textContent = `${classKind(item) === 'top' ? '上位' : '中間'}: ${item.label} (${displayClassId(item.id)}) — ${count}件`;
     const actions = document.createElement('span'); actions.className = 'class-management-actions';
     const rename = document.createElement('button'); rename.type = 'button'; rename.className = 'rename-class-button'; rename.textContent = '名称変更';
-    rename.addEventListener('click', () => {
-      const nextLabel = window.prompt('新しいクラス名を入力してください。', item.label);
-      if (!nextLabel || !nextLabel.trim() || nextLabel.trim() === item.label) return;
-      if (hasClassLabelConflict(classKind(item), nextLabel, item.id)) {
-        logEditAction(classLabelConflictMessage(classKind(item), nextLabel.trim()), 'warn');
-        return;
-      }
-      const undoBefore = snapshotEditState();
-      item.label = nextLabel.trim(); hasUnsavedChanges = true;
-      recordEditHistory(undoBefore, '', '名称変更');
-      logEditAction(`クラス名を「${item.label}」に変更しました。`); render();
-    });
+    rename.addEventListener('click', () => renameClass(item));
     const button = document.createElement('button'); button.type = 'button'; button.className = 'delete-class-button'; button.textContent = '削除';
     button.disabled = item.label === '未分類';
-    button.addEventListener('click', () => {
-      if (!window.confirm(`「${item.label}」を削除しますか？所属するクラスは未分類へ移動します。`)) return;
-      const undoBefore = snapshotEditState();
-      const moved = moveClassMembersToUnclassified(item.id);
-      const childIds = new Set(data.classData.relations.filter((relation) => relation.parent === item.id).map((relation) => relation.child));
-      data.classData.relations = data.classData.relations.filter((relation) => relation.child !== item.id && relation.parent !== item.id);
-      if (classKind(item) === 'top') {
-        const { top } = ensureUnclassified();
-        childIds.forEach((childId) => { if (classById.has(childId)) addRelation(childId, top.id); });
-      }
-      const index = classes.indexOf(item); if (index >= 0) classes.splice(index, 1);
-      classById.delete(item.id);
-      heldMiddleClasses.delete(item.id); heldTopClasses.delete(item.id); hasUnsavedChanges = true;
-      recordEditHistory(undoBefore, '', '削除');
-      logEditAction(`${item.label}を削除しました。${moved}件を未分類へ移動しました。`); render();
-    });
+    button.addEventListener('click', () => deleteClass(item));
     actions.append(rename, button); row.append(info, actions); return row;
   }));
 }
@@ -1019,10 +1030,12 @@ function moveHeldToTop(topId) {
 // 階層ツリーの描画とツリー上の編集操作
 // ============================================================
 let targetConnectorLayoutFrame = 0;
-let treeCountRangeDefaultsInitialized = false;
 let treeExactCountValues = [0];
 let treeExactSelectedCount = null;
 let treeCountRangeTouched = false;
+let treeRenderFrame = 0;
+let treeSearchDebounceTimer = 0;
+let treeHierarchyEditModeEnabled = false;
 // 画面には選択中の条件だけ表示し、件数条件は一度設定した後もキーワード条件と併用する。
 let treeCountFilterEnabled = false;
 function scheduleTargetConnectorLayout() {
@@ -1063,6 +1076,7 @@ function renderTree() {
 
   const filterType = document.getElementById('tree-filter-type').value;
   const filterQuery = document.getElementById('tree-filter-query').value;
+  const filterPanelOpen = document.querySelector('.tree-filter')?.open === true;
   const minInput = document.getElementById('tree-filter-count-min');
   const maxInput = document.getElementById('tree-filter-count-max');
   treeExactCountValues = [...new Set(classes
@@ -1079,43 +1093,53 @@ function renderTree() {
   exactInput.max = String(treeExactCountValues.length - 1);
   exactInput.value = String(treeExactCountValues.indexOf(treeExactSelectedCount));
   document.getElementById('tree-filter-count-exact-value').textContent = `${treeExactSelectedCount}件`;
+  const exactBubble = document.getElementById('tree-filter-count-exact-bubble');
+  exactBubble.textContent = `${treeExactSelectedCount}件`;
+  exactBubble.style.left = `clamp(1rem, ${(Number(exactInput.value) / Math.max(1, treeExactCountValues.length - 1)) * 100}%, calc(100% - 1rem))`;
   document.getElementById('tree-filter-count-exact-min').textContent = `${treeExactCountValues[0]}件`;
   document.getElementById('tree-filter-count-exact-max').textContent = `${treeExactCountValues.at(-1)}件`;
-  if (!treeCountRangeDefaultsInitialized) {
-    if (minInput.value === '') minInput.value = '0';
-    if (maxInput.value === '') {
-      const largestClassCount = classes.reduce((largest, item) =>
-        classKind(item) === 'class' ? Math.max(largest, countTargetInstances(item.id)) : largest, 0);
-      maxInput.value = String(largestClassCount);
-    }
-    treeCountRangeDefaultsInitialized = true;
+  minInput.max = String(treeExactCountValues.length - 1);
+  maxInput.max = String(treeExactCountValues.length - 1);
+  if (minInput.dataset.initialized !== 'true') {
+    minInput.value = '0';
+    maxInput.value = String(treeExactCountValues.length - 1);
+    minInput.dataset.initialized = 'true';
+    maxInput.dataset.initialized = 'true';
+  } else {
+    minInput.value = String(Math.min(Number(minInput.value), treeExactCountValues.length - 1));
+    maxInput.value = String(Math.min(Number(maxInput.value), treeExactCountValues.length - 1));
   }
-  const minValue = minInput.value;
-  const maxValue = maxInput.value;
-  const minCount = minValue === '' ? null : Number(minValue);
-  const maxCount = maxValue === '' ? null : Number(maxValue);
+  const minRangeIndex = Math.min(Number(minInput.value), Number(maxInput.value));
+  const maxRangeIndex = Math.max(Number(minInput.value), Number(maxInput.value));
+  const rangeMinCount = treeExactCountValues[minRangeIndex] ?? treeExactCountValues[0];
+  const rangeMaxCount = treeExactCountValues[maxRangeIndex] ?? treeExactCountValues.at(-1);
+  document.getElementById('tree-filter-count-min-value').textContent = `${rangeMinCount}件`;
+  document.getElementById('tree-filter-count-max-value').textContent = `${rangeMaxCount}件`;
+  updateTreeRangeBubbles();
   const countMode = document.getElementById('tree-filter-count-mode').value;
   const exactCount = treeExactSelectedCount;
-  const countFilterActive = treeCountFilterEnabled && (countMode === 'exact'
+  const countFilterActive = filterPanelOpen && treeCountFilterEnabled && (countMode === 'exact'
     ? exactCount !== null
-    : treeCountRangeTouched && (minCount !== null || maxCount !== null));
-  const activeQuery = filterQuery;
+    : treeCountRangeTouched);
+  const activeQuery = filterPanelOpen ? filterQuery : '';
   const filterActive = activeQuery.trim().length > 0 || countFilterActive;
-  const preserveHierarchy = countFilterActive && !activeQuery.trim();
+  const preserveHierarchy = filterActive;
   const effectiveSearchType = activeQuery.trim() ? filterType : 'class';
   const { targets: matchedTargets } = findTargetClasses(effectiveSearchType, activeQuery);
   const filteredTargets = matchedTargets.filter((target) =>
     (!countFilterActive || (countMode === 'exact'
       ? countTargetInstances(target.id) === exactCount
-      : (minCount === null || countTargetInstances(target.id) >= minCount)
-        && (maxCount === null || countTargetInstances(target.id) <= maxCount))));
+      : countTargetInstances(target.id) >= rangeMinCount
+        && countTargetInstances(target.id) <= rangeMaxCount)));
+  const allTargetCount = classes.filter((item) => classKind(item) === 'class').length;
+  const filterHidesTargets = filteredTargets.length < allTargetCount;
   const filterCount = document.getElementById('tree-filter-count');
   filterCount.textContent = `${filteredTargets.length}件`;
 
   // 閲覧画面と同じ階層モデル・描画関数を使い、モードごとの差は操作UIに限定する。
   const targetIds = filterActive ? new Set(filteredTargets.map((target) => target.id)) : null;
   const model = window.buildTreeModel(data.classData, targetIds, preserveHierarchy);
-  const openNodeIds = activeQuery.trim()
+  const openNodeIds = filterActive && filterHidesTargets && filteredTargets.length > 0
     ? window.treeAncestorIds(data.classData, targetIds)
     : new Set();
   const addTreeButton = (label, handler) => {
@@ -1310,6 +1334,34 @@ function renderTree() {
       });
       levelContent.prepend(checkbox);
     }
+    if (treeHierarchyEditModeEnabled && (classKind(item) === 'top' || classKind(item) === 'middle')) {
+      const actions = document.createElement('span');
+      actions.className = 'tree-class-edit-actions';
+      actions.addEventListener('click', (event) => event.stopPropagation());
+      const rename = document.createElement('button');
+      rename.type = 'button';
+      rename.className = 'rename-class-button tree-class-edit-button';
+      rename.textContent = '名称変更';
+      rename.setAttribute('aria-label', `${item.label}の名称変更`);
+      rename.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        renameClass(item);
+      });
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'delete-class-button tree-class-edit-button';
+      remove.textContent = '削除';
+      remove.disabled = item.label === '未分類';
+      remove.setAttribute('aria-label', `${item.label}を削除`);
+      remove.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteClass(item);
+      });
+      actions.append(rename, remove);
+      summary.append(actions);
+    }
     if (classKind(item) === 'middle') {
       // 中間クラスの「＋」は、保持中のクラスをこの中間クラスへ移動する操作。
       // 対象・中間・上位クラスの選択中に移動先として表示する。
@@ -1368,6 +1420,13 @@ function renderTree() {
     afterRender: () => scheduleTargetConnectorLayout()
   });
 }
+function scheduleTreeRender() {
+  if (treeRenderFrame) return;
+  treeRenderFrame = requestAnimationFrame(() => {
+    treeRenderFrame = 0;
+    renderTree();
+  });
+}
 // ============================================================
 // JSON出力と保存
 // ============================================================
@@ -1414,7 +1473,10 @@ window.addEventListener('scroll', syncPinnedHeldPanelBounds, { passive: true });
 window.addEventListener('resize', syncPinnedHeldPanelBounds);
 if (heldPanel) new MutationObserver(syncPinnedHeldPanelBounds).observe(heldPanel, { attributes: true, attributeFilter: ['class', 'hidden'] });
 syncPinnedHeldPanelBounds();
-treeFilter?.addEventListener('toggle', renderInstances);
+treeFilter?.addEventListener('toggle', () => {
+  renderTree();
+  renderInstances();
+});
 document.getElementById('undo-edit').addEventListener('click', undoLastEdit);
 document.getElementById('redo-edit').addEventListener('click', redoLastEdit);
 document.addEventListener('keydown', (event) => {
@@ -1466,7 +1528,10 @@ document.getElementById('tree-filter-type').addEventListener('change', () => {
   document.getElementById('tree-filter-query').placeholder = '名前・IDで検索';
   renderTree();
 });
-document.getElementById('tree-filter-query').addEventListener('input', renderTree);
+document.getElementById('tree-filter-query').addEventListener('input', () => {
+  window.clearTimeout(treeSearchDebounceTimer);
+  treeSearchDebounceTimer = window.setTimeout(scheduleTreeRender, 140);
+});
 function setTreeFilterMethod(method) {
   if (method === 'count') treeCountFilterEnabled = true;
   document.querySelector('.tree-filter-search-controls').hidden = method !== 'keyword';
@@ -1481,12 +1546,80 @@ function setTreeFilterMethod(method) {
 document.querySelectorAll('[data-tree-filter-method]').forEach((button) => {
   button.addEventListener('click', () => setTreeFilterMethod(button.dataset.treeFilterMethod));
 });
-document.getElementById('tree-filter-count-min').addEventListener('input', () => { treeCountRangeTouched = true; renderTree(); });
-document.getElementById('tree-filter-count-max').addEventListener('input', () => { treeCountRangeTouched = true; renderTree(); });
+const treeRangeSliderGroup = document.querySelector('.tree-filter-range-sliders');
+let treeRangeBubbleTimer = 0;
+function updateTreeRangeBubbles() {
+  if (!treeRangeSliderGroup) return;
+  const maxIndex = Math.max(1, treeExactCountValues.length - 1);
+  const minSlider = document.getElementById('tree-filter-count-min');
+  const maxSlider = document.getElementById('tree-filter-count-max');
+  const startPercent = Math.min(Number(minSlider.value), Number(maxSlider.value)) / maxIndex * 100;
+  const endPercent = Math.max(Number(minSlider.value), Number(maxSlider.value)) / maxIndex * 100;
+  treeRangeSliderGroup.style.setProperty('--range-start', `${startPercent}%`);
+  treeRangeSliderGroup.style.setProperty('--range-end', `${endPercent}%`);
+  [
+    { input: minSlider, bubble: document.getElementById('tree-filter-count-min-bubble') },
+    { input: maxSlider, bubble: document.getElementById('tree-filter-count-max-bubble') }
+  ].forEach(({ input, bubble }) => {
+    const percent = (Number(input.value) / maxIndex) * 100;
+    bubble.style.left = `clamp(1rem, ${percent}%, calc(100% - 1rem))`;
+    bubble.textContent = `${treeExactCountValues[Number(input.value)] ?? 0}件`;
+  });
+}
+function showTreeRangeBubble(input) {
+  window.clearTimeout(treeRangeBubbleTimer);
+  treeRangeSliderGroup.dataset.activeThumb = input.id.endsWith('-min') ? 'min' : 'max';
+}
+function hideTreeRangeBubbleSoon() {
+  window.clearTimeout(treeRangeBubbleTimer);
+  treeRangeBubbleTimer = window.setTimeout(() => delete treeRangeSliderGroup.dataset.activeThumb, 700);
+}
+['tree-filter-count-min', 'tree-filter-count-max'].forEach((id) => {
+  const input = document.getElementById(id);
+  input.addEventListener('pointerdown', () => showTreeRangeBubble(input));
+  input.addEventListener('pointerup', hideTreeRangeBubbleSoon);
+  input.addEventListener('focus', () => showTreeRangeBubble(input));
+  input.addEventListener('blur', hideTreeRangeBubbleSoon);
+  input.addEventListener('keydown', () => showTreeRangeBubble(input));
+  input.addEventListener('keyup', hideTreeRangeBubbleSoon);
+});
+document.getElementById('tree-filter-count-min').addEventListener('input', (event) => {
+  const maxInput = document.getElementById('tree-filter-count-max');
+  if (Number(event.target.value) > Number(maxInput.value)) maxInput.value = event.target.value;
+  treeCountRangeTouched = true;
+  showTreeRangeBubble(event.target);
+  scheduleTreeRender();
+});
+document.getElementById('tree-filter-count-max').addEventListener('input', (event) => {
+  const minInput = document.getElementById('tree-filter-count-min');
+  if (Number(event.target.value) < Number(minInput.value)) minInput.value = event.target.value;
+  treeCountRangeTouched = true;
+  showTreeRangeBubble(event.target);
+  scheduleTreeRender();
+});
+const treeExactSlider = document.getElementById('tree-filter-count-exact-input');
+const treeExactSliderWrap = document.querySelector('.tree-filter-exact-slider-wrap');
+let treeExactBubbleTimer = 0;
+function showTreeExactBubble() {
+  window.clearTimeout(treeExactBubbleTimer);
+  treeExactSliderWrap.classList.add('is-adjusting');
+}
+function hideTreeExactBubbleSoon() {
+  window.clearTimeout(treeExactBubbleTimer);
+  treeExactBubbleTimer = window.setTimeout(() => treeExactSliderWrap.classList.remove('is-adjusting'), 700);
+}
+treeExactSlider.addEventListener('pointerdown', showTreeExactBubble);
+treeExactSlider.addEventListener('pointerup', hideTreeExactBubbleSoon);
+treeExactSlider.addEventListener('focus', showTreeExactBubble);
+treeExactSlider.addEventListener('blur', hideTreeExactBubbleSoon);
+treeExactSlider.addEventListener('keydown', showTreeExactBubble);
+treeExactSlider.addEventListener('keyup', hideTreeExactBubbleSoon);
 document.getElementById('tree-filter-count-exact-input').addEventListener('input', (event) => {
   treeExactSelectedCount = treeExactCountValues[Number(event.target.value)] ?? treeExactCountValues[0];
   document.getElementById('tree-filter-count-exact-value').textContent = `${treeExactSelectedCount}件`;
-  renderTree();
+  document.getElementById('tree-filter-count-exact-bubble').textContent = `${treeExactSelectedCount}件`;
+  showTreeExactBubble();
+  scheduleTreeRender();
 });
 document.getElementById('tree-filter-count-mode').addEventListener('change', (event) => {
   const exactMode = event.target.value === 'exact';
@@ -1703,6 +1836,13 @@ document.querySelectorAll('[data-edit-tab]').forEach((tab) => tab.addEventListen
 }));
 const closeAllTreeButton = document.getElementById('close-all-tree');
 closeAllTreeButton.hidden = document.getElementById('edit-tree-panel').hidden;
+const toggleTreeEditMode = document.getElementById('toggle-tree-edit-mode');
+toggleTreeEditMode.addEventListener('click', () => {
+  treeHierarchyEditModeEnabled = !treeHierarchyEditModeEnabled;
+  toggleTreeEditMode.setAttribute('aria-pressed', String(treeHierarchyEditModeEnabled));
+  toggleTreeEditMode.textContent = `クラス編集モード: ${treeHierarchyEditModeEnabled ? 'ON' : 'OFF'}`;
+  renderTree();
+});
 closeAllTreeButton.addEventListener('click', () => {
   document.querySelectorAll('#edit-tree-panel .tree details[open]').forEach((details) => {
     details.open = false;

@@ -127,7 +127,13 @@
   }
 
   function renderHierarchyTree(container, roots, options = {}) {
-    const countTargets = (node) => node.targets.length + node.children.reduce((sum, child) => sum + countTargets(child), 0);
+    const targetCountCache = new WeakMap();
+    const countTargets = (node) => {
+      if (targetCountCache.has(node)) return targetCountCache.get(node);
+      const count = node.targets.length + node.children.reduce((sum, child) => sum + countTargets(child), 0);
+      targetCountCache.set(node, count);
+      return count;
+    };
     const countFor = options.countFor || countTargets;
     const targetCountFor = options.targetCountFor || (() => 0);
     const makeDefaultTarget = (item) => {

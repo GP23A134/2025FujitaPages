@@ -222,6 +222,9 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .delete-class-button { border: 1px solid #dc2626; border-radius: 6px; padding: 0.35rem 0.7rem; color: #b91c1c; background: #fff; cursor: pointer; font: inherit; font-weight: 700; }
 .delete-class-button:hover:not(:disabled) { color: #fff; background: #dc2626; }
 .delete-class-button:disabled { opacity: 0.45; cursor: not-allowed; }
+#toggle-tree-edit-mode[aria-pressed="true"] { border-color: #2563eb; color: #1d4ed8; background: #eff6ff; }
+.tree-class-edit-actions { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 0.25rem; margin-left: 0.35rem; }
+.tree-class-edit-button { flex: 0 0 auto; padding: 0.15rem 0.4rem; font-size: 0.68rem; line-height: 1.25; }
 .edit-status { margin: 0.75rem 0 0; color: #1e40af; }
 .edit-save-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; padding: 0.75rem 1rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #334155; }
 .edit-header-save { color: #fff; background: #b45309; border: 1px solid #92400e; }
@@ -346,17 +349,34 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .tree-filter-count-settings > .tree-filter-count-range,
 .tree-filter-count-settings > .tree-filter-count-exact { flex: 1 1 0; min-width: 0; }
 .tree-filter-search-controls[hidden] { display: none; }
-.tree-filter-count-settings > legend { padding: 0 0.25rem; color: #475569; font-size: 0.85rem; font-weight: 700; }
 .tree-filter-exact-slider-row { display: flex; flex: 1 1 auto; align-items: center; gap: 0.55rem; width: 100%; min-width: 0; color: #64748b; font-size: 0.75rem; font-weight: 500; }
-.tree-filter .tree-filter-exact-slider { flex: 1 1 auto; width: 100%; min-width: 4rem; min-height: auto; padding: 0; border: 0; background: transparent; accent-color: #64748b; }
+.tree-filter-exact-slider-wrap { position: relative; flex: 1 1 auto; min-width: 4rem; }
+.tree-filter .tree-filter-exact-slider { display: block; width: 100%; min-width: 4rem; min-height: auto; padding: 0; border: 0; background: transparent; accent-color: #64748b; }
+.tree-filter-exact-bubble { left: 0; }
+.tree-filter-exact-slider-wrap.is-adjusting .tree-filter-exact-bubble { opacity: 1; visibility: visible; }
 .tree-filter-count-exact output { color: #334155; font-weight: 700; }
 .tree-filter-count-exact-title { white-space: nowrap; }
 #tree-filter-count-range[hidden],
 #tree-filter-count-exact[hidden] { display: none; }
-.tree-filter-count-range { display: flex; flex: 1 1 0; align-items: end; gap: 0.55rem; box-sizing: border-box; width: 100%; min-width: 0; min-inline-size: 0; margin: 0; padding: 0; border: 0; background: transparent; }
-.tree-filter-range-bound { display: flex !important; flex: 1 1 0; flex-direction: row !important; align-items: center; gap: 0.35rem !important; min-width: 0; white-space: nowrap; }
-.tree-filter-range-bound input { flex: 1 1 0; width: 100%; min-width: 0; padding: 0.4rem 0.5rem; text-align: center; }
-.tree-filter-range-separator { flex: 0 0 auto; color: #64748b; }
+.tree-filter-count-range { display: flex; flex: 1 1 0; flex-direction: column; gap: 0.25rem; box-sizing: border-box; width: 100%; min-width: 0; min-inline-size: 0; margin: 0; padding: 0; border: 0; background: transparent; }
+.tree-filter-range-values { display: flex; justify-content: space-between; gap: 0.5rem; color: #64748b; font-size: 0.75rem; font-weight: 500; }
+.tree-filter-range-values output { color: #334155; font-weight: 700; }
+.tree-filter-range-sliders { position: relative; height: 1.5rem; margin: 0 0.35rem; --range-start: 0%; --range-end: 100%; }
+.tree-filter-range-sliders::before, .tree-filter-range-sliders::after { position: absolute; top: 50%; height: 0.3rem; transform: translateY(-50%); border-radius: 999px; content: ""; pointer-events: none; }
+.tree-filter-range-sliders::before { right: 0; left: 0; background: #e2e8f0; }
+.tree-filter-range-sliders::after { left: var(--range-start); right: calc(100% - var(--range-end)); background: #475569; }
+.tree-filter .tree-filter-range-sliders input[type="range"] { position: absolute; inset: 0; width: 100%; height: 1.5rem; min-height: 1.5rem; margin: 0; padding: 0; border: 0; appearance: none; -webkit-appearance: none; background: transparent; pointer-events: none; }
+.tree-filter .tree-filter-range-sliders input[type="range"]::-webkit-slider-runnable-track { background: transparent; }
+.tree-filter .tree-filter-range-sliders input[type="range"]::-moz-range-track { background: transparent; }
+.tree-filter .tree-filter-range-sliders input[type="range"]::-moz-range-progress { background: transparent; }
+.tree-filter .tree-filter-range-sliders input[type="range"]::-webkit-slider-thumb { width: 1rem; height: 1rem; -webkit-appearance: none; appearance: none; border: 2px solid #fff; border-radius: 50%; background: #475569; box-shadow: 0 0 0 1px #64748b; pointer-events: auto; }
+.tree-filter .tree-filter-range-sliders input[type="range"]::-moz-range-thumb { width: 0.75rem; height: 0.75rem; border: 2px solid #fff; border-radius: 50%; background: #475569; box-shadow: 0 0 0 1px #64748b; pointer-events: auto; }
+.tree-filter-range-sliders #tree-filter-count-min { z-index: 1; }
+.tree-filter-range-sliders #tree-filter-count-max { z-index: 2; }
+.tree-filter-range-bubble { position: absolute; top: -1.45rem; z-index: 3; transform: translateX(-50%); padding: 0.15rem 0.45rem; border-radius: 0.35rem; color: #fff; background: #334155; font-size: 0.7rem; font-weight: 700; line-height: 1.2; white-space: nowrap; opacity: 0; visibility: hidden; pointer-events: none; }
+.tree-filter-range-bubble::after { position: absolute; bottom: -0.25rem; left: 50%; width: 0.45rem; height: 0.45rem; transform: translateX(-50%) rotate(45deg); background: inherit; content: ""; }
+.tree-filter-range-sliders[data-active-thumb="min"] #tree-filter-count-min-bubble,
+.tree-filter-range-sliders[data-active-thumb="max"] #tree-filter-count-max-bubble { opacity: 1; visibility: visible; }
 /* ツリーと保持中パネルの横幅 */
 .edit-tree-layout {
   --edit-tree-content-height: calc(100vh - 10px);

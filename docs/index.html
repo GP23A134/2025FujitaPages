@@ -67,21 +67,21 @@
         <fieldset class="tree-filter-count-settings" hidden>
           <label class="tree-filter-count-mode-label" for="tree-filter-count-mode">インスタンス件数
             <select id="tree-filter-count-mode" aria-label="件数指定方法">
-              <option value="range">範囲指定</option>
-              <option value="exact" selected>指定件数</option>
+              <option value="range" selected>範囲指定</option>
+              <option value="exact">指定件数</option>
             </select>
           </label>
-          <fieldset id="tree-filter-count-range" class="tree-filter-count-range" hidden>
-            <label class="tree-filter-range-bound" for="tree-filter-count-min">最小
-              <input id="tree-filter-count-min" type="number" min="0" step="1" inputmode="numeric" aria-label="最小件数" value="0"><span>件</span>
-            </label>
-            <span class="tree-filter-range-separator" aria-hidden="true">～</span>
-            <label class="tree-filter-range-bound" for="tree-filter-count-max">最大
-              <input id="tree-filter-count-max" type="number" min="0" step="1" inputmode="numeric" aria-label="最大件数"><span>件</span>
-            </label>
+          <fieldset id="tree-filter-count-range" class="tree-filter-count-range">
+            <div class="tree-filter-range-values"><span>最小 <output id="tree-filter-count-min-value">0件</output></span><span>最大 <output id="tree-filter-count-max-value">0件</output></span></div>
+            <div class="tree-filter-range-sliders" aria-label="件数の範囲を指定">
+              <input id="tree-filter-count-min" type="range" min="0" max="0" step="1" value="0" aria-label="最小件数">
+              <input id="tree-filter-count-max" type="range" min="0" max="0" step="1" value="0" aria-label="最大件数">
+              <output id="tree-filter-count-min-bubble" class="tree-filter-range-bubble" aria-hidden="true"></output>
+              <output id="tree-filter-count-max-bubble" class="tree-filter-range-bubble" aria-hidden="true"></output>
+            </div>
           </fieldset>
-          <label id="tree-filter-count-exact" class="tree-filter-count-exact"><span class="tree-filter-count-exact-title">指定件数：<output id="tree-filter-count-exact-value">0件</output></span>
-            <span class="tree-filter-exact-slider-row"><span id="tree-filter-count-exact-min">0件</span><input id="tree-filter-count-exact-input" class="tree-filter-exact-slider" type="range" min="0" max="0" step="1" value="0" aria-label="指定件数"><span id="tree-filter-count-exact-max">0件</span></span>
+          <label id="tree-filter-count-exact" class="tree-filter-count-exact" hidden><span class="tree-filter-count-exact-title">指定件数：<output id="tree-filter-count-exact-value">0件</output></span>
+            <span class="tree-filter-exact-slider-row"><span id="tree-filter-count-exact-min">0件</span><span class="tree-filter-exact-slider-wrap"><input id="tree-filter-count-exact-input" class="tree-filter-exact-slider" type="range" min="0" max="0" step="1" value="0" aria-label="指定件数"><output id="tree-filter-count-exact-bubble" class="tree-filter-range-bubble tree-filter-exact-bubble" aria-hidden="true"></output></span><span id="tree-filter-count-exact-max">0件</span></span>
           </label>
         </fieldset>
         </div>
