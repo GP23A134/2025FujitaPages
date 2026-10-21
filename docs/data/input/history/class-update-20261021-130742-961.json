@@ -1,0 +1,40 @@
+{
+  "baseDataHash": "58edbab0611779f88de54e45163f3d3b37023520974757cf856399e4778770f8",
+  "addClasses": [
+    { "type": "middle", "id": "new-m_1", "label": "水環境" },
+    { "type": "middle", "id": "new-m_2", "label": "土壌・地質" },
+    { "type": "middle", "id": "new-m_3", "label": "生物・生態系" }
+  ],
+  "renameClasses": [],
+  "removeRelations": [
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_230", "parent": "https://kozaki-lab.jp/REFV-KG/class/t_0" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_6073", "parent": "https://kozaki-lab.jp/REFV-KG/class/t_0" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_4924", "parent": "https://kozaki-lab.jp/REFV-KG/class/t_0" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_11130", "parent": "https://kozaki-lab.jp/REFV-KG/class/t_0" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_5445", "parent": "https://kozaki-lab.jp/REFV-KG/class/t_0" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_8494", "parent": "https://kozaki-lab.jp/REFV-KG/class/t_0" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_6494", "parent": "https://kozaki-lab.jp/REFV-KG/class/t_0" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_3430", "parent": "https://kozaki-lab.jp/REFV-KG/class/t_0" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_5653", "parent": "https://kozaki-lab.jp/REFV-KG/class/t_0" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_6177", "parent": "https://kozaki-lab.jp/REFV-KG/class/t_0" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_5247", "parent": "https://kozaki-lab.jp/REFV-KG/class/t_0" }
+  ],
+  "addRelations": [
+    { "child": "new-m_1", "parent": "https://kozaki-lab.jp/REFV-KG/class/t_3" },
+    { "child": "new-m_2", "parent": "https://kozaki-lab.jp/REFV-KG/class/t_3" },
+    { "child": "new-m_3", "parent": "https://kozaki-lab.jp/REFV-KG/class/t_3" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_230", "parent": "new-m_1" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_6073", "parent": "new-m_1" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_4924", "parent": "new-m_1" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_11130", "parent": "new-m_1" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_5445", "parent": "new-m_1" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_8494", "parent": "new-m_1" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_6494", "parent": "new-m_1" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_3430", "parent": "new-m_2" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_5653", "parent": "new-m_2" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_6177", "parent": "new-m_3" },
+    { "child": "https://kozaki-lab.jp/REFV-KG/class/c_5247", "parent": "new-m_3" }
+  ],
+  "moveChildren": [],
+  "removeClasses": []
+}
