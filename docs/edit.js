@@ -1,6 +1,8 @@
 // ============================================================
 // 編集画面の状態と共有データ
 // ============================================================
+// このファイルは、状態の初期化 → 編集ロジック → 描画 → イベント登録の順に構成する。
+// イベント登録の順序を保ち、既存画面の初期化動作を変えない。
 // クラスデータJavaScriptが読み込んだ編集対象データを共有する。classes は同じ配列を参照するため、
 // ここへ追加したクラスは保存処理とツリー表示の両方にそのまま反映される。
 const data = window.appData;
@@ -132,7 +134,6 @@ const searchSelected = new Map();
 let currentTargetSearchResults = [];
 let hasUnsavedChanges = false;
 let managementKind = 'top';
-let searchDestinationId = '';
 let heldPanelView = 'held';
 let heldPanelCollapsed = false;
 let heldDestinationKind = 'top';
@@ -201,6 +202,8 @@ function recordEditHistory(before, destinationId = '', actionLabel = '編集') {
   editRedoStack.length = 0;
 }
 function restoreEditState(snapshot) {
+  // 描画用Mapはクラス配列を参照するため、配列とMapを同時に作り直す。
+  // 選択状態は、復元後も存在するIDに限って保持する。
   const currentHeldInstances = [...heldInstances.entries()];
   const currentHeldMiddleIds = [...heldMiddleClasses.keys()];
   const currentHeldTopIds = [...heldTopClasses.keys()];
@@ -434,6 +437,7 @@ function renderTargetSearch() {
   count.textContent = '';
   result.replaceChildren();
 
+  // 前の検索結果が遅れて表示されないよう、描画要求ごとに世代番号を確認する。
   window.setTimeout(() => {
     if (sequence !== targetSearchRenderSequence) return;
   const { targets: matchedTargets, matchedInstanceCount } = findTargetClasses(searchType, query);
@@ -917,6 +921,7 @@ function moveHeldClassesToTop(topId) {
     logEditAction('移動先として選択中のクラスは指定できません。', 'warn');
     return true;
   }
+  // 選択した階層の全子孫を確認し、移動先が自分の配下になる循環を防ぐ。
   const movingHierarchyIds = new Set([...selectedMiddleIds, ...selectedTopIds]);
   const descendants = new Set(movingHierarchyIds);
   const children = buildChildrenMap();
@@ -1027,7 +1032,7 @@ function moveHeldToTop(topId) {
   render();
 }
 // ============================================================
-// 階層ツリーの描画とツリー上の編集操作
+// ツリーの絞り込み・描画・ツリー上の編集操作
 // ============================================================
 let targetConnectorLayoutFrame = 0;
 let treeExactCountValues = [0];
@@ -1100,6 +1105,7 @@ function renderTree() {
   updateTreeRangeBubbles();
   const countMode = document.getElementById('tree-filter-count-mode').value;
   const exactCount = treeExactSelectedCount;
+  // 件数条件は利用者が操作した後にのみ有効化し、初期表示で結果を隠さない。
   const countFilterActive = filterPanelOpen && treeCountFilterEnabled && (countMode === 'exact'
     ? exactCount !== null
     : treeCountRangeTouched);
@@ -1431,8 +1437,10 @@ function saveEditChanges() {
 // ============================================================
 // 編集操作のイベント登録
 // ============================================================
-// 保存・保持状態の操作
+// 保存と編集履歴
 document.getElementById('save-edit-changes').addEventListener('click', saveEditChanges);
+
+// 保持中パネルと移動先の選択
 document.getElementById('toggle-held-panel-view').addEventListener('click', () => {
   heldPanelView = heldPanelView === 'held' ? 'list' : 'held';
   renderInstances();
@@ -1479,6 +1487,7 @@ document.addEventListener('keydown', (event) => {
     undoLastEdit();
   }
 });
+
 document.querySelectorAll('.held-destination-tab').forEach((tab) => tab.addEventListener('click', () => {
   heldDestinationKind = tab.dataset.destinationKind;
   heldDestinationId = '';
@@ -1510,6 +1519,8 @@ document.getElementById('clear-held').addEventListener('click', () => {
   renderInstances();
   logEditAction('保持中のクラスをすべて解除しました。');
 });
+
+// ツリーの検索・件数フィルター
 document.getElementById('tree-filter-type').addEventListener('change', () => {
   document.getElementById('tree-filter-query').placeholder = '名前・IDで検索';
   renderTree();
@@ -1600,7 +1611,7 @@ treeExactSlider.addEventListener('focus', showTreeExactBubble);
 treeExactSlider.addEventListener('blur', hideTreeExactBubbleSoon);
 treeExactSlider.addEventListener('keydown', showTreeExactBubble);
 treeExactSlider.addEventListener('keyup', hideTreeExactBubbleSoon);
-document.getElementById('tree-filter-count-exact-input').addEventListener('input', (event) => {
+treeExactSlider.addEventListener('input', (event) => {
   treeExactSelectedCount = treeExactCountValues[Number(event.target.value)] ?? treeExactCountValues[0];
   document.getElementById('tree-filter-count-exact-value').textContent = `${treeExactSelectedCount}件`;
   document.getElementById('tree-filter-count-exact-bubble').textContent = `${treeExactSelectedCount}件`;
@@ -1613,7 +1624,8 @@ document.getElementById('tree-filter-count-mode').addEventListener('change', (ev
   document.getElementById('tree-filter-count-exact').hidden = !exactMode;
   renderTree();
 });
-// 検索結果を既存クラスへ一括付与
+
+// 検索条件と検索結果の選択
 document.getElementById('target-search-type').addEventListener('change', () => {
   // 検索対象を切り替えたら、別の検索条件で選んだクラスを持ち越さない。
   const searchTypeSelect = document.getElementById('target-search-type');
@@ -1626,9 +1638,6 @@ document.getElementById('target-search-type').addEventListener('change', () => {
       ? 'インスタンス名・IDを入力'
       : 'クラス名・IDを入力';
   renderTargetSearch();
-});
-document.getElementById('target-class-search').addEventListener('input', () => {
-  // 検索語は検索ボタンで確定し、確定後は下のチップに蓄積する。
 });
 const runTargetSearch = () => {
   const input = document.getElementById('target-class-search');
@@ -1750,8 +1759,9 @@ document.getElementById('apply-search-selection').addEventListener('click', () =
   recordEditHistory(undoBefore, '', creating ? 'クラス作成と付与' : 'クラス付与');
   render();
 });
+
+// 保存ボタンの登録と初期描画
 document.getElementById('download-class-update').addEventListener('click', saveEditChanges);
-// 初期表示
 render();
 
 // ============================================================
@@ -1774,9 +1784,8 @@ window.addEventListener('beforeunload', (event) => {
 // ============================================================
 // タブ切り替えと画面初期化
 // ============================================================
-// 検索・管理機能はツリー／フォームから独立したタブとして表示する。
-// HTML上の既存配置をここで移動することで、初期表示時の構造も保ちつつ
-// 旧画面との互換性を確保する。
+// HTMLでは検索・管理パネルをツリーパネル内に置いている。
+// タブ切り替え時に独立して表示できるよう、起動時に main 直下へ移す。
 const main = document.querySelector('main');
 const treePanel = document.getElementById('edit-tree-panel');
 const searchPanel = document.getElementById('target-search-panel');
