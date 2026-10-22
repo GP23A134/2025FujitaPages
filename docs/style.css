@@ -94,6 +94,27 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .tab:focus-visible { outline: 3px solid #bfdbfe; outline-offset: -3px; }
 .tab.is-active { color: #0f6a9d; border-bottom-color: #0f6a9d; font-weight: 700; }
 .tab-panel[hidden] { display: none; }
+.list-toolbar { display: flex; justify-content: flex-end; gap: 0.5rem; margin-bottom: 0.4rem; }
+.secondary-search-button { border: 1px solid #cbd5e1; color: #334155; background: #f8fafc; }
+.secondary-search-button:hover:not(:disabled) { color: #0f3d63; background: #e2e8f0; }
+.secondary-search-button:disabled { opacity: 0.5; cursor: not-allowed; }
+.copy-id-button { margin-left: 0.5rem; padding: 0.15rem 0.4rem; border: 1px solid #cbd5e1; border-radius: 5px; color: #475569; background: #f8fafc; cursor: pointer; font: inherit; font-size: 0.72rem; white-space: nowrap; }
+.copy-id-button:hover, .copy-id-button:focus-visible { border-color: #7dd3fc; color: #075985; background: #f0f9ff; }
+.related-class-link { display: inline; margin: 0 0.3rem 0.25rem 0; padding: 0.1rem 0.35rem; border: 0; border-radius: 4px; color: #075985; background: #eff6ff; cursor: pointer; font: inherit; text-align: left; }
+.related-class-link:hover, .related-class-link:focus-visible { text-decoration: underline; background: #dbeafe; }
+.contained-class-count-button { display: inline-block; margin: 0 0.3rem 0.25rem 0; padding: 0.15rem 0.55rem; border: 1px solid #bae6fd; border-radius: 999px; color: #075985; background: #f0f9ff; cursor: pointer; font: inherit; font-size: 0.9em; white-space: nowrap; }
+.contained-class-count-button:hover, .contained-class-count-button:focus-visible { border-color: #38bdf8; background: #e0f2fe; }
+.class-instance-count { color: #334155; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.instance-pagination { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin: 0 0 0.75rem; color: #475569; font-size: 0.88rem; }
+.instance-pagination > div { display: flex; gap: 0.4rem; }
+.tree-leaf-class.is-navigation-target { outline: 3px solid #f59e0b; outline-offset: 2px; }
+#tree-panel .tree summary.is-navigation-target .tree-level-content { outline: 3px solid #f59e0b; outline-offset: 2px; border-radius: 5px; }
+.list-tabs { display: flex; gap: 0.2rem; margin: 0 0 1rem; border-bottom: 1px solid #cbd5e1; }
+.list-tab { padding: 0.55rem 1rem; border: 0; border-bottom: 3px solid transparent; color: #475569; background: transparent; cursor: pointer; font: inherit; font-size: 0.92rem; }
+.list-tab:hover { color: #0f6a9d; }
+.list-tab:focus-visible { outline: 3px solid #bfdbfe; outline-offset: -3px; }
+.list-tab.is-active { border-bottom-color: #0f6a9d; color: #0f6a9d; font-weight: 700; }
+.list-subpanel[hidden] { display: none; }
 .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; }
 .summary-grid > div { border: 1px solid #d8dee9; border-radius: 16px; padding: 1rem 1.25rem; background: #f8fafc; }
 .summary-grid h3 { margin-top: 0; }
@@ -106,6 +127,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 
 /* 3. クラス検索・編集フォーム */
 .class-search { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; margin-bottom: 1rem; padding: 0.9rem; border: 1px solid #d8dee9; border-radius: 12px; background: #f8fafc; }
+.class-search label[hidden] { display: none; }
 .class-search label { display: flex; flex-direction: column; gap: 0.25rem; color: #475569; font-size: 0.95rem; font-weight: 700; }
 .class-search select, .class-search input { box-sizing: border-box; min-width: 180px; min-height: 2.65rem; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; font: inherit; font-size: 0.95rem; font-weight: 400; }
 .class-search-text { display: flex; flex: 1; flex-direction: column; gap: 0.25rem; }
@@ -249,7 +271,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 /* 4. 階層ツリーの共通構造 */
 /* ツリー領域の寸法とクラスカード間隔 */
 .tree {
-  --tree-target-width: 230px;
+  --tree-target-width: 260px;
   --tree-target-row-gap: 0.15rem;
   --tree-target-column-gap: 0.95rem;
   margin: 0;
@@ -283,7 +305,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .tree > details > ul > li > details:has(> ul > .tree-target-row) > ul::before { display: none; }
 .tree > details > ul > li > details > ul {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 0.45rem 0.75rem;
   padding: 0.35rem 0.75rem;
 }
@@ -993,7 +1015,7 @@ body:not(.edit-panes-pinned) #edit-tree-panel .edit-tree-layout .instance-select
   display: none;
   margin: 0;
   color: #64748b;
-  font-size: 0.72rem;
+  font-size: 0.5rem;
   font-weight: 400;
   flex: 0 0 auto;
   white-space: nowrap;
@@ -1002,7 +1024,7 @@ body:not(.edit-panes-pinned) #edit-tree-panel .edit-tree-layout .instance-select
 .edit-count { margin-left: 0; color: #075985; background: #bae6fd; }
 #edit-tree-panel .tree .tree-add-button::first-line { font-weight: 700; }
 /* 上位・中間クラスの見出し: ラベル、件数、IDをまとめる表示領域 */
-#edit-tree-panel .tree .tree-level-content { display: flex; flex: 0 0 auto; flex-wrap: nowrap; align-items: baseline; gap: 0.25rem; width: max-content; min-width: max-content; margin-left: 0.2rem; padding: 0.25rem 0.35rem; white-space: nowrap; }
+#edit-tree-panel .tree .tree-level-content { display: flex; flex: 0 0 auto; flex-wrap: nowrap; align-items: baseline; gap: 0.15rem; width: max-content; min-width: max-content; margin-left: 0.2rem; padding: 0.25rem 0.35rem; white-space: nowrap; }
 #edit-tree-panel .tree .tree-level-label { font-weight: 700; white-space: nowrap; writing-mode: horizontal-tb; }
 #edit-tree-panel .tree .edit-count { white-space: nowrap; }
 #edit-tree-panel .tree .tree-level-id { margin-left: 0; color: #94a3b8; font-size: 0.65rem; font-weight: 400; overflow-wrap: anywhere; }
@@ -1042,6 +1064,66 @@ body[data-mode="browse"] .tree-add-button { display: none; }
 #tree-panel .tree .tree-target-list > li::before,
 #tree-panel .tree .tree-child-middle-list > li::before { border-top-color: var(--tree-level-color, #7dd3fc); }
 
+/* 閲覧ツリーの操作と検索を一つにまとめ、画面上部に固定する。 */
+#tree-panel .tree-controls {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  margin: 0 0 0.55rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: rgba(248, 250, 252, 0.97);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(8px);
+}
+#tree-panel .tree-controls > .tree-toolbar {
+  justify-content: flex-start;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+/* 閲覧モードでIDを表示するときは、IDをラベルの上段に配置する。 */
+.browse-show-ids #tree-panel .tree .tree-leaf-class {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  grid-template-areas: "id id" "label count";
+  align-items: baseline;
+  justify-content: start;
+  column-gap: 0;
+  row-gap: 0.1rem;
+}
+.browse-show-ids #tree-panel .tree .tree-leaf-id { grid-area: id; }
+.browse-show-ids #tree-panel .tree .tree-leaf-label { grid-area: label; }
+.browse-show-ids #tree-panel .tree .target-instance-count-badge { grid-area: count; }
+.browse-show-ids #tree-panel .tree .tree-leaf-id {
+  font-size: 0.58rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.browse-show-ids #tree-panel .tree .tree-leaf-label { font-size: 0.9rem; }
+.browse-show-ids #tree-panel .tree .tree-level-content {
+  grid-template-columns: max-content max-content;
+  grid-template-areas: "id id" "label count";
+  align-items: baseline;
+  justify-content: start;
+  column-gap: 0;
+  row-gap: 0.1rem;
+  width: auto;
+  min-width: 0;
+  max-width: calc(100% - 1.25rem);
+  white-space: normal;
+}
+.browse-show-ids #tree-panel .tree .tree-level-id { grid-area: id; }
+.browse-show-ids #tree-panel .tree .tree-level-label { grid-area: label; }
+.browse-show-ids #tree-panel .tree .edit-count { grid-area: count; }
+.browse-show-ids #tree-panel .tree .tree-level-id {
+  font-size: 0.58rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.browse-show-ids #tree-panel .tree .tree-level-label { font-size: 1rem; }
+
 /* 9. 一覧表 */
 table { border-collapse: collapse; width: 100%; font-size: 0.94rem; overflow: hidden; border-radius: 14px; }
 th, td { border-bottom: 1px solid #e2e8f0; padding: 0.65rem 0.75rem; text-align: left; }
@@ -1060,6 +1142,8 @@ tbody tr:hover { background: #eff6ff; }
 
 @media (max-width: 720px) {
   #tree-panel .tree { height: calc(100vh - 300px); }
+  .list-tabs { overflow-x: auto; }
+  .list-tab { white-space: nowrap; }
 }
 
 @media (max-width: 640px) {

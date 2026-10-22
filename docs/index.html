@@ -27,132 +27,145 @@
         aria-controls="tree-panel">
         階層ツリー
       </button>
-      <button type="button" class="tab" id="target-class-tab" role="tab" aria-selected="false"
-        aria-controls="target-class-panel">
-        クラス一覧
-      </button>
-      <button type="button" class="tab" id="middle-class-tab" role="tab" aria-selected="false"
-        aria-controls="middle-class-panel">
-        中間クラス一覧
-      </button>
-      <button type="button" class="tab" id="top-class-tab" role="tab" aria-selected="false"
-        aria-controls="top-class-panel">
-        上位クラス一覧
+      <button type="button" class="tab" id="list-tab" role="tab" aria-selected="false"
+        aria-controls="list-panel">
+        一覧
       </button>
     </div>
 
     <section id="tree-panel" class="tab-panel" role="tabpanel" aria-labelledby="tree-tab">
-      <div class="tree-toolbar" role="toolbar" aria-label="ツリー操作">
-        <button type="button" class="tree-toolbar-button" data-close-all-tree>すべて閉じる</button>
-        <button type="button" id="toggle-browse-ids" class="tree-toolbar-button" aria-pressed="false">クラスID表示: OFF</button>
+      <div class="tree-controls">
+        <div class="tree-toolbar" role="toolbar" aria-label="ツリー表示操作">
+          <button type="button" class="tree-toolbar-button" data-close-all-tree>すべて閉じる</button>
+          <button type="button" id="toggle-browse-ids" class="tree-toolbar-button" aria-pressed="false">クラスID表示: OFF</button>
+        </div>
       </div>
       <details class="tree-filter" role="search" aria-label="階層ツリーの絞り込み" open>
-        <summary class="tree-filter-heading"><span>検索</span><span id="tree-filter-count" class="tree-filter-count" aria-live="polite"></span></summary>
-        <div class="tree-filter-body">
-        <div class="tree-filter-mode-switch" role="group" aria-label="絞り込み方式">
-          <button type="button" class="is-active" data-tree-filter-method="keyword" aria-pressed="true">キーワード検索</button>
-          <button type="button" data-tree-filter-method="count" aria-pressed="false">件数</button>
-        </div>
-        <div class="tree-filter-search-controls">
-          <label for="tree-filter-type">検索対象
-            <select id="tree-filter-type">
-              <option value="class">クラス</option>
-              <option value="instance">インスタンス</option>
-            </select>
-          </label>
-          <label class="tree-filter-query-label" for="tree-filter-query">検索語
-            <input id="tree-filter-query" type="search" aria-label="検索語" placeholder="名前・IDで検索" autocomplete="off">
-          </label>
-        </div>
-        <fieldset class="tree-filter-count-settings" hidden>
-          <label class="tree-filter-count-mode-label" for="tree-filter-count-mode">インスタンス件数
-            <select id="tree-filter-count-mode" aria-label="件数指定方法">
-              <option value="range" selected>範囲指定</option>
-              <option value="exact">指定件数</option>
-            </select>
-          </label>
-          <fieldset id="tree-filter-count-range" class="tree-filter-count-range">
-            <div class="tree-filter-range-values"><span>最小 <output id="tree-filter-count-min-value">0件</output></span><span>最大 <output id="tree-filter-count-max-value">0件</output></span></div>
-            <div class="tree-filter-range-sliders" aria-label="件数の範囲を指定">
-              <input id="tree-filter-count-min" type="range" min="0" max="0" step="1" value="0" aria-label="最小件数">
-              <input id="tree-filter-count-max" type="range" min="0" max="0" step="1" value="0" aria-label="最大件数">
-              <output id="tree-filter-count-min-bubble" class="tree-filter-range-bubble" aria-hidden="true"></output>
-              <output id="tree-filter-count-max-bubble" class="tree-filter-range-bubble" aria-hidden="true"></output>
+          <summary class="tree-filter-heading"><span>検索</span><span id="tree-filter-count" class="tree-filter-count" aria-live="polite"></span></summary>
+          <div class="tree-filter-body">
+            <div class="tree-filter-mode-switch" role="group" aria-label="絞り込み方式">
+              <button type="button" class="is-active" data-tree-filter-method="keyword" aria-pressed="true">キーワード検索</button>
+              <button type="button" data-tree-filter-method="count" aria-pressed="false">件数</button>
             </div>
-          </fieldset>
-          <label id="tree-filter-count-exact" class="tree-filter-count-exact" hidden><span class="tree-filter-count-exact-title">指定件数：<output id="tree-filter-count-exact-value">0件</output></span>
-            <span class="tree-filter-exact-slider-row"><span id="tree-filter-count-exact-min">0件</span><span class="tree-filter-exact-slider-wrap"><input id="tree-filter-count-exact-input" class="tree-filter-exact-slider" type="range" min="0" max="0" step="1" value="0" aria-label="指定件数"><output id="tree-filter-count-exact-bubble" class="tree-filter-range-bubble tree-filter-exact-bubble" aria-hidden="true"></output></span><span id="tree-filter-count-exact-max">0件</span></span>
-          </label>
-        </fieldset>
-        </div>
+            <div class="tree-filter-search-controls">
+              <label for="tree-filter-type">検索対象
+                <select id="tree-filter-type">
+                  <option value="class">クラス</option>
+                  <option value="instance">インスタンス</option>
+                </select>
+              </label>
+              <label class="tree-filter-query-label" for="tree-filter-query">検索語
+                <input id="tree-filter-query" type="search" aria-label="検索語" placeholder="名前・IDで検索" autocomplete="off">
+              </label>
+            </div>
+            <fieldset class="tree-filter-count-settings" hidden>
+              <label class="tree-filter-count-mode-label" for="tree-filter-count-mode">インスタンス件数
+                <select id="tree-filter-count-mode" aria-label="件数指定方法">
+                  <option value="range" selected>範囲指定</option>
+                  <option value="exact">指定件数</option>
+                </select>
+              </label>
+              <fieldset id="tree-filter-count-range" class="tree-filter-count-range">
+                <div class="tree-filter-range-values"><span>最小 <output id="tree-filter-count-min-value">0件</output></span><span>最大 <output id="tree-filter-count-max-value">0件</output></span></div>
+                <div class="tree-filter-range-sliders" aria-label="件数の範囲を指定">
+                  <input id="tree-filter-count-min" type="range" min="0" max="0" step="1" value="0" aria-label="最小件数">
+                  <input id="tree-filter-count-max" type="range" min="0" max="0" step="1" value="0" aria-label="最大件数">
+                  <output id="tree-filter-count-min-bubble" class="tree-filter-range-bubble" aria-hidden="true"></output>
+                  <output id="tree-filter-count-max-bubble" class="tree-filter-range-bubble" aria-hidden="true"></output>
+                </div>
+              </fieldset>
+              <label id="tree-filter-count-exact" class="tree-filter-count-exact" hidden><span class="tree-filter-count-exact-title">指定件数：<output id="tree-filter-count-exact-value">0件</output></span>
+                <span class="tree-filter-exact-slider-row"><span id="tree-filter-count-exact-min">0件</span><span class="tree-filter-exact-slider-wrap"><input id="tree-filter-count-exact-input" class="tree-filter-exact-slider" type="range" min="0" max="0" step="1" value="0" aria-label="指定件数"><output id="tree-filter-count-exact-bubble" class="tree-filter-range-bubble tree-filter-exact-bubble" aria-hidden="true"></output></span><span id="tree-filter-count-exact-max">0件</span></span>
+              </label>
+            </fieldset>
+          </div>
       </details>
       <div id="tree" class="tree" role="tree"></div>
     </section>
 
-    <section id="top-class-panel" class="tab-panel" role="tabpanel" aria-labelledby="top-class-tab" hidden>
-      <h2>上位クラス一覧</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>ラベル</th>
-          </tr>
-        </thead>
-        <tbody id="top-class-rows"></tbody>
-      </table>
-    </section>
-
-    <section id="middle-class-panel" class="tab-panel" role="tabpanel" aria-labelledby="middle-class-tab" hidden>
-      <h2>中間クラス一覧</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>ラベル</th>
-          </tr>
-        </thead>
-        <tbody id="middle-class-rows"></tbody>
-      </table>
-    </section>
-
-    <section id="target-class-panel" class="tab-panel" role="tabpanel" aria-labelledby="target-class-tab" hidden>
-      <h2>クラス一覧</h2>
+    <section id="list-panel" class="tab-panel" role="tabpanel" aria-labelledby="list-tab" hidden>
+      <div class="list-toolbar">
+        <button type="button" id="clear-list-filters" class="search-button secondary-search-button">条件をクリア</button>
+        <button type="button" id="download-list-tsv" class="search-button">表示中の一覧をTSV保存</button>
+      </div>
       <div class="class-search" role="search">
-        <label for="top-class-filter">
+        <label class="top-class-list-filter" for="top-class-filter">
           上位クラス
           <select id="top-class-filter">
             <option value="">すべて</option>
           </select>
         </label>
-        <label for="middle-class-filter">
+        <label class="middle-class-list-filter" for="middle-class-filter">
           中間クラス
           <select id="middle-class-filter">
             <option value="">すべて</option>
           </select>
         </label>
         <label for="class-text-filter" class="class-search-text">
-          検索
+          一覧内検索
           <input id="class-text-filter" type="search" placeholder="ID・ラベルで部分一致検索">
         </label>
-        <button type="button" id="download-class-tsv" class="search-button">
-          絞り込み結果をTSV保存
-        </button>
       </div>
-
+      <div class="list-tabs" role="tablist" aria-label="一覧の種類">
+        <button type="button" class="list-tab" id="top-class-tab" role="tab" aria-selected="false" aria-controls="top-class-panel">上位クラス</button>
+        <button type="button" class="list-tab" id="middle-class-tab" role="tab" aria-selected="false" aria-controls="middle-class-panel">中間クラス</button>
+        <button type="button" class="list-tab is-active" id="target-class-tab" role="tab" aria-selected="true" aria-controls="target-class-panel">クラス一覧</button>
+        <button type="button" class="list-tab" id="instance-tab" role="tab" aria-selected="false" aria-controls="instance-panel">インスタンス</button>
+      </div>
+      <section id="target-class-panel" class="list-subpanel" role="tabpanel" aria-labelledby="target-class-tab">
+      <h2>クラス一覧</h2>
       <table>
         <thead>
           <tr>
             <th>ID</th>
             <th>ラベル</th>
+            <th>インスタンス数</th>
+            <th>関連クラス（親）</th>
           </tr>
         </thead>
         <tbody id="target-class-rows"></tbody>
       </table>
+      </section>
+
+      <section id="middle-class-panel" class="list-subpanel" role="tabpanel" aria-labelledby="middle-class-tab" hidden>
+        <h2>中間クラス一覧</h2>
+        <table>
+          <thead><tr><th>ID</th><th>ラベル</th><th>インスタンス数</th><th>親クラス・内包クラス</th></tr></thead>
+          <tbody id="middle-class-rows"></tbody>
+        </table>
+      </section>
+
+      <section id="top-class-panel" class="list-subpanel" role="tabpanel" aria-labelledby="top-class-tab" hidden>
+        <h2>上位クラス一覧</h2>
+        <table>
+          <thead><tr><th>ID</th><th>ラベル</th><th>インスタンス数</th></tr></thead>
+          <tbody id="top-class-rows"></tbody>
+        </table>
+      </section>
+
+      <section id="instance-panel" class="list-subpanel" role="tabpanel" aria-labelledby="instance-tab" hidden>
+        <h2>インスタンス一覧</h2>
+        <div class="instance-pagination" aria-label="インスタンス一覧のページ操作">
+          <span id="instance-page-info" aria-live="polite"></span>
+          <div>
+            <button type="button" id="instance-page-prev" class="search-button secondary-search-button">前へ</button>
+            <button type="button" id="instance-page-next" class="search-button secondary-search-button">次へ</button>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>ID</th><th>ラベル</th><th>関連クラス</th></tr></thead>
+          <tbody id="instance-rows"></tbody>
+        </table>
+      </section>
     </section>
   </main>
   <dialog id="target-instance-dialog" class="target-instance-dialog" aria-labelledby="target-instance-title">
     <form method="dialog" class="target-instance-dialog-header"><h2 id="target-instance-title"></h2><button type="submit" class="target-instance-dialog-close" aria-label="閉じる">×</button></form>
     <p id="target-instance-count" class="target-instance-count"></p><ul id="target-instance-list" class="target-instance-list"></ul>
+  </dialog>
+  <dialog id="contained-class-dialog" class="target-instance-dialog" aria-labelledby="contained-class-title">
+    <form method="dialog" class="target-instance-dialog-header"><h2 id="contained-class-title"></h2><button type="submit" class="target-instance-dialog-close" aria-label="閉じる">×</button></form>
+    <p id="contained-class-count" class="target-instance-count"></p><ul id="contained-class-list" class="target-instance-list"></ul>
   </dialog>
 </body>
 </html>

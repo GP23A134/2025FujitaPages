@@ -6,6 +6,7 @@ const treeElement = document.getElementById('tree');
 const summaryElement = document.getElementById('summary');
 const modeDescription = document.getElementById('mode-description');
 let renderTargetClassList = null;
+let renderInstanceList = null;
 let treeStickyLayoutFrame = 0;
 
 function scheduleBrowseTreeLayout() {
@@ -32,18 +33,113 @@ if (toggleBrowseIds) {
   });
 }
 
-function renderClassListRows(elementId, items) {
+function renderClassListRows(elementId, items, relatedClassesById = null, instanceCountsByClassId = null) {
   const target = document.getElementById(elementId);
   if (!target) return;
   target.replaceChildren(...items.map((item) => {
     const row = document.createElement('tr');
     const id = document.createElement('td');
     const label = document.createElement('td');
-    id.textContent = displayClassId(item.id);
+    id.append(document.createTextNode(String(item.id)));
+    id.append(createCopyIdButton(item.id));
     label.textContent = item.label;
     row.append(id, label);
+    if (instanceCountsByClassId) {
+      const count = document.createElement('td');
+      count.className = 'class-instance-count';
+      count.textContent = `${instanceCountsByClassId.get(item.id)?.size || 0}件`;
+      row.append(count);
+    }
+    if (relatedClassesById) {
+      const relatedCell = document.createElement('td');
+      const relationship = relatedClassesById.get(item.id) || [];
+      const relatedClasses = Array.isArray(relationship) ? relationship : relationship.parents;
+      if (relatedClasses.length) {
+        relatedClasses.forEach((relatedClass) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'related-class-link';
+          button.textContent = relatedClass.label || relatedClass.id;
+          button.setAttribute('aria-label', `${relatedClass.label || relatedClass.id} の階層ツリーを表示`);
+          button.addEventListener('click', () => showClassInTree(relatedClass.id));
+          relatedCell.append(button);
+        });
+      }
+      if (!Array.isArray(relationship) && relationship.children?.length) {
+        const countButton = document.createElement('button');
+        countButton.type = 'button';
+        countButton.className = 'contained-class-count-button';
+        countButton.textContent = `子クラス ${relationship.children.length}件`;
+        countButton.setAttribute('aria-label', `${item.label} に含まれるクラス ${relationship.children.length}件を表示`);
+        countButton.addEventListener('click', () => showContainedClasses(item, relationship.children));
+        relatedCell.append(countButton);
+      } else if (!relatedClasses.length) {
+        relatedCell.textContent = '—';
+      }
+      row.append(relatedCell);
+    }
     return row;
   }));
+}
+
+function showContainedClasses(middleClass, containedClasses) {
+  const dialog = document.getElementById('contained-class-dialog');
+  const title = document.getElementById('contained-class-title');
+  const count = document.getElementById('contained-class-count');
+  const list = document.getElementById('contained-class-list');
+  if (!dialog || !title || !count || !list) return;
+  title.textContent = `${middleClass.label || middleClass.id} に含まれるクラス`;
+  count.textContent = `${containedClasses.length}件`;
+  list.replaceChildren(...containedClasses.map((classInfo) => {
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    const id = document.createElement('small');
+    button.type = 'button';
+    button.className = 'related-class-link';
+    button.textContent = classInfo.label || classInfo.id;
+    button.setAttribute('aria-label', `${classInfo.label || classInfo.id} の階層ツリーを表示`);
+    button.addEventListener('click', () => {
+      dialog.close();
+      showClassInTree(classInfo.id);
+    });
+    id.textContent = classInfo.id;
+    item.append(button, id);
+    return item;
+  }));
+  dialog.showModal();
+}
+
+function createCopyIdButton(id) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'copy-id-button';
+  button.textContent = 'コピー';
+  button.setAttribute('aria-label', `ID ${id} をコピー`);
+  button.addEventListener('click', () => copyIdentifier(id, button));
+  return button;
+}
+
+async function copyIdentifier(value, button) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(String(value));
+    } else {
+      const input = document.createElement('textarea');
+      input.value = String(value);
+      input.style.position = 'fixed';
+      input.style.opacity = '0';
+      document.body.append(input);
+      input.select();
+      const copied = document.execCommand('copy');
+      input.remove();
+      if (!copied) throw new Error('Clipboard copy failed');
+    }
+    button.textContent = 'コピー済み';
+    window.setTimeout(() => { button.textContent = 'コピー'; }, 1200);
+  } catch {
+    button.textContent = '失敗';
+    window.setTimeout(() => { button.textContent = 'コピー'; }, 1600);
+  }
 }
 
 function renderClassLists(data) {
@@ -51,21 +147,39 @@ function renderClassLists(data) {
   const tops = data.topClassList?.classes || allClasses.filter((item) => item.id.includes('/t_'));
   const middles = data.middleClassList?.classes || allClasses.filter((item) => item.id.includes('/m_'));
   const targets = allClasses.filter((item) => item.id.includes('/c_'));
+  const instances = data.instanceData?.instances || [];
+  const classById = new Map(allClasses.map((item) => [item.id, item]));
+  const classesByInstanceId = new Map();
+  (data.instanceClassData?.relations || []).forEach((relation) => {
+    const classInfo = classById.get(relation.class);
+    if (!classInfo) return;
+    if (!classesByInstanceId.has(relation.instance)) classesByInstanceId.set(relation.instance, new Map());
+    classesByInstanceId.get(relation.instance).set(classInfo.id, classInfo);
+  });
   renderClassListRows('top-class-rows', tops);
   renderClassListRows('middle-class-rows', middles);
 
   const topFilter = document.getElementById('top-class-filter');
   const middleFilter = document.getElementById('middle-class-filter');
   const textFilter = document.getElementById('class-text-filter');
-  const downloadButton = document.getElementById('download-class-tsv');
+  const downloadButton = document.getElementById('download-list-tsv');
   if (!topFilter || !middleFilter || !textFilter || !downloadButton) return;
+  let filteredTargets = targets;
+  let filteredTops = tops;
+  let filteredMiddles = middles;
+  let filteredInstances = instances;
+  let instanceCurrentPage = 1;
+  const instancePageSize = 100;
 
   topFilter.replaceChildren(new Option('すべて', ''));
   middleFilter.replaceChildren(new Option('すべて', ''));
   const parentMap = new Map();
+  const childrenMap = new Map();
   (data.classData?.relations || []).forEach((relation) => {
     if (!parentMap.has(relation.child)) parentMap.set(relation.child, []);
     parentMap.get(relation.child).push(relation.parent);
+    if (!childrenMap.has(relation.parent)) childrenMap.set(relation.parent, []);
+    childrenMap.get(relation.parent).push(relation.child);
   });
   const ancestors = (id) => {
     const result = new Set();
@@ -78,10 +192,80 @@ function renderClassLists(data) {
     }
     return result;
   };
+  const knownInstanceIds = new Set(instances.map((instance) => instance.id));
+  const instanceIdsByClassId = new Map();
+  (data.instanceClassData?.relations || []).forEach((relation) => {
+    if (!knownInstanceIds.has(relation.instance)) return;
+    new Set([relation.class, ...ancestors(relation.class)]).forEach((classId) => {
+      if (!classById.has(classId)) return;
+      if (!instanceIdsByClassId.has(classId)) instanceIdsByClassId.set(classId, new Set());
+      instanceIdsByClassId.get(classId).add(relation.instance);
+    });
+  });
+  const relatedTargets = new Map(targets.map((item) => [item.id,
+    [...new Set(parentMap.get(item.id) || [])].map((id) => classById.get(id)).filter(Boolean)]));
+  const containedTargets = (middleId) => {
+    const found = new Map();
+    const seen = new Set();
+    const pending = [...(childrenMap.get(middleId) || [])];
+    while (pending.length) {
+      const id = pending.pop();
+      if (seen.has(id)) continue;
+      seen.add(id);
+      if (id.includes('/c_')) {
+        const classInfo = classById.get(id);
+        if (classInfo) found.set(id, classInfo);
+      } else {
+        pending.push(...(childrenMap.get(id) || []));
+      }
+    }
+    return [...found.values()].sort((a, b) => (a.label || a.id).localeCompare(b.label || b.id, 'ja'));
+  };
+  const relatedMiddles = new Map(middles.map((item) => [item.id, {
+    parents: [...new Set(parentMap.get(item.id) || [])].map((id) => classById.get(id)).filter(Boolean),
+    children: containedTargets(item.id),
+  }]));
+  const renderInstancePage = () => {
+    const pageCount = Math.max(1, Math.ceil(filteredInstances.length / instancePageSize));
+    instanceCurrentPage = Math.min(instanceCurrentPage, pageCount);
+    const start = (instanceCurrentPage - 1) * instancePageSize;
+    const pageItems = filteredInstances.slice(start, start + instancePageSize);
+    const rows = pageItems.map((instance) => {
+      const row = document.createElement('tr');
+      const id = document.createElement('td');
+      const label = document.createElement('td');
+      const classes = document.createElement('td');
+      id.append(document.createTextNode(String(instance.id)), createCopyIdButton(instance.id));
+      label.textContent = instance.label || '';
+      const relatedClasses = [...(classesByInstanceId.get(instance.id)?.values() || [])];
+      if (relatedClasses.length) {
+        relatedClasses.forEach((classInfo) => {
+          const link = document.createElement('button');
+          link.type = 'button';
+          link.className = 'related-class-link';
+          link.textContent = classInfo.label || classInfo.id;
+          link.setAttribute('aria-label', `${classInfo.label || classInfo.id} の階層ツリーを表示`);
+          link.addEventListener('click', () => showClassInTree(classInfo.id));
+          classes.append(link);
+        });
+      } else {
+        classes.textContent = '—';
+      }
+      row.append(id, label, classes);
+      return row;
+    });
+    document.getElementById('instance-rows').replaceChildren(...rows);
+    const pageInfo = document.getElementById('instance-page-info');
+    const first = filteredInstances.length ? start + 1 : 0;
+    const last = Math.min(start + instancePageSize, filteredInstances.length);
+    pageInfo.textContent = `${first}–${last}件 / ${filteredInstances.length}件（${instanceCurrentPage} / ${pageCount}ページ）`;
+    document.getElementById('instance-page-prev').disabled = instanceCurrentPage <= 1;
+    document.getElementById('instance-page-next').disabled = instanceCurrentPage >= pageCount;
+  };
   const addOptions = (select, items) => items.forEach((item) => {
     const option = document.createElement('option');
     option.value = item.id;
-    option.textContent = `${item.label} (${displayClassId(item.id)})`;
+    option.textContent = item.label;
     select.append(option);
   });
   addOptions(topFilter, tops);
@@ -97,24 +281,103 @@ function renderClassLists(data) {
       const matchesText = !text || `${item.id} ${item.label}`.toLocaleLowerCase().includes(text);
       return matchesTop && matchesMiddle && matchesText;
     });
-    renderClassListRows('target-class-rows', filtered);
-    downloadButton.onclick = () => {
-      const escapeTsv = (value) => String(value ?? '').replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
-      const lines = ['ID\tラベル', ...filtered.map((item) => `${escapeTsv(item.id)}\t${escapeTsv(item.label)}`)];
-      const blob = new Blob([`\ufeff${lines.join('\r\n')}\r\n`], { type: 'text/tab-separated-values;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'class-list.tsv';
-      link.click();
-      URL.revokeObjectURL(url);
-    };
+    filteredTargets = filtered;
+    renderClassListRows('target-class-rows', filtered, relatedTargets, instanceIdsByClassId);
   };
-  [topFilter, middleFilter, textFilter].forEach((element) => {
-    element.oninput = updateTargets;
-  });
+  const updateOtherLists = () => {
+    const text = textFilter.value.trim().toLocaleLowerCase();
+    const filterByText = (items) => !text ? items : items.filter((item) =>
+      `${item.id} ${item.label}`.toLocaleLowerCase().includes(text));
+    const topId = topFilter.value;
+    filteredTops = filterByText(tops);
+    filteredMiddles = filterByText(middles).filter((item) =>
+      !topId || ancestors(item.id).has(topId));
+    filteredInstances = filterByText(instances);
+    instanceCurrentPage = 1;
+    renderClassListRows('top-class-rows', filteredTops, null, instanceIdsByClassId);
+    renderClassListRows('middle-class-rows', filteredMiddles, relatedMiddles, instanceIdsByClassId);
+    if (document.getElementById('instance-tab')?.classList.contains('is-active')) {
+      renderInstancePage();
+    }
+  };
+  renderInstanceList = () => {
+    const text = textFilter.value.trim().toLocaleLowerCase();
+    filteredInstances = !text ? instances : instances.filter((item) =>
+      `${item.id} ${item.label}`.toLocaleLowerCase().includes(text));
+    instanceCurrentPage = 1;
+    renderInstancePage();
+  };
+  downloadButton.onclick = () => {
+    const activeListId = document.querySelector('.list-tab.is-active')?.id;
+    const items = activeListId === 'middle-class-tab' ? filteredMiddles
+      : activeListId === 'top-class-tab' ? filteredTops
+        : activeListId === 'instance-tab' ? filteredInstances
+          : filteredTargets;
+    const filename = activeListId === 'middle-class-tab' ? 'middle-class-list.tsv'
+      : activeListId === 'top-class-tab' ? 'top-class-list.tsv'
+        : activeListId === 'instance-tab' ? 'instance-list.tsv'
+          : 'class-list.tsv';
+    const escapeTsv = (value) => String(value ?? '').replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
+    const isInstanceList = activeListId === 'instance-tab';
+    const isRelatedClassList = activeListId === 'middle-class-tab' || activeListId === 'target-class-tab';
+    const isClassList = ['middle-class-tab', 'target-class-tab', 'top-class-tab'].includes(activeListId);
+    const headers = ['ID', 'ラベル'];
+    if (isClassList) headers.push('インスタンス数');
+    if (isInstanceList || isRelatedClassList) headers.push('関連クラス');
+    const lines = [headers.join('\t'), ...items.map((item) => {
+      const base = `${escapeTsv(item.id)}\t${escapeTsv(item.label)}`;
+      const instanceCount = instanceIdsByClassId.get(item.id)?.size || 0;
+      const classBase = `${base}\t${instanceCount}件`;
+      if (isRelatedClassList) {
+        const relatedMap = activeListId === 'middle-class-tab' ? relatedMiddles : relatedTargets;
+        const relationship = relatedMap.get(item.id) || [];
+        const relatedClasses = activeListId === 'middle-class-tab'
+          ? `${relationship.parents.map((classInfo) => classInfo.label || classInfo.id).join(' / ')}${relationship.parents.length ? ' / ' : ''}内包クラス ${relationship.children.length}件`
+          : relationship.map((classInfo) => classInfo.label || classInfo.id).join(' / ');
+        return `${classBase}\t${escapeTsv(relatedClasses)}`;
+      }
+      if (!isInstanceList) return classBase;
+      const relatedClasses = [...(classesByInstanceId.get(item.id)?.values() || [])]
+        .map((classInfo) => classInfo.label || classInfo.id).join(' / ');
+      return `${base}\t${escapeTsv(relatedClasses)}`;
+    })];
+    const blob = new Blob([`\ufeff${lines.join('\r\n')}\r\n`], { type: 'text/tab-separated-values;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  topFilter.oninput = () => {
+    updateTargets();
+    updateOtherLists();
+  };
+  middleFilter.oninput = updateTargets;
+  textFilter.oninput = () => {
+    updateTargets();
+    updateOtherLists();
+  };
   renderTargetClassList = updateTargets;
   if (document.getElementById('target-class-panel')?.hidden === false) updateTargets();
+  updateOtherLists();
+  document.getElementById('instance-page-prev').onclick = () => {
+    if (instanceCurrentPage <= 1) return;
+    instanceCurrentPage -= 1;
+    renderInstancePage();
+  };
+  document.getElementById('instance-page-next').onclick = () => {
+    if (instanceCurrentPage * instancePageSize >= filteredInstances.length) return;
+    instanceCurrentPage += 1;
+    renderInstancePage();
+  };
+  document.getElementById('clear-list-filters').onclick = () => {
+    topFilter.value = '';
+    middleFilter.value = '';
+    textFilter.value = '';
+    updateTargets();
+    updateOtherLists();
+  };
 }
 
 document.querySelectorAll('.mode-button').forEach((button) => {
@@ -182,12 +445,6 @@ function buildHierarchyRows(data) {
       });
   });
   return [...rowsByClass.values()];
-}
-
-function displayClassId(id) {
-  const segment = String(id).split('/').pop();
-  const match = segment.match(/^([cmt])_0*(\d+)$/);
-  return match ? `${match[1]}_${Number(match[2])}` : segment;
 }
 
 let treeCountRangeTouched = false;
@@ -276,8 +533,9 @@ function renderTree() {
     li.style.setProperty('--tree-level-color', levelColor);
     const card = document.createElement('div');
     card.className = 'tree-leaf-class';
+    card.dataset.classId = item.id;
     card.style.setProperty('--tree-level-color', levelColor);
-    const id = document.createElement('span'); id.className = 'tree-leaf-id'; id.textContent = displayClassId(item.id);
+    const id = document.createElement('span'); id.className = 'tree-leaf-id'; id.textContent = String(item.id);
     const label = document.createElement('span'); label.className = 'tree-leaf-label'; label.textContent = window.treeLabel(item.label);
     const count = document.createElement('span'); count.className = 'target-instance-count-badge';
     count.textContent = `(${instanceCount(item.id)}件)`;
@@ -291,11 +549,64 @@ function renderTree() {
     isOpen: (node) => openNodeIds.has(node.id),
     renderTarget: makeTarget,
     targetCountFor: (item) => instanceCount(item.id),
-    displayId: displayClassId,
+    displayId: (id) => String(id),
     afterChildren: scheduleBrowseTreeLayout,
     afterRender: scheduleBrowseTreeLayout
   });
   if (filterCount) filterCount.textContent = `${targets.length}件`;
+}
+
+async function showClassInTree(classId) {
+  document.getElementById('tree-tab')?.click();
+  const filterPanel = document.querySelector('.tree-filter');
+  const queryInput = document.getElementById('tree-filter-query');
+  const filterType = document.getElementById('tree-filter-type');
+  if (filterPanel) filterPanel.open = true;
+  if (queryInput) queryInput.value = '';
+  if (filterType) filterType.value = 'class';
+  treeCountFilterEnabled = false;
+  treeCountRangeTouched = false;
+  setTreeFilterMethod('keyword');
+  const parents = new Map();
+  (window.appData.classData.relations || []).forEach(({ child, parent }) => {
+    if (!parents.has(child)) parents.set(child, []);
+    parents.get(child).push(parent);
+  });
+  const path = [classId];
+  const seen = new Set(path);
+  let current = classId;
+  while (parents.has(current)) {
+    const parent = parents.get(current)[0];
+    if (seen.has(parent)) break;
+    path.push(parent);
+    seen.add(parent);
+    current = parent;
+  }
+  path.reverse();
+  for (const id of path) {
+    const node = [...treeElement.querySelectorAll('details[data-class-id]')]
+      .find((item) => item.dataset.classId === id);
+    if (!node) continue;
+    if (!node.open) {
+      const opened = new Promise((resolve) => node.addEventListener('toggle', resolve, { once: true }));
+      node.open = true;
+      await opened;
+    }
+  }
+  const card = [...treeElement.querySelectorAll('.tree-leaf-class')]
+    .find((item) => item.dataset.classId === classId);
+  const node = [...treeElement.querySelectorAll('details[data-class-id]')]
+    .find((item) => item.dataset.classId === classId);
+  const target = card || node?.querySelector(':scope > summary');
+  if (!target) return;
+  const treeRect = treeElement.getBoundingClientRect();
+  const cardRect = target.getBoundingClientRect();
+  treeElement.scrollTo({
+    top: treeElement.scrollTop + cardRect.top - treeRect.top - 48,
+    behavior: 'smooth'
+  });
+  target.classList.add('is-navigation-target');
+  window.setTimeout(() => target.classList.remove('is-navigation-target'), 1800);
 }
 
 function showTargetInstances(targetClass) {
@@ -440,7 +751,30 @@ document.querySelectorAll('.tab').forEach((tab) => {
       panel.hidden = !isActive;
       panel.style.display = isActive ? '' : 'none';
     });
+    if (tab.id === 'list-tab' && document.getElementById('target-class-panel')?.hidden === false) {
+      renderTargetClassList?.();
+    }
+  });
+});
+
+document.querySelectorAll('.list-tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.list-tab').forEach((item) => {
+      const active = item === tab;
+      item.classList.toggle('is-active', active);
+      item.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('.list-subpanel').forEach((panel) => {
+      panel.hidden = panel.id !== tab.getAttribute('aria-controls');
+    });
+    document.querySelectorAll('.top-class-list-filter').forEach((filter) => {
+      filter.hidden = !['target-class-tab', 'middle-class-tab'].includes(tab.id);
+    });
+    document.querySelectorAll('.middle-class-list-filter').forEach((filter) => {
+      filter.hidden = tab.id !== 'target-class-tab';
+    });
     if (tab.id === 'target-class-tab') renderTargetClassList?.();
+    if (tab.id === 'instance-tab') renderInstanceList?.();
   });
 });
 

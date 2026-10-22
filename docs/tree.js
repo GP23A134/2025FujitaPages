@@ -63,6 +63,7 @@
   function createTreeLevel(node, options = {}) {
     const type = node.type || classType(node.id);
     const details = document.createElement('details');
+    details.dataset.classId = node.id;
     details.className = type === 'top' ? 'tree-top-class' : 'tree-middle-class';
     const summary = document.createElement('summary');
     const content = document.createElement('div');
@@ -194,7 +195,8 @@
         if (options.beforeChildren) options.beforeChildren(node, list, depth);
         appendTreeLevelRows(
           list,
-          node.children,
+          [...node.children].sort((a, b) => countFor(b) - countFor(a)
+            || String(a.label || '').localeCompare(String(b.label || ''), 'ja')),
           [...node.targets].sort((a, b) => targetCountFor(b) - targetCountFor(a)
             || String(a.label || '').localeCompare(String(b.label || ''), 'ja')),
           (child) => {
