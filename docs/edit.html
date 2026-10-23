@@ -29,6 +29,8 @@
     <div class="edit-taskbar-group edit-taskbar-tree-actions" aria-label="ツリー操作">
       <button type="button" id="close-all-tree" class="edit-taskbar-button tree-toolbar-button" hidden><span class="edit-taskbar-icon" aria-hidden="true">⊟</span>すべて閉じる</button>
       <button type="button" id="toggle-tree-edit-mode" class="edit-taskbar-button tree-toolbar-button" aria-pressed="false"><span class="edit-taskbar-icon" aria-hidden="true">✎</span><span class="edit-taskbar-label">クラス編集: OFF</span></button>
+      <button type="button" id="select-visible-tree" class="edit-taskbar-button tree-toolbar-button" title="現在のツリー表示範囲にあるクラスをすべて選択">全選択</button>
+      <button type="button" id="clear-visible-tree-selection" class="edit-taskbar-button tree-toolbar-button" title="現在のツリー表示範囲にあるクラスの選択を解除">選択解除</button>
       <button type="button" id="toggle-tree-filter-open" class="edit-taskbar-button" hidden><span class="edit-taskbar-icon" aria-hidden="true">⌕</span>検索欄を表示</button>
     </div>
     <div class="edit-taskbar-spacer" aria-hidden="true"></div>
@@ -112,7 +114,7 @@
               <button type="button" class="held-kind-tab" data-held-kind="target" role="tab" aria-selected="false" aria-controls="held-instance-list">対象クラス <span data-held-kind-count="target">0</span></button>
             </div>
             <div class="held-panel-actions">
-              <button type="button" id="clear-held" class="held-action-button">全解除</button>
+              <button type="button" id="clear-held" class="held-action-button">表示中を解除</button>
             </div>
             <div id="held-instance-list" class="held-instance-list"></div>
           </div>

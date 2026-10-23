@@ -277,7 +277,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 /* 4. 階層ツリーの共通構造 */
 /* ツリー領域の寸法とクラスカード間隔 */
 .tree {
-  --tree-target-width: 260px;
+  --tree-target-width: 300px;
   --tree-target-row-gap: 0.15rem;
   --tree-target-column-gap: 0.95rem;
   margin: 0;
@@ -305,16 +305,17 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .tree > details > ul::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0.75rem; border-left: 2px solid #7dd3fc; }
 /* 上位クラス直下のli: ::beforeが横線。topは接続点の高さ、left/widthが線の横位置と長さ。 */
 .tree > details > ul > li::before { content: ""; position: absolute; left: -1.15rem; top: var(--tree-connector-y); transform: translateY(-50%); width: 1.15rem; border-top: 2px solid var(--tree-level-color, #7dd3fc); }
-.tree > details > ul > li > details > ul { position: relative; border-left: 0; }
-.tree > details > ul > li > details > ul::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0.75rem; border-left: 2px solid #cbd5e1; }
-/* クラスを表示する階層では、上位クラス側の縦線だけを残す。 */
-.tree > details > ul > li > details:has(> ul > .tree-target-row) > ul::before { display: none; }
 .tree > details > ul > li > details > ul {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 0.45rem 0.75rem;
   padding: 0.35rem 0.75rem;
+  border-left: 0;
 }
+.tree > details > ul > li > details > ul::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0.75rem; border-left: 2px solid #cbd5e1; }
+/* クラスを表示する階層では、上位クラス側の縦線だけを残す。 */
+.tree > details > ul > li > details:has(> ul > .tree-target-row) > ul::before { display: none; }
 .tree > details > ul > li > details > ul > li { margin: 0; }
 /* 中間クラス配下の通常の対象行: ::beforeが横線。 */
 .tree > details > ul > li > details > ul > li::before { content: ""; position: absolute; left: -1rem; top: var(--tree-connector-y); transform: translateY(-50%); width: 1rem; border-top: 1px solid var(--tree-level-color, #7dd3fd); }
@@ -509,26 +510,9 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .instance-selection.is-collapsed .held-panel-header { min-height: var(--edit-pane-header-height, 2.8rem); margin: calc(0px - var(--edit-pane-collapsed-padding-block, 0.4rem)) calc(0px - var(--edit-pane-collapsed-padding-inline, 0.65rem)) var(--edit-pane-collapsed-header-after-gap, 0.3rem); }
 .instance-selection.is-collapsed .held-panel-heading { min-height: var(--edit-pane-header-height, 2.8rem); font-size: var(--tree-panel-heading-font-size, 1.3rem); }
 .instance-selection.is-collapsed .held-panel-toggle { display: none; }
-.instance-selection.is-collapsed .held-panel-mode-tabs { display: none; }
 .instance-selection.is-collapsed #held-list-view:not([hidden]) { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; margin-top: 0.25rem; overflow: hidden; }
 .instance-selection.is-collapsed .held-panel-actions { display: none; }
 .instance-selection.is-collapsed .held-instance-list { flex: 1 1 auto; min-height: 2.5rem; max-height: none; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
-#edit-tree-panel { overflow: visible; }
-#edit-tree-panel .edit-tree-layout { overflow: visible; }
-/* 編集ツリーの見出しをスクロール中も追従させる。 */
-#edit-tree-panel .tree { --edit-top-sticky-offset: 3.35rem; }
-#edit-tree-panel .tree-top-class > summary { position: sticky; top: var(--edit-top-class-sticky-top, 0px); z-index: 20; color: #075985; background: #e0f2fe; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.12); }
-#edit-tree-panel .tree-middle-class > summary { position: sticky; top: calc(var(--edit-top-class-sticky-top, 0px) + var(--middle-sticky-top, var(--edit-top-sticky-offset, 3.35rem))); z-index: var(--middle-sticky-z, 15); margin-top: 0; border-left: 3px solid var(--tree-level-color, #38bdf8); background: #f8fafc; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.1); }
-#edit-tree-panel .tree-child-middle-list > li > .tree-middle-class > summary {
-  display: flex;
-  align-self: start;
-  width: 100%;
-  position: sticky;
-  top: calc(var(--edit-top-class-sticky-top, 0px) + var(--middle-sticky-top, var(--edit-top-sticky-offset, 3.35rem)));
-  z-index: var(--middle-sticky-z, 15);
-  margin-top: 0;
-  background: #f8fafc;
-}
 /* 保持中パネルの見出し・操作ボタン */
 .instance-selection h2,
 .instance-selection h3 {
@@ -543,7 +527,6 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .held-panel-heading { display: flex; flex: 1 1 auto; align-items: center; min-width: 0; color: #334155; font-size: var(--tree-panel-heading-font-size, 1.3rem); font-weight: 700; line-height: 1.35; }
 .held-panel-header-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 0.35rem; }
 .instance-selection .held-panel-header { margin-bottom: 0; }
-.held-panel-mode-tabs { display: flex; flex: 0 0 auto; justify-content: stretch; gap: 0.2rem; margin: 0 0 0.45rem; padding: 0.2rem; border: 1px solid #dbe3ec; border-radius: 8px; background: #f1f5f9; }
 .held-panel-mode-tab { display: inline-flex; min-width: 0; min-height: 2rem; align-items: center; justify-content: center; flex: 1 1 0; padding: 0.25rem 0.35rem; border: 1px solid transparent; border-radius: 6px; color: #475569; background: transparent; cursor: pointer; font: inherit; font-size: 0.78rem; font-weight: 650; line-height: 1.15; white-space: nowrap; }
 .held-panel-mode-tab.is-active { border-color: #cbd5e1; color: #075985; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1); }
 .held-panel-mode-tab:hover { color: #075985; background: #eaf4fb; }
@@ -740,7 +723,6 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
   position: sticky; top: 0; z-index: 20; color: #075985;
   background: #e0f2fe; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.12);
 }
-#edit-tree-panel .tree-top-class > summary { top: var(--edit-top-class-sticky-top, 0px); }
 #tree-panel .tree-top-class > summary,
 #edit-tree-panel .tree-top-class > summary,
 #tree-panel .tree-middle-class > summary,
@@ -766,7 +748,6 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
   position: sticky; top: var(--middle-sticky-top, 3.35rem); z-index: var(--middle-sticky-z, 15);
   margin-top: 0.35rem; background: #f8fafc; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.1);
 }
-#edit-tree-panel .tree-middle-class > summary { top: calc(var(--edit-top-class-sticky-top, 0px) + var(--middle-sticky-top, var(--edit-top-sticky-offset, 3.35rem))); margin-top: 0; }
 #tree-panel .tree-top-class > summary,
 #tree-panel .tree-middle-class > summary { padding: 0.25rem 0.55rem; font-size: 0.95rem; }
 #tree-panel .tree .tree-level-content { display: flex; flex-wrap: nowrap; gap: 0.25rem; white-space: nowrap; }
@@ -897,9 +878,11 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 /* 8. 編集ツリーの階層線・ノード（共通指定より後に編集用の差分を配置） */
 /* ツリー内の階層見出しと接続線 */
 .edit-tree-panel,
-#edit-tree-panel { min-height: 300px; }
+#edit-tree-panel { min-height: 300px; overflow: visible; }
+#edit-tree-panel .edit-tree-layout { overflow: visible; }
 
 #edit-tree-panel .tree {
+  --edit-top-sticky-offset: 3.35rem;
   padding: 0;
   border: none;
   border-radius: 0;
@@ -920,11 +903,21 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
   list-style-position: outside;
 }
 
-/* 上位・中間クラスの見出しを「中間クラスを追加」行と同じ縦寸法にする。 */
+/* 編集ツリーのクラス見出し: 寸法とスクロール時の固定位置 */
 #edit-tree-panel .tree-top-class > summary,
 #edit-tree-panel .tree-middle-class > summary {
   padding: 0.25rem 0.55rem;
   font-size: 0.95rem;
+}
+#edit-tree-panel .tree-top-class > summary { top: var(--edit-top-class-sticky-top, 0px); }
+#edit-tree-panel .tree-middle-class > summary {
+  top: calc(var(--edit-top-class-sticky-top, 0px) + var(--middle-sticky-top, var(--edit-top-sticky-offset, 3.35rem)));
+  margin-top: 0;
+  border-left: 3px solid var(--tree-level-color, #38bdf8);
+}
+#edit-tree-panel .tree-child-middle-list > li > .tree-middle-class > summary {
+  align-self: start;
+  width: 100%;
 }
 
 #edit-tree-panel .tree summary::marker { color: #2563eb; }

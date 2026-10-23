@@ -4,20 +4,6 @@
   if (!editor) return;
 
   const API_URL = 'https://api.openai.com/v1/responses';
-  const SYSTEM_PROMPT = `あなたは階層クラス分類の編集補助です。受け取った構造化データと利用者の依頼から、変更案と確認事項を日本語で作ります。
-
-必ず守ること:
-- インスタンス個別データは受け取っていません。件数は集計値としてのみ渡され、分類の根拠に使ってはいけません。分類判断はクラス名と親子関係だけを使います。
-- クラス情報には編集対象範囲と、移動先候補の文脈が含まれます。操作対象にできる既存クラスはeditableIdsに含まれるIDだけです。新規クラスの移動先には文脈内の上位・中間クラスを使えます。
-- 提案は許可された操作のJSONだけで表します。自由記述の手順や実行コードを出しません。IDは入力にあるものだけを使い、新設IDは一時IDを作ります。
-- 上位クラス・中間クラスは追加、改名、移動、削除を提案できます。対象クラスは移動だけ可能です。対象クラスの名前・ID・実体を編集または削除してはいけません。インスタンスは一切変更しません。
-- 上位クラスは階層の最上位に置きます。上位クラス自体の親への移動は提案せず、再編ではその配下の中間・対象クラスを移動します。中間クラスは上位または中間クラスの下へ移動できます。
-- 削除する上位・中間クラスの親子関係は、移動操作で先に解消します。各配下クラスの移動先を提案し、判断できないものは推測せず質問にします。移動不要な対象クラスには操作を作りません。
-- 同じクラスに複数の親を作らず、循環する親子関係を作りません。未分類クラスや未分類中間クラスを新設せず、既存の未分類上位クラスを使い、その下に中間クラスを置きません。
-- 中間クラスの新設・改名時、同名の上位クラスがあるなら中間クラスを新設・改名せず、その上位クラスを候補にします。既存の同名クラスは明示的な指示がない限り整理しません。
-- 中黒「・」で異なる概念を一つのクラス名にまとめません。件数削減や簡略化を理由に概念の異なるクラスを統合しません。既存名と関係は明示的に変更を求められたものだけ変更します。
-- 提案は関連操作ごとにまとまりにします。確認事項がある変更は質問を返し、その質問に依存する操作はその提案のquestionsにも記載します。判断可能な別提案は同時に返してかまいません。
-- baseDataHashには依頼メッセージで渡された値をそのまま返します。返答は指定スキーマに従います。`;
 
   const operationSchema = {
     type: 'object', additionalProperties: false,
@@ -60,7 +46,19 @@
   const modelSelect = document.getElementById('ai-model');
   const settingsStatus = document.getElementById('ai-settings-status');
   let modelConfig = null;
-  const modelConfigPromise = fetch('data/input/ai-models.json', { cache: 'no-store' })
+  const systemPromptPromise = fetch('data/web/ai-system-prompt.md', { cache: 'no-store' })
+    .then((response) => { if (!response.ok) throw new Error('AIプロンプトを読み込めません。'); return response.text(); })
+    .then((prompt) => {
+      const trimmedPrompt = prompt.trim();
+      if (!trimmedPrompt) throw new Error('AIプロンプトが空です。');
+      return trimmedPrompt;
+    })
+    .catch((error) => {
+      settingsStatus.textContent = `${error.message}。AI補助を利用できません。`;
+      settingsStatus.classList.add('is-error');
+      return null;
+    });
+  const modelConfigPromise = fetch('data/web/ai-models.json', { cache: 'no-store' })
     .then((response) => { if (!response.ok) throw new Error('モデル設定ファイルを読み込めません。'); return response.json(); })
     .then((config) => {
       if (!Array.isArray(config.models) || !config.models.length || !config.models.some((item) => item.id === config.defaultModel)) {
@@ -430,6 +428,8 @@
     const key = keyInput.value.trim();
     if (!key) { setStatus('設定欄にOpenAI APIキーを入力してください。', 'error'); keyInput.focus(); return; }
     if (!await modelConfigPromise) { setStatus('モデル設定を読み込めないため依頼を送信できません。', 'error'); return; }
+    const systemPrompt = await systemPromptPromise;
+    if (!systemPrompt) { setStatus('AIプロンプトを読み込めないため依頼を送信できません。', 'error'); return; }
     let scope;
     try { scope = getPayloadSnapshot(); } catch (error) { setStatus(error.message, 'error'); return; }
     try { await verifyLoadedDataVersion(); }
@@ -458,7 +458,7 @@
       const body = {
         model: modelSelect.value,
         reasoning: { effort: 'low' },
-        instructions: SYSTEM_PROMPT,
+        instructions: systemPrompt,
         input: userContent,
         text: { format: { type: 'json_schema', name: 'class_edit_proposals', strict: true, schema: responseSchema } },
         max_output_tokens: 5000,
