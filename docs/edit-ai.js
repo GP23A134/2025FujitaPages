@@ -4,6 +4,8 @@
   if (!editor) return;
 
   const API_URL = 'https://api.openai.com/v1/responses';
+  // Context tokenization varies by model and language; cap the serialized user payload conservatively.
+  const MAX_REQUEST_CHARACTERS = 60000;
 
   const operationSchema = {
     type: 'object', additionalProperties: false,
@@ -230,6 +232,7 @@
     const changedCounts = Object.fromEntries(Object.entries(afterCounts).filter(([id, count]) => beforeCounts[id] !== count));
     return {
       kind: 'scope_and_data_diff',
+      mode: after.mode || 'selected_scope',
       selectedIds: after.selectedIds,
       editableScopeIds: after.editableIds,
       addedOrChangedClasses: changedClasses,
@@ -237,18 +240,22 @@
       addedRelations: after.relations.filter((item) => !beforeRelations.has(relationKey(item))),
       removedRelations: before.relations.filter((item) => !afterRelations.has(relationKey(item))),
       changedAggregateCounts: changedCounts,
-      currentScopeClassIds: after.classes.map((item) => item.id)
+      currentScopeClassIds: after.classes.map((item) => item.id),
+      targetClassCount: before.targetClassCount === after.targetClassCount ? undefined : after.targetClassCount
     };
   };
   const getPayloadSnapshot = () => {
     const selectedIds = editor.selectedIds;
-    if (!selectedIds.length) throw new Error('ツリーで対象にするクラスを選択してください。');
+    if (!selectedIds.length) return editor.getOverviewState();
     return editor.getScopedState(selectedIds);
   };
   const formatHttpError = (body, response) => {
     const apiMessage = body?.error?.message;
     if (response.status === 401) return 'APIキーを確認してください。認証に失敗しました。';
     if (response.status === 429) return 'APIの利用上限またはレート制限に達しました。時間をおいて再依頼してください。';
+    if (/exceeds the context window/i.test(apiMessage || '')) {
+      return 'この相談の履歴と対象範囲がモデルの入力上限を超えました。新しい相談を始めるか、選択範囲を小さくしてください。';
+    }
     if (response.status === 400 && apiMessage) return `依頼を送信できませんでした: ${apiMessage}`;
     return apiMessage || `OpenAI APIへの接続に失敗しました（HTTP ${response.status}）。`;
   };
@@ -444,8 +451,14 @@
       baseDataHash,
       request: userText,
       selectedScope: contextPayload,
-      instruction: 'この相談の範囲にあるクラスの提案だけを返してください。個別インスタンス情報はありません。'
+      instruction: scope.mode === 'overview_summary'
+        ? 'これは全体構造の要約です。個別対象クラス名は含みません。既存クラスの変更・移動・削除は提案せず、全体評価、確認事項、新しい上位・中間クラスの案だけを返してください。'
+        : 'この相談の範囲にあるクラスの提案だけを返してください。個別インスタンス情報はありません。'
     });
+    if (userContent.length > MAX_REQUEST_CHARACTERS) {
+      setStatus(`選択範囲の送信データが大きすぎます（約${userContent.length.toLocaleString()}文字）。全件ではなく、対象を中間クラスや個別クラスに絞ってください。入力文は保持しています。`, 'error');
+      return;
+    }
     textInput.value = '';
     conversation.selectedIds = [...editor.selectedIds];
     conversation.items.push({ type: 'message', role: 'user', text: userText });
