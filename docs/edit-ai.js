@@ -434,6 +434,11 @@
     if (isSending) return;
     const key = keyInput.value.trim();
     if (!key) { setStatus('設定欄にOpenAI APIキーを入力してください。', 'error'); keyInput.focus(); return; }
+    if (!/^[\x21-\x7E]+$/.test(key)) {
+      setStatus('APIキーに半角ASCII以外の文字が含まれています。キーを再コピーして入力してください。キーの前後や途中に空白・改行がないか確認してください。', 'error');
+      keyInput.focus();
+      return;
+    }
     if (!await modelConfigPromise) { setStatus('モデル設定を読み込めないため依頼を送信できません。', 'error'); return; }
     const systemPrompt = await systemPromptPromise;
     if (!systemPrompt) { setStatus('AIプロンプトを読み込めないため依頼を送信できません。', 'error'); return; }
