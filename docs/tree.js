@@ -214,7 +214,10 @@
         if (options.afterChildren) options.afterChildren(node, list, depth);
         details.append(list);
       };
-      details.addEventListener('toggle', () => { if (details.open) renderChildren(); });
+      details.addEventListener('toggle', () => {
+        if (details.open) renderChildren();
+        if (options.onToggle) options.onToggle(details, node, depth);
+      });
       if (details.open) renderChildren();
       return details;
     };

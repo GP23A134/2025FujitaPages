@@ -17,166 +17,37 @@
     <h1>クラス編集</h1>
     <p class="page-description">既存クラスの所属を整理します。</p>
     <div class="page-header-actions">
+      <button type="button" id="open-edit-settings" class="page-link-button">設定</button>
       <a id="browse-link" class="page-link-button" href="index.html">閲覧画面へ</a>
     </div>
   </header>
   <div class="edit-taskbar" role="toolbar" aria-label="編集操作">
     <div class="edit-taskbar-group" aria-label="操作履歴">
-      <button type="button" id="undo-edit" class="edit-taskbar-button" disabled title="元に戻す履歴はありません">元に戻す</button>
-      <button type="button" id="redo-edit" class="edit-taskbar-button" disabled title="やり直す履歴はありません">やり直し</button>
+      <button type="button" id="undo-edit" class="edit-taskbar-button" disabled title="元に戻す履歴はありません"><span class="edit-taskbar-icon" aria-hidden="true">↶</span>元に戻す</button>
+      <button type="button" id="redo-edit" class="edit-taskbar-button" disabled title="やり直す履歴はありません"><span class="edit-taskbar-icon" aria-hidden="true">↷</span>やり直し</button>
+    </div>
+    <div class="edit-taskbar-group edit-taskbar-tree-actions" aria-label="ツリー操作">
+      <button type="button" id="close-all-tree" class="edit-taskbar-button tree-toolbar-button" hidden><span class="edit-taskbar-icon" aria-hidden="true">⊟</span>すべて閉じる</button>
+      <button type="button" id="toggle-tree-edit-mode" class="edit-taskbar-button tree-toolbar-button" aria-pressed="false"><span class="edit-taskbar-icon" aria-hidden="true">✎</span><span class="edit-taskbar-label">クラス編集: OFF</span></button>
+      <button type="button" id="toggle-tree-filter-open" class="edit-taskbar-button" hidden><span class="edit-taskbar-icon" aria-hidden="true">⌕</span>検索欄を表示</button>
     </div>
     <div class="edit-taskbar-spacer" aria-hidden="true"></div>
-    <button type="button" id="close-all-tree" class="edit-taskbar-button tree-toolbar-button" hidden>すべて閉じる</button>
-    <button type="button" id="toggle-edit-ids" class="edit-taskbar-button tree-toolbar-button" aria-pressed="false">クラスID表示: OFF</button>
-    <button type="button" id="toggle-tree-edit-mode" class="edit-taskbar-button tree-toolbar-button" aria-pressed="false">クラス編集モード: OFF</button>
-    <button type="button" id="toggle-edit-panes-pin" class="edit-taskbar-button" aria-pressed="false">検索・保持欄固定: OFF</button>
+    <div class="edit-taskbar-group edit-taskbar-panel-modes" role="tablist" aria-label="サイド欄">
+      <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="held" role="tab" aria-selected="false" aria-controls="held-list-view"><span class="edit-taskbar-icon" aria-hidden="true">▤</span>保持中 <span id="held-count-toolbar" class="held-count" aria-live="polite">0件</span></button>
+      <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="destination" role="tab" aria-selected="false" aria-controls="held-destination-picker"><span class="edit-taskbar-icon" aria-hidden="true">⇥</span>移動先</button>
+      <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="chat" role="tab" aria-selected="false" aria-controls="ai-assistant-panel"><span class="edit-taskbar-icon" aria-hidden="true">◉</span>AIチャット</button>
+    </div>
     <button type="button" id="save-edit-changes" class="edit-taskbar-button edit-header-save">編集内容を保存</button>
   </div>
 
   <main>
-    <!-- 編集画面の機能を切り替えるタブ -->
-    <div class="tabs" role="tablist" aria-label="編集画面切り替え">
-      <button type="button" class="tab is-active" data-edit-tab="edit-tree-panel" aria-selected="true">
-        階層ツリー
-      </button>
-      <button type="button" class="tab" data-edit-tab="target-search-panel" aria-selected="false">
-        検索・付与
-      </button>
-      <button type="button" class="tab" data-edit-tab="class-management-panel" aria-selected="false">
-        クラス管理
-      </button>
-    </div>
-
-    <!-- 階層ツリーとクラスの検索・一括付与 -->
+    <!-- 階層ツリーを中心にクラスを編集 -->
     <section id="edit-tree-panel" class="tab-panel">
-
-      <section id="target-search-panel" class="target-search-panel" hidden>
-        <h2>クラス／インスタンスを検索してクラスを付与</h2>
-        <details class="search-panel-disclosure search-conditions-disclosure">
-          <summary>検索条件</summary>
-          <div class="search-panel-disclosure-content">
-            <div class="search-condition-tabs" role="tablist" aria-label="検索条件の種類">
-              <button type="button" id="search-condition-keyword-tab" class="search-condition-tab is-active" role="tab" aria-selected="true" aria-controls="search-keyword-view">キーワード検索</button>
-              <button type="button" id="search-condition-hierarchy-tab" class="search-condition-tab" role="tab" aria-selected="false" aria-controls="search-hierarchy-view">所属クラスで絞り込み</button>
-            </div>
-            <div id="search-keyword-view" class="search-condition-view" role="tabpanel" aria-labelledby="search-condition-keyword-tab">
-              <div class="class-search">
-                <label for="target-search-type">検索対象
-                  <select id="target-search-type" class="search-type-select is-class">
-                    <option value="class">クラス</option>
-                    <option value="instance">インスタンス</option>
-                  </select>
-                </label>
-                <div class="class-search-text">
-                  <label for="target-class-search">検索ワード</label>
-                  <input id="target-class-search" type="search" placeholder="クラス名・IDを入力">
-                </div>
-                <button type="button" id="target-search-submit" class="search-button">検索</button>
-              </div>
-            </div>
-            <div id="search-hierarchy-view" class="search-condition-view" role="tabpanel" aria-labelledby="search-condition-hierarchy-tab" hidden>
-              <section class="search-hierarchy-filters">
-                <div class="search-hierarchy-filter-fields">
-                  <div class="search-hierarchy-filter-group is-top">
-                    <span class="search-hierarchy-filter-label">上位クラス</span>
-                    <button type="button" id="search-filter-top-toggle" class="search-hierarchy-filter-toggle" aria-expanded="false" aria-controls="search-filter-top-list">上位クラスを選択</button>
-                    <div id="search-filter-top-list" class="search-hierarchy-filter-list" hidden></div>
-                  </div>
-                  <div class="search-hierarchy-filter-group is-middle">
-                    <span class="search-hierarchy-filter-label">中間クラス</span>
-                    <button type="button" id="search-filter-middle-toggle" class="search-hierarchy-filter-toggle" aria-expanded="false" aria-controls="search-filter-middle-list">中間クラスを選択</button>
-                    <div id="search-filter-middle-list" class="search-hierarchy-filter-list" hidden></div>
-                  </div>
-                </div>
-                <div class="search-hierarchy-filter-footer">
-                  <p class="search-hierarchy-filter-hint">選択したクラス名のボタンを押すと個別解除できます。未選択の場合はすべて表示します。</p>
-                </div>
-              </section>
-            </div>
-            <div class="search-active-filters" aria-label="現在の絞り込み条件">
-              <div class="search-active-filter-row">
-                <span class="search-active-filter-label">検索ワード</span>
-                <div id="target-search-keyword-chip" class="search-hierarchy-selected"></div>
-                <button type="button" id="target-search-clear" class="held-action-button">解除</button>
-              </div>
-              <div class="search-active-filter-row">
-                <span class="search-active-filter-label">所属クラス</span>
-                <div id="search-hierarchy-selected-classes" class="search-hierarchy-selected"></div>
-                <button type="button" id="clear-hierarchy-filters" class="held-action-button">解除</button>
-              </div>
-            </div>
-          </div>
-        </details>
-        <details class="search-panel-disclosure search-results-disclosure" open>
-          <summary>検索結果一覧</summary>
-          <div class="search-panel-disclosure-content">
-            <p id="target-search-loading" class="target-search-loading" role="status" aria-live="polite" hidden>検索結果を読み込み中…</p>
-            <div class="target-search-toolbar">
-              <p id="target-search-count" class="edit-status search-selection-summary" aria-live="polite"></p>
-              <div class="target-search-selection-actions">
-                <button type="button" id="select-search-results" class="search-button">全選択</button>
-                <button type="button" id="clear-search-selection" class="held-action-button">選択解除</button>
-              </div>
-            </div>
-            <div id="target-search-results" class="target-search-results"></div>
-          </div>
-        </details>
-        <details class="search-panel-disclosure">
-          <summary>選択したクラスを反映</summary>
-          <div class="search-panel-disclosure-content">
-            <section class="search-apply-section" aria-label="選択したクラスを反映">
-              <div class="class-edit-form search-result-apply-form">
-                <label for="search-apply-mode">反映方法
-                  <select id="search-apply-mode">
-                    <option value="existing">既存クラスへ付与</option>
-                    <option value="create">新しいクラスを生成して付与</option>
-                  </select>
-                </label>
-                <div id="search-existing-fields" class="search-apply-fields">
-                  <label for="search-target-kind">付与先の種類
-                    <select id="search-target-kind">
-                      <option value="middle">中間クラス</option>
-                      <option value="top">上位クラス</option>
-                    </select>
-                  </label>
-                  <label for="search-target-parent">付与先のクラス
-                    <select id="search-target-parent"></select>
-                  </label>
-                </div>
-                <div id="search-create-fields" class="search-apply-fields" hidden>
-                  <label for="search-new-class-kind">生成するクラスの種類
-                    <select id="search-new-class-kind">
-                      <option value="middle">中間クラス</option>
-                      <option value="top">上位クラス</option>
-                    </select>
-                  </label>
-                  <div id="search-new-class-parent-fields" class="search-new-class-parent-fields" hidden>
-                    <label for="search-new-class-parent-kind">親クラスの種類
-                      <select id="search-new-class-parent-kind">
-                        <option value="top">上位クラス</option>
-                        <option value="middle">中間クラス</option>
-                      </select>
-                    </label>
-                    <label for="search-new-class-parent">親クラス
-                      <select id="search-new-class-parent"></select>
-                    </label>
-                  </div>
-                  <label for="search-new-class-label">新しいクラス名
-                    <input id="search-new-class-label" type="text" placeholder="新しいクラス名">
-                  </label>
-                </div>
-                <button type="button" id="apply-search-selection" class="search-button">既存クラスへ付与</button>
-              </div>
-            </section>
-          </div>
-        </details>
-      </section>
-
       <!-- 検索・ツリーと保持中パネルを左右に配置 -->
       <div class="edit-tree-layout">
         <div class="edit-tree-pane">
-          <details class="tree-filter" role="search" aria-label="階層ツリーの絞り込み" open>
-            <summary class="tree-filter-heading"><span>検索</span><span id="tree-filter-count" class="tree-filter-count" aria-live="polite"></span></summary>
+          <details id="tree-filter" class="tree-filter" role="search" aria-label="階層ツリーの絞り込み" open>
+            <summary class="tree-filter-heading"><span>検索</span><span id="tree-filter-count" class="tree-filter-count" aria-live="polite"></span><button type="button" id="close-tree-filter" class="held-panel-icon-button tree-filter-close" aria-label="検索欄を閉じる" title="検索欄を閉じる">×</button></summary>
             <div class="tree-filter-body">
               <div class="tree-filter-mode-switch" role="group" aria-label="絞り込み方式">
                 <button type="button" class="is-active" data-tree-filter-method="keyword" aria-pressed="true">キーワード検索</button>
@@ -190,9 +61,10 @@
                   </select>
                 </label>
                 <label class="tree-filter-query-label" for="tree-filter-query">検索語
-                  <input id="tree-filter-query" type="search" aria-label="検索語" placeholder="名前・IDで検索" autocomplete="off">
+                  <input id="tree-filter-query" type="search" aria-label="検索語を入力しEnterで追加" placeholder="名前・IDで検索してEnterで追加" autocomplete="off">
                 </label>
               </div>
+              <div id="tree-filter-keyword-chips" class="search-hierarchy-selected" aria-label="検索ワード"></div>
               <fieldset class="tree-filter-count-settings" hidden>
                 <label class="tree-filter-count-mode-label" for="tree-filter-count-mode">インスタンス件数
                   <select id="tree-filter-count-mode" aria-label="件数指定方法"><option value="range" selected>範囲指定</option><option value="exact">指定件数</option></select>
@@ -216,71 +88,88 @@
         </div>
         <div class="held-panel-spacer" aria-hidden="true"></div>
         <aside id="held-panel" class="instance-selection">
+          <div id="held-panel-resize" class="held-panel-resize" role="separator" aria-orientation="vertical" aria-label="保持欄の幅を変更" aria-valuemin="240" aria-valuemax="760" aria-valuenow="320" tabindex="0"></div>
           <div class="held-panel-header">
-            <button type="button" id="toggle-held-panel-collapse" class="held-panel-heading" aria-expanded="true" aria-controls="held-list-view held-destination-picker" title="保持中欄を折りたたむ">
-              <span class="held-panel-collapse-icon" aria-hidden="true"></span>
-              <span class="held-panel-title"><span id="held-kind-label">保持中</span> <span id="held-count" class="held-count" aria-live="polite">0件</span></span>
-            </button>
-            <button type="button" id="toggle-held-panel-view" class="held-panel-toggle" aria-controls="held-list-view held-destination-picker" aria-pressed="false">一覧へ</button>
+            <button type="button" id="toggle-held-panel-collapse" class="held-panel-icon-button held-panel-minimize" aria-expanded="true" aria-controls="held-list-view held-destination-picker ai-assistant-panel" aria-label="保持欄を最小化" title="保持欄を最小化"><span class="held-panel-collapse-icon" aria-hidden="true"></span></button>
+            <div class="held-panel-heading">
+              <span class="held-panel-title"><span id="held-kind-label">保持中</span></span>
+            </div>
+            <div class="held-panel-header-actions">
+              <div class="ai-history-anchor" hidden>
+                <button type="button" id="ai-show-history" class="held-panel-icon-button ai-history-button" aria-expanded="false" aria-controls="ai-history-popover" title="過去の相談">履歴</button>
+                <div id="ai-history-popover" class="ai-history-popover" hidden>
+                  <h3>過去の相談</h3>
+                  <div id="ai-history-list" class="ai-history-list"></div>
+                </div>
+              </div>
+              <button type="button" id="close-held-panel" class="held-panel-icon-button held-panel-close" aria-label="保持欄を閉じる" title="保持欄を閉じる">×</button>
+            </div>
           </div>
           <div id="held-list-view" role="tabpanel">
+            <div class="held-kind-tabs" role="tablist" aria-label="保持中のクラス種類">
+              <button type="button" class="held-kind-tab is-active" data-held-kind="top" role="tab" aria-selected="true" aria-controls="held-instance-list">上位クラス <span data-held-kind-count="top">0</span></button>
+              <button type="button" class="held-kind-tab" data-held-kind="middle" role="tab" aria-selected="false" aria-controls="held-instance-list">中間クラス <span data-held-kind-count="middle">0</span></button>
+              <button type="button" class="held-kind-tab" data-held-kind="target" role="tab" aria-selected="false" aria-controls="held-instance-list">対象クラス <span data-held-kind-count="target">0</span></button>
+            </div>
             <div class="held-panel-actions">
               <button type="button" id="clear-held" class="held-action-button">全解除</button>
             </div>
             <div id="held-instance-list" class="held-instance-list"></div>
           </div>
           <section id="held-destination-picker" class="held-destination-picker" aria-label="移動先を選択" hidden>
+            <label class="held-destination-search-label" for="held-destination-search">移動先を検索
+              <input id="held-destination-search" type="search" placeholder="クラス名・所属階層" autocomplete="off">
+            </label>
             <div class="held-destination-tabs" role="tablist" aria-label="移動先の種類">
               <button type="button" class="held-destination-tab is-active" data-destination-kind="top" role="tab" aria-selected="true">上位クラス</button>
               <button type="button" class="held-destination-tab" data-destination-kind="middle" role="tab" aria-selected="false">中間クラス</button>
             </div>
-            <button type="button" id="apply-held-destination" class="held-action-button" disabled>選択先へ移動</button>
-            <label class="held-destination-search-label" for="held-destination-search">移動先を検索
-              <input id="held-destination-search" type="search" placeholder="クラス名・所属階層" autocomplete="off">
-            </label>
-            <div id="held-destination-list" class="held-destination-list"></div>
             <section id="held-destination-recent" class="held-destination-recent" aria-label="最近使った移動先" hidden>
               <h3>最近使った移動先</h3>
               <div id="held-destination-recent-list" class="held-destination-recent-list"></div>
             </section>
+            <div id="held-destination-list" class="held-destination-list"></div>
+            <button type="button" id="apply-held-destination" class="held-action-button" disabled>選択先へ移動</button>
+          </section>
+          <section id="ai-assistant-panel" class="ai-assistant-panel" aria-label="AIチャット" hidden>
+            <div id="ai-chat-messages" class="ai-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+            <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
+            <form id="ai-chat-form" class="ai-chat-form">
+              <button type="button" id="ai-new-consultation" class="ai-new-consultation" aria-label="新しい相談" title="新しい相談">＋</button>
+              <label class="sr-only" for="ai-chat-input">AIへの依頼</label>
+              <textarea id="ai-chat-input" rows="2" placeholder="メッセージを入力"></textarea>
+              <button id="ai-send" type="submit" class="search-button">送信</button>
+            </form>
           </section>
         </aside>
       </div>
     </section>
 
-    <!-- 現在のクラス一覧 -->
-    <section id="edit-form-panel" class="tab-panel" hidden>
-      <!-- 上位・中間クラスの名称変更と削除 -->
-      <section id="class-management-panel" class="class-management-panel" hidden>
-        <h2>中間・上位クラス管理</h2>
-        <p class="management-note">所属件数の少ない順に表示しています。削除したクラスに所属するクラスは未分類へ移動します。</p>
-        <div class="management-tabs" role="tablist" aria-label="管理対象の切り替え">
-          <button type="button" class="management-tab is-active" data-management-kind="top">上位クラス</button>
-          <button type="button" class="management-tab" data-management-kind="middle">中間クラス</button>
-        </div>
-        <div id="class-management-list"></div>
-      </section>
-
-      <!-- 編集中のクラス一覧とTSV出力 -->
-      <section>
-        <h2>現在のクラス</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>種類</th>
-              <th>ID</th>
-              <th>ラベル</th>
-            </tr>
-          </thead>
-          <tbody id="edit-class-rows"></tbody>
-        </table>
-      </section>
-
-      <div>
-        <button type="button" id="download-class-update" class="search-button">class-update.jsonを保存</button>
-      </div>
-    </section>
   </main>
+  <dialog id="edit-settings-dialog" class="edit-settings-dialog" aria-labelledby="edit-settings-title">
+    <div class="ai-preview-header">
+      <h2 id="edit-settings-title">設定</h2>
+      <button type="button" id="close-edit-settings" class="target-instance-dialog-close" aria-label="設定を閉じる">×</button>
+    </div>
+    <section class="edit-settings-section" aria-labelledby="ai-connection-settings-title">
+      <h3 id="ai-connection-settings-title">AI接続</h3>
+      <label for="ai-api-key">OpenAI APIキー</label>
+      <div class="ai-key-row">
+        <input id="ai-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…">
+        <button type="button" id="ai-toggle-key-visibility" class="held-action-button" aria-pressed="false">表示</button>
+      </div>
+      <p class="edit-settings-note">キーはページを開いている間だけメモリ内に保持します。API通信時にOpenAIへ送信され、ページを閉じると消去されます。</p>
+      <label for="ai-model">モデル</label>
+      <select id="ai-model" class="edit-settings-select" aria-describedby="ai-model-description"></select>
+      <p id="ai-model-description" class="edit-settings-note">モデル候補は設定ファイルで管理します。</p>
+      <p id="ai-settings-status" class="ai-status" role="status" aria-live="polite"></p>
+    </section>
+    <section class="edit-settings-section" aria-labelledby="display-settings-title">
+      <h3 id="display-settings-title">表示</h3>
+      <label class="edit-settings-toggle"><input type="checkbox" id="toggle-edit-ids"> クラスIDを表示する</label>
+      <label class="edit-settings-toggle"><input type="checkbox" id="toggle-edit-panes-pin"> 検索・保持欄を画面上に固定する</label>
+    </section>
+  </dialog>
   <dialog id="target-instance-dialog" class="target-instance-dialog" aria-labelledby="target-instance-title">
     <form method="dialog" class="target-instance-dialog-header">
       <h2 id="target-instance-title"></h2>
@@ -289,5 +178,22 @@
     <p id="target-instance-count" class="target-instance-count"></p>
     <ul id="target-instance-list" class="target-instance-list"></ul>
   </dialog>
+  <dialog id="ai-preview-dialog" class="ai-preview-dialog" aria-labelledby="ai-preview-title">
+    <div class="ai-preview-header">
+      <h2 id="ai-preview-title">変更案のプレビュー</h2>
+      <button type="button" id="ai-preview-close" class="target-instance-dialog-close" aria-label="閉じる">×</button>
+    </div>
+    <p id="ai-preview-impact" class="ai-preview-impact"></p>
+    <div id="ai-preview-operations" class="ai-preview-operations"></div>
+    <div class="ai-preview-columns">
+      <section><h3>変更前</h3><div id="ai-preview-before" class="ai-preview-tree"></div></section>
+      <section><h3>変更後</h3><div id="ai-preview-after" class="ai-preview-tree"></div></section>
+    </div>
+    <div class="ai-preview-actions">
+      <button type="button" id="ai-preview-cancel" class="held-action-button">戻る</button>
+      <button type="button" id="ai-apply-proposal" class="search-button">この変更を適用</button>
+    </div>
+  </dialog>
+  <script src="edit-ai.js" defer></script>
 </body>
 </html>

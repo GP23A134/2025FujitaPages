@@ -8,17 +8,80 @@ const modeDescription = document.getElementById('mode-description');
 let renderTargetClassList = null;
 let renderInstanceList = null;
 let treeStickyLayoutFrame = 0;
+let browseStickyBoundsFrame = 0;
 
 function scheduleBrowseTreeLayout() {
   if (treeStickyLayoutFrame) return;
   treeStickyLayoutFrame = requestAnimationFrame(() => {
     treeStickyLayoutFrame = 0;
+    syncBrowseTreeStickyBounds();
     window.updateTreeStickyOffsets(treeElement);
     window.updateTreeTargetRowStarts(treeElement);
   });
 }
+function syncBrowseTreeStickyBounds() {
+  const panel = document.getElementById('tree-panel');
+  const controls = panel?.querySelector('.tree-controls');
+  const filter = panel?.querySelector('.tree-filter');
+  if (!panel || !controls) return;
+  const controlsBounds = controls.getBoundingClientRect();
+  panel.style.setProperty('--browse-controls-sticky-top', `${controlsBounds.height}px`);
+  const filterBounds = filter && !filter.hidden ? filter.getBoundingClientRect() : null;
+  const filterGap = filter ? Number.parseFloat(getComputedStyle(filter).marginBottom) || 0 : 0;
+  const headingTop = Math.max(controlsBounds.bottom, filterBounds ? filterBounds.bottom + filterGap : controlsBounds.bottom);
+  treeElement.style.setProperty('--browse-tree-heading-sticky-top', `${headingTop}px`);
+}
+function alignBrowseHeadingToStickyPosition(heading) {
+  let attempts = 0;
+  const adjust = () => {
+    syncBrowseTreeStickyBounds();
+    const targetTop = Number.parseFloat(getComputedStyle(heading).top) || 0;
+    const difference = heading.getBoundingClientRect().top - targetTop;
+    if (Math.abs(difference) <= 1 || attempts >= 3) return;
+    attempts += 1;
+    window.scrollBy(0, difference);
+    window.requestAnimationFrame(adjust);
+  };
+  window.requestAnimationFrame(adjust);
+}
+function getBrowseStickyHeadersBottom(target) {
+  const controls = document.querySelector('#tree-panel .tree-controls');
+  const filter = document.querySelector('#tree-panel .tree-filter');
+  const controlsHeight = controls?.getBoundingClientRect().height ?? 0;
+  const filterHeight = filter && !filter.hidden ? filter.getBoundingClientRect().height : 0;
+  const filterGap = filter ? Number.parseFloat(getComputedStyle(filter).marginBottom) || 0 : 0;
+  const headingTop = controlsHeight + filterHeight + filterGap;
+  let bottom = headingTop;
+  const topClass = target.closest('.tree-top-class');
+  const topSummary = topClass?.querySelector(':scope > summary');
+  if (topSummary) bottom = Math.max(bottom, headingTop + topSummary.getBoundingClientRect().height);
+  let middleClass = target.closest('.tree-middle-class');
+  while (middleClass) {
+    const summary = middleClass.querySelector(':scope > summary');
+    const offset = Number.parseFloat(getComputedStyle(middleClass).getPropertyValue('--middle-sticky-top')) || 0;
+    if (summary) bottom = Math.max(bottom, headingTop + offset + summary.getBoundingClientRect().height);
+    middleClass = middleClass.parentElement?.closest('.tree-middle-class');
+  }
+  return bottom;
+}
 
 window.addEventListener('resize', scheduleBrowseTreeLayout);
+window.addEventListener('scroll', () => {
+  if (browseStickyBoundsFrame) return;
+  browseStickyBoundsFrame = requestAnimationFrame(() => {
+    browseStickyBoundsFrame = 0;
+    syncBrowseTreeStickyBounds();
+  });
+}, { passive: true });
+
+let pendingBrowseCloseDetails = null;
+treeElement.addEventListener('click', (event) => {
+  const summary = event.target.closest('summary');
+  const details = summary?.parentElement;
+  if (!details?.matches('.tree-top-class, .tree-middle-class') || !details.open) return;
+  if (event.target.closest('button, input, select, textarea, a')) return;
+  pendingBrowseCloseDetails = details;
+}, true);
 
 document.querySelector('[data-close-all-tree]')?.addEventListener('click', () => {
   treeElement.querySelectorAll('details[open]').forEach((details) => { details.open = false; });
@@ -550,6 +613,12 @@ function renderTree() {
     renderTarget: makeTarget,
     targetCountFor: (item) => instanceCount(item.id),
     displayId: (id) => String(id),
+    onToggle: (details) => {
+      if (details.open || pendingBrowseCloseDetails !== details) return;
+      pendingBrowseCloseDetails = null;
+      const heading = details.querySelector(':scope > summary');
+      if (heading?.getClientRects().length) alignBrowseHeadingToStickyPosition(heading);
+    },
     afterChildren: scheduleBrowseTreeLayout,
     afterRender: scheduleBrowseTreeLayout
   });
@@ -599,12 +668,12 @@ async function showClassInTree(classId) {
     .find((item) => item.dataset.classId === classId);
   const target = card || node?.querySelector(':scope > summary');
   if (!target) return;
-  const treeRect = treeElement.getBoundingClientRect();
+  await new Promise((resolve) => window.requestAnimationFrame(resolve));
+  syncBrowseTreeStickyBounds();
+  window.updateTreeStickyOffsets(treeElement);
   const cardRect = target.getBoundingClientRect();
-  treeElement.scrollTo({
-    top: treeElement.scrollTop + cardRect.top - treeRect.top - 48,
-    behavior: 'smooth'
-  });
+  const visibleTop = getBrowseStickyHeadersBottom(target) + 8;
+  window.scrollTo({ top: window.scrollY + cardRect.top - visibleTop, behavior: 'smooth' });
   target.classList.add('is-navigation-target');
   window.setTimeout(() => target.classList.remove('is-navigation-target'), 1800);
 }
