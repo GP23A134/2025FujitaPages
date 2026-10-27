@@ -677,8 +677,6 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-change-item.is-excluded { color: #64748b; background: #f1f5f9; }
 .ai-preview-change-text { min-width: 0; overflow-wrap: anywhere; }
 .ai-preview-change-status { color: #475569; font-size: 0.72rem; white-space: nowrap; }
-.ai-preview-change-details { grid-column: 1 / -1; margin: 0.1rem 0 0; padding-left: 1.25rem; color: #64748b; }
-.ai-preview-change-details li { margin: 0.15rem 0; }
 .ai-preview-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 0.75rem; }
 .ai-preview-columns > section { min-width: 0; }
 .ai-preview-columns h3 { margin: 0.4rem 0; color: #334155; font-size: 0.95rem; }
@@ -698,7 +696,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .tree-level-label { overflow-wrap: anywhere; white-space: normal; }
 #ai-preview-dialog .tree ul { margin: 0.25rem 0 0.45rem 1.15rem; padding-left: 1rem; border-left: 2px solid #bfdbfe; list-style: none; }
 #ai-preview-dialog .tree li { margin: 0.35rem 0; }
-#ai-preview-dialog .tree .tree-level-rows { margin: 0.35rem 0 0.55rem 1rem; padding: 0 0 0 0.75rem; border-left-color: var(--tree-level-color, #0284c7); }
+#ai-preview-dialog .tree .tree-level-rows { margin: 0.25rem 0 0.45rem 1.15rem; padding: 0 0 0 0.75rem; border-left-color: var(--tree-level-color, #0284c7); }
 #ai-preview-dialog .tree > details > ul { --ai-preview-middle-link-length: calc(1.15rem - 3px); position: relative; margin-left: 0.7rem; padding-left: 1.15rem; border-left: 0; }
 #ai-preview-dialog .tree > details > ul::before { content: ""; position: absolute; top: 0; bottom: 0.75rem; left: 0; border-left: 2px solid #7dd3fc; }
 #ai-preview-dialog .tree > details > ul > li::before { content: ""; position: absolute; top: var(--tree-connector-y, 50%); left: -1.15rem; width: 1.15rem; transform: translateY(-50%); border-top: 2px solid var(--tree-level-color, #7dd3fc); }
@@ -739,7 +737,6 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .edit-show-ids #ai-preview-dialog .tree .tree-leaf-id { display: inline; grid-area: id; font-size: 0.58rem; white-space: normal; overflow-wrap: anywhere; }
 .edit-show-ids #ai-preview-dialog .tree .tree-leaf-label { grid-area: label; }
 .ai-preview-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-top: 0.85rem; }
-.ai-preview-actions .ai-preview-note { flex: 1 1 20rem; margin: 0; }
 
 /* 保持したクラスの移動先を選ぶ検索・候補一覧 */
 .held-destination-picker { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; margin-top: 0.25rem; }

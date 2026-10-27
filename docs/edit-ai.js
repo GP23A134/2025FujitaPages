@@ -462,58 +462,15 @@
       void showPreview(proposalItem, false, true).catch(reportPreviewError);
     });
   };
-  const renderPreviewChangeList = (proposalItem, beforeState, proposedCandidate, beforeParents, afterParents, resolveProposedId, addedClassForReference) => {
+  const renderPreviewChangeList = (proposalItem) => {
     const list = document.getElementById('ai-preview-change-list');
-    const beforeById = new Map(beforeState.classes.map((item) => [item.id, item]));
-    const proposedById = new Map(proposedCandidate.classes.map((item) => [item.id, item]));
-    const parentPath = (id, classesById, parents) => {
-      if (!id) return '最上位';
-      const labels = []; const seen = new Set(); let current = id;
-      while (current && !seen.has(current)) {
-        seen.add(current);
-        const item = classesById.get(current);
-        if (item) labels.push(item.label);
-        current = parents.get(current);
-      }
-      return labels.reverse().join(' ＞ ') || '最上位';
-    };
-    const parentLabel = (id, classesById, parents) => id ? parentPath(id, classesById, parents) : '最上位';
     const rows = proposalItem.proposal.operations.map((operation, index) => {
       const excluded = proposalItem.excludedOperationIndexes.has(index);
       const row = document.createElement('li');
       row.className = `ai-preview-change-item${excluded ? ' is-excluded' : ''}`;
-      const text = document.createElement('span'); text.className = 'ai-preview-change-text';
+      const text = document.createElement('span'); text.className = 'ai-preview-change-text'; text.textContent = operationLabel(operation);
       const status = document.createElement('span'); status.className = 'ai-preview-change-status'; status.textContent = excluded ? '除外' : '適用';
-      const details = [];
-      if (operation.type === 'addClass') {
-        const added = addedClassForReference(operation.temporaryId);
-        const parentId = added && afterParents.get(added.id);
-        text.textContent = `${operation.classType === 'top' ? '上位' : '中間'}クラス「${operation.label}」を${parentId ? `「${parentLabel(parentId, proposedById, afterParents)}」の下に` : ''}追加`;
-      } else if (operation.type === 'renameClass') {
-        const id = resolveProposedId(operation.classId); const before = beforeById.get(id); const after = proposedById.get(id);
-        const parentId = beforeParents.get(id);
-        text.textContent = `「${before?.label || labelFor(id)}」を「${after?.label || operation.label}」に改名${parentId ? `（親: ${parentLabel(parentId, beforeById, beforeParents)}）` : ''}`;
-      } else if (operation.type === 'moveClass') {
-        const id = resolveProposedId(operation.classId); const item = beforeById.get(id);
-        text.textContent = `「${item?.label || labelFor(id)}」を移動`;
-        details.push(`${parentLabel(beforeParents.get(id), beforeById, beforeParents)} → ${parentLabel(afterParents.get(id), proposedById, afterParents)}`);
-      } else if (operation.type === 'moveChildren') {
-        const from = resolveProposedId(operation.from); const to = resolveProposedId(operation.to);
-        text.textContent = `「${labelFor(from)}」の配下を「${labelFor(to)}」へ移動`;
-        beforeState.classes.filter((item) => beforeParents.get(item.id) !== afterParents.get(item.id)
-          && (beforeParents.get(item.id) === from || afterParents.get(item.id) === to))
-          .forEach((item) => details.push(`「${item.label}」: ${parentLabel(beforeParents.get(item.id), beforeById, beforeParents)} → ${parentLabel(afterParents.get(item.id), proposedById, afterParents)}`));
-        if (!details.length) details.push('移動対象はありません');
-      } else if (operation.type === 'deleteClass') {
-        const id = resolveProposedId(operation.classId); const item = beforeById.get(id);
-        text.textContent = `${item?.type === 'top' ? '上位' : '中間'}クラス「${item?.label || labelFor(id)}」を削除${beforeParents.has(id) ? `（親: ${parentLabel(beforeParents.get(id), beforeById, beforeParents)}）` : ''}`;
-      } else text.textContent = operationLabel(operation);
       row.append(text, status);
-      if (details.length) {
-        const detailList = document.createElement('ul'); detailList.className = 'ai-preview-change-details';
-        details.forEach((detail) => { const item = document.createElement('li'); item.textContent = detail; detailList.append(item); });
-        row.append(detailList);
-      }
       return row;
     });
     list.replaceChildren(...rows);
@@ -678,7 +635,7 @@
         });
       }
     });
-    renderPreviewChangeList(proposalItem, beforeState, proposedCandidate, beforeParents, afterParents, resolveProposedId, addedClassForReference);
+    renderPreviewChangeList(proposalItem);
     const activeParents = new Map(candidate.relations.map(({ child, parent }) => [child, parent]));
     const movedTargets = beforeState.classes.filter((item) => item.type === 'class'
       && beforeParents.get(item.id) !== activeParents.get(item.id));
