@@ -334,11 +334,15 @@
     const unavailable = item.status === 'applied';
     preview.disabled = unavailable || item.status === 'invalid';
     apply.disabled = unavailable || item.status === 'invalid';
+    const updateStatus = () => {
+      statusLabel.textContent = item.status === 'previewed' ? '確認済み' : item.status === 'stale' ? '適用後の状態で再確認が必要' : '';
+      card.className = `ai-proposal-card is-${item.status}`;
+    };
     preview.addEventListener('click', () => {
-      void showPreview(item, false).catch(reportPreviewError);
+      void showPreview(item, false).then(updateStatus).catch(reportPreviewError);
     });
     apply.addEventListener('click', () => {
-      void showPreview(item, true).catch(reportPreviewError);
+      void showPreview(item, true).then(updateStatus).catch(reportPreviewError);
     });
     actions.append(preview, apply, statusLabel);
     card.append(actions);
@@ -388,25 +392,38 @@
     } else if (proposalItem.status === 'pending') {
       proposalItem.status = 'previewed';
     }
-    renderConversation();
     if (stateFingerprint() !== expectedFingerprint) throw new Error('プレビュー作成中にデータが変更されました。最新データで提案し直してください。');
     const operationIds = new Set();
     operations.forEach((operation) => ['classId', 'destinationId', 'from', 'to'].forEach((key) => { if (operation[key]) operationIds.add(operation[key]); }));
     const beforeState = editor.getState();
     const beforeIds = new Set(beforeState.classes.map((item) => item.id));
     candidate.classes.filter((item) => !beforeIds.has(item.id)).forEach((item) => operationIds.add(item.id));
-    const before = document.getElementById('ai-preview-before'); const after = document.getElementById('ai-preview-after');
-    const previewIds = new Set(proposalItem.previewClassIds || beforeState.classes.map((item) => item.id));
+    const beforeParents = new Map(beforeState.relations.map(({ child, parent }) => [child, parent]));
+    const afterParents = new Map(candidate.relations.map(({ child, parent }) => [child, parent]));
     const candidateIds = new Set(candidate.classes.map((item) => item.id));
-    operationIds.forEach((id) => { if (candidateIds.has(id)) previewIds.add(id); });
+    for (const id of new Set([...beforeParents.keys(), ...afterParents.keys()])) {
+      if (beforeParents.get(id) !== afterParents.get(id)) operationIds.add(id);
+    }
+    const affectedIds = new Set(operationIds);
+    const addAncestors = (ids, parentByChild, validIds) => {
+      for (const id of [...ids]) {
+        let parent = parentByChild.get(id);
+        while (parent && validIds.has(parent) && !ids.has(parent)) {
+          ids.add(parent);
+          parent = parentByChild.get(parent);
+        }
+      }
+    };
+    addAncestors(operationIds, beforeParents, beforeIds);
+    addAncestors(operationIds, afterParents, candidateIds);
+    const before = document.getElementById('ai-preview-before'); const after = document.getElementById('ai-preview-after');
+    const previewIds = operationIds;
     const previewState = (state) => ({
       classes: state.classes.filter((item) => previewIds.has(item.id)),
       relations: state.relations.filter(({ child, parent }) => previewIds.has(child) && previewIds.has(parent))
     });
-    appendTree(before, previewState(beforeState), operationIds);
-    appendTree(after, previewState(candidate), operationIds);
-    const beforeParents = new Map(beforeState.relations.map(({ child, parent }) => [child, parent]));
-    const afterParents = new Map(candidate.relations.map(({ child, parent }) => [child, parent]));
+    appendTree(before, previewState(beforeState), affectedIds);
+    appendTree(after, previewState(candidate), affectedIds);
     const movedTargets = beforeState.classes.filter((item) => item.type === 'class'
       && beforeParents.get(item.id) !== afterParents.get(item.id));
     const movedTargetCount = movedTargets.reduce((sum, item) => sum + (beforeState.counts[item.id] || 0), 0);
@@ -680,21 +697,46 @@
   const validateSplitTaskOperations = (result, task) => {
     const editable = new Set(task.scope.editableIds);
     const classesById = new Map(task.scope.classes.map((item) => [item.id, item]));
-    result.proposals.forEach((proposal) => proposal.operations.forEach((operation) => {
-      if (task.kind === 'targets') {
-        const destination = classesById.get(operation.destinationId);
-        if (operation.type !== 'moveClass' || !editable.has(operation.classId)
-          || classesById.get(operation.classId)?.type !== 'class'
-          || !destination || !['top', 'middle'].includes(destination.type)) {
-          throw new Error('分割した対象クラスの提案に範囲外の操作が含まれています。安全のため、この依頼の提案は表示しません。');
+    let discardedOperationCount = 0;
+    result.proposals.forEach((proposal) => {
+      const originalOperationCount = proposal.operations.length;
+      const temporaryIds = new Set(proposal.operations
+        .filter((operation) => operation.type === 'addClass' && operation.temporaryId)
+        .map((operation) => operation.temporaryId));
+      const isDestination = (id) => {
+        const item = classesById.get(id);
+        return Boolean((item && ['top', 'middle'].includes(item.type)) || temporaryIds.has(id));
+      };
+      const allowed = proposal.operations.filter((operation) => {
+        if (task.kind === 'targets') {
+          const destination = classesById.get(operation.destinationId);
+          return operation.type === 'moveClass'
+            && editable.has(operation.classId)
+            && classesById.get(operation.classId)?.type === 'class'
+            && destination && ['top', 'middle'].includes(destination.type);
         }
-      } else {
-        const sourceIds = [operation.classId, operation.from].filter(Boolean);
-        if (sourceIds.some((id) => !editable.has(id))) {
-          throw new Error('分割した階層提案に対象範囲外の操作が含まれています。安全のため、この依頼の提案は表示しません。');
+        const sourceId = operation.classId || operation.from;
+        if (['renameClass', 'moveClass', 'moveChildren', 'deleteClass'].includes(operation.type)
+          && !editable.has(sourceId)) return false;
+        if (operation.type === 'moveClass' && !isDestination(operation.destinationId)) return false;
+        if (operation.type === 'moveChildren' && !isDestination(operation.to)) return false;
+        if (operation.type === 'addClass') {
+          if (!['top', 'middle'].includes(operation.classType)) return false;
+          if (operation.classType === 'top' && operation.parentId) return false;
+          if (operation.classType === 'middle' && !isDestination(operation.parentId)) return false;
         }
+        return ['addClass', 'renameClass', 'moveClass', 'moveChildren', 'deleteClass'].includes(operation.type);
+      });
+      discardedOperationCount += proposal.operations.length - allowed.length;
+      proposal.operations = allowed;
+      if (!proposal.operations.length && !proposal.questions.length) {
+        proposal.questions.push('この分割範囲では適用可能な変更操作がありませんでした。');
+      } else if (allowed.length < originalOperationCount) {
+        proposal.uncertainties.push('分割範囲外の操作は安全確認のため除外しました。表示中の変更内容を確認してください。');
+        proposal.summary = `分割範囲外の操作を除外した案です。${proposal.summary || proposal.title}`;
       }
-    }));
+    });
+    return discardedOperationCount;
   };
   const sendRequest = async (userText) => {
     if (isSending) return;
@@ -767,6 +809,7 @@
       if (splitTasks) {
         result = { baseDataHash, message: '', proposals: [], questions: [] };
         const messagesFromParts = [];
+        const splitWarnings = new Set();
         for (let offset = 0; offset < splitTasks.length; offset += 2) {
           const batch = splitTasks.slice(offset, offset + 2);
           setStatus(`OpenAI APIに接続しています…（分割 ${offset + 1}〜${offset + batch.length}/${splitTasks.length}）`);
@@ -779,10 +822,19 @@
               proposal.id = `part${index + 1}_proposal${proposalIndex + 1}`;
             });
             validatePayload(part.result, baseDataHash);
-            validateSplitTaskOperations(part.result, task);
+            const discardedOperationCount = validateSplitTaskOperations(part.result, task);
+            if (discardedOperationCount) splitWarnings.add(`${discardedOperationCount}件の範囲外操作を除外しました。表示される変更案を確認してください。`);
             if (part.result.message) messagesFromParts.push(part.result.message);
             result.questions.push(...part.result.questions);
             part.result.proposals.forEach((proposal) => {
+              if (proposal.operations.length) {
+                try {
+                  editor.applyOperations(proposal.operations, fingerprintBeforeRequest, task.scope.editableIds);
+                } catch (error) {
+                  proposal.operations = [];
+                  proposal.questions.push(`この案は選択範囲全体で適用可能と確認できなかったため、プレビュー対象から外しました。${error.message}`);
+                }
+              }
               result.proposals.push(proposal);
               proposalScopes.set(proposal.id, [...task.scope.editableIds]);
             proposalPreviewScopes.set(proposal.id, task.scope.classes.map((item) => item.id));
@@ -791,6 +843,7 @@
           if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
         }
         result.message = messagesFromParts.join('\n');
+        result.questions.push(...splitWarnings);
         conversation.responseId = '';
         conversation.initialSnapshotSent = false;
         conversation.previousScope = null;

@@ -1717,7 +1717,7 @@ window.classEditorAI = {
     const fingerprint = JSON.stringify({ classes: current.classes, relations: current.relations });
     if (fingerprint !== expectedFingerprint) throw new Error('提案作成後にクラスデータが変更されています。最新データで提案し直してください。');
     const candidateClasses = current.classes.map((item) => ({ ...item }));
-    let candidateRelations = current.relations.map((item) => ({ ...item }));
+    const relationByChild = new Map(current.relations.map((item) => [item.child, { ...item }]));
     const byId = new Map(candidateClasses.map((item) => [item.id, item]));
     const editable = new Set(editableIds);
     const editableSource = (id) => {
@@ -1734,8 +1734,9 @@ window.classEditorAI = {
       return `new-${prefix}_${max + 1}`;
     };
     const addRelationCandidate = (child, parent) => {
-      if (!candidateRelations.some((item) => item.child === child && item.parent === parent)) {
-        candidateRelations.push({ child, parent, relation: 'subClassOf' });
+      const existing = relationByChild.get(child);
+      if (!existing || existing.parent !== parent) {
+        relationByChild.set(child, { child, parent, relation: 'subClassOf' });
       }
     };
     const resolve = (id) => temporaryIds.get(id) || id;
@@ -1783,10 +1784,12 @@ window.classEditorAI = {
         if (item && isUnclassified(item)) throw new Error('未分類は受け皿のため移動できません。');
         if (!item || !destination || !['middle', 'class'].includes(item.type)
           || !['top', 'middle'].includes(destination.type) || item.id === destination.id) throw new Error('クラスの移動先または対象が不正です。');
-        const subtree = new Set([id]); const pending = [id];
-        while (pending.length) (candidateRelations.filter((r) => r.parent === pending.pop()).map((r) => r.child)).forEach((child) => { if (!subtree.has(child)) { subtree.add(child); pending.push(child); } });
-        if (subtree.has(destinationId)) throw new Error('自分自身または配下への移動はできません。');
-        candidateRelations = candidateRelations.filter((relation) => relation.child !== id);
+        let ancestorId = destinationId;
+        while (ancestorId) {
+          if (ancestorId === id) throw new Error('自分自身または配下への移動はできません。');
+          ancestorId = relationByChild.get(ancestorId)?.parent;
+        }
+        relationByChild.delete(id);
         addRelationCandidate(id, destinationId); return;
       }
       if (operation.type === 'moveChildren') {
@@ -1794,11 +1797,11 @@ window.classEditorAI = {
         editableSource(fromId);
         const from = byId.get(fromId); const destination = byId.get(toId);
         if (!from || from.type !== 'middle' || !destination || !['top', 'middle'].includes(destination.type)) throw new Error('配下一括移動の指定が不正です。');
-        const directChildren = candidateRelations.filter((relation) => relation.parent === fromId).map((relation) => relation.child);
+        const directChildren = [...relationByChild.values()].filter((relation) => relation.parent === fromId).map((relation) => relation.child);
         if (directChildren.some((id) => !editable.has(id))) throw new Error('選択範囲外のクラスを含む一括移動はできません。');
         if (directChildren.includes(toId)) throw new Error('子孫を親として指定できません。');
         directChildren.forEach((child) => {
-          candidateRelations = candidateRelations.filter((relation) => relation.child !== child);
+          relationByChild.delete(child);
           addRelationCandidate(child, toId);
         }); return;
       }
@@ -1806,12 +1809,13 @@ window.classEditorAI = {
         const id = resolve(operation.classId); const item = byId.get(id);
         editableSource(id);
         if (!item || !['top', 'middle'].includes(item.type) || item.label === '未分類') throw new Error('削除できるのは未分類以外の上位・中間クラスだけです。');
-        if (candidateRelations.some((relation) => relation.parent === id)) throw new Error(`「${item.label}」の配下を先に移動してください。`);
-        candidateRelations = candidateRelations.filter((relation) => relation.child !== id);
+        if ([...relationByChild.values()].some((relation) => relation.parent === id)) throw new Error(`「${item.label}」の配下を先に移動してください。`);
+        relationByChild.delete(id);
         candidateClasses.splice(candidateClasses.indexOf(item), 1); byId.delete(id); return;
       }
       throw new Error(`許可されていない操作です: ${operation.type || '不明'}`);
     });
+    const candidateRelations = [...relationByChild.values()];
     const parentByChild = new Map();
     candidateRelations.forEach(({ child, parent }) => {
       if (!byId.has(child) || !byId.has(parent) || parentByChild.has(child)) throw new Error('存在しないクラスまたは複数の親を持つ関係があります。');
