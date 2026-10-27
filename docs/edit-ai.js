@@ -293,7 +293,9 @@
     const message = error?.message || 'プレビューを作成できませんでした。';
     setStatus(message, 'error');
     if (previewDialog.open) {
-      document.getElementById('ai-preview-impact').textContent = `プレビューを作成できませんでした: ${message}`;
+      const impact = document.getElementById('ai-preview-impact');
+      impact.classList.remove('is-loading');
+      impact.textContent = `プレビューを作成できませんでした: ${message}`;
       document.getElementById('ai-preview-before').replaceChildren();
       document.getElementById('ai-preview-after').replaceChildren();
       document.getElementById('ai-apply-proposal').disabled = true;
@@ -495,7 +497,9 @@
       document.getElementById('ai-preview-uncertainties').textContent = proposalItem.proposal.uncertainties?.length
         ? proposalItem.proposal.uncertainties.join('、') : '特になし';
       document.getElementById('ai-preview-change-list').replaceChildren();
-      document.getElementById('ai-preview-impact').textContent = '現在の階層に変更案を反映しています…';
+      const impact = document.getElementById('ai-preview-impact');
+      impact.classList.add('is-loading');
+      impact.textContent = 'プレビューを作成しています…';
       document.getElementById('ai-preview-before').replaceChildren();
       document.getElementById('ai-preview-after').replaceChildren();
       if (!previewDialog.open) previewDialog.showModal();
@@ -660,7 +664,9 @@
       if (operation.type === 'moveClass' || operation.type === 'moveChildren') operationCounts.move += 1;
       else if (Object.hasOwn(operationCounts, operation.type)) operationCounts[operation.type] += 1;
     });
-    document.getElementById('ai-preview-impact').textContent = `適用中 ${activeOperations.length}/${operations.length}件（追加 ${operationCounts.addClass}・改名 ${operationCounts.renameClass}・移動 ${operationCounts.move}・削除 ${operationCounts.deleteClass}）`;
+    const impact = document.getElementById('ai-preview-impact');
+    impact.classList.remove('is-loading');
+    impact.textContent = `適用中 ${activeOperations.length}/${operations.length}件（追加 ${operationCounts.addClass}・改名 ${operationCounts.renameClass}・移動 ${operationCounts.move}・削除 ${operationCounts.deleteClass}）`;
     previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), candidate, expectedFingerprint, expectedBaseHash };
     applyButton.disabled = activeOperations.length === 0;
     if (applyRequested && activeOperations.length) applyButton.focus();
@@ -995,11 +1001,10 @@
     textInput.value = '';
     conversation.selectedIds = [...editor.selectedIds];
     conversation.items.push({ type: 'message', role: 'user', text: userText });
-    if (splitTasks) conversation.items.push({ type: 'message', role: 'assistant', text: `選択範囲のクラスを省略せず、送信上限内で分割件数をできるだけ少なくした${splitTasks.length}件の依頼として送信します。各案は分割範囲と親階層の文脈を基準にします。分割した依頼は2件ずつ並行処理します。枝をまたぐ構造変更を適用した後は、必要に応じて再評価を依頼してください。` });
     conversation.updatedAt = Date.now();
     refreshConversationTitle(conversation);
     renderConversation({ scrollToBottom: true });
-    setStatus(splitTasks ? `OpenAI APIに接続しています…（分割 0/${splitTasks.length}）` : 'OpenAI APIに接続しています…');
+    setStatus(splitTasks ? `OpenAI APIに接続しています…（1/${splitTasks.length}）` : 'OpenAI APIに接続しています…');
     isSending = true; sendButton.disabled = true; document.getElementById('ai-new-consultation').disabled = true;
     try {
       activeRequestController = new AbortController();
@@ -1034,7 +1039,7 @@
         const splitWarnings = new Set();
         for (let offset = 0; offset < splitTasks.length; offset += 2) {
           const batch = splitTasks.slice(offset, offset + 2);
-          setStatus(`OpenAI APIに接続しています…（分割 ${offset + 1}〜${offset + batch.length}/${splitTasks.length}）`);
+          setStatus(`OpenAI APIに接続しています…（${offset + 1}/${splitTasks.length}）`);
           const parts = await Promise.all(batch.map((task) => sendApiRequest(task.input)));
           parts.forEach((part, batchIndex) => {
             const index = offset + batchIndex;
@@ -1143,6 +1148,7 @@
   const closePreview = () => { previewDialog.close(); previewPlan = null; };
   previewDialog.addEventListener('close', () => {
     previewPlan = null;
+    document.getElementById('ai-preview-impact').classList.remove('is-loading');
     document.getElementById('ai-apply-proposal').disabled = true;
   });
   previewDialog.addEventListener('click', (event) => {

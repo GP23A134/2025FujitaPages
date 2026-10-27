@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>クラス編集</title>
   <link rel="icon" type="image/svg+xml" href="data/web/favicon.svg">
-  <link rel="stylesheet" href="style.css?v=20261027-preview-review-v16">
+  <link rel="stylesheet" href="style.css?v=20261027-preview-review-v20">
   <script src="data/web/class-data.js" defer></script>
   <script src="data/web/instance-data.js" defer></script>
   <script src="tree.js" defer></script>
@@ -185,7 +185,7 @@
       <h2 id="ai-preview-title">変更案のプレビュー</h2>
       <button type="button" id="ai-preview-close" class="target-instance-dialog-close" aria-label="閉じる">×</button>
     </div>
-    <p id="ai-preview-impact" class="ai-preview-impact"></p>
+    <p id="ai-preview-impact" class="ai-preview-impact" role="status" aria-live="polite"></p>
     <section class="ai-preview-proposal" aria-label="提案の内容">
       <div><h3>変更内容</h3><p id="ai-preview-summary"></p></div>
       <div><h3>理由</h3><p id="ai-preview-reason"></p></div>
@@ -216,6 +216,6 @@
       <button type="button" id="ai-apply-proposal" class="search-button">この変更を適用</button>
     </div>
   </dialog>
-  <script src="edit-ai.js?v=20261027-preview-review-v35" defer></script>
+  <script src="edit-ai.js?v=20261027-preview-review-v37" defer></script>
 </body>
 </html>
