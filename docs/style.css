@@ -710,6 +710,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .tree-leaf-class { display: flex; width: min(100%, var(--tree-target-width, 300px)); max-width: 100%; box-sizing: border-box; align-items: baseline; gap: 0.35rem; margin: 0; padding: 0.4rem 0.65rem; border: 1px solid #dbeafe; border-left: 3px solid var(--tree-level-color, #38bdf8); border-radius: 7px; color: #155e9a; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
 #ai-preview-dialog .tree .tree-leaf-class.is-selected { border-color: #2563eb; color: #fff; background: #2563eb; box-shadow: 0 0 0 3px #bfdbfe; cursor: pointer; }
 #ai-preview-dialog .tree .tree-leaf-class.is-selected .tree-leaf-id { color: #dbeafe; }
+#ai-preview-dialog .tree .tree-leaf-class.is-selected .target-instance-count-badge { color: #e0f2fe; }
 #ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-excluded { border-color: #94a3b8; color: #64748b; background: #e2e8f0; box-shadow: none; opacity: 1; cursor: pointer; }
 #ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-excluded .tree-leaf-id,
 #ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-excluded .target-instance-count-badge { color: #64748b; }

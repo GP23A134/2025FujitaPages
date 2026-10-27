@@ -296,6 +296,8 @@
       document.getElementById('ai-preview-impact').textContent = `プレビューを作成できませんでした: ${message}`;
       document.getElementById('ai-preview-before').replaceChildren();
       document.getElementById('ai-preview-after').replaceChildren();
+      document.getElementById('ai-preview-transfers').replaceChildren();
+      document.getElementById('ai-apply-proposal').disabled = true;
     }
   };
   const renderProposalCard = (item) => {
@@ -377,13 +379,14 @@
     host.classList.add('tree');
     const targetCountFor = (item) => state.counts?.[item.id] || 0;
     const countFor = (node) => node.targets.length + node.children.reduce((sum, child) => sum + countFor(child), 0);
+    const indexesFor = (id) => Array.from(options.operationIndexesByClass?.get(id) || []);
     const makeToggle = (id, label) => {
-      const indexes = options.operationIndexesByClass?.get(id);
-      if (!options.selectable || !indexes?.size) return null;
+      const indexes = indexesFor(id);
+      if (!options.selectable || !indexes.length) return null;
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.className = 'ai-preview-change-toggle';
-      checkbox.checked = indexes.every((index) => !options.excludedOperationIndexes.has(index));
+      checkbox.checked = [...indexes].every((index) => !options.excludedOperationIndexes.has(index));
       checkbox.setAttribute('aria-label', `${label}の変更を適用する`);
       checkbox.addEventListener('click', (event) => event.stopPropagation());
       checkbox.addEventListener('change', () => options.onToggle?.(indexes, checkbox.checked));
@@ -396,8 +399,8 @@
       displayId: () => '',
       decorateSummary: (summary, _content, node) => {
         if (affectedIds.has(node.id)) {
-          const indexes = options.operationIndexesByClass?.get(node.id);
-          summary.classList.add(indexes?.size && [...indexes].some((index) => options.excludedOperationIndexes.has(index))
+          const indexes = indexesFor(node.id);
+          summary.classList.add(indexes.length && indexes.some((index) => options.excludedOperationIndexes.has(index))
             ? 'is-ai-preview-excluded' : 'is-ai-preview-changed');
         }
         const checkbox = makeToggle(node.id, node.label);
@@ -416,12 +419,12 @@
         li.style.setProperty('--tree-level-color', window.treeDepthColor(depth));
         const row = document.createElement('div');
         row.className = 'tree-leaf-class ai-preview-class';
-        const indexes = options.operationIndexesByClass?.get(item.id);
-        if (affectedIds.has(item.id) && indexes?.size) {
+        const indexes = indexesFor(item.id);
+        if (affectedIds.has(item.id) && indexes.length) {
           const included = indexes.every((index) => !options.excludedOperationIndexes.has(index));
           row.classList.add(included ? 'is-selected is-ai-preview-changed' : 'is-ai-preview-excluded');
         }
-        if (options.selectable && indexes?.size) {
+        if (options.selectable && indexes.length) {
           const included = indexes.every((index) => !options.excludedOperationIndexes.has(index));
           row.setAttribute('role', 'checkbox');
           row.setAttribute('aria-checked', String(included));
@@ -541,15 +544,32 @@
       && deletionOperationByClass.has(item.id)).map((item) => item.id));
     deletedIds.forEach((id) => { operationIds.add(id); affectedIds.add(id); });
     const proposedDisplayState = {
-      classes: [...proposedCandidate.classes],
-      relations: [...proposedCandidate.relations],
+      classes: [...candidate.classes],
+      relations: [...candidate.relations],
       counts: beforeState.counts
     };
+    const displayedIds = new Set(proposedDisplayState.classes.map((item) => item.id));
+    const excludedAdditions = proposedCandidate.classes.filter((item) => !beforeIds.has(item.id) && !displayedIds.has(item.id));
+    excludedAdditions.forEach((item) => {
+      proposedDisplayState.classes.push({ ...item, previewExcluded: true });
+      displayedIds.add(item.id);
+    });
+    const excludedAdditionIds = new Set(excludedAdditions.map((item) => item.id));
+    proposedCandidate.relations.forEach((relation) => {
+      if (excludedAdditionIds.has(relation.child) && displayedIds.has(relation.parent)
+        && !proposedDisplayState.relations.some((existing) => existing.child === relation.child)) {
+        proposedDisplayState.relations.push({ ...relation });
+      }
+    });
     deletedIds.forEach((id) => {
       const removed = beforeState.classes.find((item) => item.id === id);
-      if (removed) proposedDisplayState.classes.push({ ...removed, previewDeleted: true });
+      if (removed && !displayedIds.has(id)) {
+        proposedDisplayState.classes.push({ ...removed, previewDeleted: true });
+        displayedIds.add(id);
+      }
       const oldRelation = beforeState.relations.find((relation) => relation.child === id);
-      if (oldRelation && !proposedDisplayState.relations.some((relation) => relation.child === id)) proposedDisplayState.relations.push(oldRelation);
+      if (oldRelation && displayedIds.has(oldRelation.parent)
+        && !proposedDisplayState.relations.some((relation) => relation.child === id)) proposedDisplayState.relations.push(oldRelation);
     });
     const displayParents = new Map(proposedDisplayState.relations.map(({ child, parent }) => [child, parent]));
     const displayIds = new Set(proposedDisplayState.classes.map((item) => item.id));
@@ -617,9 +637,15 @@
           select.append(option);
         });
       select.addEventListener('change', () => {
+        const previousDestination = operation.type === 'moveClass' ? operation.destinationId : operation.to;
         if (operation.type === 'moveClass') operations[index].destinationId = select.value;
         else operations[index].to = select.value;
-        void showPreview(proposalItem, applyRequested).catch(reportPreviewError);
+        void showPreview(proposalItem, applyRequested).catch((error) => {
+          if (operation.type === 'moveClass') operations[index].destinationId = previousDestination;
+          else operations[index].to = previousDestination;
+          reportPreviewError(error);
+          void showPreview(proposalItem, applyRequested).catch(reportPreviewError);
+        });
       });
       row.append(source, select);
       transferList.append(row);
