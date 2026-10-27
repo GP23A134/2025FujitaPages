@@ -397,7 +397,7 @@
       decorateSummary: (summary, _content, node) => {
         if (affectedIds.has(node.id)) {
           const indexes = options.operationIndexesByClass?.get(node.id);
-          summary.classList.add(indexes?.some((index) => options.excludedOperationIndexes.has(index))
+          summary.classList.add(indexes?.size && [...indexes].some((index) => options.excludedOperationIndexes.has(index))
             ? 'is-ai-preview-excluded' : 'is-ai-preview-changed');
         }
         const checkbox = makeToggle(node.id, node.label);
