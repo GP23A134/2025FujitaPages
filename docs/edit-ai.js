@@ -25,7 +25,6 @@
   const responseSchema = {
     type: 'object', additionalProperties: false,
     properties: {
-      baseDataHash: { type: 'string' },
       message: { type: 'string' },
       proposals: {
         type: 'array', items: {
@@ -41,7 +40,7 @@
       },
       questions: { type: 'array', items: { type: 'string' } }
     },
-    required: ['baseDataHash', 'message', 'proposals', 'questions']
+    required: ['message', 'proposals', 'questions']
   };
 
   const keyInput = document.getElementById('ai-api-key');
@@ -623,8 +622,15 @@
   };
 
   const validatePayload = (result, expectedHash) => {
-    if (!result || typeof result !== 'object' || result.baseDataHash !== expectedHash
-      || !Array.isArray(result.proposals) || !Array.isArray(result.questions)) throw new Error('AIの提案形式またはデータ版が不正です。提案は適用できません。');
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      throw new Error('AIの応答がJSONオブジェクトではありません。提案は適用できません。');
+    }
+    if (!Array.isArray(result.proposals) || !Array.isArray(result.questions)) {
+      throw new Error('AIの応答に提案または確認事項の一覧がありません。もう一度依頼してください。');
+    }
+    // The browser owns the data fingerprint; asking the model to echo it can
+    // produce harmless character errors that incorrectly invalidate a proposal.
+    result.baseDataHash = expectedHash;
     const proposalIds = new Set();
     result.proposals.forEach((proposal) => {
       if (!proposal || typeof proposal.title !== 'string' || !Array.isArray(proposal.operations)
@@ -988,11 +994,10 @@
           parts.forEach((part, batchIndex) => {
             const index = offset + batchIndex;
             const task = splitTasks[index];
-            if (part.result?.baseDataHash !== baseDataHash) throw new Error('分割した依頼の一部でデータ版が一致しません。提案は適用できません。');
+            validatePayload(part.result, baseDataHash);
             part.result.proposals.forEach((proposal, proposalIndex) => {
               proposal.id = `part${index + 1}_proposal${proposalIndex + 1}`;
             });
-            validatePayload(part.result, baseDataHash);
             const discardedOperationCount = validateSplitTaskOperations(part.result, task);
             if (discardedOperationCount) splitWarnings.add(`${discardedOperationCount}件の範囲外操作を除外しました。表示される変更案を確認してください。`);
             if (part.result.message) messagesFromParts.push(part.result.message);
