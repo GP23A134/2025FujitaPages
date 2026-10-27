@@ -666,26 +666,36 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-columns h3 { margin: 0.4rem 0; color: #334155; font-size: 0.95rem; }
 .ai-preview-tree { max-height: 48vh; overflow: auto; padding: 0.65rem; border: 1px solid #dbe3ec; border-radius: 8px; background: #f8fafc; font-size: 0.82rem; }
 .ai-preview-tree.tree { height: auto; }
-#ai-preview-dialog .tree details { margin: 0.2rem 0; }
-#ai-preview-dialog .tree summary { padding: 0.3rem 0.45rem; }
+#ai-preview-dialog .tree details { margin: 0.45rem 0; }
+#ai-preview-dialog .tree summary { display: flex; align-items: center; padding: 0.45rem 0.6rem; list-style-position: outside; }
 #ai-preview-dialog .tree-top-class > summary,
-#ai-preview-dialog .tree-middle-class > summary { position: static; box-shadow: none; }
+#ai-preview-dialog .tree-middle-class > summary { position: static; padding: 0.25rem 0.55rem; font-size: 0.95rem; box-shadow: none; }
 #ai-preview-dialog .tree-top-class > summary { color: #075985; background: #e0f2fe; }
-#ai-preview-dialog .tree-middle-class > summary { background: #f1f5f9; }
+#ai-preview-dialog .tree-middle-class > summary { border-left: 3px solid var(--tree-level-color, #38bdf8); background: #f8fafc; }
+#ai-preview-dialog .tree summary::marker { color: #2563eb; }
 #ai-preview-dialog .tree .tree-level-content { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; align-items: baseline; margin: 0; padding: 0.2rem 0.35rem; white-space: normal; }
 #ai-preview-dialog .tree .tree-level-id { display: none; }
 #ai-preview-dialog .tree .tree-level-label { overflow-wrap: anywhere; white-space: normal; }
-#ai-preview-dialog .tree .tree-level-rows { margin: 0.35rem 0 0.55rem 1rem; padding: 0 0 0 0.75rem; list-style: none; }
+#ai-preview-dialog .tree ul { margin: 0.25rem 0 0.45rem 1.15rem; padding-left: 1rem; border-left: 2px solid #bfdbfe; list-style: none; }
+#ai-preview-dialog .tree li { margin: 0.35rem 0; }
+#ai-preview-dialog .tree .tree-level-rows { margin: 0.35rem 0 0.55rem 1rem; padding: 0 0 0 0.75rem; border-left-color: var(--tree-level-color, #0284c7); }
 #ai-preview-dialog .tree .tree-child-middle-list,
-#ai-preview-dialog .tree .tree-target-list { display: grid; width: 100%; box-sizing: border-box; row-gap: 0.25rem; margin: 0; padding: 0; list-style: none; }
+#ai-preview-dialog .tree .tree-target-list { position: relative; display: grid; width: 100%; box-sizing: border-box; row-gap: var(--tree-target-row-gap, 0.15rem); margin: 0; padding: 0; border-left: 0; list-style: none; }
+#ai-preview-dialog .tree .tree-target-list { grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--tree-target-width, 300px)), min(100%, var(--tree-target-width, 300px)))); }
+#ai-preview-dialog .tree .tree-child-middle-list { display: grid; width: 100%; box-sizing: border-box; row-gap: var(--tree-target-row-gap, 0.15rem); margin: 0; padding: 0; border-left: 0; list-style: none; }
 #ai-preview-dialog .tree .tree-child-middle-row,
-#ai-preview-dialog .tree .tree-target-row { margin: 0; }
+#ai-preview-dialog .tree .tree-target-row { display: block; width: 100%; margin: 0.25rem 0; padding: 0; }
 #ai-preview-dialog .tree .tree-child-middle-row::before,
 #ai-preview-dialog .tree .tree-target-row::before { display: none; }
 #ai-preview-dialog .tree .tree-child-middle-list > li { margin: 0; }
-#ai-preview-dialog .tree .tree-leaf-class { display: flex; width: min(100%, var(--tree-target-width, 300px)); box-sizing: border-box; align-items: baseline; gap: 0.35rem; margin: 0; padding: 0.35rem 0.5rem; border: 1px solid #dbeafe; border-left: 3px solid var(--tree-level-color, #38bdf8); border-radius: 7px; color: #155e9a; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
-#ai-preview-dialog .tree .tree-leaf-label { min-width: 0; overflow-wrap: anywhere; font-size: 0.82rem; font-weight: 650; }
-#ai-preview-dialog .tree .target-instance-count-badge { margin-left: auto; }
+#ai-preview-dialog .tree li:has(> .tree-middle-class) { margin-left: 0; padding: 0.2rem 0; background: #fff; }
+#ai-preview-dialog .tree li:has(> .tree-middle-class)::before { display: none; }
+#ai-preview-dialog .tree .tree-middle-class { width: auto; max-width: 100%; margin-block: 0; }
+#ai-preview-dialog .tree .tree-middle-class > summary,
+#ai-preview-dialog .tree .tree-middle-class > ul { width: auto; max-width: 100%; box-sizing: border-box; }
+#ai-preview-dialog .tree .tree-leaf-class { display: flex; width: min(100%, var(--tree-target-width, 300px)); max-width: 100%; box-sizing: border-box; align-items: baseline; gap: 0.35rem; margin: 0; padding: 0.4rem 0.65rem; border: 1px solid #dbeafe; border-left: 3px solid var(--tree-level-color, #38bdf8); border-radius: 7px; color: #155e9a; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
+#ai-preview-dialog .tree .tree-leaf-label { min-width: 0; overflow-wrap: anywhere; font-size: 0.9rem; font-weight: 650; }
+#ai-preview-dialog .tree .target-instance-count-badge { flex: 0 0 auto; margin-left: auto; color: #64748b; font-size: 0.7rem; font-weight: 500; white-space: nowrap; }
 #ai-preview-dialog .tree .is-ai-preview-changed { outline: 2px solid #f59e0b; outline-offset: 1px; }
 .ai-preview-operations { display: flex; flex-direction: column; gap: 0.35rem; max-height: 9rem; overflow: auto; }
 .ai-preview-operation { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.35rem 0.5rem; border-radius: 6px; background: #f1f5f9; font-size: 0.82rem; }

@@ -401,7 +401,8 @@
         row.append(label, count);
         li.append(row);
         return li;
-      }
+      },
+      afterRender: (container) => window.updateTreeTargetRowStarts(container)
     });
   };
   const showPreview = async (proposalItem, applyRequested = false) => {
