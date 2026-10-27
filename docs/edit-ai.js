@@ -530,6 +530,8 @@
     if (!fastUpdate) {
       document.getElementById('ai-preview-summary').textContent = proposalItem.proposal.summary || proposalItem.proposal.title || '変更内容の説明はありません。';
       document.getElementById('ai-preview-reason').textContent = proposalItem.proposal.reason || '理由の記載はありません。';
+      document.getElementById('ai-preview-uncertainties').textContent = proposalItem.proposal.uncertainties?.length
+        ? proposalItem.proposal.uncertainties.join('、') : '特になし';
       document.getElementById('ai-preview-change-list').replaceChildren();
       document.getElementById('ai-preview-impact').textContent = '現在の階層に変更案を反映しています…';
       document.getElementById('ai-preview-before').replaceChildren();
