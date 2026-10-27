@@ -221,6 +221,7 @@
   };
   const diffScope = (before, after) => {
     if (!before) return { kind: 'initial_snapshot', data: after };
+    if (before.mode !== after.mode) return { kind: 'initial_snapshot', data: after };
     const mapById = (items) => new Map(items.map((item) => [item.id, item]));
     const beforeClasses = mapById(before.classes); const afterClasses = mapById(after.classes);
     const changedClasses = [...afterClasses.values()].filter((item) => JSON.stringify(item) !== JSON.stringify(beforeClasses.get(item.id)));
@@ -451,22 +452,47 @@
     catch (error) { setStatus(error.message, 'error'); return; }
     const fingerprintBeforeRequest = stateFingerprint();
     const conversation = currentConversation;
-    const contextPayload = diffScope(conversation.initialSnapshotSent ? conversation.previousScope : null, scope);
-    const userContent = JSON.stringify({
-      baseDataHash,
-      request: userText,
-      selectedScope: contextPayload,
-      instruction: scope.mode === 'overview_summary'
-        ? 'これは全体構造の要約です。個別対象クラス名は含みません。既存クラスの変更・移動・削除は提案せず、全体評価、確認事項、新しい上位・中間クラスの案だけを返してください。'
-        : 'この相談の範囲にあるクラスの提案だけを返してください。個別インスタンス情報はありません。'
-    });
+    let requestScope = scope;
+    let compactHierarchyContext = false;
+    const buildUserContent = (activeScope) => {
+      const previousScope = compactHierarchyContext ? null : (conversation.initialSnapshotSent ? conversation.previousScope : null);
+      const contextPayload = diffScope(previousScope, activeScope);
+      return JSON.stringify({
+        baseDataHash,
+        request: userText,
+        selectedScope: contextPayload,
+        instruction: activeScope.mode === 'overview_summary'
+          ? 'これは全体構造の要約です。個別対象クラス名は含みません。既存クラスの変更・移動・削除は提案せず、全体評価、確認事項、新しい上位・中間クラスの案だけを返してください。'
+          : activeScope.mode === 'hierarchy_scope'
+            ? 'これは階層クラスだけの範囲です。対象クラスの個別情報は含まれません。上位・中間クラスの追加・改名・移動・削除だけを提案し、対象クラスの操作は提案しないでください。'
+            : 'この相談の範囲にあるクラスの提案だけを返してください。個別インスタンス情報はありません。'
+      });
+    };
+    let userContent = buildUserContent(requestScope);
+    if (userContent.length > MAX_REQUEST_CHARACTERS && scope.mode !== 'overview_summary') {
+      const selectedClasses = scope.selectedIds.map((id) => scope.classes.find((item) => item.id === id)).filter(Boolean);
+      const isHierarchySelection = selectedClasses.length === scope.selectedIds.length
+        && selectedClasses.length > 0
+        && selectedClasses.every((item) => ['top', 'middle'].includes(item.type));
+      if (isHierarchySelection) {
+        const compactScope = editor.getHierarchyScopedState(scope.selectedIds);
+        if (compactScope) {
+          requestScope = compactScope;
+          compactHierarchyContext = true;
+          userContent = buildUserContent(requestScope);
+        }
+      }
+    }
     if (userContent.length > MAX_REQUEST_CHARACTERS) {
-      setStatus(`選択範囲の送信データが大きすぎます（約${userContent.length.toLocaleString()}文字）。全件ではなく、対象を中間クラスや個別クラスに絞ってください。入力文は保持しています。`, 'error');
+      setStatus(`送信データが大きすぎます（約${userContent.length.toLocaleString()}文字）。選択範囲を小さくするか、階層全体の変更なら上位・中間クラスだけを選択してください。入力文は保持しています。`, 'error');
       return;
     }
     textInput.value = '';
     conversation.selectedIds = [...editor.selectedIds];
     conversation.items.push({ type: 'message', role: 'user', text: userText });
+    if (compactHierarchyContext) {
+      conversation.items.push({ type: 'message', role: 'assistant', text: '送信量を抑えるため、対象クラスの一覧を除いた階層情報（上位・中間クラスと親子関係）で相談しています。対象クラスを個別に編集する場合は、そのクラスを選択して相談してください。' });
+    }
     conversation.updatedAt = Date.now();
     refreshConversationTitle(conversation);
     renderConversation();
@@ -482,7 +508,7 @@
         max_output_tokens: 5000,
         store: true
       };
-      if (conversation.responseId) body.previous_response_id = conversation.responseId;
+      if (conversation.responseId && !compactHierarchyContext) body.previous_response_id = conversation.responseId;
       activeRequestController = new AbortController();
       const response = await fetch(API_URL, {
         method: 'POST',
@@ -498,7 +524,7 @@
       conversation.responseId = responseBody.id || '';
       if (!conversation.responseId) throw new Error('会話IDを取得できませんでした。新しい相談からやり直してください。');
       conversation.initialSnapshotSent = true;
-      conversation.previousScope = scope;
+      conversation.previousScope = requestScope;
       if (result.message) conversation.items.push({ type: 'message', role: 'assistant', text: result.message });
       result.questions.forEach((question) => conversation.items.push({ type: 'message', role: 'assistant', text: question }));
       result.proposals.forEach((proposal) => {
@@ -506,7 +532,7 @@
           proposal.questions.forEach((question) => conversation.items.push({ type: 'message', role: 'assistant', text: question }));
           return;
         }
-        conversation.items.push({ type: 'proposal', proposal, editableIds: [...scope.editableIds], baseDataHash, status: 'pending' });
+        conversation.items.push({ type: 'proposal', proposal, editableIds: [...requestScope.editableIds], baseDataHash, status: 'pending' });
       });
       conversation.updatedAt = Date.now();
       renderConversation();

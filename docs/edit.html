@@ -10,7 +10,7 @@
   <script src="tree.js" defer></script>
   <script src="edit.js" defer></script>
 </head>
-<body data-mode="edit">
+<body class="edit-panes-pinned" data-mode="edit">
   <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>
   <header class="page-header">
     <p class="eyebrow">KNOWLEDGE GRAPH EDITOR</p>
@@ -28,7 +28,6 @@
     </div>
     <div class="edit-taskbar-group edit-taskbar-tree-actions" aria-label="ツリー操作">
       <button type="button" id="close-all-tree" class="edit-taskbar-button tree-toolbar-button" hidden><span class="edit-taskbar-icon" aria-hidden="true">⊟</span>すべて閉じる</button>
-      <button type="button" id="toggle-tree-edit-mode" class="edit-taskbar-button tree-toolbar-button" aria-pressed="false"><span class="edit-taskbar-icon" aria-hidden="true">✎</span><span class="edit-taskbar-label">クラス編集: OFF</span></button>
       <button type="button" id="select-visible-tree" class="edit-taskbar-button tree-toolbar-button" title="現在のツリー表示範囲にあるクラスをすべて選択">全選択</button>
       <button type="button" id="clear-visible-tree-selection" class="edit-taskbar-button tree-toolbar-button" title="現在のツリー表示範囲にあるクラスの選択を解除">選択解除</button>
       <button type="button" id="toggle-tree-filter-open" class="edit-taskbar-button" hidden><span class="edit-taskbar-icon" aria-hidden="true">⌕</span>検索欄を表示</button>
@@ -166,10 +165,10 @@
       <p id="ai-model-description" class="edit-settings-note">モデル候補は設定ファイルで管理します。</p>
       <p id="ai-settings-status" class="ai-status" role="status" aria-live="polite"></p>
     </section>
-    <section class="edit-settings-section" aria-labelledby="display-settings-title">
-      <h3 id="display-settings-title">表示</h3>
+    <section class="edit-settings-section" aria-labelledby="edit-display-settings-title">
+      <h3 id="edit-display-settings-title">表示・編集</h3>
       <label class="edit-settings-toggle"><input type="checkbox" id="toggle-edit-ids"> クラスIDを表示する</label>
-      <label class="edit-settings-toggle"><input type="checkbox" id="toggle-edit-panes-pin"> 検索・保持欄を画面上に固定する</label>
+      <label class="edit-settings-toggle"><input type="checkbox" id="toggle-tree-edit-mode"> クラス編集を有効にする</label>
     </section>
   </dialog>
   <dialog id="target-instance-dialog" class="target-instance-dialog" aria-labelledby="target-instance-title">

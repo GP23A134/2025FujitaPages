@@ -25,7 +25,6 @@ if (toggleEditIds) {
   setEditIdsVisible(false);
   toggleEditIds.addEventListener('change', () => setEditIdsVisible(toggleEditIds.checked));
 }
-const toggleEditPanesPin = document.getElementById('toggle-edit-panes-pin');
 let pinnedHeldPanelBoundsFrame = 0;
 const syncPinnedHeldPanelBounds = () => {
   if (pinnedHeldPanelBoundsFrame) return;
@@ -34,7 +33,7 @@ const syncPinnedHeldPanelBounds = () => {
     const panel = document.getElementById('held-panel');
     const layout = document.querySelector('#edit-tree-panel .edit-tree-layout');
     if (!panel) return;
-    if (!document.body.classList.contains('edit-panes-pinned') || !layout || document.getElementById('edit-tree-panel')?.hidden || window.innerWidth <= 760) {
+    if (!layout || document.getElementById('edit-tree-panel')?.hidden || window.innerWidth <= 760) {
       layout?.style.removeProperty('--edit-pane-position-top');
       layout?.style.removeProperty('--edit-pane-available-height');
       layout?.style.removeProperty('--edit-top-class-sticky-top');
@@ -86,15 +85,6 @@ const syncPinnedHeldPanelBounds = () => {
     }
   });
 };
-if (toggleEditPanesPin) {
-  const setEditPanesPinned = (pinned) => {
-    document.body.classList.toggle('edit-panes-pinned', pinned);
-    toggleEditPanesPin.checked = pinned;
-    syncPinnedHeldPanelBounds();
-  };
-  setEditPanesPinned(true);
-  toggleEditPanesPin.addEventListener('change', () => setEditPanesPinned(toggleEditPanesPin.checked));
-}
 const settingsDialog = document.getElementById('edit-settings-dialog');
 document.getElementById('open-edit-settings')?.addEventListener('click', () => settingsDialog?.showModal());
 document.getElementById('close-edit-settings')?.addEventListener('click', () => settingsDialog?.close());
@@ -311,7 +301,7 @@ function classLabelConflictMessage(type, label) {
 }
 
 function displayClassId(id) {
-  const segment = id.split('/').pop();
+  const segment = String(id).split('/').pop();
   const match = segment.match(/^([cmt])_0*(\d+)$/);
   return match ? `${match[1]}_${Number(match[2])}` : segment;
 }
@@ -1112,6 +1102,7 @@ function renderTree() {
     if (classKind(item) === 'middle') {
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
+      checkbox.className = 'tree-level-selection-checkbox';
       checkbox.checked = heldMiddleClasses.has(item.id);
       checkbox.disabled = false;
       middleCheckboxById.set(item.id, checkbox);
@@ -1131,6 +1122,7 @@ function renderTree() {
     if (classKind(item) === 'top') {
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
+      checkbox.className = 'tree-level-selection-checkbox';
       checkbox.checked = heldTopClasses.has(item.id);
       checkbox.disabled = false;
       topCheckboxById.set(item.id, checkbox);
@@ -1668,6 +1660,44 @@ window.classEditorAI = {
       counts: Object.fromEntries(scopedClasses.map((item) => [item.id, all.counts[item.id] || 0]))
     };
   },
+  getHierarchyScopedState(selectedIds) {
+    const all = this.getState();
+    const classByIdLocal = new Map(all.classes.map((item) => [item.id, item]));
+    const children = buildChildrenMap();
+    const parentByChild = new Map(data.classData.relations.map(({ child, parent }) => [child, parent]));
+    const editable = new Set();
+    const addHierarchyDescendants = (id) => {
+      const item = classByIdLocal.get(id);
+      if (!item || !['top', 'middle'].includes(item.type) || editable.has(id)) return;
+      editable.add(id);
+      (children.get(id) || []).forEach(addHierarchyDescendants);
+    };
+    selectedIds.forEach(addHierarchyDescendants);
+    if (!editable.size) return null;
+
+    // Keep parent context, but omit target classes so large subtrees can still support hierarchy-only edits.
+    const included = new Set(editable);
+    [...editable].forEach((id) => {
+      let parentId = parentByChild.get(id);
+      const seen = new Set();
+      while (parentId && !seen.has(parentId)) {
+        seen.add(parentId);
+        const parent = classByIdLocal.get(parentId);
+        if (!parent || !['top', 'middle'].includes(parent.type)) break;
+        included.add(parentId);
+        parentId = parentByChild.get(parentId);
+      }
+    });
+    const scopedClasses = all.classes.filter((item) => included.has(item.id) && ['top', 'middle'].includes(item.type));
+    return {
+      mode: 'hierarchy_scope',
+      selectedIds: [...selectedIds],
+      editableIds: [...editable],
+      classes: scopedClasses,
+      relations: all.relations.filter((item) => included.has(item.child) && included.has(item.parent)),
+      counts: Object.fromEntries(scopedClasses.map((item) => [item.id, all.counts[item.id] || 0]))
+    };
+  },
   getOverviewState() {
     const all = this.getState();
     const hierarchyClasses = all.classes.filter((item) => ['top', 'middle'].includes(item.type));
@@ -1850,12 +1880,9 @@ window.addEventListener('beforeunload', (event) => {
 const closeAllTreeButton = document.getElementById('close-all-tree');
 closeAllTreeButton.hidden = document.getElementById('edit-tree-panel').hidden;
 const toggleTreeEditMode = document.getElementById('toggle-tree-edit-mode');
-toggleTreeEditMode.addEventListener('click', () => {
-  treeHierarchyEditModeEnabled = !treeHierarchyEditModeEnabled;
-  toggleTreeEditMode.setAttribute('aria-pressed', String(treeHierarchyEditModeEnabled));
-  const label = toggleTreeEditMode.querySelector('.edit-taskbar-label');
-  if (label) label.textContent = `クラス編集: ${treeHierarchyEditModeEnabled ? 'ON' : 'OFF'}`;
-  else toggleTreeEditMode.textContent = `クラス編集: ${treeHierarchyEditModeEnabled ? 'ON' : 'OFF'}`;
+toggleTreeEditMode.checked = treeHierarchyEditModeEnabled;
+toggleTreeEditMode.addEventListener('change', () => {
+  treeHierarchyEditModeEnabled = toggleTreeEditMode.checked;
   renderTree();
 });
 closeAllTreeButton.addEventListener('click', () => {

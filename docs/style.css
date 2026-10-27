@@ -48,22 +48,41 @@ body {
 .page-header-actions .search-button { position: static; display: inline-flex; align-items: center; justify-content: center; min-height: 2.65rem; margin: 0; padding: 0.5rem 0.9rem; border-radius: 999px; font: inherit; font-weight: 700; }
 .page-link-button { border: 1px solid #fff; color: #0f3d63; text-decoration: none; background: #fff; }
 .page-link-button:hover { color: #fff; background: #0f3d63; }
-.edit-taskbar { position: sticky; top: 0; z-index: 100; display: flex; width: 100%; min-height: 2.9rem; align-items: center; gap: 0.35rem; margin: 0; padding: 0.25rem var(--page-side-gutter); border-bottom: 1px solid #d8dee9; background: #fff; box-shadow: 0 3px 8px rgba(15, 23, 42, 0.07); }
+.edit-taskbar,
+#tree-panel .tree-controls {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  width: 100%;
+  min-height: 2.9rem;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.55rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: rgba(248, 250, 252, 0.97);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(8px);
+}
+.edit-taskbar { flex-wrap: nowrap; padding-inline: var(--page-side-gutter); }
+#tree-panel .tree-controls { width: 100%; max-width: 100%; margin-inline: 0; padding-inline: var(--page-side-gutter); border-radius: 0; }
 .edit-taskbar-group { display: flex; align-items: center; gap: 0.25rem; }
 .edit-taskbar-group:not(:last-child) { padding-right: 0.4rem; border-right: 1px solid #e2e8f0; }
 .edit-taskbar-spacer { flex: 1; }
 .edit-taskbar-button { display: inline-flex; min-height: 2rem; align-items: center; justify-content: center; gap: 0.35rem; padding: 0.2rem 0.55rem; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.8rem; font-weight: 650; line-height: 1.2; white-space: nowrap; }
-.edit-taskbar .tree-toolbar-button { min-height: 2rem; padding: 0.2rem 0.55rem; font-size: 0.8rem; }
 .edit-taskbar-icon { color: #475569; font-size: 0.95rem; line-height: 1; }
 .edit-taskbar-panel-modes { gap: 0.15rem; padding: 0.12rem; border: 1px solid #dbe3ec; border-radius: 7px; background: #f1f5f9; }
-.edit-taskbar .held-panel-mode-tab { display: inline-flex; flex: 0 0 auto; min-height: 1.8rem; align-items: center; justify-content: center; gap: 0.3rem; margin: 0; padding: 0.2rem 0.5rem; border: 1px solid transparent; border-radius: 5px; color: #475569; background: transparent; font-size: 0.78rem; white-space: nowrap; }
+.edit-taskbar .held-panel-mode-tab { display: inline-flex; flex: 0 0 auto; min-height: 2rem; align-items: center; justify-content: center; gap: 0.3rem; margin: 0; padding: 0.2rem 0.5rem; border: 1px solid transparent; border-radius: 5px; color: #475569; background: transparent; font-size: 0.78rem; white-space: nowrap; }
 .edit-taskbar .held-panel-mode-tab[aria-selected="true"] { border-color: #cbd5e1; color: #0f3d63; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08); }
 .edit-taskbar .held-panel-mode-tab .held-count { margin: 0; padding: 0.05rem 0.35rem; font-size: 0.72rem; }
 .edit-taskbar-button[hidden], .tree-toolbar-button[hidden] { display: none; }
-.edit-taskbar-button:hover:not(:disabled), .edit-taskbar-button:focus-visible:not(:disabled) { border-color: #7dd3fc; color: #075985; background: #f0f9ff; }
+.edit-taskbar-button:hover:not(:disabled):not(.tree-toolbar-button),
+.edit-taskbar-button:focus-visible:not(:disabled):not(.tree-toolbar-button) { border-color: #7dd3fc; color: #075985; background: #f0f9ff; }
 .edit-taskbar-button:disabled { color: #94a3b8; background: #f8fafc; cursor: not-allowed; opacity: 0.7; }
 .tree-toolbar { display: flex; align-items: center; justify-content: flex-end; margin: 0 0 0.45rem; }
-.tree-toolbar-button { display: inline-flex; min-height: 2.35rem; align-items: center; justify-content: center; padding: 0.4rem 0.75rem; border: 1px solid #93c5fd; border-radius: 7px; color: #1d4ed8; background: #eff6ff; cursor: pointer; font: inherit; font-size: 0.88rem; font-weight: 650; white-space: nowrap; }
+.tree-toolbar-button { display: inline-flex; min-height: 2rem; align-items: center; justify-content: center; padding: 0.2rem 0.55rem; border: 1px solid #93c5fd; border-radius: 6px; color: #1d4ed8; background: #eff6ff; cursor: pointer; font: inherit; font-size: 0.8rem; font-weight: 650; white-space: nowrap; }
 .tree-toolbar-button:hover, .tree-toolbar-button[aria-pressed="true"] { color: #fff; background: #2563eb; border-color: #1d4ed8; }
 main {
   width: 100%;
@@ -71,6 +90,7 @@ main {
   margin: 0 0 4rem;
   padding: 2rem var(--page-side-gutter);
 }
+body[data-mode="browse"] main { padding-top: 0; }
 body[data-mode="edit"] main { margin-bottom: 0; }
 
 /* 2. 閲覧画面の表示切り替え・キーワード検索 */
@@ -94,7 +114,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 #search-section[hidden] { display: none; }
 
 /* 2.1 タブ、概要、クラス一覧 */
-.tabs { display: flex; gap: 0.25rem; margin: 0 -2rem 1rem; padding: 0 1.25rem; border-bottom: 1px solid #cbd5e1; }
+.tabs { display: flex; gap: 0.25rem; margin: 0 -1rem 0; padding: 0 1.25rem; border-bottom: 1px solid #cbd5e1; }
 .tab { border: 0; border-bottom: 3px solid transparent; padding: 0.7rem 1.5rem; background: transparent; color: #475569; cursor: pointer; font-size: 1rem; transition: color 0.15s, border-color 0.15s; }
 .tab:hover { color: #0f6a9d; }
 .tab:focus-visible { outline: 3px solid #bfdbfe; outline-offset: -3px; }
@@ -121,7 +141,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .list-tab:focus-visible { outline: 3px solid #bfdbfe; outline-offset: -3px; }
 .list-tab.is-active { border-bottom-color: #0f6a9d; color: #0f6a9d; font-weight: 700; }
 .list-subpanel[hidden] { display: none; }
-.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 1.5rem; }
 .summary-grid > div { border: 1px solid #d8dee9; border-radius: 16px; padding: 1rem 1.25rem; background: #f8fafc; }
 .summary-grid h3 { margin-top: 0; }
 .summary-grid ul { margin-bottom: 0; }
@@ -308,7 +328,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .tree > details > ul > li > details > ul {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: 0.45rem 0.75rem;
   padding: 0.35rem 0.75rem;
   border-left: 0;
@@ -339,7 +359,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 /* 5. 絞り込みパネルの開閉見出しと件数 */
 .tree-filter { position: relative; margin: var(--edit-pane-top-offset, 0px) 0 var(--edit-pane-search-tree-gap, 0.85rem); border: 1px solid #d8dee9; border-radius: 10px; background: #f8fafc; }
 .tree-filter[hidden] { display: none; }
-.tree-filter-heading { position: relative; display: flex; min-height: var(--edit-pane-header-height, 2.8rem); align-items: center; justify-content: flex-start; gap: 0.6rem; padding: var(--edit-pane-header-padding-block, 0.4rem) 2.85rem var(--edit-pane-header-padding-block, 0.4rem) 3.5rem; border-radius: 9px; color: #334155; background: #f1f5f9; cursor: pointer; font-size: var(--tree-panel-heading-font-size, 1.3rem); font-weight: 700; line-height: 1.35; list-style: none; }
+.tree-filter-heading { position: relative; display: flex; min-height: var(--edit-pane-header-height, 2.8rem); align-items: center; justify-content: flex-start; gap: 0.6rem; padding: var(--edit-pane-header-padding-block, 0.4rem) 2.85rem var(--edit-pane-header-padding-block, 0.4rem) 3.5rem; border-radius: 9px; color: #334155; background: #f1f5f9; cursor: pointer; font-size: var(--tree-panel-heading-font-size, 1rem); font-weight: 700; line-height: 1.35; list-style: none; }
 .tree-filter-close { position: absolute; top: 50%; right: 0.85rem; z-index: 1; transform: translateY(-50%); }
 .tree-filter-heading::-webkit-details-marker { display: none; }
 .tree-filter-heading::after { position: absolute; left: 0.85rem; content: "▾"; color: #64748b; font-size: 1rem; }
@@ -486,10 +506,6 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection.is
   z-index: 60;
   width: min(var(--held-panel-width), calc(100vw - 2rem));
   margin-top: 0;
-}
-body:not(.edit-panes-pinned) #edit-tree-panel .edit-tree-layout .instance-selection:not(.is-collapsed) {
-  position: relative;
-  top: auto;
 }
 body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pane {
   margin-top: var(--edit-pane-top-offset);
@@ -779,7 +795,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 :is(#tree-panel, #edit-tree-panel) .tree ul:has(> li > .tree-leaf-class),
 :is(#tree-panel, #edit-tree-panel) .tree .tree-target-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--tree-target-width)), var(--tree-target-width)));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--tree-target-width)), min(100%, var(--tree-target-width))));
 }
 :is(#tree-panel, #edit-tree-panel) .tree ul:has(> li > .tree-leaf-class) {
   row-gap: 0.5px;
@@ -817,31 +833,21 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #tree-panel .tree > details > ul > li > details.tree-middle-class {
   margin-left: 0;
 }
-#tree-panel .tree .tree-middle-class > .tree-level-rows > .tree-child-middle-row,
-#tree-panel .tree .tree-middle-class > .tree-level-rows > .tree-target-row {
-  margin-left: 1rem;
-}
-#tree-panel .tree .tree-middle-class > .tree-level-rows > .tree-child-middle-row {
-  /* 下位中間クラスを上位直下の中間クラスと同じ1.15remのインデントにする。 */
-  margin-left: 1.15rem;
-}
 #tree-panel .tree .tree-middle-class > .tree-level-rows > .tree-child-middle-row::before,
 #tree-panel .tree .tree-middle-class > .tree-level-rows > .tree-target-row::before {
   left: -1rem;
   width: 1rem;
 }
 #tree-panel .tree .tree-child-middle-list {
-  display: block !important;
+  display: grid;
 }
+#tree-panel .tree .tree-target-row { display: block; width: 100%; margin: 0.25rem 0; padding: 0; }
 #tree-panel .tree .tree-child-middle-list > li {
-  display: block !important;
-  width: 100%;
   margin: 0;
   padding: 0.25rem 0;
 }
 #tree-panel .tree .tree-child-middle-list > li > .tree-middle-class {
-  display: block !important;
-  width: 100%;
+  width: auto;
 }
 #tree-panel .tree > details > ul::before,
 #tree-panel .tree > details > ul > li > details > ul::before,
@@ -1175,44 +1181,43 @@ body[data-mode="browse"] .tree-add-button { display: none; }
   min-height: 0;
   overflow: visible;
 }
-#tree-panel .tree-filter { position: sticky; top: var(--browse-controls-sticky-top, 0px); z-index: 90; }
+/* 編集モードのリスト寸法を基準にし、閲覧モードの階層ごとの左位置を揃える。 */
+#tree-panel .tree ul {
+  margin: 0.25rem 0 0.45rem 1.15rem;
+  padding-left: 1rem;
+  border-left: 2px solid transparent;
+}
+#tree-panel .tree > details > ul { margin: 0; }
+#tree-panel .tree-filter { position: sticky; top: var(--browse-controls-sticky-top, 0px); z-index: 90; margin-bottom: 0.1rem; }
 #tree-panel .tree-top-class > summary { top: var(--browse-tree-heading-sticky-top, 0px); }
 #tree-panel .tree-middle-class > summary { top: calc(var(--browse-tree-heading-sticky-top, 0px) + var(--middle-sticky-top, 3.35rem)); }
-#tree-panel .tree details { margin-block: 0.15rem; }
+#tree-panel .tree details { margin-block: 0.1rem; }
 #tree-panel .tree > details > .tree-level-rows,
 #tree-panel .tree .tree-middle-class > .tree-level-rows { margin-block: 0.1rem; }
-#tree-panel .tree > .tree-top-class { margin-block: 0.35rem; }
-#tree-panel .tree > .tree-top-class > .tree-level-rows { margin-block: 0.45rem 0.75rem; }
-#tree-panel .tree .tree-middle-class > summary { margin-top: 0.1rem; }
+#tree-panel .tree > .tree-top-class { margin-block: 0.2rem; }
+#tree-panel .tree > .tree-top-class > .tree-level-rows { margin: 0.25rem 0 0.4rem 1.15rem; }
+#tree-panel .tree .tree-middle-class > summary { margin-top: 0; }
 #tree-panel .tree .tree-child-middle-list { row-gap: 0.1rem; }
-#tree-panel .tree .tree-child-middle-list > li { padding-block: 0.1rem; }
-#tree-panel .tree > details > ul > li > details.tree-middle-class { width: calc(100% + 2rem); }
+#tree-panel .tree .tree-child-middle-list > li { padding-block: 0.05rem; }
+#tree-panel .tree .tree-level-content { display: grid; grid-template-columns: fit-content(100%) max-content; width: 100%; min-width: 0; max-width: 100%; justify-content: start; white-space: normal; overflow-wrap: anywhere; }
+#tree-panel .tree .tree-level-label { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+#tree-panel .tree .count-badge { margin-left: 0.25rem; }
 #tree-panel .tree .tree-middle-class > summary { border-left: 3px solid var(--tree-level-color, #38bdf8); }
 #tree-panel .tree > details > ul::before,
 #tree-panel .tree > details > ul > li > details > ul::before,
 #tree-panel .tree .tree-middle-class > .tree-level-rows::before {
-  border-left-color: var(--tree-own-level-color, var(--tree-level-color, #7dd3fc));
+  border-left-color: var(--tree-level-color, #7dd3fc);
 }
 #tree-panel .tree > details > ul > li::before,
 #tree-panel .tree > details > ul > li > details > ul > li::before,
 #tree-panel .tree .tree-target-list > li::before,
 #tree-panel .tree .tree-child-middle-list > li::before { border-top-color: var(--tree-level-color, #7dd3fc); }
 
-/* 閲覧ツリーの操作と検索を一つにまとめ、画面上部に固定する。 */
-#tree-panel .tree-controls {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  margin: 0 0 0.55rem;
-  padding: 0.4rem 0.65rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  background: rgba(248, 250, 252, 0.97);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
-  backdrop-filter: blur(8px);
-}
+/* 閲覧・編集のツールバーは共通の外観で表示する。 */
 #tree-panel .tree-controls > .tree-toolbar {
+  display: flex;
   justify-content: flex-start;
+  flex-wrap: wrap;
   gap: 0.4rem;
   margin: 0;
 }
@@ -1220,7 +1225,7 @@ body[data-mode="browse"] .tree-add-button { display: none; }
 /* 閲覧モードでIDを表示するときは、IDをラベルの上段に配置する。 */
 .browse-show-ids #tree-panel .tree .tree-leaf-class {
   display: grid;
-  grid-template-columns: max-content max-content;
+  grid-template-columns: fit-content(100%) max-content;
   grid-template-areas: "id id" "label count";
   align-items: baseline;
   justify-content: start;
@@ -1231,32 +1236,67 @@ body[data-mode="browse"] .tree-add-button { display: none; }
 .browse-show-ids #tree-panel .tree .tree-leaf-label { grid-area: label; }
 .browse-show-ids #tree-panel .tree .target-instance-count-badge { grid-area: count; }
 .browse-show-ids #tree-panel .tree .tree-leaf-id {
-  font-size: 0.58rem;
+  font-size: 0.62rem;
+  line-height: 1.25;
   white-space: normal;
-  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 .browse-show-ids #tree-panel .tree .tree-leaf-label { font-size: 0.9rem; }
 .browse-show-ids #tree-panel .tree .tree-level-content {
-  grid-template-columns: max-content max-content;
+  grid-template-columns: fit-content(100%) max-content;
   grid-template-areas: "id id" "label count";
   align-items: baseline;
   justify-content: start;
   column-gap: 0;
   row-gap: 0.1rem;
-  width: auto;
+  width: 100%;
   min-width: 0;
-  max-width: calc(100% - 1.25rem);
+  max-width: 100%;
   white-space: normal;
 }
 .browse-show-ids #tree-panel .tree .tree-level-id { grid-area: id; }
 .browse-show-ids #tree-panel .tree .tree-level-label { grid-area: label; }
 .browse-show-ids #tree-panel .tree .edit-count { grid-area: count; }
 .browse-show-ids #tree-panel .tree .tree-level-id {
-  font-size: 0.58rem;
+  font-size: 0.62rem;
+  line-height: 1.25;
   white-space: normal;
-  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 .browse-show-ids #tree-panel .tree .tree-level-label { font-size: 1rem; }
+
+/* 編集モードも閲覧モードと同じく、IDをクラス名の上段に表示する。 */
+.edit-show-ids #edit-tree-panel .tree .tree-leaf-class {
+  display: grid;
+  grid-template-columns: fit-content(100%) max-content;
+  grid-template-areas: "id id" "label count";
+  align-items: baseline;
+  justify-content: start;
+  column-gap: 0;
+  row-gap: 0.1rem;
+}
+.edit-show-ids #edit-tree-panel .tree .tree-leaf-id { grid-area: id; font-size: 0.58rem; white-space: normal; overflow-wrap: anywhere; }
+.edit-show-ids #edit-tree-panel .tree .tree-leaf-label { grid-area: label; font-size: 0.9rem; }
+.edit-show-ids #edit-tree-panel .tree .target-instance-count-badge { grid-area: count; }
+.edit-show-ids #edit-tree-panel .tree .tree-level-content {
+  display: grid;
+  grid-template-columns: max-content max-content max-content;
+  grid-template-areas: "select id id" "select label count";
+  align-items: baseline;
+  justify-content: start;
+  column-gap: 0;
+  row-gap: 0.1rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+}
+.edit-show-ids #edit-tree-panel .tree .tree-level-selection-checkbox { grid-area: select; align-self: center; }
+.edit-show-ids #edit-tree-panel .tree .tree-level-id { grid-area: id; font-size: 0.58rem; white-space: normal; overflow-wrap: anywhere; }
+.edit-show-ids #edit-tree-panel .tree .tree-level-label { grid-area: label; font-size: 1rem; }
+.edit-show-ids #edit-tree-panel .tree .edit-count { grid-area: count; }
 
 /* 9. 一覧表 */
 table { border-collapse: collapse; width: 100%; font-size: 0.94rem; overflow: hidden; border-radius: 14px; }

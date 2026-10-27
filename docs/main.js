@@ -873,6 +873,20 @@ document.querySelectorAll('[data-tree-filter-method]').forEach((button) => {
   button.addEventListener('click', () => setTreeFilterMethod(button.dataset.treeFilterMethod));
 });
 document.querySelector('.tree-filter')?.addEventListener('toggle', renderTree);
+const browseTreeFilter = document.querySelector('#tree-panel .tree-filter');
+const browseTreeFilterOpenButton = document.getElementById('toggle-browse-tree-filter-open');
+document.getElementById('close-browse-tree-filter')?.addEventListener('click', (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  browseTreeFilter.hidden = true;
+  browseTreeFilterOpenButton.hidden = false;
+  renderTree();
+});
+browseTreeFilterOpenButton?.addEventListener('click', () => {
+  browseTreeFilter.hidden = false;
+  browseTreeFilterOpenButton.hidden = true;
+  renderTree();
+});
 function scheduleTreeRender() {
   if (treeRenderFrame) return;
   treeRenderFrame = requestAnimationFrame(() => {
