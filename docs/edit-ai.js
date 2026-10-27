@@ -166,7 +166,8 @@
       historyList.append(button);
     });
   };
-  const renderConversation = () => {
+  const renderConversation = ({ scrollToBottom = false } = {}) => {
+    const previousScrollTop = messages.scrollTop;
     classLabelsById = new Map(editor.getState().classes.map((item) => [item.id, item.label]));
     temporaryLabelsById = new Map(currentConversation.items
       .filter((item) => item.type === 'proposal')
@@ -178,7 +179,7 @@
       if (item.type === 'message') renderMessage(item);
       else if (item.type === 'proposal') renderProposalCard(item);
     });
-    messages.scrollTop = messages.scrollHeight;
+    messages.scrollTop = scrollToBottom ? messages.scrollHeight : previousScrollTop;
     status.textContent = currentConversation.status || '';
     updateHistoryList();
   };
@@ -351,22 +352,57 @@
   const appendTree = (host, state, affectedIds = new Set()) => {
     const classesById = new Map(state.classes.map((item) => [item.id, item]));
     const children = new Map(); const parentIds = new Set();
-    state.relations.forEach(({ child, parent }) => { if (!children.has(parent)) children.set(parent, []); children.get(parent).push(child); parentIds.add(child); });
-    const roots = state.classes.filter((item) => item.type === 'top' && !parentIds.has(item.id));
-    const rootList = document.createElement('ul'); rootList.className = 'ai-tree-list';
+    state.relations.forEach(({ child, parent }) => {
+      if (!children.has(parent)) children.set(parent, []);
+      children.get(parent).push(child);
+      parentIds.add(child);
+    });
     const buildNode = (id, path = new Set()) => {
-      const item = classesById.get(id); if (!item || path.has(id)) return null;
-      const li = document.createElement('li');
-      const row = document.createElement('span'); row.className = 'ai-tree-node';
-      if (affectedIds.has(id)) row.classList.add('is-changed');
-      row.textContent = `${item.label} (${item.type === 'top' ? '上位' : item.type === 'middle' ? '中間' : '対象'})`;
-      li.append(row);
-      const descendants = (children.get(id) || []).map((child) => buildNode(child, new Set(path).add(id))).filter(Boolean);
-      if (descendants.length) { const nested = document.createElement('ul'); nested.className = 'ai-tree-list'; nested.append(...descendants); li.append(nested); }
-      return li;
+      const item = classesById.get(id);
+      if (!item || path.has(id)) return null;
+      const nextPath = new Set(path).add(id);
+      const node = { id, label: item.label, type: item.type, children: [], targets: [] };
+      (children.get(id) || []).forEach((childId) => {
+        const child = classesById.get(childId);
+        if (!child) return;
+        if (child.type === 'class') node.targets.push(child);
+        else {
+          const childNode = buildNode(childId, nextPath);
+          if (childNode) node.children.push(childNode);
+        }
+      });
+      return node;
     };
-    roots.sort((a, b) => a.label.localeCompare(b.label, 'ja')).map((item) => buildNode(item.id)).filter(Boolean).forEach((item) => rootList.append(item));
-    host.replaceChildren(rootList);
+    const roots = state.classes.filter((item) => item.type === 'top' && !parentIds.has(item.id))
+      .map((item) => buildNode(item.id)).filter(Boolean);
+    host.classList.add('tree');
+    const targetCountFor = (item) => state.counts?.[item.id] || 0;
+    const countFor = (node) => node.targets.length + node.children.reduce((sum, child) => sum + countFor(child), 0);
+    window.renderHierarchyTree(host, roots, {
+      countFor,
+      targetCountFor,
+      isOpen: () => true,
+      displayId: () => '',
+      decorateSummary: (summary, _content, node) => {
+        if (affectedIds.has(node.id)) summary.classList.add('is-ai-preview-changed');
+      },
+      renderTarget: (item, _parent, depth) => {
+        const li = document.createElement('li');
+        li.style.setProperty('--tree-level-color', window.treeDepthColor(depth));
+        const row = document.createElement('div');
+        row.className = 'tree-leaf-class ai-preview-class';
+        if (affectedIds.has(item.id)) row.classList.add('is-ai-preview-changed');
+        const label = document.createElement('span');
+        label.className = 'tree-leaf-label';
+        label.textContent = item.label;
+        const count = document.createElement('span');
+        count.className = 'target-instance-count-badge';
+        count.textContent = `(${targetCountFor(item)}件)`;
+        row.append(label, count);
+        li.append(row);
+        return li;
+      }
+    });
   };
   const showPreview = async (proposalItem, applyRequested = false) => {
     const applyButton = document.getElementById('ai-apply-proposal');
@@ -420,7 +456,8 @@
     const previewIds = operationIds;
     const previewState = (state) => ({
       classes: state.classes.filter((item) => previewIds.has(item.id)),
-      relations: state.relations.filter(({ child, parent }) => previewIds.has(child) && previewIds.has(parent))
+      relations: state.relations.filter(({ child, parent }) => previewIds.has(child) && previewIds.has(parent)),
+      counts: beforeState.counts
     });
     appendTree(before, previewState(beforeState), affectedIds);
     appendTree(after, previewState(candidate), affectedIds);
@@ -776,7 +813,7 @@
     if (splitTasks) conversation.items.push({ type: 'message', role: 'assistant', text: `選択範囲のクラスを省略せず、上限内にまとめた${splitTasks.length}件の依頼として送信します。各案は分割範囲と親階層の文脈を基準にします。分割した依頼は2件ずつ並行処理します。枝をまたぐ構造変更を適用した後は、必要に応じて再評価を依頼してください。` });
     conversation.updatedAt = Date.now();
     refreshConversationTitle(conversation);
-    renderConversation();
+    renderConversation({ scrollToBottom: true });
     setStatus(splitTasks ? `OpenAI APIに接続しています…（分割 0/${splitTasks.length}）` : 'OpenAI APIに接続しています…');
     isSending = true; sendButton.disabled = true; document.getElementById('ai-new-consultation').disabled = true;
     try {
