@@ -476,6 +476,13 @@
       childrenByParent.get(parent).push(child);
     });
     const hierarchyEditableIds = new Set(hierarchyScope.editableIds);
+    const buildHierarchyTask = (taskScope) => {
+      const input = buildUserContent(userText, taskScope, conversation, baseDataHash, {
+        forceSnapshot: true,
+        instruction: hierarchyInstruction
+      });
+      return { kind: 'hierarchy', scope: taskScope, input };
+    };
     const makeHierarchyTask = (editableIds) => {
       const includedIds = new Set(editableIds);
       editableIds.forEach((id) => {
@@ -495,11 +502,7 @@
         relations: scope.relations.filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
         counts: {}
       };
-      const input = buildUserContent(userText, taskScope, conversation, baseDataHash, {
-        forceSnapshot: true,
-        instruction: hierarchyInstruction
-      });
-      return { kind: 'hierarchy', scope: taskScope, input };
+      return buildHierarchyTask(taskScope);
     };
     const hierarchyTasks = [];
     const remainingHierarchyIds = new Set(hierarchyEditableIds);
@@ -535,10 +538,39 @@
     });
     [...remainingHierarchyIds].forEach(partitionHierarchySubtree);
 
+    // Pack small hierarchy branches together so they do not each require a separate API call.
+    const packedHierarchyTasks = [];
+    let pendingHierarchyScope = null;
+    const mergeHierarchyScopes = (left, right) => {
+      const classesById = new Map([...left.classes, ...right.classes].map((item) => [item.id, item]));
+      const relationByKey = new Map([...left.relations, ...right.relations]
+        .map((item) => [`${item.child}\u0000${item.parent}`, item]));
+      return {
+        mode: 'hierarchy_scope',
+        selectedIds: [...scope.selectedIds],
+        editableIds: [...new Set([...left.editableIds, ...right.editableIds])],
+        classes: [...classesById.values()],
+        relations: [...relationByKey.values()],
+        counts: {}
+      };
+    };
+    hierarchyTasks.forEach((task) => {
+      const candidateScope = pendingHierarchyScope ? mergeHierarchyScopes(pendingHierarchyScope, task.scope) : task.scope;
+      const candidateTask = buildHierarchyTask(candidateScope);
+      if (pendingHierarchyScope && candidateTask.input.length > hierarchyChunkLimit) {
+        packedHierarchyTasks.push(buildHierarchyTask(pendingHierarchyScope));
+        pendingHierarchyScope = task.scope;
+      } else {
+        pendingHierarchyScope = candidateScope;
+      }
+    });
+    if (pendingHierarchyScope) packedHierarchyTasks.push(buildHierarchyTask(pendingHierarchyScope));
+    hierarchyTasks.splice(0, hierarchyTasks.length, ...packedHierarchyTasks);
+
     const targetClasses = scope.classes.filter((item) => item.type === 'class' && scope.editableIds.includes(item.id));
     const targetInstruction = 'この分割範囲に含まれる対象クラスだけを評価してください。許可する操作は対象クラスの移動だけです。上位・中間クラスの追加・改名・移動・削除や、入力にない対象クラスの操作は提案しないでください。移動先は入力にある上位・中間クラスのIDだけを使ってください。';
     const targetTasks = [];
-    const targetsByHierarchyTask = new Map();
+    const targetUnits = [];
     targetClasses.forEach((target) => {
       let parentId = parentByChild.get(target.id);
       let hierarchyTask = null;
@@ -551,13 +583,15 @@
       }
       if (!hierarchyTask) hierarchyTask = hierarchyTasks.find((task) => task.scope.classes.some((item) => item.id === parentByChild.get(target.id)));
       if (!hierarchyTask) throw new Error('対象クラスの親階層を分割範囲に対応付けられませんでした。');
-      if (!targetsByHierarchyTask.has(hierarchyTask)) targetsByHierarchyTask.set(hierarchyTask, []);
-      targetsByHierarchyTask.get(hierarchyTask).push(target);
+      targetUnits.push({ target, hierarchyTask });
     });
 
-    const makeTargetScope = (targets, hierarchyTask) => {
+    const makeTargetScope = (units) => {
+      const targets = units.map((unit) => unit.target);
       const targetIds = new Set(targets.map((item) => item.id));
-      const classes = [...hierarchyTask.scope.classes, ...targets];
+      const hierarchyByIdLocal = new Map();
+      units.forEach(({ hierarchyTask }) => hierarchyTask.scope.classes.forEach((item) => hierarchyByIdLocal.set(item.id, item)));
+      const classes = [...hierarchyByIdLocal.values(), ...targets];
       const includedIds = new Set(classes.map((item) => item.id));
       return {
         mode: 'selected_scope',
@@ -568,8 +602,8 @@
         counts: {}
       };
     };
-    const addSizedTargetTasks = (targets, hierarchyTask) => {
-      const taskScope = makeTargetScope(targets, hierarchyTask);
+    const addSizedTargetTasks = (units) => {
+      const taskScope = makeTargetScope(units);
       const input = buildUserContent(userText, taskScope, conversation, baseDataHash, {
         forceSnapshot: true,
         instruction: targetInstruction
@@ -578,14 +612,14 @@
         targetTasks.push({ kind: 'targets', scope: taskScope, input });
         return;
       }
-      if (targets.length < 2) {
+      if (units.length < 2) {
         throw new Error('対象クラス1件と移動先候補だけでも送信上限を超えています。選択範囲を小さくするか、クラス名の長い範囲を分けてください。');
       }
-      const midpoint = Math.ceil(targets.length / 2);
-      addSizedTargetTasks(targets.slice(0, midpoint), hierarchyTask);
-      addSizedTargetTasks(targets.slice(midpoint), hierarchyTask);
+      const midpoint = Math.ceil(units.length / 2);
+      addSizedTargetTasks(units.slice(0, midpoint));
+      addSizedTargetTasks(units.slice(midpoint));
     };
-    targetsByHierarchyTask.forEach((targets, hierarchyTask) => addSizedTargetTasks(targets, hierarchyTask));
+    if (targetUnits.length) addSizedTargetTasks(targetUnits);
     const hierarchyCoverage = new Set(hierarchyTasks.flatMap((task) => task.scope.editableIds));
     const targetCoverage = new Set(targetTasks.flatMap((task) => task.scope.editableIds));
     if (hierarchyEditableIds.size !== hierarchyCoverage.size
@@ -671,7 +705,7 @@
     textInput.value = '';
     conversation.selectedIds = [...editor.selectedIds];
     conversation.items.push({ type: 'message', role: 'user', text: userText });
-    if (splitTasks) conversation.items.push({ type: 'message', role: 'assistant', text: `選択範囲のクラスを省略せず、枝ごとに${splitTasks.length}件の依頼へ分割して送信します。各案は分割範囲と親階層の文脈を基準にします。枝をまたぐ構造変更を適用した後は、必要に応じて再評価を依頼してください。` });
+    if (splitTasks) conversation.items.push({ type: 'message', role: 'assistant', text: `選択範囲のクラスを省略せず、上限内にまとめた${splitTasks.length}件の依頼として送信します。各案は分割範囲と親階層の文脈を基準にします。分割した依頼は2件ずつ並行処理します。枝をまたぐ構造変更を適用した後は、必要に応じて再評価を依頼してください。` });
     conversation.updatedAt = Date.now();
     refreshConversationTitle(conversation);
     renderConversation();
@@ -706,21 +740,25 @@
       if (splitTasks) {
         result = { baseDataHash, message: '', proposals: [], questions: [] };
         const messagesFromParts = [];
-        for (let index = 0; index < splitTasks.length; index += 1) {
-          setStatus(`OpenAI APIに接続しています…（分割 ${index + 1}/${splitTasks.length}）`);
-          const task = splitTasks[index];
-          const part = await sendApiRequest(task.input);
-          if (part.result?.baseDataHash !== baseDataHash) throw new Error('分割した依頼の一部でデータ版が一致しません。提案は適用できません。');
-          part.result.proposals.forEach((proposal, proposalIndex) => {
-            proposal.id = `part${index + 1}_proposal${proposalIndex + 1}`;
-          });
-          validatePayload(part.result, baseDataHash);
-          validateSplitTaskOperations(part.result, task);
-          if (part.result.message) messagesFromParts.push(part.result.message);
-          result.questions.push(...part.result.questions);
-          part.result.proposals.forEach((proposal) => {
-            result.proposals.push(proposal);
-            proposalScopes.set(proposal.id, [...task.scope.editableIds]);
+        for (let offset = 0; offset < splitTasks.length; offset += 2) {
+          const batch = splitTasks.slice(offset, offset + 2);
+          setStatus(`OpenAI APIに接続しています…（分割 ${offset + 1}〜${offset + batch.length}/${splitTasks.length}）`);
+          const parts = await Promise.all(batch.map((task) => sendApiRequest(task.input)));
+          parts.forEach((part, batchIndex) => {
+            const index = offset + batchIndex;
+            const task = splitTasks[index];
+            if (part.result?.baseDataHash !== baseDataHash) throw new Error('分割した依頼の一部でデータ版が一致しません。提案は適用できません。');
+            part.result.proposals.forEach((proposal, proposalIndex) => {
+              proposal.id = `part${index + 1}_proposal${proposalIndex + 1}`;
+            });
+            validatePayload(part.result, baseDataHash);
+            validateSplitTaskOperations(part.result, task);
+            if (part.result.message) messagesFromParts.push(part.result.message);
+            result.questions.push(...part.result.questions);
+            part.result.proposals.forEach((proposal) => {
+              result.proposals.push(proposal);
+              proposalScopes.set(proposal.id, [...task.scope.editableIds]);
+            });
           });
           if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
         }
