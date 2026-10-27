@@ -185,7 +185,7 @@
       <button type="button" id="ai-preview-close" class="target-instance-dialog-close" aria-label="閉じる">×</button>
     </div>
     <p id="ai-preview-impact" class="ai-preview-impact"></p>
-    <p class="ai-preview-note">比較ツリーには、変更箇所と位置を確認するための親クラスだけを表示します。中央の矢印で移動先を調整し、変更後ツリーのチェックで適用・除外を切り替えられます。配下一括移動など複数クラスに及ぶ操作はまとめて切り替わります。</p>
+    <p class="ai-preview-note">比較ツリーには、変更箇所と位置を確認するための親クラスだけを表示します。変更後ツリーでは、青色が適用、灰色が除外です。対象クラスをクリックすると切り替わります。除外したクラスも再度適用できるよう表示に残ります。配下一括移動など複数クラスに及ぶ操作はまとめて切り替わります。上位・中間クラスの変更はチェックで切り替えます。</p>
     <div class="ai-preview-columns">
       <section><h3>変更前</h3><div id="ai-preview-before" class="ai-preview-tree"></div></section>
       <div id="ai-preview-transfers" class="ai-preview-transfers" aria-label="移動元と移動先"></div>
@@ -196,6 +196,6 @@
       <button type="button" id="ai-apply-proposal" class="search-button">この変更を適用</button>
     </div>
   </dialog>
-  <script src="edit-ai.js?v=20261027-preview-transfer-arrows-hash-v14" defer></script>
+  <script src="edit-ai.js?v=20261027-preview-target-selection-v17" defer></script>
 </body>
 </html>

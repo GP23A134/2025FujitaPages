@@ -416,13 +416,24 @@
         li.style.setProperty('--tree-level-color', window.treeDepthColor(depth));
         const row = document.createElement('div');
         row.className = 'tree-leaf-class ai-preview-class';
-        if (affectedIds.has(item.id)) {
-          const indexes = options.operationIndexesByClass?.get(item.id);
-          row.classList.add(indexes?.some((index) => options.excludedOperationIndexes.has(index))
-            ? 'is-ai-preview-excluded' : 'is-ai-preview-changed');
+        const indexes = options.operationIndexesByClass?.get(item.id);
+        if (affectedIds.has(item.id) && indexes?.size) {
+          const included = indexes.every((index) => !options.excludedOperationIndexes.has(index));
+          row.classList.add(included ? 'is-selected is-ai-preview-changed' : 'is-ai-preview-excluded');
         }
-        const checkbox = makeToggle(item.id, item.label);
-        if (checkbox) row.append(checkbox);
+        if (options.selectable && indexes?.size) {
+          const included = indexes.every((index) => !options.excludedOperationIndexes.has(index));
+          row.setAttribute('role', 'checkbox');
+          row.setAttribute('aria-checked', String(included));
+          row.setAttribute('aria-label', `${item.label}の変更を適用する`);
+          row.tabIndex = 0;
+          const toggle = () => options.onToggle?.(indexes, !included);
+          row.addEventListener('click', toggle);
+            if (event.key !== ' ' && event.key !== 'Enter') return;
+            event.preventDefault();
+            toggle();
+          });
+        }
         const id = document.createElement('span');
         id.className = 'tree-leaf-id';
         const idSegment = String(item.id).split('/').pop();
@@ -593,10 +604,6 @@
       source.className = 'ai-preview-transfer-source';
       source.textContent = operation.type === 'moveChildren' ? `${labelFor(sourceId)}の配下` : labelFor(sourceId);
       source.title = source.textContent;
-      const arrow = document.createElement('span');
-      arrow.className = 'ai-preview-transfer-arrow';
-      arrow.textContent = '→';
-      arrow.setAttribute('aria-hidden', 'true');
       const select = document.createElement('select');
       select.className = 'ai-preview-transfer-destination';
       select.setAttribute('aria-label', `「${source.textContent}」の移動先`);
@@ -613,7 +620,7 @@
         else operations[index].to = select.value;
         void showPreview(proposalItem, applyRequested).catch(reportPreviewError);
       });
-      row.append(source, arrow, select);
+      row.append(source, select);
       transferList.append(row);
     });
     previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), candidate, expectedFingerprint, expectedBaseHash };
