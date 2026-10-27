@@ -296,7 +296,6 @@
       document.getElementById('ai-preview-impact').textContent = `プレビューを作成できませんでした: ${message}`;
       document.getElementById('ai-preview-before').replaceChildren();
       document.getElementById('ai-preview-after').replaceChildren();
-      document.getElementById('ai-preview-transfers').replaceChildren();
       document.getElementById('ai-apply-proposal').disabled = true;
     }
   };
@@ -422,7 +421,8 @@
         const indexes = indexesFor(item.id);
         if (affectedIds.has(item.id) && indexes.length) {
           const included = indexes.every((index) => !options.excludedOperationIndexes.has(index));
-          row.classList.add(included ? 'is-selected is-ai-preview-changed' : 'is-ai-preview-excluded');
+          if (included) row.classList.add('is-selected', 'is-ai-preview-changed');
+          else row.classList.add('is-ai-preview-excluded');
         }
         if (options.selectable && indexes.length) {
           const included = indexes.every((index) => !options.excludedOperationIndexes.has(index));
@@ -446,10 +446,7 @@
         const label = document.createElement('span');
         label.className = 'tree-leaf-label';
         label.textContent = item.label;
-        const count = document.createElement('span');
-        count.className = 'target-instance-count-badge';
-        count.textContent = `(${targetCountFor(item)}件)`;
-        row.append(id, label, count);
+        row.append(id, label);
         li.append(row);
         return li;
       },
@@ -466,7 +463,6 @@
     document.getElementById('ai-preview-impact').textContent = '現在の階層に変更案を反映しています…';
     document.getElementById('ai-preview-before').replaceChildren();
     document.getElementById('ai-preview-after').replaceChildren();
-    document.getElementById('ai-preview-transfers').replaceChildren();
     if (!previewDialog.open) previewDialog.showModal();
     await new Promise((resolve) => requestAnimationFrame(resolve));
     await verifyLoadedDataVersion();
@@ -614,42 +610,6 @@
       && beforeParents.get(item.id) !== activeParents.get(item.id));
     const movedTargetCount = movedTargets.reduce((sum, item) => sum + (beforeState.counts[item.id] || 0), 0);
     document.getElementById('ai-preview-impact').textContent = `選択中の変更 ${activeOperations.length}/${operations.length}件。対象クラス ${movedTargets.length}件、関連インスタンス ${movedTargetCount}件の分類先が変わります。変更後ツリーの選択で適用対象を切り替えられます。`;
-    const transferList = document.getElementById('ai-preview-transfers');
-    operations.forEach((operation, index) => {
-      if (!['moveClass', 'moveChildren'].includes(operation.type)) return;
-      const sourceId = operation.type === 'moveClass' ? operation.classId : operation.from;
-      const destinationId = operation.type === 'moveClass' ? operation.destinationId : operation.to;
-      const row = document.createElement('div');
-      row.className = `ai-preview-transfer${proposalItem.excludedOperationIndexes.has(index) ? ' is-excluded' : ''}`;
-      const source = document.createElement('span');
-      source.className = 'ai-preview-transfer-source';
-      source.textContent = operation.type === 'moveChildren' ? `${labelFor(sourceId)}の配下` : labelFor(sourceId);
-      source.title = source.textContent;
-      const select = document.createElement('select');
-      select.className = 'ai-preview-transfer-destination';
-      select.setAttribute('aria-label', `「${source.textContent}」の移動先`);
-      proposedCandidate.classes.filter((item) => ['top', 'middle'].includes(item.type) && item.id !== sourceId)
-        .forEach((item) => {
-          const option = document.createElement('option');
-          option.value = item.id;
-          option.textContent = item.label;
-          option.selected = item.id === destinationId;
-          select.append(option);
-        });
-      select.addEventListener('change', () => {
-        const previousDestination = operation.type === 'moveClass' ? operation.destinationId : operation.to;
-        if (operation.type === 'moveClass') operations[index].destinationId = select.value;
-        else operations[index].to = select.value;
-        void showPreview(proposalItem, applyRequested).catch((error) => {
-          if (operation.type === 'moveClass') operations[index].destinationId = previousDestination;
-          else operations[index].to = previousDestination;
-          reportPreviewError(error);
-          void showPreview(proposalItem, applyRequested).catch(reportPreviewError);
-        });
-      });
-      row.append(source, select);
-      transferList.append(row);
-    });
     previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), candidate, expectedFingerprint, expectedBaseHash };
     applyButton.disabled = activeOperations.length === 0;
     if (applyRequested && activeOperations.length) applyButton.focus();
@@ -1135,7 +1095,6 @@
     document.getElementById('ai-apply-proposal').disabled = true;
   });
   document.getElementById('ai-preview-close').addEventListener('click', closePreview);
-  document.getElementById('ai-preview-cancel').addEventListener('click', closePreview);
   document.getElementById('ai-apply-proposal').addEventListener('click', async () => {
     if (!previewPlan) return;
     try {
