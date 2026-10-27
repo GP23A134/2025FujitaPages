@@ -136,6 +136,8 @@
           <section id="ai-assistant-panel" class="ai-assistant-panel" aria-label="AIチャット" hidden>
             <div id="ai-chat-messages" class="ai-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
             <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
+            <p id="ai-usage-summary" class="ai-usage-summary" aria-live="polite"></p>
+            <p class="ai-chat-guidance">所属先が決まっている一括移動は「移動先」タブを使うとAPI料金がかかりません。分類の判断や再編案の相談にAIを使ってください。</p>
             <form id="ai-chat-form" class="ai-chat-form">
               <button type="button" id="ai-new-consultation" class="ai-new-consultation" aria-label="新しい相談" title="新しい相談">＋</button>
               <label class="sr-only" for="ai-chat-input">AIへの依頼</label>
@@ -160,7 +162,7 @@
         <input id="ai-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…">
         <button type="button" id="ai-toggle-key-visibility" class="held-action-button" aria-pressed="false">表示</button>
       </div>
-      <p class="edit-settings-note">キーはページを開いている間だけメモリ内に保持します。API通信時にOpenAIへ送信され、ページを閉じると消去されます。</p>
+      <p class="edit-settings-note">キーはページを開いている間だけメモリ内に保持します。API通信時にOpenAIへ送信され、ページを閉じると消去されます。ブラウザー内のスクリプトから利用できるため、信頼できる端末でのみ入力してください。クラス名・階層情報と依頼文は選択範囲に応じてOpenAI APIへ送られ、会話継続のため応答もAPI側に保存する設定です。API利用料はこのキーのアカウントに請求されます。共有サイトで組織共通キーを使う場合は、サーバー側の中継と利用上限が必要です。</p>
       <label for="ai-model">モデル</label>
       <select id="ai-model" class="edit-settings-select" aria-describedby="ai-model-description"></select>
       <p id="ai-model-description" class="edit-settings-note">モデル候補は設定ファイルで管理します。</p>
@@ -216,6 +218,6 @@
       <button type="button" id="ai-apply-proposal" class="search-button">この変更を適用</button>
     </div>
   </dialog>
-  <script src="edit-ai.js?v=20261027-preview-review-v38" defer></script>
+  <script src="edit-ai.js?v=20261027-cost-visibility-v39" defer></script>
 </body>
 </html>

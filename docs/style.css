@@ -638,6 +638,9 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-chat-form .search-button { min-height: 2.45rem; }
 .ai-status { margin: 0; color: #475569; font-size: 0.8rem; line-height: 1.4; }
 .ai-status.is-error { color: #b91c1c; }
+.ai-usage-summary, .ai-chat-guidance { margin: 0; color: #64748b; font-size: 0.72rem; line-height: 1.45; }
+.ai-usage-summary { padding: 0.35rem 0.45rem; border-radius: 6px; background: #f1f5f9; overflow-wrap: anywhere; }
+.ai-chat-guidance { padding: 0.25rem 0.1rem; }
 .ai-proposal-card { flex: 0 0 auto; padding: 0.7rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #f8fbff; font-size: 0.84rem; }
 .ai-proposal-card.is-stale { border-color: #fbbf24; background: #fffbeb; }
 .ai-proposal-card.is-applied { border-color: #86efac; background: #f0fdf4; }

@@ -43,15 +43,11 @@ const syncPinnedHeldPanelBounds = () => {
       panel.style.removeProperty('visibility');
       return;
     }
-    const treePane = layout.querySelector('.edit-tree-pane');
-    if (!treePane) return;
-    const treePaneBounds = treePane.getBoundingClientRect();
     const toolbarBounds = document.querySelector('.edit-taskbar')?.getBoundingClientRect();
-    const stickyTop = toolbarBounds?.bottom ?? 0;
-    const paneTopOffset = Number.parseFloat(getComputedStyle(layout).getPropertyValue('--edit-pane-top-offset')) || 0;
+    // 固定欄はツリー領域の上端を追従させず、sticky ツールバーの直下に揃える。
+    // paneTop と toolbar bottom の間をスクロール中に追いかけると、保持欄が長く上下移動する。
+    const top = toolbarBounds?.bottom ?? 0;
     const treeFilter = document.getElementById('tree-filter');
-    const paneTop = treePaneBounds.top + (treeFilter?.hidden ? 0 : paneTopOffset);
-    const top = Math.max(paneTop, stickyTop);
     const searchTreeGap = Number.parseFloat(getComputedStyle(layout).getPropertyValue('--edit-pane-search-tree-gap')) || 0;
     const treeStickyTop = treeFilter && !treeFilter.hidden
       ? Math.max(treeFilter.getBoundingClientRect().bottom + searchTreeGap, top)

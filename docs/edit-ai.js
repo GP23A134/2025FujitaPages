@@ -96,7 +96,9 @@
   const historyButton = document.getElementById('ai-show-history');
   const historyPopover = document.getElementById('ai-history-popover');
   const historyList = document.getElementById('ai-history-list');
+  const usageSummary = document.getElementById('ai-usage-summary');
   const conversations = [];
+  const sessionUsage = { requests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, costKnown: true };
   let currentConversation = null;
   let previewPlan = null;
   let sourceDataVersion = '';
@@ -116,12 +118,65 @@
       previousScope: null,
       localContext: '',
       items: [],
-      status: ''
+      status: '',
+      usage: { requests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, costKnown: true }
     };
     conversations.unshift(conversation);
     return conversation;
   };
   currentConversation = createConversation();
+
+  const formatUsd = (value) => `$${Number(value || 0).toFixed(6)}`;
+  const selectedModelPricing = () => modelConfig?.models.find((item) => item.id === modelSelect.value);
+  const updateUsageSummary = (note = '') => {
+    if (!usageSummary) return;
+    const current = currentConversation?.usage || { requests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, costKnown: true };
+    const pricingAvailable = current.costKnown && sessionUsage.costKnown;
+    const conversationCost = current.requests ? formatUsd(current.costUsd) : '$0.000000';
+    const sessionCost = sessionUsage.requests ? formatUsd(sessionUsage.costUsd) : '$0.000000';
+    const actual = `この相談: ${current.requests}回・入力 ${current.inputTokens.toLocaleString()} / 出力 ${current.outputTokens.toLocaleString()} tokens・${pricingAvailable ? conversationCost : '料金不明'}　|　このページ: ${sessionUsage.requests}回・${pricingAvailable ? sessionCost : '料金不明'}`;
+    usageSummary.textContent = [actual, note].filter(Boolean).join('　');
+  };
+  const recordUsage = (responseBody) => {
+    const usage = responseBody?.usage;
+    if (!usage || !Number.isFinite(usage.input_tokens) || !Number.isFinite(usage.output_tokens)) return;
+    const rates = selectedModelPricing();
+    const inputTokens = usage.input_tokens;
+    const outputTokens = usage.output_tokens;
+    const cachedTokens = Math.min(inputTokens, Number(usage.input_tokens_details?.cached_tokens || 0));
+    const ratesAvailable = rates && Number.isFinite(rates.inputUsdPerMillion) && Number.isFinite(rates.outputUsdPerMillion);
+    const costUsd = ratesAvailable
+      ? ((inputTokens - cachedTokens) * rates.inputUsdPerMillion
+        + cachedTokens * (rates.cachedInputUsdPerMillion ?? rates.inputUsdPerMillion)
+        + outputTokens * rates.outputUsdPerMillion) / 1_000_000
+      : 0;
+    [currentConversation.usage, sessionUsage].forEach((total) => {
+      total.requests += 1;
+      total.inputTokens += inputTokens;
+      total.outputTokens += outputTokens;
+      total.costUsd += costUsd;
+      if (!ratesAvailable) total.costKnown = false;
+    });
+    updateUsageSummary();
+  };
+  const estimateTokensFromText = (text) => {
+    let japanese = 0;
+    let other = 0;
+    for (const character of text) {
+      if (/[\u3000-\u30ff\u3400-\u9fff\uf900-\ufaff]/u.test(character)) japanese += 1;
+      else other += 1;
+    }
+    return Math.ceil(japanese * 1.5 + other / 4);
+  };
+  const estimateRequestCost = (inputs, systemPrompt) => {
+    const rates = selectedModelPricing();
+    if (!rates) return '料金目安を表示できません（モデル料金の設定なし）';
+    const inputTokens = inputs.reduce((total, input) => total + estimateTokensFromText(input) + estimateTokensFromText(systemPrompt), 0);
+    const inputUsd = inputTokens * rates.inputUsdPerMillion / 1_000_000;
+    const outputCapUsd = inputs.length * 5000 * rates.outputUsdPerMillion / 1_000_000;
+    const pricingDate = modelConfig?.pricingAsOf ? `料金単価 ${modelConfig.pricingAsOf} 時点。` : '';
+    return `今回の概算: ${inputs.length}リクエスト、入力約${inputTokens.toLocaleString()} tokens。最大出力枠を使う想定で約${formatUsd(inputUsd + outputCapUsd)}（精度の低い目安。${pricingDate}会話履歴・JSON形式指定などを含まず、実額は異なります）`;
+  };
 
   const setStatus = (text, kind = '') => {
     status.textContent = text;
@@ -180,6 +235,7 @@
     });
     messages.scrollTop = scrollToBottom ? messages.scrollHeight : previousScrollTop;
     status.textContent = currentConversation.status || '';
+    updateUsageSummary();
     updateHistoryList();
   };
   const activateConversation = (conversation) => {
@@ -994,12 +1050,24 @@
         return;
       }
     }
+    const requestInputs = splitTasks ? splitTasks.map((task) => task.input) : [userContent];
+    const userMessageCount = conversation.items.filter((item) => item.type === 'message' && item.role === 'user').length;
+    const longConversationNote = userMessageCount >= 7
+      ? '会話が長くなっています。前のやりとりも利用量に影響するため、必要なら「＋」から新しい相談を始めてください。'
+      : '';
+    const preflightNote = [estimateRequestCost(requestInputs, systemPrompt), longConversationNote].filter(Boolean).join('　');
+    updateUsageSummary(preflightNote);
+    if (splitTasks?.length > 1 && !window.confirm(`この依頼は${splitTasks.length}回のAPIリクエストに分割されます。\n${preflightNote}\n\n続けますか？`)) {
+      updateUsageSummary();
+      return;
+    }
     textInput.value = '';
     conversation.selectedIds = [...editor.selectedIds];
     conversation.items.push({ type: 'message', role: 'user', text: userText });
     conversation.updatedAt = Date.now();
     refreshConversationTitle(conversation);
     renderConversation({ scrollToBottom: true });
+    updateUsageSummary(preflightNote);
     setStatus(splitTasks ? `OpenAI APIに接続しています…（1/${splitTasks.length}）` : 'OpenAI APIに接続しています…');
     isSending = true; sendButton.disabled = true; document.getElementById('ai-new-consultation').disabled = true;
     try {
@@ -1023,6 +1091,7 @@
         });
         const responseBody = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(formatHttpError(responseBody, response));
+        recordUsage(responseBody);
         return { responseBody, result: JSON.parse(readResponseText(responseBody)) };
       };
       let result;

@@ -1,30 +1,46 @@
 {
   "defaultModel": "gpt-6-luna",
+  "pricingAsOf": "2026-10-27",
   "models": [
     {
       "id": "gpt-6-luna",
       "label": "GPT-6 Luna",
-      "description": ""
+      "description": "低コストの既定モデル。入力 $0.10 / 100万トークン、出力 $0.50 / 100万トークン。",
+      "inputUsdPerMillion": 0.10,
+      "cachedInputUsdPerMillion": 0.01,
+      "outputUsdPerMillion": 0.50
     },
     {
       "id": "gpt-6.1-sol",
       "label": "GPT-6.1 Sol",
-      "description": ""
+      "description": "入力 $2 / 100万トークン、出力 $10 / 100万トークン。",
+      "inputUsdPerMillion": 2,
+      "cachedInputUsdPerMillion": 0.10,
+      "outputUsdPerMillion": 10
     },
     {
       "id": "gpt-6-sol",
       "label": "GPT-6 Sol",
-      "description": ""
+      "description": "入力 $2 / 100万トークン、出力 $10 / 100万トークン。",
+      "inputUsdPerMillion": 2,
+      "cachedInputUsdPerMillion": 0.20,
+      "outputUsdPerMillion": 10
     },
     {
       "id": "gpt-5.6-terra",
       "label": "GPT-5.6 Terra",
-      "description": ""
+      "description": "入力 $2 / 100万トークン、出力 $12 / 100万トークン。",
+      "inputUsdPerMillion": 2,
+      "cachedInputUsdPerMillion": 0.20,
+      "outputUsdPerMillion": 12
     },
     {
       "id": "gpt-5.6-luna",
       "label": "GPT-5.6 Luna",
-      "description": ""
+      "description": "入力 $0.20 / 100万トークン、出力 $1.20 / 100万トークン。",
+      "inputUsdPerMillion": 0.20,
+      "cachedInputUsdPerMillion": 0.02,
+      "outputUsdPerMillion": 1.20
     }
   ]
 }
