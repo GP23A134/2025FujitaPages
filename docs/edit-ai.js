@@ -462,40 +462,102 @@
     const hierarchyScope = editor.getHierarchyScopedState(scope.selectedIds);
     if (!hierarchyScope) return null;
     const hierarchyInstruction = 'この分割処理では上位・中間クラスの階層構造だけを検討してください。対象クラスの変更案は作らず、入力にない情報を推測しないでください。';
-    const hierarchyContent = buildUserContent(userText, hierarchyScope, conversation, baseDataHash, {
-      forceSnapshot: true,
-      instruction: hierarchyInstruction
-    });
-    if (hierarchyContent.length > MAX_REQUEST_CHARACTERS) {
-      throw new Error(`上位・中間クラスの構造だけでも送信上限を超えています（約${hierarchyContent.length.toLocaleString()}文字）。さらに小さい上位クラス範囲を選択してください。`);
-    }
-
     const hierarchyClasses = scope.classes.filter((item) => ['top', 'middle'].includes(item.type));
+    const hasTargetClasses = scope.classes.some((item) => item.type === 'class' && scope.editableIds.includes(item.id));
+    const hierarchyChunkLimit = hasTargetClasses
+      ? Math.floor(MAX_REQUEST_CHARACTERS * 0.75)
+      : MAX_REQUEST_CHARACTERS;
     const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
     const hierarchyById = new Map(hierarchyClasses.map((item) => [item.id, item]));
+    const childrenByParent = new Map();
+    scope.relations.forEach(({ child, parent }) => {
+      if (!hierarchyById.has(child) || !hierarchyById.has(parent)) return;
+      if (!childrenByParent.has(parent)) childrenByParent.set(parent, []);
+      childrenByParent.get(parent).push(child);
+    });
+    const hierarchyEditableIds = new Set(hierarchyScope.editableIds);
+    const makeHierarchyTask = (editableIds) => {
+      const includedIds = new Set(editableIds);
+      editableIds.forEach((id) => {
+        let parentId = parentByChild.get(id);
+        const seen = new Set();
+        while (parentId && hierarchyById.has(parentId) && !seen.has(parentId)) {
+          seen.add(parentId);
+          includedIds.add(parentId);
+          parentId = parentByChild.get(parentId);
+        }
+      });
+      const taskScope = {
+        mode: 'hierarchy_scope',
+        selectedIds: [...scope.selectedIds],
+        editableIds: [...editableIds],
+        classes: hierarchyClasses.filter((item) => includedIds.has(item.id)),
+        relations: scope.relations.filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
+        counts: {}
+      };
+      const input = buildUserContent(userText, taskScope, conversation, baseDataHash, {
+        forceSnapshot: true,
+        instruction: hierarchyInstruction
+      });
+      return { kind: 'hierarchy', scope: taskScope, input };
+    };
+    const hierarchyTasks = [];
+    const remainingHierarchyIds = new Set(hierarchyEditableIds);
+    const collectRemainingSubtree = (id, collected = new Set()) => {
+      if (!remainingHierarchyIds.has(id) || collected.has(id)) return collected;
+      collected.add(id);
+      (childrenByParent.get(id) || []).forEach((childId) => collectRemainingSubtree(childId, collected));
+      return collected;
+    };
+    const partitionHierarchySubtree = (rootId) => {
+      const subtreeIds = collectRemainingSubtree(rootId);
+      if (!subtreeIds.size) return;
+      const candidate = makeHierarchyTask([...subtreeIds]);
+      if (candidate.input.length <= hierarchyChunkLimit) {
+        hierarchyTasks.push(candidate);
+        subtreeIds.forEach((id) => remainingHierarchyIds.delete(id));
+        return;
+      }
+
+      // If a whole branch is too large, keep its root in one task and recurse into each child branch.
+      if (remainingHierarchyIds.has(rootId)) {
+        const rootTask = makeHierarchyTask([rootId]);
+        if (rootTask.input.length > hierarchyChunkLimit) {
+          throw new Error('上位・中間クラス1件と親階層の情報が大きく、対象クラスを加える余地がありません。さらに小さい範囲を選択してください。');
+        }
+        hierarchyTasks.push(rootTask);
+        remainingHierarchyIds.delete(rootId);
+      }
+      (childrenByParent.get(rootId) || []).filter((id) => remainingHierarchyIds.has(id)).forEach(partitionHierarchySubtree);
+    };
+    hierarchyScope.selectedIds.forEach((id) => {
+      if (remainingHierarchyIds.has(id)) partitionHierarchySubtree(id);
+    });
+    [...remainingHierarchyIds].forEach(partitionHierarchySubtree);
+
     const targetClasses = scope.classes.filter((item) => item.type === 'class' && scope.editableIds.includes(item.id));
-    const targetGroups = new Map();
+    const targetInstruction = 'この分割範囲に含まれる対象クラスだけを評価してください。許可する操作は対象クラスの移動だけです。上位・中間クラスの追加・改名・移動・削除や、入力にない対象クラスの操作は提案しないでください。移動先は入力にある上位・中間クラスのIDだけを使ってください。';
+    const targetTasks = [];
+    const targetsByHierarchyTask = new Map();
     targetClasses.forEach((target) => {
       let parentId = parentByChild.get(target.id);
-      let groupId = parentId || target.id;
+      let hierarchyTask = null;
       const seen = new Set();
       while (parentId && !seen.has(parentId)) {
         seen.add(parentId);
-        const parent = hierarchyById.get(parentId);
-        if (!parent) break;
-        groupId = parent.id;
-        if (parent.type === 'middle') break;
-        parentId = parentByChild.get(parent.id);
+        hierarchyTask = hierarchyTasks.find((task) => task.scope.editableIds.includes(parentId)) || hierarchyTask;
+        if (hierarchyById.get(parentId)?.type === 'middle' && hierarchyTask) break;
+        parentId = parentByChild.get(parentId);
       }
-      if (!targetGroups.has(groupId)) targetGroups.set(groupId, []);
-      targetGroups.get(groupId).push(target);
+      if (!hierarchyTask) hierarchyTask = hierarchyTasks.find((task) => task.scope.classes.some((item) => item.id === parentByChild.get(target.id)));
+      if (!hierarchyTask) throw new Error('対象クラスの親階層を分割範囲に対応付けられませんでした。');
+      if (!targetsByHierarchyTask.has(hierarchyTask)) targetsByHierarchyTask.set(hierarchyTask, []);
+      targetsByHierarchyTask.get(hierarchyTask).push(target);
     });
 
-    const targetInstruction = 'この分割範囲に含まれる対象クラスだけを評価してください。許可する操作は対象クラスの移動だけです。上位・中間クラスの追加・改名・移動・削除や、入力にない対象クラスの操作は提案しないでください。移動先は入力にある上位・中間クラスのIDだけを使ってください。';
-    const targetTasks = [];
-    const makeTargetScope = (targets) => {
+    const makeTargetScope = (targets, hierarchyTask) => {
       const targetIds = new Set(targets.map((item) => item.id));
-      const classes = [...hierarchyClasses, ...targets];
+      const classes = [...hierarchyTask.scope.classes, ...targets];
       const includedIds = new Set(classes.map((item) => item.id));
       return {
         mode: 'selected_scope',
@@ -506,8 +568,8 @@
         counts: {}
       };
     };
-    const addSizedTargetTasks = (targets) => {
-      const taskScope = makeTargetScope(targets);
+    const addSizedTargetTasks = (targets, hierarchyTask) => {
+      const taskScope = makeTargetScope(targets, hierarchyTask);
       const input = buildUserContent(userText, taskScope, conversation, baseDataHash, {
         forceSnapshot: true,
         instruction: targetInstruction
@@ -520,14 +582,19 @@
         throw new Error('対象クラス1件と移動先候補だけでも送信上限を超えています。選択範囲を小さくするか、クラス名の長い範囲を分けてください。');
       }
       const midpoint = Math.ceil(targets.length / 2);
-      addSizedTargetTasks(targets.slice(0, midpoint));
-      addSizedTargetTasks(targets.slice(midpoint));
+      addSizedTargetTasks(targets.slice(0, midpoint), hierarchyTask);
+      addSizedTargetTasks(targets.slice(midpoint), hierarchyTask);
     };
-    [...targetGroups.values()].forEach(addSizedTargetTasks);
-    return [
-      { kind: 'hierarchy', scope: hierarchyScope, input: hierarchyContent },
-      ...targetTasks
-    ];
+    targetsByHierarchyTask.forEach((targets, hierarchyTask) => addSizedTargetTasks(targets, hierarchyTask));
+    const hierarchyCoverage = new Set(hierarchyTasks.flatMap((task) => task.scope.editableIds));
+    const targetCoverage = new Set(targetTasks.flatMap((task) => task.scope.editableIds));
+    if (hierarchyEditableIds.size !== hierarchyCoverage.size
+      || [...hierarchyEditableIds].some((id) => !hierarchyCoverage.has(id))
+      || targetClasses.length !== targetCoverage.size
+      || targetClasses.some((item) => !targetCoverage.has(item.id))) {
+      throw new Error('分割範囲に漏れがあるため、送信を中止しました。選択範囲を小さくして再度依頼してください。');
+    }
+    return [...hierarchyTasks, ...targetTasks];
   };
   const createLocalConversationContext = (userText, result) => {
     const lines = [`利用者の依頼: ${userText}`];
@@ -604,7 +671,7 @@
     textInput.value = '';
     conversation.selectedIds = [...editor.selectedIds];
     conversation.items.push({ type: 'message', role: 'user', text: userText });
-    if (splitTasks) conversation.items.push({ type: 'message', role: 'assistant', text: `送信量を抑えるため、上位・中間クラスの構造と対象クラスを分けて${splitTasks.length}件の依頼に分割しています。各案は現在の階層を基準にしています。構造変更を適用した後の再評価は必要に応じて依頼してください。` });
+    if (splitTasks) conversation.items.push({ type: 'message', role: 'assistant', text: `選択範囲のクラスを省略せず、枝ごとに${splitTasks.length}件の依頼へ分割して送信します。各案は分割範囲と親階層の文脈を基準にします。枝をまたぐ構造変更を適用した後は、必要に応じて再評価を依頼してください。` });
     conversation.updatedAt = Date.now();
     refreshConversationTitle(conversation);
     renderConversation();
