@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>クラス編集</title>
+  <link rel="icon" type="image/svg+xml" href="data/web/favicon.svg">
   <link rel="stylesheet" href="style.css">
   <script src="data/web/class-data.js" defer></script>
   <script src="data/web/instance-data.js" defer></script>
@@ -185,7 +186,7 @@
       <button type="button" id="ai-preview-close" class="target-instance-dialog-close" aria-label="閉じる">×</button>
     </div>
     <p id="ai-preview-impact" class="ai-preview-impact"></p>
-    <p class="ai-preview-note">変更箇所と位置を確認するための親クラスを含む比較ツリーを表示します。変更後ツリーは適用対象の操作だけを反映します。青色が適用、灰色が除外です。対象クラスをクリックすると切り替わり、除外したクラスは元の位置に戻ります。配下一括移動など複数クラスに及ぶ操作はまとめて切り替わります。上位・中間クラスの変更はチェックで切り替えます。</p>
+    <p class="ai-preview-note">変更箇所と位置を確認するための親クラスを含む比較ツリーを表示します。変更後ツリーは適用対象の操作だけを反映します。青色が適用、灰色が除外です。対象クラスをクリックすると切り替わり、除外したクラスは元の位置に戻ります。配下一括移動など複数クラスに及ぶ操作はまとめて切り替わります。上位クラスの変更はチェックで切り替えます。</p>
     <div class="ai-preview-columns">
       <section><h3>変更前</h3><div id="ai-preview-before" class="ai-preview-tree"></div></section>
       <section><h3>変更後</h3><div id="ai-preview-after" class="ai-preview-tree"></div></section>
@@ -194,6 +195,6 @@
       <button type="button" id="ai-apply-proposal" class="search-button">この変更を適用</button>
     </div>
   </dialog>
-  <script src="edit-ai.js?v=20261027-preview-no-back-button-v25" defer></script>
+  <script src="edit-ai.js?v=20261027-preview-no-middle-checkbox-v27" defer></script>
 </body>
 </html>

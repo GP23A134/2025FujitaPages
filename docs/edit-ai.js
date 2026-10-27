@@ -402,7 +402,7 @@
           summary.classList.add(indexes.length && indexes.some((index) => options.excludedOperationIndexes.has(index))
             ? 'is-ai-preview-excluded' : 'is-ai-preview-changed');
         }
-        const checkbox = makeToggle(node.id, node.label);
+        const checkbox = node.type === 'middle' ? null : makeToggle(node.id, node.label);
         if (checkbox) summary.prepend(checkbox);
         if (node.previewDeleted) {
           summary.classList.add('is-ai-preview-deleted');
