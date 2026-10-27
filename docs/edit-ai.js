@@ -429,6 +429,7 @@
           row.tabIndex = 0;
           const toggle = () => options.onToggle?.(indexes, !included);
           row.addEventListener('click', toggle);
+          row.addEventListener('keydown', (event) => {
             if (event.key !== ' ' && event.key !== 'Enter') return;
             event.preventDefault();
             toggle();
