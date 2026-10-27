@@ -632,21 +632,17 @@
     });
     const beforeHierarchyCounts = countHierarchyTargets(beforeState);
     const afterHierarchyCounts = countHierarchyTargets(candidate);
-    const hierarchyCountLabel = (counts, baseline = null) => (node) => {
+    const hierarchyCountLabel = (counts) => (node) => {
       const total = counts.totals.get(node.id) || 0;
       const direct = counts.direct.get(node.id) || 0;
-      if (!baseline) return `合計 ${total}件・直下 ${direct}件`;
-      const totalDelta = total - (baseline.totals.get(node.id) || 0);
-      const directDelta = direct - (baseline.direct.get(node.id) || 0);
-      const signed = (value) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value)}`;
-      return `合計 ${total}件（${signed(totalDelta)}）・直下 ${direct}件（${signed(directDelta)}）`;
+      return `合計 ${total}件・直下 ${direct}件`;
     };
     appendTree(before, previewState(beforeState), affectedIds, {
       countLabelFor: hierarchyCountLabel(beforeHierarchyCounts)
     });
     appendTree(after, previewState(proposedDisplayState), affectedIds, {
       selectable: true,
-      countLabelFor: hierarchyCountLabel(afterHierarchyCounts, beforeHierarchyCounts),
+      countLabelFor: hierarchyCountLabel(afterHierarchyCounts),
       operationIndexesByClass,
       deletionOperationByClass,
       excludedOperationIndexes: proposalItem.excludedOperationIndexes,

@@ -657,14 +657,20 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-question { margin: 0; padding: 0.45rem 0.55rem; border-radius: 6px; background: #fff7ed; font-size: 0.82rem; }
 .ai-preview-dialog {
   --ai-preview-node-height: 1.65rem;
+  --ai-preview-heading-font-size: 0.75rem;
   --ai-preview-middle-list-gap: 0.1rem;
   --ai-preview-target-row-gap: 0.15rem;
+  --ai-preview-root-middle-gap: 0.075rem;
   --ai-preview-target-width: 300px;
   --ai-preview-root-middle-link-length: calc(1.15rem - 3px);
   --ai-preview-nested-middle-link-length: calc(0.75rem - 1px);
-  width: min(1500px, calc(100vw - 1.5rem));
-  max-width: 1500px;
-  max-height: min(90vh, 900px);
+  box-sizing: border-box;
+  width: min(1300px, calc(100vw - 1.5rem));
+  max-width: 1300px;
+  height: calc(100vh - 1rem);
+  max-height: calc(100vh - 1rem);
+  height: calc(100dvh - 1rem);
+  max-height: calc(100dvh - 1rem);
   overflow: auto;
   padding: 1rem;
   border: 1px solid #cbd5e1;
@@ -705,9 +711,9 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree details { margin: 0.1rem 0; }
 #ai-preview-dialog .tree summary { display: flex; align-items: center; padding: 0.45rem 0.6rem; list-style-position: outside; }
 #ai-preview-dialog .tree-top-class > summary,
-#ai-preview-dialog .tree-middle-class > summary { position: static; box-sizing: border-box; height: var(--ai-preview-node-height); min-height: var(--ai-preview-node-height); padding: 0 0.55rem; font-size: 0.75rem; line-height: 1.1rem; box-shadow: none; }
+#ai-preview-dialog .tree-middle-class > summary { position: static; box-sizing: border-box; height: var(--ai-preview-node-height); min-height: var(--ai-preview-node-height); padding: 0 0.55rem; font-size: var(--ai-preview-heading-font-size); line-height: 1.1rem; box-shadow: none; }
 #ai-preview-dialog .tree-top-class > summary { color: #075985; background: #e0f2fe; }
-#ai-preview-dialog .tree-middle-class > summary { border-left: 3px solid var(--tree-level-color, #38bdf8); background: #f8fafc; }
+#ai-preview-dialog .tree-middle-class > summary { border-left: 3px solid var(--tree-level-color, #38bdf8); background: #fff; }
 #ai-preview-dialog .tree summary::marker { color: #2563eb; }
 #ai-preview-dialog .tree .tree-level-content { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; align-items: baseline; margin: 0; padding: 0 0.35rem; line-height: 1rem; white-space: normal; }
 #ai-preview-dialog .tree .count-badge { padding: 0 0.35rem; font-size: 0.65rem; line-height: 1rem; }
@@ -742,6 +748,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .tree-child-middle-list { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; box-sizing: border-box; row-gap: var(--ai-preview-middle-list-gap); margin: 0; padding: 0; border-left: 0; list-style: none; }
 #ai-preview-dialog .tree .tree-child-middle-row,
 #ai-preview-dialog .tree .tree-target-row { display: block; width: 100%; margin: 0; padding: 0; }
+#ai-preview-dialog .tree > details > .tree-level-rows > .tree-child-middle-row { margin-top: var(--ai-preview-root-middle-gap); }
 #ai-preview-dialog .tree .tree-child-middle-row::before,
 #ai-preview-dialog .tree .tree-target-row::before { display: none; }
 #ai-preview-dialog .tree .tree-child-middle-list > li { position: relative; margin: 0; }
@@ -758,13 +765,14 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .tree-child-middle-list > li > .tree-middle-class > summary { width: 100%; }
 #ai-preview-dialog .tree .tree-child-middle-list > li > .tree-middle-class > summary { background: transparent; }
 #ai-preview-dialog .tree .tree-leaf-class { display: flex; width: min(100%, var(--ai-preview-target-width)); max-width: 100%; box-sizing: border-box; align-items: center; height: var(--ai-preview-node-height); min-height: var(--ai-preview-node-height); gap: 0.35rem; margin: 0; padding: 0.2rem 0.55rem; border: 1px solid #dbeafe; border-left: 3px solid var(--tree-level-color, #38bdf8); border-radius: 7px; color: #155e9a; background: #fff; line-height: 1.1rem; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
-#ai-preview-dialog .tree .tree-leaf-class.is-selected { border-color: #2563eb; color: #fff; background: #2563eb; box-shadow: 0 0 0 3px #bfdbfe; cursor: pointer; }
-#ai-preview-dialog .tree .tree-leaf-class.is-selected .tree-leaf-id { color: #dbeafe; }
+#ai-preview-dialog .tree .tree-leaf-class.is-selected { border-color: #dbeafe; outline: 2px solid #f59e0b; outline-offset: 2px; color: #155e9a; background: #fff; box-shadow: none; cursor: pointer; }
+#ai-preview-dialog .tree .tree-leaf-class.is-selected .tree-leaf-id { color: #64748b; }
 #ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-excluded { border-color: #94a3b8; color: #64748b; background: #e2e8f0; box-shadow: none; opacity: 1; cursor: pointer; }
 #ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-excluded .tree-leaf-id { color: #64748b; }
 #ai-preview-dialog .tree .tree-leaf-class[role="checkbox"]:focus-visible { outline: 3px solid #0f172a; outline-offset: 3px; }
 #ai-preview-dialog .tree .tree-leaf-label { min-width: 0; overflow-wrap: anywhere; font-size: 0.9rem; font-weight: 650; }
 #ai-preview-dialog .tree .is-ai-preview-changed:not(.tree-leaf-class) { outline: 2px solid #f59e0b; outline-offset: 1px; }
+#ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-changed { outline: none; }
 #ai-preview-dialog .tree .is-ai-preview-excluded { opacity: 0.5; outline: 1px dashed #64748b; outline-offset: 1px; }
 .ai-preview-change-toggle { flex: 0 0 auto; width: 0.95rem; height: 0.95rem; margin: 0 0.35rem 0 0; accent-color: #d97706; cursor: pointer; }
 .ai-preview-deleted-label { margin-left: 0.45rem; color: #b91c1c; font-size: 0.68rem; font-weight: 700; }
