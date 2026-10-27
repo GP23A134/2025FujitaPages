@@ -1145,6 +1145,13 @@
     previewPlan = null;
     document.getElementById('ai-apply-proposal').disabled = true;
   });
+  previewDialog.addEventListener('click', (event) => {
+    if (event.target !== previewDialog) return;
+    const rect = previewDialog.getBoundingClientRect();
+    const clickedOutside = event.clientX < rect.left || event.clientX > rect.right
+      || event.clientY < rect.top || event.clientY > rect.bottom;
+    if (clickedOutside) closePreview();
+  });
   document.getElementById('ai-preview-close').addEventListener('click', closePreview);
   document.getElementById('ai-preview-select-all').addEventListener('click', () => {
     const item = previewPlan?.proposalItem;

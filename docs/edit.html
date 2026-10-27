@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>クラス編集</title>
   <link rel="icon" type="image/svg+xml" href="data/web/favicon.svg">
-  <link rel="stylesheet" href="style.css?v=20261027-preview-review-v13">
+  <link rel="stylesheet" href="style.css?v=20261027-preview-review-v16">
   <script src="data/web/class-data.js" defer></script>
   <script src="data/web/instance-data.js" defer></script>
   <script src="tree.js" defer></script>
@@ -196,9 +196,12 @@
       <ul id="ai-preview-change-list" class="ai-preview-change-list"></ul>
     </details>
     <div class="ai-preview-columns">
-      <section><h3>変更前</h3><div id="ai-preview-before" class="ai-preview-tree"></div></section>
       <section>
-        <div class="ai-preview-after-header">
+        <div class="ai-preview-column-header"><h3>変更前</h3></div>
+        <div id="ai-preview-before" class="ai-preview-tree"></div>
+      </section>
+      <section>
+        <div class="ai-preview-column-header ai-preview-after-header">
           <h3>変更後</h3>
           <div class="ai-preview-selection-actions">
             <button type="button" id="ai-preview-select-all">すべて適用</button>
@@ -213,6 +216,6 @@
       <button type="button" id="ai-apply-proposal" class="search-button">この変更を適用</button>
     </div>
   </dialog>
-  <script src="edit-ai.js?v=20261027-preview-review-v34" defer></script>
+  <script src="edit-ai.js?v=20261027-preview-review-v35" defer></script>
 </body>
 </html>
