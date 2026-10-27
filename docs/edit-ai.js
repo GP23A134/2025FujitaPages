@@ -452,6 +452,7 @@
     document.getElementById('ai-preview-impact').textContent = '現在の階層に変更案を反映しています…';
     document.getElementById('ai-preview-before').replaceChildren();
     document.getElementById('ai-preview-after').replaceChildren();
+    document.getElementById('ai-preview-transfers').replaceChildren();
     if (!previewDialog.open) previewDialog.showModal();
     await new Promise((resolve) => requestAnimationFrame(resolve));
     await verifyLoadedDataVersion();
@@ -582,25 +583,39 @@
       && beforeParents.get(item.id) !== activeParents.get(item.id));
     const movedTargetCount = movedTargets.reduce((sum, item) => sum + (beforeState.counts[item.id] || 0), 0);
     document.getElementById('ai-preview-impact').textContent = `選択中の変更 ${activeOperations.length}/${operations.length}件。対象クラス ${movedTargets.length}件、関連インスタンス ${movedTargetCount}件の分類先が変わります。変更後ツリーの選択で適用対象を切り替えられます。`;
-    const opList = document.getElementById('ai-preview-operations'); opList.replaceChildren();
+    const transferList = document.getElementById('ai-preview-transfers');
     operations.forEach((operation, index) => {
-      const row = document.createElement('div'); row.className = 'ai-preview-operation';
-      const label = document.createElement('span'); label.textContent = operationLabel(operation);
-      row.append(label);
-      const stateLabel = document.createElement('span'); stateLabel.className = 'ai-preview-operation-inclusion';
-      stateLabel.textContent = proposalItem.excludedOperationIndexes.has(index) ? '適用しない' : '適用する';
-      row.append(stateLabel);
-      if (operation.type === 'moveClass') {
-        const select = document.createElement('select'); select.setAttribute('aria-label', `「${labelFor(operation.classId)}」の移動先`);
-        proposedCandidate.classes.filter((item) => ['top', 'middle'].includes(item.type) && item.id !== operation.classId)
-          .forEach((item) => { const option = document.createElement('option'); option.value = item.id; option.textContent = `${item.label} (${item.type === 'top' ? '上位' : '中間'})`; option.selected = item.id === operation.destinationId; select.append(option); });
-        select.addEventListener('change', () => {
-          operations[index].destinationId = select.value;
-          void showPreview(proposalItem, applyRequested).catch(reportPreviewError);
+      if (!['moveClass', 'moveChildren'].includes(operation.type)) return;
+      const sourceId = operation.type === 'moveClass' ? operation.classId : operation.from;
+      const destinationId = operation.type === 'moveClass' ? operation.destinationId : operation.to;
+      const row = document.createElement('div');
+      row.className = `ai-preview-transfer${proposalItem.excludedOperationIndexes.has(index) ? ' is-excluded' : ''}`;
+      const source = document.createElement('span');
+      source.className = 'ai-preview-transfer-source';
+      source.textContent = operation.type === 'moveChildren' ? `${labelFor(sourceId)}の配下` : labelFor(sourceId);
+      source.title = source.textContent;
+      const arrow = document.createElement('span');
+      arrow.className = 'ai-preview-transfer-arrow';
+      arrow.textContent = '→';
+      arrow.setAttribute('aria-hidden', 'true');
+      const select = document.createElement('select');
+      select.className = 'ai-preview-transfer-destination';
+      select.setAttribute('aria-label', `「${source.textContent}」の移動先`);
+      proposedCandidate.classes.filter((item) => ['top', 'middle'].includes(item.type) && item.id !== sourceId)
+        .forEach((item) => {
+          const option = document.createElement('option');
+          option.value = item.id;
+          option.textContent = item.label;
+          option.selected = item.id === destinationId;
+          select.append(option);
         });
-        row.append(select);
-      }
-      opList.append(row);
+      select.addEventListener('change', () => {
+        if (operation.type === 'moveClass') operations[index].destinationId = select.value;
+        else operations[index].to = select.value;
+        void showPreview(proposalItem, applyRequested).catch(reportPreviewError);
+      });
+      row.append(source, arrow, select);
+      transferList.append(row);
     });
     previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), candidate, expectedFingerprint, expectedBaseHash };
     applyButton.disabled = activeOperations.length === 0;
