@@ -349,7 +349,7 @@
     card.append(actions);
     messages.append(card);
   };
-  const appendTree = (host, state, affectedIds = new Set()) => {
+  const appendTree = (host, state, affectedIds = new Set(), options = {}) => {
     const classesById = new Map(state.classes.map((item) => [item.id, item]));
     const children = new Map(); const parentIds = new Set();
     state.relations.forEach(({ child, parent }) => {
@@ -361,7 +361,7 @@
       const item = classesById.get(id);
       if (!item || path.has(id)) return null;
       const nextPath = new Set(path).add(id);
-      const node = { id, label: item.label, type: item.type, children: [], targets: [] };
+      const node = { id, label: item.label, type: item.type, previewDeleted: Boolean(item.previewDeleted), children: [], targets: [] };
       (children.get(id) || []).forEach((childId) => {
         const child = classesById.get(childId);
         if (!child) return;
@@ -378,27 +378,64 @@
     host.classList.add('tree');
     const targetCountFor = (item) => state.counts?.[item.id] || 0;
     const countFor = (node) => node.targets.length + node.children.reduce((sum, child) => sum + countFor(child), 0);
+    const makeToggle = (id, label) => {
+      const indexes = options.operationIndexesByClass?.get(id);
+      if (!options.selectable || !indexes?.size) return null;
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'ai-preview-change-toggle';
+      checkbox.checked = indexes.every((index) => !options.excludedOperationIndexes.has(index));
+      checkbox.setAttribute('aria-label', `${label}の変更を適用する`);
+      checkbox.addEventListener('click', (event) => event.stopPropagation());
+      checkbox.addEventListener('change', () => options.onToggle?.(indexes, checkbox.checked));
+      return checkbox;
+    };
     window.renderHierarchyTree(host, roots, {
       countFor,
       targetCountFor,
       isOpen: () => true,
       displayId: () => '',
       decorateSummary: (summary, _content, node) => {
-        if (affectedIds.has(node.id)) summary.classList.add('is-ai-preview-changed');
+        if (affectedIds.has(node.id)) {
+          const indexes = options.operationIndexesByClass?.get(node.id);
+          summary.classList.add(indexes?.some((index) => options.excludedOperationIndexes.has(index))
+            ? 'is-ai-preview-excluded' : 'is-ai-preview-changed');
+        }
+        const checkbox = makeToggle(node.id, node.label);
+        if (checkbox) summary.prepend(checkbox);
+        if (node.previewDeleted) {
+          summary.classList.add('is-ai-preview-deleted');
+          const note = document.createElement('span');
+          note.className = 'ai-preview-deleted-label';
+          const deleteIndex = options.deletionOperationByClass?.get(node.id);
+          note.textContent = deleteIndex !== undefined && options.excludedOperationIndexes.has(deleteIndex) ? '削除しない' : '削除予定';
+          summary.append(note);
+        }
       },
       renderTarget: (item, _parent, depth) => {
         const li = document.createElement('li');
         li.style.setProperty('--tree-level-color', window.treeDepthColor(depth));
         const row = document.createElement('div');
         row.className = 'tree-leaf-class ai-preview-class';
-        if (affectedIds.has(item.id)) row.classList.add('is-ai-preview-changed');
+        if (affectedIds.has(item.id)) {
+          const indexes = options.operationIndexesByClass?.get(item.id);
+          row.classList.add(indexes?.some((index) => options.excludedOperationIndexes.has(index))
+            ? 'is-ai-preview-excluded' : 'is-ai-preview-changed');
+        }
+        const checkbox = makeToggle(item.id, item.label);
+        if (checkbox) row.append(checkbox);
+        const id = document.createElement('span');
+        id.className = 'tree-leaf-id';
+        const idSegment = String(item.id).split('/').pop();
+        const idMatch = idSegment.match(/^([cmt])_0*(\d+)$/);
+        id.textContent = idMatch ? `${idMatch[1]}_${Number(idMatch[2])}` : idSegment;
         const label = document.createElement('span');
         label.className = 'tree-leaf-label';
         label.textContent = item.label;
         const count = document.createElement('span');
         count.className = 'target-instance-count-badge';
         count.textContent = `(${targetCountFor(item)}件)`;
-        row.append(label, count);
+        row.append(id, label, count);
         li.append(row);
         return li;
       },
@@ -411,6 +448,7 @@
     previewPlan = null;
     const operations = proposalItem.proposal.operations;
     if (!operations.length) throw new Error('変更操作が残っていません。この提案は適用する内容がありません。');
+    proposalItem.excludedOperationIndexes ||= new Set();
     document.getElementById('ai-preview-impact').textContent = '現在の階層に変更案を反映しています…';
     document.getElementById('ai-preview-before').replaceChildren();
     document.getElementById('ai-preview-after').replaceChildren();
@@ -421,7 +459,9 @@
       throw new Error('提案作成後にデータが変更されています。最新状態で依頼し直してください。');
     }
     const expectedFingerprint = stateFingerprint();
-    const candidate = editor.applyOperations(operations, expectedFingerprint, proposalItem.editableIds);
+    const proposedCandidate = editor.applyOperations(operations, expectedFingerprint, proposalItem.editableIds);
+    const activeOperations = operations.filter((_, index) => !proposalItem.excludedOperationIndexes.has(index));
+    const candidate = editor.applyOperations(activeOperations, expectedFingerprint, proposalItem.editableIds);
     const expectedBaseHash = await currentDataHash();
     if (proposalItem.status === 'stale') {
       proposalItem.baseDataHash = expectedBaseHash;
@@ -430,18 +470,77 @@
       proposalItem.status = 'previewed';
     }
     if (stateFingerprint() !== expectedFingerprint) throw new Error('プレビュー作成中にデータが変更されました。最新データで提案し直してください。');
-    const operationIds = new Set();
-    operations.forEach((operation) => ['classId', 'destinationId', 'from', 'to'].forEach((key) => { if (operation[key]) operationIds.add(operation[key]); }));
     const beforeState = editor.getState();
     const beforeIds = new Set(beforeState.classes.map((item) => item.id));
-    candidate.classes.filter((item) => !beforeIds.has(item.id)).forEach((item) => operationIds.add(item.id));
     const beforeParents = new Map(beforeState.relations.map(({ child, parent }) => [child, parent]));
-    const afterParents = new Map(candidate.relations.map(({ child, parent }) => [child, parent]));
-    const candidateIds = new Set(candidate.classes.map((item) => item.id));
+    const afterParents = new Map(proposedCandidate.relations.map(({ child, parent }) => [child, parent]));
+    const proposedIds = new Set(proposedCandidate.classes.map((item) => item.id));
+    const operationIds = new Set();
+    const affectedIds = new Set();
+    const operationIndexesByClass = new Map();
+    const deletionOperationByClass = new Map();
+    const addOperationClass = (id, index) => {
+      if (!id) return;
+      if (!operationIndexesByClass.has(id)) operationIndexesByClass.set(id, new Set());
+      operationIndexesByClass.get(id).add(index);
+      operationIds.add(id);
+      affectedIds.add(id);
+    };
+    const addedClassForReference = (reference) => {
+      const addition = operations.find((operation) => operation.type === 'addClass'
+        && (operation.temporaryId === reference || `${proposalItem.proposal.id}/${operation.temporaryId}` === reference));
+      if (!addition) return null;
+      return proposedCandidate.classes.find((item) => !beforeIds.has(item.id)
+        && item.type === addition.classType && item.label === String(addition.label || '').trim()) || null;
+    };
+    const resolveProposedId = (reference) => proposedIds.has(reference) || beforeIds.has(reference)
+      ? reference : addedClassForReference(reference)?.id || reference;
+    operations.forEach((operation, index) => {
+      if (operation.type === 'addClass') {
+        addOperationClass(addedClassForReference(operation.temporaryId)?.id, index);
+        return;
+      }
+      if (operation.type === 'moveChildren') {
+        const from = resolveProposedId(operation.from); const to = resolveProposedId(operation.to);
+        for (const id of new Set([...beforeParents.keys(), ...afterParents.keys()])) {
+          if (beforeParents.get(id) === from && afterParents.get(id) === to) addOperationClass(id, index);
+        }
+        addOperationClass(from, index);
+        return;
+      }
+      const id = resolveProposedId(operation.classId);
+      addOperationClass(id, index);
+      if (operation.type === 'deleteClass') deletionOperationByClass.set(id, index);
+    });
     for (const id of new Set([...beforeParents.keys(), ...afterParents.keys()])) {
-      if (beforeParents.get(id) !== afterParents.get(id)) operationIds.add(id);
+      if (beforeParents.get(id) !== afterParents.get(id)) {
+        operationIds.add(id);
+        affectedIds.add(id);
+      }
     }
-    const affectedIds = new Set(operationIds);
+    for (const item of proposedCandidate.classes) {
+      const original = beforeState.classes.find((candidateItem) => candidateItem.id === item.id);
+      if (!original || original.label !== item.label) {
+        operationIds.add(item.id);
+        affectedIds.add(item.id);
+      }
+    }
+    const deletedIds = new Set(beforeState.classes.filter((item) => !proposedIds.has(item.id)
+      && deletionOperationByClass.has(item.id)).map((item) => item.id));
+    deletedIds.forEach((id) => { operationIds.add(id); affectedIds.add(id); });
+    const proposedDisplayState = {
+      classes: [...proposedCandidate.classes],
+      relations: [...proposedCandidate.relations],
+      counts: beforeState.counts
+    };
+    deletedIds.forEach((id) => {
+      const removed = beforeState.classes.find((item) => item.id === id);
+      if (removed) proposedDisplayState.classes.push({ ...removed, previewDeleted: true });
+      const oldRelation = beforeState.relations.find((relation) => relation.child === id);
+      if (oldRelation && !proposedDisplayState.relations.some((relation) => relation.child === id)) proposedDisplayState.relations.push(oldRelation);
+    });
+    const displayParents = new Map(proposedDisplayState.relations.map(({ child, parent }) => [child, parent]));
+    const displayIds = new Set(proposedDisplayState.classes.map((item) => item.id));
     const addAncestors = (ids, parentByChild, validIds) => {
       for (const id of [...ids]) {
         let parent = parentByChild.get(id);
@@ -452,7 +551,7 @@
       }
     };
     addAncestors(operationIds, beforeParents, beforeIds);
-    addAncestors(operationIds, afterParents, candidateIds);
+    addAncestors(operationIds, displayParents, displayIds);
     const before = document.getElementById('ai-preview-before'); const after = document.getElementById('ai-preview-after');
     const previewIds = operationIds;
     const previewState = (state) => ({
@@ -461,38 +560,51 @@
       counts: beforeState.counts
     });
     appendTree(before, previewState(beforeState), affectedIds);
-    appendTree(after, previewState(candidate), affectedIds);
+    appendTree(after, previewState(proposedDisplayState), affectedIds, {
+      selectable: true,
+      operationIndexesByClass,
+      deletionOperationByClass,
+      excludedOperationIndexes: proposalItem.excludedOperationIndexes,
+      onToggle: (indexes, include) => {
+        const previous = new Set(proposalItem.excludedOperationIndexes);
+        indexes.forEach((index) => include
+          ? proposalItem.excludedOperationIndexes.delete(index)
+          : proposalItem.excludedOperationIndexes.add(index));
+        void showPreview(proposalItem, false).catch((error) => {
+          proposalItem.excludedOperationIndexes = previous;
+          reportPreviewError(error);
+          void showPreview(proposalItem, false).catch(reportPreviewError);
+        });
+      }
+    });
+    const activeParents = new Map(candidate.relations.map(({ child, parent }) => [child, parent]));
     const movedTargets = beforeState.classes.filter((item) => item.type === 'class'
-      && beforeParents.get(item.id) !== afterParents.get(item.id));
+      && beforeParents.get(item.id) !== activeParents.get(item.id));
     const movedTargetCount = movedTargets.reduce((sum, item) => sum + (beforeState.counts[item.id] || 0), 0);
-    document.getElementById('ai-preview-impact').textContent = `操作 ${operations.length}件。対象クラス ${movedTargets.length}件、関連インスタンス ${movedTargetCount}件の分類先が変わります。インスタンス自体は変更しません。`;
+    document.getElementById('ai-preview-impact').textContent = `選択中の変更 ${activeOperations.length}/${operations.length}件。対象クラス ${movedTargets.length}件、関連インスタンス ${movedTargetCount}件の分類先が変わります。変更後ツリーの選択で適用対象を切り替えられます。`;
     const opList = document.getElementById('ai-preview-operations'); opList.replaceChildren();
     operations.forEach((operation, index) => {
       const row = document.createElement('div'); row.className = 'ai-preview-operation';
       const label = document.createElement('span'); label.textContent = operationLabel(operation);
       row.append(label);
+      const stateLabel = document.createElement('span'); stateLabel.className = 'ai-preview-operation-inclusion';
+      stateLabel.textContent = proposalItem.excludedOperationIndexes.has(index) ? '適用しない' : '適用する';
+      row.append(stateLabel);
       if (operation.type === 'moveClass') {
         const select = document.createElement('select'); select.setAttribute('aria-label', `「${labelFor(operation.classId)}」の移動先`);
-        candidate.classes.filter((item) => ['top', 'middle'].includes(item.type) && item.id !== operation.classId)
+        proposedCandidate.classes.filter((item) => ['top', 'middle'].includes(item.type) && item.id !== operation.classId)
           .forEach((item) => { const option = document.createElement('option'); option.value = item.id; option.textContent = `${item.label} (${item.type === 'top' ? '上位' : '中間'})`; option.selected = item.id === operation.destinationId; select.append(option); });
         select.addEventListener('change', () => {
           operations[index].destinationId = select.value;
           void showPreview(proposalItem, applyRequested).catch(reportPreviewError);
         });
         row.append(select);
-        const keep = document.createElement('button'); keep.type = 'button'; keep.className = 'held-action-button';
-        keep.textContent = 'このクラスは移動しない';
-        keep.addEventListener('click', () => {
-          operations.splice(index, 1);
-          void showPreview(proposalItem, applyRequested).catch(reportPreviewError);
-        });
-        row.append(keep);
       }
       opList.append(row);
     });
-    previewPlan = { proposalItem, operations: operations.map((operation) => ({ ...operation })), candidate, expectedFingerprint, expectedBaseHash };
-    applyButton.disabled = false;
-    if (applyRequested) applyButton.focus();
+    previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), candidate, expectedFingerprint, expectedBaseHash };
+    applyButton.disabled = activeOperations.length === 0;
+    if (applyRequested && activeOperations.length) applyButton.focus();
   };
 
   const validatePayload = (result, expectedHash) => {
@@ -544,10 +656,7 @@
     if (!hierarchyScope) return null;
     const hierarchyInstruction = 'この分割処理では上位・中間クラスの階層構造だけを検討してください。対象クラスの変更案は作らず、入力にない情報を推測しないでください。';
     const hierarchyClasses = scope.classes.filter((item) => ['top', 'middle'].includes(item.type));
-    const hasTargetClasses = scope.classes.some((item) => item.type === 'class' && scope.editableIds.includes(item.id));
-    const hierarchyChunkLimit = hasTargetClasses
-      ? Math.floor(MAX_REQUEST_CHARACTERS * 0.75)
-      : MAX_REQUEST_CHARACTERS;
+    const hierarchyChunkLimit = MAX_REQUEST_CHARACTERS;
     const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
     const hierarchyById = new Map(hierarchyClasses.map((item) => [item.id, item]));
     const childrenByParent = new Map();
@@ -683,24 +792,33 @@
         counts: {}
       };
     };
-    const addSizedTargetTasks = (units) => {
+    const buildTargetTask = (units) => {
       const taskScope = makeTargetScope(units);
       const input = buildUserContent(userText, taskScope, conversation, baseDataHash, {
         forceSnapshot: true,
         instruction: targetInstruction
       });
-      if (input.length <= MAX_REQUEST_CHARACTERS) {
-        targetTasks.push({ kind: 'targets', scope: taskScope, input });
-        return;
+      return { kind: 'targets', scope: taskScope, input };
+    };
+    // Fill each target request as much as possible. Binary search finds the largest
+    // contiguous batch that remains within the request limit, minimizing call count.
+    let targetOffset = 0;
+    while (targetOffset < targetUnits.length) {
+      const remaining = targetUnits.length - targetOffset;
+      let low = 1; let high = remaining; let bestSize = 0; let bestTask = null;
+      while (low <= high) {
+        const size = Math.floor((low + high) / 2);
+        const candidate = buildTargetTask(targetUnits.slice(targetOffset, targetOffset + size));
+        if (candidate.input.length <= MAX_REQUEST_CHARACTERS) {
+          bestSize = size; bestTask = candidate; low = size + 1;
+        } else high = size - 1;
       }
-      if (units.length < 2) {
+      if (!bestSize || !bestTask) {
         throw new Error('対象クラス1件と移動先候補だけでも送信上限を超えています。選択範囲を小さくするか、クラス名の長い範囲を分けてください。');
       }
-      const midpoint = Math.ceil(units.length / 2);
-      addSizedTargetTasks(units.slice(0, midpoint));
-      addSizedTargetTasks(units.slice(midpoint));
-    };
-    if (targetUnits.length) addSizedTargetTasks(targetUnits);
+      targetTasks.push(bestTask);
+      targetOffset += bestSize;
+    }
     const hierarchyCoverage = new Set(hierarchyTasks.flatMap((task) => task.scope.editableIds));
     const targetCoverage = new Set(targetTasks.flatMap((task) => task.scope.editableIds));
     if (hierarchyEditableIds.size !== hierarchyCoverage.size
@@ -811,7 +929,7 @@
     textInput.value = '';
     conversation.selectedIds = [...editor.selectedIds];
     conversation.items.push({ type: 'message', role: 'user', text: userText });
-    if (splitTasks) conversation.items.push({ type: 'message', role: 'assistant', text: `選択範囲のクラスを省略せず、上限内にまとめた${splitTasks.length}件の依頼として送信します。各案は分割範囲と親階層の文脈を基準にします。分割した依頼は2件ずつ並行処理します。枝をまたぐ構造変更を適用した後は、必要に応じて再評価を依頼してください。` });
+    if (splitTasks) conversation.items.push({ type: 'message', role: 'assistant', text: `選択範囲のクラスを省略せず、送信上限内で分割件数をできるだけ少なくした${splitTasks.length}件の依頼として送信します。各案は分割範囲と親階層の文脈を基準にします。分割した依頼は2件ずつ並行処理します。枝をまたぐ構造変更を適用した後は、必要に応じて再評価を依頼してください。` });
     conversation.updatedAt = Date.now();
     refreshConversationTitle(conversation);
     renderConversation({ scrollToBottom: true });

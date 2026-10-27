@@ -669,12 +669,14 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree details { margin: 0.45rem 0; }
 #ai-preview-dialog .tree summary { display: flex; align-items: center; padding: 0.45rem 0.6rem; list-style-position: outside; }
 #ai-preview-dialog .tree-top-class > summary,
-#ai-preview-dialog .tree-middle-class > summary { position: static; padding: 0.25rem 0.55rem; font-size: 0.95rem; box-shadow: none; }
+#ai-preview-dialog .tree-middle-class > summary { position: static; min-height: 1rem; padding: 0 0.55rem; font-size: 0.75rem; line-height: 1rem; box-shadow: none; }
 #ai-preview-dialog .tree-top-class > summary { color: #075985; background: #e0f2fe; }
 #ai-preview-dialog .tree-middle-class > summary { border-left: 3px solid var(--tree-level-color, #38bdf8); background: #f8fafc; }
 #ai-preview-dialog .tree summary::marker { color: #2563eb; }
-#ai-preview-dialog .tree .tree-level-content { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; align-items: baseline; margin: 0; padding: 0.2rem 0.35rem; white-space: normal; }
+#ai-preview-dialog .tree .tree-level-content { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; align-items: baseline; margin: 0; padding: 0 0.35rem; line-height: 1rem; white-space: normal; }
+#ai-preview-dialog .tree .count-badge { padding: 0 0.35rem; font-size: 0.65rem; line-height: 1rem; }
 #ai-preview-dialog .tree .tree-level-id { display: none; }
+#ai-preview-dialog .tree .tree-leaf-id { display: none; margin: 0; color: #64748b; font-size: 0.5rem; font-weight: 400; }
 #ai-preview-dialog .tree .tree-level-label { overflow-wrap: anywhere; white-space: normal; }
 #ai-preview-dialog .tree ul { margin: 0.25rem 0 0.45rem 1.15rem; padding-left: 1rem; border-left: 2px solid #bfdbfe; list-style: none; }
 #ai-preview-dialog .tree li { margin: 0.35rem 0; }
@@ -695,8 +697,16 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .tree-middle-class > ul { width: auto; max-width: 100%; box-sizing: border-box; }
 #ai-preview-dialog .tree .tree-leaf-class { display: flex; width: min(100%, var(--tree-target-width, 300px)); max-width: 100%; box-sizing: border-box; align-items: baseline; gap: 0.35rem; margin: 0; padding: 0.4rem 0.65rem; border: 1px solid #dbeafe; border-left: 3px solid var(--tree-level-color, #38bdf8); border-radius: 7px; color: #155e9a; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
 #ai-preview-dialog .tree .tree-leaf-label { min-width: 0; overflow-wrap: anywhere; font-size: 0.9rem; font-weight: 650; }
-#ai-preview-dialog .tree .target-instance-count-badge { flex: 0 0 auto; margin-left: auto; color: #64748b; font-size: 0.7rem; font-weight: 500; white-space: nowrap; }
+#ai-preview-dialog .tree .target-instance-count-badge { flex: 0 0 auto; color: #64748b; font-size: 0.7rem; font-weight: 500; white-space: nowrap; }
 #ai-preview-dialog .tree .is-ai-preview-changed { outline: 2px solid #f59e0b; outline-offset: 1px; }
+#ai-preview-dialog .tree .is-ai-preview-excluded { opacity: 0.5; outline: 1px dashed #64748b; outline-offset: 1px; }
+.ai-preview-change-toggle { flex: 0 0 auto; width: 0.95rem; height: 0.95rem; margin: 0 0.35rem 0 0; accent-color: #d97706; cursor: pointer; }
+.ai-preview-deleted-label { margin-left: 0.45rem; color: #b91c1c; font-size: 0.68rem; font-weight: 700; }
+.ai-preview-operation-inclusion { flex: 0 0 auto; color: #475569; font-size: 0.72rem; }
+.edit-show-ids #ai-preview-dialog .tree .tree-leaf-class { display: grid; grid-template-columns: fit-content(100%) max-content; grid-template-areas: "id id" "label count"; align-items: baseline; justify-content: start; column-gap: 0; row-gap: 0.1rem; }
+.edit-show-ids #ai-preview-dialog .tree .tree-leaf-id { display: inline; grid-area: id; font-size: 0.58rem; white-space: normal; overflow-wrap: anywhere; }
+.edit-show-ids #ai-preview-dialog .tree .tree-leaf-label { grid-area: label; }
+.edit-show-ids #ai-preview-dialog .tree .target-instance-count-badge { grid-area: count; }
 .ai-preview-operations { display: flex; flex-direction: column; gap: 0.35rem; max-height: 9rem; overflow: auto; }
 .ai-preview-operation { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.35rem 0.5rem; border-radius: 6px; background: #f1f5f9; font-size: 0.82rem; }
 .ai-preview-operation select { max-width: 48%; padding: 0.35rem; border: 1px solid #cbd5e1; border-radius: 5px; font: inherit; }
