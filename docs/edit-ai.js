@@ -453,27 +453,34 @@
       afterRender: (container) => window.updateTreeTargetRowStarts(container)
     });
   };
-  const showPreview = async (proposalItem, applyRequested = false) => {
+  const showPreview = async (proposalItem, applyRequested = false, fastUpdate = false) => {
     const applyButton = document.getElementById('ai-apply-proposal');
-    applyButton.disabled = true;
-    previewPlan = null;
+    if (!fastUpdate) {
+      applyButton.disabled = true;
+      previewPlan = null;
+    }
     const operations = proposalItem.proposal.operations;
     if (!operations.length) throw new Error('変更操作が残っていません。この提案は適用する内容がありません。');
     proposalItem.excludedOperationIndexes ||= new Set();
-    document.getElementById('ai-preview-impact').textContent = '現在の階層に変更案を反映しています…';
-    document.getElementById('ai-preview-before').replaceChildren();
-    document.getElementById('ai-preview-after').replaceChildren();
-    if (!previewDialog.open) previewDialog.showModal();
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-    await verifyLoadedDataVersion();
-    if (proposalItem.status !== 'stale' && proposalItem.baseDataHash !== await currentDataHash()) {
-      throw new Error('提案作成後にデータが変更されています。最新状態で依頼し直してください。');
+    if (!fastUpdate) {
+      document.getElementById('ai-preview-impact').textContent = '現在の階層に変更案を反映しています…';
+      document.getElementById('ai-preview-before').replaceChildren();
+      document.getElementById('ai-preview-after').replaceChildren();
+      if (!previewDialog.open) previewDialog.showModal();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await verifyLoadedDataVersion();
+      if (proposalItem.status !== 'stale' && proposalItem.baseDataHash !== await currentDataHash()) {
+        throw new Error('提案作成後にデータが変更されています。最新状態で依頼し直してください。');
+      }
     }
-    const expectedFingerprint = stateFingerprint();
+    const expectedFingerprint = fastUpdate ? previewPlan?.expectedFingerprint : stateFingerprint();
+    if (!expectedFingerprint || stateFingerprint() !== expectedFingerprint) {
+      throw new Error('プレビュー作成後にデータが変更されています。最新データで提案し直してください。');
+    }
     const proposedCandidate = editor.applyOperations(operations, expectedFingerprint, proposalItem.editableIds);
     const activeOperations = operations.filter((_, index) => !proposalItem.excludedOperationIndexes.has(index));
     const candidate = editor.applyOperations(activeOperations, expectedFingerprint, proposalItem.editableIds);
-    const expectedBaseHash = await currentDataHash();
+    const expectedBaseHash = fastUpdate ? previewPlan.expectedBaseHash : await currentDataHash();
     if (proposalItem.status === 'stale') {
       proposalItem.baseDataHash = expectedBaseHash;
       proposalItem.status = 'previewed';
@@ -598,10 +605,10 @@
         indexes.forEach((index) => include
           ? proposalItem.excludedOperationIndexes.delete(index)
           : proposalItem.excludedOperationIndexes.add(index));
-        void showPreview(proposalItem, false).catch((error) => {
+        void showPreview(proposalItem, false, true).catch((error) => {
           proposalItem.excludedOperationIndexes = previous;
           reportPreviewError(error);
-          void showPreview(proposalItem, false).catch(reportPreviewError);
+          void showPreview(proposalItem, false, true).catch(reportPreviewError);
         });
       }
     });
