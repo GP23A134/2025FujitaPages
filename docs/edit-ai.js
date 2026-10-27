@@ -304,37 +304,15 @@
     const card = document.createElement('article'); card.className = `ai-proposal-card is-${item.status}`;
     const contentLabel = document.createElement('strong'); contentLabel.className = 'ai-proposal-label'; contentLabel.textContent = '変更内容';
     const summary = document.createElement('p'); summary.className = 'ai-proposal-summary'; summary.textContent = excerpt(proposal.summary || proposal.title);
-    const reasonLabel = document.createElement('strong'); reasonLabel.className = 'ai-proposal-label'; reasonLabel.textContent = '理由';
-    const reason = document.createElement('p'); reason.className = 'ai-proposal-reason'; reason.textContent = excerpt(proposal.reason);
-    card.append(contentLabel, summary, reasonLabel, reason);
-
-    const details = document.createElement('details'); details.className = 'ai-proposal-details';
-    const detailsSummary = document.createElement('summary'); detailsSummary.textContent = '詳細を見る';
-    const detailBody = document.createElement('div'); detailBody.className = 'ai-proposal-detail-body';
-    if (proposal.summary && proposal.summary !== summary.textContent) {
-      const fullContent = document.createElement('p'); fullContent.textContent = proposal.summary; detailBody.append(fullContent);
-    }
-    if (proposal.reason && proposal.reason !== reason.textContent) {
-      const fullReason = document.createElement('p'); fullReason.textContent = proposal.reason; detailBody.append(fullReason);
-    }
-    const operations = document.createElement('ul');
-    proposal.operations.forEach((operation) => { const row = document.createElement('li'); row.textContent = operationLabel(operation); operations.append(row); });
-    if (operations.childElementCount) detailBody.append(operations);
-    if (proposal.uncertainties.length) {
-      const note = document.createElement('p'); note.className = 'ai-proposal-uncertainty'; note.textContent = `不確かな点: ${proposal.uncertainties.join('、')}`; detailBody.append(note);
-    }
-    details.append(detailsSummary, detailBody);
-    card.append(details);
+    card.append(contentLabel, summary);
 
     const actions = document.createElement('div'); actions.className = 'ai-proposal-actions';
     const preview = document.createElement('button'); preview.type = 'button'; preview.className = 'ai-proposal-preview'; preview.textContent = 'プレビュー';
-    const apply = document.createElement('button'); apply.type = 'button'; apply.className = 'search-button ai-proposal-apply'; apply.textContent = '適用';
     const statusLabel = document.createElement('span'); statusLabel.className = 'ai-proposal-status';
     const statusText = { pending: '', previewed: '確認済み', stale: '適用後の状態で再確認が必要', applied: '適用済み' };
     statusLabel.textContent = statusText[item.status] || '';
     const unavailable = item.status === 'applied';
     preview.disabled = unavailable || item.status === 'invalid';
-    apply.disabled = unavailable || item.status === 'invalid';
     const updateStatus = () => {
       statusLabel.textContent = item.status === 'previewed' ? '確認済み' : item.status === 'stale' ? '適用後の状態で再確認が必要' : '';
       card.className = `ai-proposal-card is-${item.status}`;
@@ -342,12 +320,33 @@
     preview.addEventListener('click', () => {
       void showPreview(item, false).then(updateStatus).catch(reportPreviewError);
     });
-    apply.addEventListener('click', () => {
-      void showPreview(item, true).then(updateStatus).catch(reportPreviewError);
-    });
-    actions.append(preview, apply, statusLabel);
+    actions.append(preview, statusLabel);
     card.append(actions);
     messages.append(card);
+  };
+  const countHierarchyTargets = (state) => {
+    const classesById = new Map(state.classes.map((item) => [item.id, item]));
+    const children = new Map();
+    state.relations.forEach(({ child, parent }) => {
+      if (!children.has(parent)) children.set(parent, []);
+      children.get(parent).push(child);
+    });
+    const totals = new Map(); const direct = new Map(); const visiting = new Set();
+    const countFor = (id) => {
+      if (totals.has(id)) return totals.get(id);
+      if (visiting.has(id)) return 0;
+      visiting.add(id);
+      let total = 0; let directCount = 0;
+      (children.get(id) || []).forEach((childId) => {
+        if (classesById.get(childId)?.type === 'class') { total += 1; directCount += 1; }
+        else if (classesById.get(childId)) total += countFor(childId);
+      });
+      visiting.delete(id);
+      totals.set(id, total); direct.set(id, directCount);
+      return total;
+    };
+    state.classes.filter((item) => item.type === 'top' || item.type === 'middle').forEach((item) => countFor(item.id));
+    return { totals, direct };
   };
   const appendTree = (host, state, affectedIds = new Set(), options = {}) => {
     const classesById = new Map(state.classes.map((item) => [item.id, item]));
@@ -397,6 +396,12 @@
       isOpen: () => true,
       displayId: () => '',
       decorateSummary: (summary, _content, node) => {
+        if (options.countLabelFor) {
+          const badge = summary.querySelector('.count-badge');
+          const updateBadge = () => { badge.textContent = options.countLabelFor(node); };
+          updateBadge();
+          summary.parentElement?.addEventListener('toggle', updateBadge);
+        }
         if (affectedIds.has(node.id)) {
           const indexes = indexesFor(node.id);
           summary.classList.add(indexes.length && indexes.some((index) => options.excludedOperationIndexes.has(index))
@@ -621,9 +626,23 @@
       relations: state.relations.filter(({ child, parent }) => previewIds.has(child) && previewIds.has(parent)),
       counts: beforeState.counts
     });
-    appendTree(before, previewState(beforeState), affectedIds);
+    const beforeHierarchyCounts = countHierarchyTargets(beforeState);
+    const afterHierarchyCounts = countHierarchyTargets(candidate);
+    const hierarchyCountLabel = (counts, baseline = null) => (node) => {
+      const total = counts.totals.get(node.id) || 0;
+      const direct = counts.direct.get(node.id) || 0;
+      if (!baseline) return `合計 ${total}件・直下 ${direct}件`;
+      const totalDelta = total - (baseline.totals.get(node.id) || 0);
+      const directDelta = direct - (baseline.direct.get(node.id) || 0);
+      const signed = (value) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value)}`;
+      return `合計 ${total}件（${signed(totalDelta)}）・直下 ${direct}件（${signed(directDelta)}）`;
+    };
+    appendTree(before, previewState(beforeState), affectedIds, {
+      countLabelFor: hierarchyCountLabel(beforeHierarchyCounts)
+    });
     appendTree(after, previewState(proposedDisplayState), affectedIds, {
       selectable: true,
+      countLabelFor: hierarchyCountLabel(afterHierarchyCounts, beforeHierarchyCounts),
       operationIndexesByClass,
       deletionOperationByClass,
       excludedOperationIndexes: proposalItem.excludedOperationIndexes,
@@ -636,16 +655,12 @@
       }
     });
     renderPreviewChangeList(proposalItem);
-    const activeParents = new Map(candidate.relations.map(({ child, parent }) => [child, parent]));
-    const movedTargets = beforeState.classes.filter((item) => item.type === 'class'
-      && beforeParents.get(item.id) !== activeParents.get(item.id));
-    const movedTargetCount = movedTargets.reduce((sum, item) => sum + (beforeState.counts[item.id] || 0), 0);
     const operationCounts = { addClass: 0, renameClass: 0, move: 0, deleteClass: 0 };
     activeOperations.forEach((operation) => {
       if (operation.type === 'moveClass' || operation.type === 'moveChildren') operationCounts.move += 1;
       else if (Object.hasOwn(operationCounts, operation.type)) operationCounts[operation.type] += 1;
     });
-    document.getElementById('ai-preview-impact').textContent = `適用中 ${activeOperations.length}/${operations.length}件（追加 ${operationCounts.addClass}・改名 ${operationCounts.renameClass}・移動 ${operationCounts.move}・削除 ${operationCounts.deleteClass}）。移動対象クラス ${movedTargets.length}件、関連インスタンス ${movedTargetCount}件。`;
+    document.getElementById('ai-preview-impact').textContent = `適用中 ${activeOperations.length}/${operations.length}件（追加 ${operationCounts.addClass}・改名 ${operationCounts.renameClass}・移動 ${operationCounts.move}・削除 ${operationCounts.deleteClass}）`;
     previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), candidate, expectedFingerprint, expectedBaseHash };
     applyButton.disabled = activeOperations.length === 0;
     if (applyRequested && activeOperations.length) applyButton.focus();
