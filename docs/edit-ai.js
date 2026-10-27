@@ -1136,7 +1136,7 @@
     void sendRequest(value);
   });
   textInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && event.shiftKey && !event.isComposing) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
       event.preventDefault(); document.getElementById('ai-chat-form').requestSubmit();
     }
   });
