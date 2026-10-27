@@ -103,6 +103,8 @@
   let sourceDataVersion = '';
   let isSending = false;
   let activeRequestController = null;
+  let classLabelsById = new Map();
+  let temporaryLabelsById = new Map();
 
   const createConversation = (selectedIds = editor.selectedIds) => {
     const conversation = {
@@ -165,6 +167,12 @@
     });
   };
   const renderConversation = () => {
+    classLabelsById = new Map(editor.getState().classes.map((item) => [item.id, item.label]));
+    temporaryLabelsById = new Map(currentConversation.items
+      .filter((item) => item.type === 'proposal')
+      .flatMap((item) => item.proposal.operations || [])
+      .filter((operation) => operation.type === 'addClass' && operation.temporaryId)
+      .map((operation) => [operation.temporaryId, operation.label]));
     messages.replaceChildren();
     currentConversation.items.forEach((item) => {
       if (item.type === 'message') renderMessage(item);
@@ -275,15 +283,20 @@
     return '不明な操作';
   };
   const labelFor = (id) => {
-    const temporary = currentConversation.items.filter((item) => item.type === 'proposal')
-      .flatMap((item) => item.proposal.operations || [])
-      .find((operation) => operation.type === 'addClass' && operation.temporaryId === id);
-    if (temporary) return temporary.label;
-    return editor.getState().classes.find((item) => item.id === id)?.label || id || '未指定';
+    return temporaryLabelsById.get(id) || classLabelsById.get(id) || id || '未指定';
   };
   const excerpt = (value, limit = 180) => {
     const text = String(value || '');
     return text.length > limit ? `${text.slice(0, limit)}…` : text;
+  };
+  const reportPreviewError = (error) => {
+    const message = error?.message || 'プレビューを作成できませんでした。';
+    setStatus(message, 'error');
+    if (previewDialog.open) {
+      document.getElementById('ai-preview-impact').textContent = `プレビューを作成できませんでした: ${message}`;
+      document.getElementById('ai-preview-before').replaceChildren();
+      document.getElementById('ai-preview-after').replaceChildren();
+    }
   };
   const renderProposalCard = (item) => {
     const proposal = item.proposal;
@@ -322,10 +335,10 @@
     preview.disabled = unavailable || item.status === 'invalid';
     apply.disabled = unavailable || item.status === 'invalid';
     preview.addEventListener('click', () => {
-      void showPreview(item, false).catch((error) => setStatus(error.message, 'error'));
+      void showPreview(item, false).catch(reportPreviewError);
     });
     apply.addEventListener('click', () => {
-      void showPreview(item, true).catch((error) => setStatus(error.message, 'error'));
+      void showPreview(item, true).catch(reportPreviewError);
     });
     actions.append(preview, apply, statusLabel);
     card.append(actions);
@@ -357,6 +370,11 @@
     previewPlan = null;
     const operations = proposalItem.proposal.operations;
     if (!operations.length) throw new Error('変更操作が残っていません。この提案は適用する内容がありません。');
+    document.getElementById('ai-preview-impact').textContent = '現在の階層に変更案を反映しています…';
+    document.getElementById('ai-preview-before').replaceChildren();
+    document.getElementById('ai-preview-after').replaceChildren();
+    if (!previewDialog.open) previewDialog.showModal();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
     await verifyLoadedDataVersion();
     if (proposalItem.status !== 'stale' && proposalItem.baseDataHash !== await currentDataHash()) {
       throw new Error('提案作成後にデータが変更されています。最新状態で依頼し直してください。');
@@ -374,15 +392,24 @@
     if (stateFingerprint() !== expectedFingerprint) throw new Error('プレビュー作成中にデータが変更されました。最新データで提案し直してください。');
     const operationIds = new Set();
     operations.forEach((operation) => ['classId', 'destinationId', 'from', 'to'].forEach((key) => { if (operation[key]) operationIds.add(operation[key]); }));
-    candidate.classes.filter((item) => !editor.getState().classes.some((old) => old.id === item.id)).forEach((item) => operationIds.add(item.id));
     const beforeState = editor.getState();
+    const beforeIds = new Set(beforeState.classes.map((item) => item.id));
+    candidate.classes.filter((item) => !beforeIds.has(item.id)).forEach((item) => operationIds.add(item.id));
     const before = document.getElementById('ai-preview-before'); const after = document.getElementById('ai-preview-after');
-    appendTree(before, beforeState, operationIds); appendTree(after, candidate, operationIds);
+    const previewIds = new Set(proposalItem.previewClassIds || beforeState.classes.map((item) => item.id));
+    const candidateIds = new Set(candidate.classes.map((item) => item.id));
+    operationIds.forEach((id) => { if (candidateIds.has(id)) previewIds.add(id); });
+    const previewState = (state) => ({
+      classes: state.classes.filter((item) => previewIds.has(item.id)),
+      relations: state.relations.filter(({ child, parent }) => previewIds.has(child) && previewIds.has(parent))
+    });
+    appendTree(before, previewState(beforeState), operationIds);
+    appendTree(after, previewState(candidate), operationIds);
     const beforeParents = new Map(beforeState.relations.map(({ child, parent }) => [child, parent]));
     const afterParents = new Map(candidate.relations.map(({ child, parent }) => [child, parent]));
     const movedTargets = beforeState.classes.filter((item) => item.type === 'class'
       && beforeParents.get(item.id) !== afterParents.get(item.id));
-    const movedTargetCount = movedTargets.reduce((sum, item) => sum + (editor.getState().counts[item.id] || 0), 0);
+    const movedTargetCount = movedTargets.reduce((sum, item) => sum + (beforeState.counts[item.id] || 0), 0);
     document.getElementById('ai-preview-impact').textContent = `操作 ${operations.length}件。対象クラス ${movedTargets.length}件、関連インスタンス ${movedTargetCount}件の分類先が変わります。インスタンス自体は変更しません。`;
     const opList = document.getElementById('ai-preview-operations'); opList.replaceChildren();
     operations.forEach((operation, index) => {
@@ -395,14 +422,14 @@
           .forEach((item) => { const option = document.createElement('option'); option.value = item.id; option.textContent = `${item.label} (${item.type === 'top' ? '上位' : '中間'})`; option.selected = item.id === operation.destinationId; select.append(option); });
         select.addEventListener('change', () => {
           operations[index].destinationId = select.value;
-          void showPreview(proposalItem, applyRequested).catch((error) => setStatus(error.message, 'error'));
+          void showPreview(proposalItem, applyRequested).catch(reportPreviewError);
         });
         row.append(select);
         const keep = document.createElement('button'); keep.type = 'button'; keep.className = 'held-action-button';
         keep.textContent = 'このクラスは移動しない';
         keep.addEventListener('click', () => {
           operations.splice(index, 1);
-          void showPreview(proposalItem, applyRequested).catch((error) => setStatus(error.message, 'error'));
+          void showPreview(proposalItem, applyRequested).catch(reportPreviewError);
         });
         row.append(keep);
       }
@@ -410,7 +437,6 @@
     });
     previewPlan = { proposalItem, operations: operations.map((operation) => ({ ...operation })), candidate, expectedFingerprint, expectedBaseHash };
     applyButton.disabled = false;
-    if (!previewDialog.open) previewDialog.showModal();
     if (applyRequested) applyButton.focus();
   };
 
@@ -737,6 +763,7 @@
       let result;
       let responseId = '';
       const proposalScopes = new Map();
+      const proposalPreviewScopes = new Map();
       if (splitTasks) {
         result = { baseDataHash, message: '', proposals: [], questions: [] };
         const messagesFromParts = [];
@@ -758,6 +785,7 @@
             part.result.proposals.forEach((proposal) => {
               result.proposals.push(proposal);
               proposalScopes.set(proposal.id, [...task.scope.editableIds]);
+            proposalPreviewScopes.set(proposal.id, task.scope.classes.map((item) => item.id));
             });
           });
           if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
@@ -777,7 +805,10 @@
         conversation.initialSnapshotSent = true;
         conversation.previousScope = scope;
         conversation.localContext = '';
-        result.proposals.forEach((proposal) => proposalScopes.set(proposal.id, [...scope.editableIds]));
+        result.proposals.forEach((proposal) => {
+          proposalScopes.set(proposal.id, [...scope.editableIds]);
+          proposalPreviewScopes.set(proposal.id, scope.classes.map((item) => item.id));
+        });
         if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
       }
       if (result.message) conversation.items.push({ type: 'message', role: 'assistant', text: result.message });
@@ -787,7 +818,14 @@
           proposal.questions.forEach((question) => conversation.items.push({ type: 'message', role: 'assistant', text: question }));
           return;
         }
-        conversation.items.push({ type: 'proposal', proposal, editableIds: proposalScopes.get(proposal.id) || [...scope.editableIds], baseDataHash, status: 'pending' });
+        conversation.items.push({
+          type: 'proposal',
+          proposal,
+          editableIds: proposalScopes.get(proposal.id) || [...scope.editableIds],
+          previewClassIds: proposalPreviewScopes.get(proposal.id) || scope.classes.map((item) => item.id),
+          baseDataHash,
+          status: 'pending'
+        });
       });
       conversation.updatedAt = Date.now();
       renderConversation();
