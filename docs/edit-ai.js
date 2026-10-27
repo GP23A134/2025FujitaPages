@@ -113,6 +113,7 @@
       responseId: '',
       initialSnapshotSent: false,
       previousScope: null,
+      localContext: '',
       items: [],
       status: ''
     };
@@ -219,30 +220,35 @@
     }
     throw new Error('AIから読み取れるテキストが返りませんでした。もう一度依頼してください。');
   };
+  const compactScope = (scope) => ({
+    mode: scope.mode || 'selected_scope',
+    selectedIds: [...(scope.selectedIds || [])],
+    editableIds: [...(scope.editableIds || [])],
+    classes: scope.classes.map(({ id, type, label }) => [id, type, label]),
+    relations: scope.relations.map(({ child, parent }) => [child, parent])
+  });
   const diffScope = (before, after) => {
-    if (!before) return { kind: 'initial_snapshot', data: after };
-    if (before.mode !== after.mode) return { kind: 'initial_snapshot', data: after };
-    const mapById = (items) => new Map(items.map((item) => [item.id, item]));
-    const beforeClasses = mapById(before.classes); const afterClasses = mapById(after.classes);
-    const changedClasses = [...afterClasses.values()].filter((item) => JSON.stringify(item) !== JSON.stringify(beforeClasses.get(item.id)));
+    const current = compactScope(after);
+    if (!before) return { kind: 'initial_snapshot', data: current };
+    const previous = compactScope(before);
+    if (previous.mode !== current.mode) return { kind: 'initial_snapshot', data: current };
+    const mapById = (items) => new Map(items.map((item) => [item[0], item]));
+    const beforeClasses = mapById(previous.classes); const afterClasses = mapById(current.classes);
+    const changedClasses = [...afterClasses.values()].filter((item) => JSON.stringify(item) !== JSON.stringify(beforeClasses.get(item[0])));
     const removedClasses = [...beforeClasses.keys()].filter((id) => !afterClasses.has(id));
-    const relationKey = ({ child, parent }) => `${child}\u0000${parent}`;
-    const beforeRelations = new Set(before.relations.map(relationKey));
-    const afterRelations = new Set(after.relations.map(relationKey));
-    const beforeCounts = before.counts || {}; const afterCounts = after.counts || {};
-    const changedCounts = Object.fromEntries(Object.entries(afterCounts).filter(([id, count]) => beforeCounts[id] !== count));
+    const relationKey = ([child, parent]) => `${child}\u0000${parent}`;
+    const beforeRelations = new Set(previous.relations.map(relationKey));
+    const afterRelations = new Set(current.relations.map(relationKey));
     return {
       kind: 'scope_and_data_diff',
-      mode: after.mode || 'selected_scope',
-      selectedIds: after.selectedIds,
-      editableScopeIds: after.editableIds,
+      mode: current.mode,
+      selectedIds: current.selectedIds,
+      editableScopeIds: current.editableIds,
       addedOrChangedClasses: changedClasses,
       removedClassIds: removedClasses,
-      addedRelations: after.relations.filter((item) => !beforeRelations.has(relationKey(item))),
-      removedRelations: before.relations.filter((item) => !afterRelations.has(relationKey(item))),
-      changedAggregateCounts: changedCounts,
-      currentScopeClassIds: after.classes.map((item) => item.id),
-      targetClassCount: before.targetClassCount === after.targetClassCount ? undefined : after.targetClassCount
+      addedRelations: current.relations.filter((item) => !beforeRelations.has(relationKey(item))),
+      removedRelations: previous.relations.filter((item) => !afterRelations.has(relationKey(item))),
+      currentScopeClassIds: current.classes.map(([id]) => id)
     };
   };
   const getPayloadSnapshot = () => {
@@ -255,7 +261,7 @@
     if (response.status === 401) return 'APIキーを確認してください。認証に失敗しました。';
     if (response.status === 429) return 'APIの利用上限またはレート制限に達しました。時間をおいて再依頼してください。';
     if (/exceeds the context window/i.test(apiMessage || '')) {
-      return 'この相談の履歴と対象範囲がモデルの入力上限を超えました。新しい相談を始めるか、選択範囲を小さくしてください。';
+      return 'この相談の履歴と対象範囲がモデルの入力上限を超えました。新しい相談を始めるか、上位クラス配下をさらに小さい範囲に分けてください。';
     }
     if (response.status === 400 && apiMessage) return `依頼を送信できませんでした: ${apiMessage}`;
     return apiMessage || `OpenAI APIへの接続に失敗しました（HTTP ${response.status}）。`;
@@ -431,6 +437,138 @@
       });
     });
   };
+  const buildUserContent = (userText, activeScope, conversation, baseDataHash, options = {}) => {
+    const usePrevious = !options.forceSnapshot && conversation.initialSnapshotSent && conversation.responseId;
+    const previousScope = usePrevious ? conversation.previousScope : null;
+    return JSON.stringify({
+      baseDataHash,
+      request: userText,
+      conversationContext: conversation.localContext || undefined,
+      selectedScope: diffScope(previousScope, activeScope),
+      instruction: options.instruction || (activeScope.mode === 'overview_summary'
+        ? 'これは全体構造の要約です。個別対象クラス名は含みません。既存クラスの変更・移動・削除は提案せず、全体評価、確認事項、新しい上位・中間クラスの案だけを返してください。'
+        : activeScope.mode === 'hierarchy_scope'
+          ? 'これは階層クラスだけの範囲です。対象クラスの個別情報は含まれません。上位・中間クラスの追加・改名・移動・削除だけを提案し、対象クラスの操作は提案しないでください。'
+          : 'この相談の範囲にあるクラスの提案だけを返してください。個別インスタンスデータと件数は含みません。')
+    });
+  };
+  const makeLargeScopePlan = (userText, scope, conversation, baseDataHash) => {
+    const selectedClasses = scope.selectedIds.map((id) => scope.classes.find((item) => item.id === id)).filter(Boolean);
+    const isHierarchySelection = selectedClasses.length === scope.selectedIds.length
+      && selectedClasses.length > 0
+      && selectedClasses.every((item) => ['top', 'middle'].includes(item.type));
+    if (!isHierarchySelection) return null;
+
+    const hierarchyScope = editor.getHierarchyScopedState(scope.selectedIds);
+    if (!hierarchyScope) return null;
+    const hierarchyInstruction = 'この分割処理では上位・中間クラスの階層構造だけを検討してください。対象クラスの変更案は作らず、入力にない情報を推測しないでください。';
+    const hierarchyContent = buildUserContent(userText, hierarchyScope, conversation, baseDataHash, {
+      forceSnapshot: true,
+      instruction: hierarchyInstruction
+    });
+    if (hierarchyContent.length > MAX_REQUEST_CHARACTERS) {
+      throw new Error(`上位・中間クラスの構造だけでも送信上限を超えています（約${hierarchyContent.length.toLocaleString()}文字）。さらに小さい上位クラス範囲を選択してください。`);
+    }
+
+    const hierarchyClasses = scope.classes.filter((item) => ['top', 'middle'].includes(item.type));
+    const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
+    const hierarchyById = new Map(hierarchyClasses.map((item) => [item.id, item]));
+    const targetClasses = scope.classes.filter((item) => item.type === 'class' && scope.editableIds.includes(item.id));
+    const targetGroups = new Map();
+    targetClasses.forEach((target) => {
+      let parentId = parentByChild.get(target.id);
+      let groupId = parentId || target.id;
+      const seen = new Set();
+      while (parentId && !seen.has(parentId)) {
+        seen.add(parentId);
+        const parent = hierarchyById.get(parentId);
+        if (!parent) break;
+        groupId = parent.id;
+        if (parent.type === 'middle') break;
+        parentId = parentByChild.get(parent.id);
+      }
+      if (!targetGroups.has(groupId)) targetGroups.set(groupId, []);
+      targetGroups.get(groupId).push(target);
+    });
+
+    const targetInstruction = 'この分割範囲に含まれる対象クラスだけを評価してください。許可する操作は対象クラスの移動だけです。上位・中間クラスの追加・改名・移動・削除や、入力にない対象クラスの操作は提案しないでください。移動先は入力にある上位・中間クラスのIDだけを使ってください。';
+    const targetTasks = [];
+    const makeTargetScope = (targets) => {
+      const targetIds = new Set(targets.map((item) => item.id));
+      const classes = [...hierarchyClasses, ...targets];
+      const includedIds = new Set(classes.map((item) => item.id));
+      return {
+        mode: 'selected_scope',
+        selectedIds: [...scope.selectedIds],
+        editableIds: [...targetIds],
+        classes,
+        relations: scope.relations.filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
+        counts: {}
+      };
+    };
+    const addSizedTargetTasks = (targets) => {
+      const taskScope = makeTargetScope(targets);
+      const input = buildUserContent(userText, taskScope, conversation, baseDataHash, {
+        forceSnapshot: true,
+        instruction: targetInstruction
+      });
+      if (input.length <= MAX_REQUEST_CHARACTERS) {
+        targetTasks.push({ kind: 'targets', scope: taskScope, input });
+        return;
+      }
+      if (targets.length < 2) {
+        throw new Error('対象クラス1件と移動先候補だけでも送信上限を超えています。選択範囲を小さくするか、クラス名の長い範囲を分けてください。');
+      }
+      const midpoint = Math.ceil(targets.length / 2);
+      addSizedTargetTasks(targets.slice(0, midpoint));
+      addSizedTargetTasks(targets.slice(midpoint));
+    };
+    [...targetGroups.values()].forEach(addSizedTargetTasks);
+    return [
+      { kind: 'hierarchy', scope: hierarchyScope, input: hierarchyContent },
+      ...targetTasks
+    ];
+  };
+  const createLocalConversationContext = (userText, result) => {
+    const lines = [`利用者の依頼: ${userText}`];
+    if (result.message) lines.push(`回答: ${result.message}`);
+    result.questions.forEach((question) => lines.push(`確認事項: ${question}`));
+    result.proposals.forEach((proposal) => {
+      lines.push(`変更案「${proposal.title}」: ${proposal.summary}。理由: ${proposal.reason}`);
+      proposal.operations.forEach((operation) => lines.push(`操作: ${JSON.stringify(operation)}`));
+    });
+    return `${lines[0].slice(0, 500)}\n${lines.slice(1).join('\n').slice(-5500)}`;
+  };
+  const summarizeVisibleConversation = (conversation) => {
+    const lines = [];
+    conversation.items.forEach((item) => {
+      if (item.type === 'message') lines.push(`${item.role === 'user' ? '利用者' : 'AI'}: ${item.text}`);
+      if (item.type === 'proposal') {
+        lines.push(`AI変更案「${item.proposal.title}」: ${item.proposal.summary}。理由: ${item.proposal.reason}`);
+        item.proposal.operations.forEach((operation) => lines.push(`操作: ${JSON.stringify(operation)}`));
+      }
+    });
+    return lines.join('\n').slice(-6000);
+  };
+  const validateSplitTaskOperations = (result, task) => {
+    const editable = new Set(task.scope.editableIds);
+    const classesById = new Map(task.scope.classes.map((item) => [item.id, item]));
+    result.proposals.forEach((proposal) => proposal.operations.forEach((operation) => {
+      if (task.kind === 'targets') {
+        const destination = classesById.get(operation.destinationId);
+        if (operation.type !== 'moveClass' || !editable.has(operation.classId)
+          || classesById.get(operation.classId)?.type !== 'class'
+          || !destination || !['top', 'middle'].includes(destination.type)) {
+          throw new Error('分割した対象クラスの提案に範囲外の操作が含まれています。安全のため、この依頼の提案は表示しません。');
+        }
+      } else {
+        const sourceIds = [operation.classId, operation.from].filter(Boolean);
+        if (sourceIds.some((id) => !editable.has(id))) {
+          throw new Error('分割した階層提案に対象範囲外の操作が含まれています。安全のため、この依頼の提案は表示しません。');
+        }
+      }
+    }));
+  };
   const sendRequest = async (userText) => {
     if (isSending) return;
     const key = keyInput.value.trim();
@@ -452,79 +590,91 @@
     catch (error) { setStatus(error.message, 'error'); return; }
     const fingerprintBeforeRequest = stateFingerprint();
     const conversation = currentConversation;
-    let requestScope = scope;
-    let compactHierarchyContext = false;
-    const buildUserContent = (activeScope) => {
-      const previousScope = compactHierarchyContext ? null : (conversation.initialSnapshotSent ? conversation.previousScope : null);
-      const contextPayload = diffScope(previousScope, activeScope);
-      return JSON.stringify({
-        baseDataHash,
-        request: userText,
-        selectedScope: contextPayload,
-        instruction: activeScope.mode === 'overview_summary'
-          ? 'これは全体構造の要約です。個別対象クラス名は含みません。既存クラスの変更・移動・削除は提案せず、全体評価、確認事項、新しい上位・中間クラスの案だけを返してください。'
-          : activeScope.mode === 'hierarchy_scope'
-            ? 'これは階層クラスだけの範囲です。対象クラスの個別情報は含まれません。上位・中間クラスの追加・改名・移動・削除だけを提案し、対象クラスの操作は提案しないでください。'
-            : 'この相談の範囲にあるクラスの提案だけを返してください。個別インスタンス情報はありません。'
-      });
-    };
-    let userContent = buildUserContent(requestScope);
-    if (userContent.length > MAX_REQUEST_CHARACTERS && scope.mode !== 'overview_summary') {
-      const selectedClasses = scope.selectedIds.map((id) => scope.classes.find((item) => item.id === id)).filter(Boolean);
-      const isHierarchySelection = selectedClasses.length === scope.selectedIds.length
-        && selectedClasses.length > 0
-        && selectedClasses.every((item) => ['top', 'middle'].includes(item.type));
-      if (isHierarchySelection) {
-        const compactScope = editor.getHierarchyScopedState(scope.selectedIds);
-        if (compactScope) {
-          requestScope = compactScope;
-          compactHierarchyContext = true;
-          userContent = buildUserContent(requestScope);
-        }
-      }
-    }
+    const userContent = buildUserContent(userText, scope, conversation);
+    let splitTasks = null;
     if (userContent.length > MAX_REQUEST_CHARACTERS) {
-      setStatus(`送信データが大きすぎます（約${userContent.length.toLocaleString()}文字）。選択範囲を小さくするか、階層全体の変更なら上位・中間クラスだけを選択してください。入力文は保持しています。`, 'error');
-      return;
+      conversation.localContext = conversation.localContext || summarizeVisibleConversation(conversation);
+      try { splitTasks = makeLargeScopePlan(userText, scope, conversation, baseDataHash); }
+      catch (error) { setStatus(error.message, 'error'); return; }
+      if (!splitTasks?.length) {
+        setStatus(`送信データが大きすぎます（約${userContent.length.toLocaleString()}文字）。上位クラスを選択して配下を分割するか、選択範囲を小さくしてください。入力文は保持しています。`, 'error');
+        return;
+      }
     }
     textInput.value = '';
     conversation.selectedIds = [...editor.selectedIds];
     conversation.items.push({ type: 'message', role: 'user', text: userText });
-    if (compactHierarchyContext) {
-      conversation.items.push({ type: 'message', role: 'assistant', text: '送信量を抑えるため、対象クラスの一覧を除いた階層情報（上位・中間クラスと親子関係）で相談しています。対象クラスを個別に編集する場合は、そのクラスを選択して相談してください。' });
-    }
+    if (splitTasks) conversation.items.push({ type: 'message', role: 'assistant', text: `送信量を抑えるため、上位・中間クラスの構造と対象クラスを分けて${splitTasks.length}件の依頼に分割しています。各案は現在の階層を基準にしています。構造変更を適用した後の再評価は必要に応じて依頼してください。` });
     conversation.updatedAt = Date.now();
     refreshConversationTitle(conversation);
     renderConversation();
-    setStatus('OpenAI APIに接続しています…');
+    setStatus(splitTasks ? `OpenAI APIに接続しています…（分割 0/${splitTasks.length}）` : 'OpenAI APIに接続しています…');
     isSending = true; sendButton.disabled = true; document.getElementById('ai-new-consultation').disabled = true;
     try {
-      const body = {
-        model: modelSelect.value,
-        reasoning: { effort: 'low' },
-        instructions: systemPrompt,
-        input: userContent,
-        text: { format: { type: 'json_schema', name: 'class_edit_proposals', strict: true, schema: responseSchema } },
-        max_output_tokens: 5000,
-        store: true
-      };
-      if (conversation.responseId && !compactHierarchyContext) body.previous_response_id = conversation.responseId;
       activeRequestController = new AbortController();
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify(body),
-        signal: activeRequestController.signal
-      });
-      const responseBody = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(formatHttpError(responseBody, response));
-      if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
-      const result = JSON.parse(readResponseText(responseBody));
-      validatePayload(result, baseDataHash);
-      conversation.responseId = responseBody.id || '';
-      if (!conversation.responseId) throw new Error('会話IDを取得できませんでした。新しい相談からやり直してください。');
-      conversation.initialSnapshotSent = true;
-      conversation.previousScope = requestScope;
+      const sendApiRequest = async (input, previousResponseId = '') => {
+        const body = {
+          model: modelSelect.value,
+          reasoning: { effort: 'low' },
+          instructions: systemPrompt,
+          input,
+          text: { format: { type: 'json_schema', name: 'class_edit_proposals', strict: true, schema: responseSchema } },
+          max_output_tokens: 5000,
+          store: true
+        };
+        if (previousResponseId) body.previous_response_id = previousResponseId;
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+          body: JSON.stringify(body),
+          signal: activeRequestController.signal
+        });
+        const responseBody = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(formatHttpError(responseBody, response));
+        return { responseBody, result: JSON.parse(readResponseText(responseBody)) };
+      };
+      let result;
+      let responseId = '';
+      const proposalScopes = new Map();
+      if (splitTasks) {
+        result = { baseDataHash, message: '', proposals: [], questions: [] };
+        const messagesFromParts = [];
+        for (let index = 0; index < splitTasks.length; index += 1) {
+          setStatus(`OpenAI APIに接続しています…（分割 ${index + 1}/${splitTasks.length}）`);
+          const task = splitTasks[index];
+          const part = await sendApiRequest(task.input);
+          if (part.result?.baseDataHash !== baseDataHash) throw new Error('分割した依頼の一部でデータ版が一致しません。提案は適用できません。');
+          part.result.proposals.forEach((proposal, proposalIndex) => {
+            proposal.id = `part${index + 1}_proposal${proposalIndex + 1}`;
+          });
+          validatePayload(part.result, baseDataHash);
+          validateSplitTaskOperations(part.result, task);
+          if (part.result.message) messagesFromParts.push(part.result.message);
+          result.questions.push(...part.result.questions);
+          part.result.proposals.forEach((proposal) => {
+            result.proposals.push(proposal);
+            proposalScopes.set(proposal.id, [...task.scope.editableIds]);
+          });
+          if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
+        }
+        result.message = messagesFromParts.join('\n');
+        conversation.responseId = '';
+        conversation.initialSnapshotSent = false;
+        conversation.previousScope = null;
+        conversation.localContext = createLocalConversationContext(userText, result);
+      } else {
+        const response = await sendApiRequest(userContent, conversation.responseId);
+        result = response.result;
+        responseId = response.responseBody.id || '';
+        if (!responseId) throw new Error('会話IDを取得できませんでした。新しい相談からやり直してください。');
+        validatePayload(result, baseDataHash);
+        conversation.responseId = responseId;
+        conversation.initialSnapshotSent = true;
+        conversation.previousScope = scope;
+        conversation.localContext = '';
+        result.proposals.forEach((proposal) => proposalScopes.set(proposal.id, [...scope.editableIds]));
+        if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
+      }
       if (result.message) conversation.items.push({ type: 'message', role: 'assistant', text: result.message });
       result.questions.forEach((question) => conversation.items.push({ type: 'message', role: 'assistant', text: question }));
       result.proposals.forEach((proposal) => {
@@ -532,7 +682,7 @@
           proposal.questions.forEach((question) => conversation.items.push({ type: 'message', role: 'assistant', text: question }));
           return;
         }
-        conversation.items.push({ type: 'proposal', proposal, editableIds: [...requestScope.editableIds], baseDataHash, status: 'pending' });
+        conversation.items.push({ type: 'proposal', proposal, editableIds: proposalScopes.get(proposal.id) || [...scope.editableIds], baseDataHash, status: 'pending' });
       });
       conversation.updatedAt = Date.now();
       renderConversation();

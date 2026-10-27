@@ -1333,7 +1333,8 @@ body[data-mode="browse"] .tree-add-button { display: none; }
 .aggregation-controls { display: flex; justify-content: flex-end; margin: 0 0 1rem; }
 .aggregation-controls label { display: flex; align-items: center; gap: 0.5rem; color: #334155; font-weight: 650; }
 .aggregation-controls select { min-width: 12rem; padding: 0.45rem; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; }
-.aggregation-section { margin: 1.5rem 0; padding: 1rem; border: 1px solid #dbe3ec; border-radius: 12px; background: #fff; }
+.aggregation-flow { display: grid; grid-template-columns: repeat(4, minmax(16rem, 1fr)); gap: 0.75rem; overflow-x: auto; align-items: start; padding-bottom: 0.5rem; }
+.aggregation-section { min-width: 0; margin: 0; padding: 1rem; border: 1px solid #dbe3ec; border-radius: 12px; background: #fff; }
 .aggregation-section h2 { margin: 0 0 0.75rem; color: #0f3d63; font-size: 1.2rem; }
 .aggregation-table th { position: static; }
 .aggregation-table th[scope="row"] { color: #1e293b; background: transparent; font-weight: 600; }

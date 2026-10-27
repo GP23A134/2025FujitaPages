@@ -45,6 +45,7 @@
           <select id="aggregation-top-filter"><option value="">すべて</option></select>
         </label>
       </div>
+      <div class="aggregation-flow">
       <section class="aggregation-section" aria-labelledby="aggregation-top-heading">
         <h2 id="aggregation-top-heading">上位クラス別</h2>
         <div class="aggregation-table-wrap"><table class="aggregation-table">
@@ -59,6 +60,21 @@
           <tbody id="aggregation-middle-rows"></tbody>
         </table></div>
       </section>
+      <section class="aggregation-section" aria-labelledby="aggregation-target-heading">
+        <h2 id="aggregation-target-heading">対象クラス別</h2>
+        <div class="aggregation-table-wrap"><table class="aggregation-table">
+          <thead><tr><th>対象クラス</th><th>インスタンス数</th><th>件数の目安</th></tr></thead>
+          <tbody id="aggregation-target-rows"></tbody>
+        </table></div>
+      </section>
+      <section class="aggregation-section" aria-labelledby="aggregation-instance-heading">
+        <h2 id="aggregation-instance-heading">インスタンス</h2>
+        <div class="aggregation-table-wrap"><table class="aggregation-table">
+          <thead><tr><th>インスタンス</th><th>所属クラス（階層）</th></tr></thead>
+          <tbody id="aggregation-instance-rows"></tbody>
+        </table></div>
+      </section>
+      </div>
     </section>
 
     <section id="tree-panel" class="tab-panel" role="tabpanel" aria-labelledby="tree-tab">
