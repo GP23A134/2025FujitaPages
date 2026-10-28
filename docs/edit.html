@@ -6,19 +6,19 @@
   <title>クラス編集</title>
   <link rel="icon" type="image/svg+xml" href="web/favicon.svg">
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
-  <link rel="stylesheet" href="web/css/base.css?v=20261028-toolbar-count-removed-v1">
-  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261028-toolbar-count-removed-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261028-toolbar-count-removed-v1">
-  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261028-toolbar-count-removed-v1">
-  <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261028-toolbar-count-removed-v1">
+  <link rel="stylesheet" href="web/css/base.css?v=20261028-ai-send-confirm-v1">
+  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261028-ai-send-confirm-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261028-ai-send-confirm-v1">
+  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261028-ai-send-confirm-v1">
+  <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261028-ai-send-confirm-v1">
   <script src="web/data/generated/class-data.js" defer></script>
   <script src="web/data/generated/instance-data.js" defer></script>
   <!-- データ → 共通ツリー → 編集状態・パネル・ツリー・イベント → AIの順で実行する。 -->
-  <script src="web/js/shared/tree.js?v=20261028-toolbar-count-removed-v1" defer></script>
-  <script src="web/js/editor/state.js?v=20261028-toolbar-count-removed-v1" defer></script>
-  <script src="web/js/editor/panels.js?v=20261028-toolbar-count-removed-v1" defer></script>
-  <script src="web/js/editor/tree.js?v=20261028-toolbar-count-removed-v1" defer></script>
-  <script src="web/js/editor/events.js?v=20261028-toolbar-count-removed-v1" defer></script>
+  <script src="web/js/shared/tree.js?v=20261028-ai-send-confirm-v1" defer></script>
+  <script src="web/js/editor/state.js?v=20261028-ai-send-confirm-v1" defer></script>
+  <script src="web/js/editor/panels.js?v=20261028-ai-send-confirm-v1" defer></script>
+  <script src="web/js/editor/tree.js?v=20261028-ai-send-confirm-v1" defer></script>
+  <script src="web/js/editor/events.js?v=20261028-ai-send-confirm-v1" defer></script>
 </head>
 <body class="edit-panes-pinned" data-mode="edit">
   <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>
@@ -187,6 +187,8 @@
       <h3 id="edit-display-settings-title">表示・編集</h3>
       <label class="edit-settings-toggle"><input type="checkbox" id="toggle-edit-ids"> クラスIDを表示する</label>
       <label class="edit-settings-toggle"><input type="checkbox" id="toggle-tree-edit-mode"> クラス編集を有効にする</label>
+      <label class="edit-settings-toggle"><input type="checkbox" id="ai-confirm-before-send"> AIチャットの送信前に内容を確認する</label>
+      <p class="edit-settings-note">ONにすると、依頼文と共有対象のクラス一覧を確認してから送信します。初期状態はOFFです。</p>
     </section>
   </dialog>
   <dialog id="target-instance-dialog" class="target-instance-dialog" aria-labelledby="target-instance-title">
@@ -199,7 +201,14 @@
   </dialog>
   <dialog id="ai-preview-dialog" class="ai-preview-dialog" aria-labelledby="ai-preview-title">
     <div class="ai-preview-header">
-      <h2 id="ai-preview-title">変更案のプレビュー</h2>
+      <div class="ai-preview-title-row">
+        <h2 id="ai-preview-title">変更案のプレビュー</h2>
+        <nav id="ai-preview-navigation" class="ai-preview-navigation" aria-label="提案の切り替え">
+          <button type="button" id="ai-preview-previous">前の提案</button>
+          <span id="ai-preview-position" aria-live="polite"></span>
+          <button type="button" id="ai-preview-next">次の提案</button>
+        </nav>
+      </div>
       <button type="button" id="ai-preview-close" class="target-instance-dialog-close" aria-label="閉じる">×</button>
     </div>
     <p id="ai-preview-impact" class="ai-preview-impact" role="status" aria-live="polite"></p>
@@ -233,6 +242,31 @@
       <button type="button" id="ai-apply-proposal" class="search-button">この変更を適用</button>
     </div>
   </dialog>
-  <script src="web/js/editor/ai.js?v=20261028-toolbar-count-removed-v1" defer></script>
+  <dialog id="ai-send-confirm-dialog" class="ai-send-confirm-dialog" aria-labelledby="ai-send-confirm-title">
+    <div class="ai-preview-header">
+      <h2 id="ai-send-confirm-title">AIへの送信内容を確認</h2>
+      <button type="button" id="ai-send-confirm-close" class="target-instance-dialog-close" aria-label="送信を中止して閉じる">×</button>
+    </div>
+    <p id="ai-send-confirm-summary" class="ai-send-confirm-summary"></p>
+    <section class="ai-send-confirm-section">
+      <h3>依頼文</h3>
+      <pre id="ai-send-confirm-request" class="ai-send-confirm-request"></pre>
+    </section>
+    <section class="ai-send-confirm-section">
+      <h3>今回の相談で参照できるクラス</h3>
+      <div class="ai-send-confirm-table-wrap">
+        <table class="ai-send-confirm-table">
+          <thead><tr><th scope="col">共有区分</th><th scope="col">種類</th><th scope="col">クラス名</th><th scope="col">ID</th></tr></thead>
+          <tbody id="ai-send-confirm-classes"></tbody>
+        </table>
+      </div>
+    </section>
+    <p id="ai-send-confirm-history-note" class="edit-settings-note" hidden></p>
+    <div class="ai-send-confirm-actions">
+      <button type="button" id="ai-send-confirm-cancel">キャンセル</button>
+      <button type="button" id="ai-send-confirm-approve" class="search-button">この内容で送信</button>
+    </div>
+  </dialog>
+  <script src="web/js/editor/ai.js?v=20261028-ai-send-confirm-v1" defer></script>
 </body>
 </html>

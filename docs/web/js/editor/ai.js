@@ -114,6 +114,8 @@
   const sendButton = document.getElementById('ai-send');
   const textInput = document.getElementById('ai-chat-input');
   const previewDialog = document.getElementById('ai-preview-dialog');
+  const confirmBeforeSendToggle = document.getElementById('ai-confirm-before-send');
+  const sendConfirmDialog = document.getElementById('ai-send-confirm-dialog');
   const historyButton = document.getElementById('ai-show-history');
   const historyPopover = document.getElementById('ai-history-popover');
   const historyList = document.getElementById('ai-history-list');
@@ -124,6 +126,8 @@
   let previewPlan = null;
   let sourceDataVersion = '';
   let isSending = false;
+  let isConfirmingSend = false;
+  let pendingSendConfirmation = null;
   let activeRequestController = null;
   let classLabelsById = new Map();
   let classTypesById = new Map();
@@ -199,6 +203,55 @@
     const pricingDate = modelConfig?.pricingAsOf ? `料金単価 ${modelConfig.pricingAsOf} 時点。` : '';
     return `今回の概算: ${inputs.length}リクエスト、入力約${inputTokens.toLocaleString()} tokens。最大出力枠を使う想定で約${formatUsd(inputUsd + outputCapUsd)}（精度の低い目安。${pricingDate}会話履歴・JSON形式指定などを含まず、実額は異なります）`;
   };
+  const confirmSendBeforeRequest = (userText, scope, summary, conversation, splitTasks) => {
+    if (!confirmBeforeSendToggle.checked) return Promise.resolve(true);
+    if (pendingSendConfirmation) return Promise.resolve(false);
+    const summaryNode = document.getElementById('ai-send-confirm-summary');
+    summaryNode.textContent = `${summary}　今回の相談で参照できるクラス ${scope.classes.length}件（選択中 ${scope.editableIds.length}件・追加共有 ${scope.sharedContextIds?.length || 0}件、親子関係 ${scope.relations.length}件）。`;
+    if (splitTasks?.length) summaryNode.textContent += ` 送信を${splitTasks.length}回に分けます。`;
+    document.getElementById('ai-send-confirm-request').textContent = userText;
+    const historyNote = document.getElementById('ai-send-confirm-history-note');
+    historyNote.hidden = !conversation.responseId && !conversation.localContext;
+    historyNote.textContent = conversation.responseId
+      ? 'この相談の前のやりとりも会話履歴としてOpenAI側に保存されており、今回の依頼と合わせて参照されます。'
+      : conversation.localContext
+        ? '前の依頼や確認事項の要約も今回の依頼と合わせて送信します。以前のクラス情報は含みません。'
+        : '';
+    const body = document.getElementById('ai-send-confirm-classes');
+    const typeLabels = { top: '上位', middle: '中間', class: '対象' };
+    const editable = new Set(scope.editableIds);
+    const rows = [...scope.classes]
+      .sort((a, b) => (typeLabels[a.type] || '').localeCompare(typeLabels[b.type] || '') || String(a.label || '').localeCompare(String(b.label || ''), 'ja'))
+      .map((item) => {
+        const row = document.createElement('tr');
+        const shareType = document.createElement('td');
+        shareType.textContent = editable.has(item.id) ? '選択中' : '追加共有・参照のみ';
+        const kind = document.createElement('td');
+        kind.textContent = typeLabels[item.type] || item.type;
+        const label = document.createElement('td');
+        label.textContent = item.label || '(ラベルなし)';
+        const id = document.createElement('td');
+        id.textContent = item.id;
+        row.append(shareType, kind, label, id);
+        return row;
+      });
+    body.replaceChildren(...rows);
+    sendConfirmDialog.returnValue = '';
+    sendConfirmDialog.showModal();
+    isConfirmingSend = true;
+    return new Promise((resolve) => { pendingSendConfirmation = resolve; });
+  };
+  const finishSendConfirmation = (approved) => {
+    if (!pendingSendConfirmation) return;
+    const resolve = pendingSendConfirmation;
+    pendingSendConfirmation = null;
+    isConfirmingSend = false;
+    resolve(approved);
+  };
+  document.getElementById('ai-send-confirm-approve').addEventListener('click', () => sendConfirmDialog.close('send'));
+  document.getElementById('ai-send-confirm-cancel').addEventListener('click', () => sendConfirmDialog.close('cancel'));
+  document.getElementById('ai-send-confirm-close').addEventListener('click', () => sendConfirmDialog.close('cancel'));
+  sendConfirmDialog.addEventListener('close', () => finishSendConfirmation(sendConfirmDialog.returnValue === 'send'));
 
   const setStatus = (text, kind = '') => {
     status.textContent = text;
@@ -745,6 +798,20 @@
     });
     list.replaceChildren(...rows);
   };
+  const previewableProposals = () => currentConversation.items.filter((item) => item.type === 'proposal'
+    && item.proposal.operations.length
+    && !['applied', 'awaiting-answers', 'superseded', 'invalid'].includes(item.status));
+  const updatePreviewNavigation = (proposalItem) => {
+    const items = previewableProposals();
+    const index = items.indexOf(proposalItem);
+    const navigation = document.getElementById('ai-preview-navigation');
+    const previous = document.getElementById('ai-preview-previous');
+    const next = document.getElementById('ai-preview-next');
+    navigation.hidden = items.length < 2;
+    previous.disabled = index <= 0;
+    next.disabled = index < 0 || index >= items.length - 1;
+    document.getElementById('ai-preview-position').textContent = index < 0 ? '' : `${index + 1} / ${items.length}`;
+  };
   const showPreview = async (proposalItem, applyRequested = false, fastUpdate = false) => {
     const applyButton = document.getElementById('ai-apply-proposal');
     if (!fastUpdate) {
@@ -755,6 +822,7 @@
     if (!operations.length) throw new Error('変更操作が残っていません。この提案は適用する内容がありません。');
     proposalItem.excludedOperationIndexes ||= new Set();
     if (!fastUpdate) {
+      updatePreviewNavigation(proposalItem);
       document.getElementById('ai-preview-summary').textContent = proposalItem.proposal.summary || proposalItem.proposal.title || '変更内容の説明はありません。';
       document.getElementById('ai-preview-reason').textContent = proposalItem.proposal.reason || '理由の記載はありません。';
       document.getElementById('ai-preview-uncertainties').textContent = proposalItem.proposal.uncertainties?.length
@@ -934,6 +1002,14 @@
     previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), candidate, expectedFingerprint, expectedBaseHash };
     applyButton.disabled = activeOperations.length === 0;
     if (applyRequested && activeOperations.length) applyButton.focus();
+  };
+  const navigatePreview = (direction) => {
+    if (!previewPlan) return;
+    const items = previewableProposals();
+    const index = items.indexOf(previewPlan.proposalItem);
+    const next = items[index + direction];
+    if (!next) return;
+    void showPreview(next).then(() => renderConversation()).catch(reportPreviewError);
   };
 
   const validatePayload = (result, expectedHash) => {
@@ -1309,7 +1385,7 @@
     return discardedOperationCount;
   };
   const sendRequest = async (userText, additionalContextIds = []) => {
-    if (isSending) return false;
+    if (isSending || isConfirmingSend) return false;
     const key = keyInput.value.trim();
     if (!key) { setStatus('設定欄にOpenAI APIキーを入力してください。', 'error'); keyInput.focus(); return; }
     if (!/^[\x21-\x7E]+$/.test(key)) {
@@ -1359,9 +1435,16 @@
       : '';
     const preflightNote = [estimateRequestCost(requestInputs, systemPrompt), longConversationNote].filter(Boolean).join('　');
     updateUsageSummary(preflightNote);
-    if (splitTasks?.length > 1 && !window.confirm(`この依頼は${splitTasks.length}回のAPIリクエストに分割されます。\n${preflightNote}\n\n続けますか？`)) {
+    if (splitTasks?.length > 1 && !confirmBeforeSendToggle.checked
+      && !window.confirm(`この依頼は${splitTasks.length}回のAPIリクエストに分割されます。\n${preflightNote}\n\n続けますか？`)) {
       updateUsageSummary();
       return;
+    }
+    const sendApproved = await confirmSendBeforeRequest(userText, scope, preflightNote, conversation, splitTasks);
+    if (!sendApproved) {
+      updateUsageSummary();
+      setStatus('送信をキャンセルしました。入力内容は保持されています。');
+      return false;
     }
     textInput.value = '';
     conversation.selectedIds = [...editor.selectedIds];
@@ -1551,6 +1634,8 @@
     if (clickedOutside) closePreview();
   });
   document.getElementById('ai-preview-close').addEventListener('click', closePreview);
+  document.getElementById('ai-preview-previous').addEventListener('click', () => navigatePreview(-1));
+  document.getElementById('ai-preview-next').addEventListener('click', () => navigatePreview(1));
   document.getElementById('ai-preview-select-all').addEventListener('click', () => {
     const item = previewPlan?.proposalItem;
     if (!item) return;
@@ -1599,7 +1684,7 @@
     .then((response) => { if (!response.ok) throw new Error('データ版ファイルを取得できません。'); return response.text(); })
     .then((value) => { sourceDataVersion = value.trim(); if (!sourceDataVersion) throw new Error('データ版が空です。'); })
     .catch(() => {
-      setStatus('データ版を確認できません。通信状態を確認してください。AI提案は確認できるまで送信できません。APIキーの確認・入力は', 'error');
+      setStatus('データ版を確認できません。通信状態を確認してください。AI提案は確認できるまで送信できません', 'error');
       appendSettingsLink();
     });
 })();
