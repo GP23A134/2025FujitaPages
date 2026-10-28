@@ -43,7 +43,7 @@ const syncPinnedHeldPanelBounds = () => {
     if (!panel || !layout) return;
     const toolbar = document.querySelector('.edit-taskbar');
     const toolbarHeight = toolbar?.offsetHeight ?? 0;
-    const top = toolbarHeight + 8;
+    const top = toolbarHeight;
     const treeFilter = document.getElementById('tree-filter');
     const searchTreeGap = Number.parseFloat(getComputedStyle(layout).getPropertyValue('--edit-pane-search-tree-gap')) || 0;
     const filterHeight = treeFilter && !treeFilter.hidden ? treeFilter.offsetHeight : 0;

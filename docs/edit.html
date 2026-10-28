@@ -6,19 +6,19 @@
   <title>クラス編集</title>
   <link rel="icon" type="image/svg+xml" href="web/favicon.svg">
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
-  <link rel="stylesheet" href="web/css/base.css?v=20261028-ai-send-confirm-v1">
-  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261028-ai-send-confirm-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261028-ai-send-confirm-v1">
-  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261028-ai-send-confirm-v1">
-  <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261028-ai-send-confirm-v1">
+  <link rel="stylesheet" href="web/css/base.css?v=20261028-preview-class-spacing-v1">
+  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261028-preview-class-spacing-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261028-preview-class-spacing-v1">
+  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261028-preview-class-spacing-v1">
+  <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261028-preview-class-spacing-v1">
   <script src="web/data/generated/class-data.js" defer></script>
   <script src="web/data/generated/instance-data.js" defer></script>
   <!-- データ → 共通ツリー → 編集状態・パネル・ツリー・イベント → AIの順で実行する。 -->
-  <script src="web/js/shared/tree.js?v=20261028-ai-send-confirm-v1" defer></script>
-  <script src="web/js/editor/state.js?v=20261028-ai-send-confirm-v1" defer></script>
-  <script src="web/js/editor/panels.js?v=20261028-ai-send-confirm-v1" defer></script>
-  <script src="web/js/editor/tree.js?v=20261028-ai-send-confirm-v1" defer></script>
-  <script src="web/js/editor/events.js?v=20261028-ai-send-confirm-v1" defer></script>
+  <script src="web/js/shared/tree.js?v=20261028-preview-class-spacing-v1" defer></script>
+  <script src="web/js/editor/state.js?v=20261028-preview-class-spacing-v1" defer></script>
+  <script src="web/js/editor/panels.js?v=20261028-preview-class-spacing-v1" defer></script>
+  <script src="web/js/editor/tree.js?v=20261028-preview-class-spacing-v1" defer></script>
+  <script src="web/js/editor/events.js?v=20261028-preview-class-spacing-v1" defer></script>
 </head>
 <body class="edit-panes-pinned" data-mode="edit">
   <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>
@@ -267,6 +267,6 @@
       <button type="button" id="ai-send-confirm-approve" class="search-button">この内容で送信</button>
     </div>
   </dialog>
-  <script src="web/js/editor/ai.js?v=20261028-ai-send-confirm-v1" defer></script>
+  <script src="web/js/editor/ai.js?v=20261028-preview-class-spacing-v1" defer></script>
 </body>
 </html>

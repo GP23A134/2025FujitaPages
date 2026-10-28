@@ -15,16 +15,16 @@
   --edit-tree-bottom-space: 4rem;
   --held-panel-width: 30%;
   --tree-panel-heading-font-size: 1rem;
-  --edit-pane-gap: 1rem;
-  --edit-pane-top-offset: -25px;
-  --edit-pane-search-tree-gap: 0.5rem;
+  --edit-pane-gap: 0;
+  --edit-pane-top-offset: 0px;
+  --edit-pane-search-tree-gap: 0;
   --edit-pane-visible-header-height: 0px;
   --edit-pane-available-height: max(0px, calc(100vh - var(--edit-pane-position-top, 4.5rem) - 8px - var(--edit-pane-visible-header-height)));
   --edit-pane-card-padding: 1rem;
   --edit-pane-header-height: 2.8rem;
   --edit-pane-header-padding-block: 0.4rem;
   --edit-pane-header-padding-inline: 0.85rem;
-  --edit-pane-header-after-gap: 0.75rem;
+  --edit-pane-header-after-gap: 0;
   --edit-pane-collapsed-padding-block: 0.4rem;
   --edit-pane-collapsed-padding-inline: 0.65rem;
   --edit-pane-collapsed-header-after-gap: 0.3rem;
@@ -54,11 +54,18 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selectio
   }
 }
 body[data-mode="edit"] .edit-taskbar { margin-bottom: 0; }
-body[data-mode="edit"] main { padding-top: 0.5rem; }
+body[data-mode="edit"] main { padding-top: 0; }
 body[data-mode="edit"] #edit-tree-panel .tree-filter { margin-top: 0; }
-.edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .tree-filter { width: calc(100% - var(--held-panel-width) - 1rem); box-sizing: border-box; }
-.edit-tree-layout:has(.instance-selection[hidden]) .tree-filter { width: 100%; box-sizing: border-box; }
-body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .tree-filter { width: calc(100% - var(--held-panel-width) - 1rem); }
+body[data-mode="edit"] #edit-tree-panel .edit-tree-pane > .tree-filter {
+  width: calc(100% + var(--page-side-gutter));
+  margin-left: calc(0px - var(--page-side-gutter));
+  box-sizing: border-box;
+}
+.edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .tree-filter { width: calc(100% - var(--held-panel-width) - 1rem + var(--page-side-gutter)); box-sizing: border-box; }
+.edit-tree-layout:has(.instance-selection[hidden]) .tree-filter { width: calc(100% + var(--page-side-gutter)); box-sizing: border-box; }
+body[data-mode="edit"] #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .tree-filter { width: calc(100% - var(--held-panel-width) - 1rem + var(--page-side-gutter)); }
+body[data-mode="edit"] #edit-tree-panel .edit-tree-layout:has(.instance-selection[hidden]) .tree-filter { width: calc(100% + var(--page-side-gutter)); }
+body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .tree-filter { width: calc(100% - var(--held-panel-width) - 1rem + var(--page-side-gutter)); }
 .edit-tree-layout .instance-selection {
   display: flex;
   flex-direction: column;
@@ -89,11 +96,12 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection:no
   z-index: 60;
   grid-row: 1;
   grid-column: 2;
-  width: 100%;
+  width: calc(100% + var(--page-side-gutter));
   height: var(--edit-pane-available-height, calc(100vh - 5.5rem));
   max-height: var(--edit-pane-available-height, calc(100vh - 5.5rem));
   box-sizing: border-box;
   margin-top: 0;
+  margin-right: calc(0px - var(--page-side-gutter));
 }
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection.is-collapsed {
   position: sticky;
@@ -101,7 +109,7 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection.is
   grid-column: 1;
   justify-self: end;
   align-self: start;
-  inset: auto;
+  inset: auto calc(0px - var(--page-side-gutter)) auto auto;
   top: var(--edit-pane-position-top, 4.5rem);
   z-index: 60;
   width: min(var(--held-panel-width), calc(100vw - 2rem));
@@ -265,9 +273,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-dialog {
   --ai-preview-node-height: 1.65rem;
   --ai-preview-heading-font-size: 0.75rem;
-  --ai-preview-middle-list-gap: 0.1rem;
-  --ai-preview-target-row-gap: 0.15rem;
-  --ai-preview-root-middle-gap: 0.075rem;
+  --ai-preview-class-gap: 0.25rem;
   --ai-preview-target-width: 300px;
   --ai-preview-root-middle-link-length: calc(1.15rem - 3px);
   --ai-preview-nested-middle-link-length: calc(0.75rem - 1px);
@@ -336,7 +342,8 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-columns h3 { margin: 0.4rem 0; color: #334155; font-size: 0.95rem; }
 .ai-preview-tree { box-sizing: border-box; min-height: 0; padding: 0.65rem; border: 1px solid #dbe3ec; border-radius: 8px; background: #f8fafc; font-size: 0.82rem; }
 .ai-preview-tree.tree { height: auto; max-height: none; overflow: visible; }
-#ai-preview-dialog .tree details { margin: 0.1rem 0; }
+#ai-preview-dialog .tree details { margin: 0; }
+#ai-preview-dialog .tree > details + details { margin-top: var(--ai-preview-class-gap); }
 #ai-preview-dialog .tree summary { display: flex; align-items: center; padding: 0.45rem 0.6rem; list-style-position: outside; }
 #ai-preview-dialog .tree-top-class > summary,
 #ai-preview-dialog .tree-middle-class > summary { position: static; box-sizing: border-box; height: var(--ai-preview-node-height); min-height: var(--ai-preview-node-height); padding: 0 0.55rem; font-size: var(--ai-preview-heading-font-size); line-height: 1.1rem; box-shadow: none; }
@@ -349,7 +356,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .tree-leaf-id { display: none; margin: 0; color: #64748b; font-size: 0.5rem; font-weight: 400; }
 #ai-preview-dialog .tree .tree-level-label { overflow-wrap: anywhere; white-space: normal; }
 #ai-preview-dialog .tree ul { margin: 0.25rem 0 0.45rem 1.15rem; padding-left: 1rem; border-left: 2px solid #bfdbfe; list-style: none; }
-#ai-preview-dialog .tree li { margin: 0.35rem 0; }
+#ai-preview-dialog .tree li { margin: 0; }
 #ai-preview-dialog .tree .tree-level-rows {
   --ai-preview-middle-link-length: var(--ai-preview-nested-middle-link-length);
   position: relative;
@@ -371,12 +378,12 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
   border-left: 0;
 }
 #ai-preview-dialog .tree .tree-child-middle-list,
-#ai-preview-dialog .tree .tree-target-list { position: relative; display: grid; width: 100%; box-sizing: border-box; row-gap: var(--ai-preview-target-row-gap); margin: 0; padding: 0; border-left: 0; list-style: none; }
+#ai-preview-dialog .tree .tree-target-list { position: relative; display: grid; width: 100%; box-sizing: border-box; row-gap: var(--ai-preview-class-gap); margin: 0; padding: 0; border-left: 0; list-style: none; }
 #ai-preview-dialog .tree .tree-target-list { grid-template-columns: minmax(0, 1fr); }
-#ai-preview-dialog .tree .tree-child-middle-list { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; box-sizing: border-box; row-gap: var(--ai-preview-middle-list-gap); margin: 0; padding: 0; border-left: 0; list-style: none; }
+#ai-preview-dialog .tree .tree-child-middle-list { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; box-sizing: border-box; row-gap: var(--ai-preview-class-gap); margin: 0; padding: 0; border-left: 0; list-style: none; }
 #ai-preview-dialog .tree .tree-child-middle-row,
 #ai-preview-dialog .tree .tree-target-row { display: block; width: 100%; margin: 0; padding: 0; }
-#ai-preview-dialog .tree > details > .tree-level-rows > .tree-child-middle-row { margin-top: var(--ai-preview-root-middle-gap); }
+#ai-preview-dialog .tree > details > .tree-level-rows > .tree-child-middle-row { margin-top: var(--ai-preview-class-gap); }
 #ai-preview-dialog .tree .tree-child-middle-row::before,
 #ai-preview-dialog .tree .tree-target-row::before { display: none; }
 #ai-preview-dialog .tree .tree-child-middle-list > li { position: relative; margin: 0; }
