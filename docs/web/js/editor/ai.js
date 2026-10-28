@@ -46,9 +46,19 @@
           properties: {
             classId: { type: ['string', 'null'] },
             className: { type: ['string', 'null'] },
+            classQuery: {
+              type: ['object', 'null'], additionalProperties: false,
+              properties: {
+                classType: { type: ['string', 'null'], enum: ['top', 'middle', 'class', null] },
+                nameKeywords: { type: 'array', items: { type: 'string' } },
+                relationToSelection: { type: 'string', enum: ['any', 'parent', 'child', 'sibling', 'same_top_ancestor'] },
+                limit: { type: 'integer' }
+              },
+              required: ['classType', 'nameKeywords', 'relationToSelection', 'limit']
+            },
             reason: { type: 'string' }
           },
-          required: ['classId', 'className', 'reason']
+          required: ['classId', 'className', 'classQuery', 'reason']
         }
       }
     },
@@ -335,14 +345,28 @@
       .filter((operation) => operation.type === 'addClass' && operation.temporaryId)
       .map((operation) => [operation.temporaryId, operation.label]));
     messages.replaceChildren();
-    const allProposalItems = currentConversation.items.filter((item) => item.type === 'proposal');
-    const questionItems = currentConversation.items.filter((item) => item.type === 'questions');
+    const renderedResponseGroups = new Set();
     currentConversation.items.forEach((item) => {
       if (item.type === 'message') renderMessage(item);
       else if (item.type === 'data-requests') renderDataRequest(item);
+      else if (item.type === 'proposal' || item.type === 'questions') {
+        const responseGroupId = item.responseGroupId || item;
+        if (renderedResponseGroups.has(responseGroupId)) return;
+        renderedResponseGroups.add(responseGroupId);
+        const groupItems = currentConversation.items.filter((entry) =>
+          (entry.type === 'proposal' || entry.type === 'questions')
+          && (entry.responseGroupId || entry) === responseGroupId);
+        const proposalItems = groupItems.filter((entry) => entry.type === 'proposal');
+        const questionItems = groupItems.filter((entry) => entry.type === 'questions');
+        const responseGroup = document.createElement('section');
+        responseGroup.className = 'ai-response-group';
+        questionItems.forEach((questionItem) => renderQuestionQueue(questionItem, responseGroup));
+        if (proposalItems.length && questionItems.every((questionItem) => questionItem.submitted)) {
+          renderProposalQueue(proposalItems, responseGroup);
+        }
+        messages.append(responseGroup);
+      }
     });
-    questionItems.forEach(renderQuestionQueue);
-    if (allProposalItems.length && questionItems.every((item) => item.submitted)) renderProposalQueue(allProposalItems);
     messages.scrollTop = scrollToBottom ? messages.scrollHeight : previousScrollTop;
     status.textContent = currentConversation.status || '';
     updateUsageSummary();
@@ -531,12 +555,12 @@
     card.append(actions);
     return card;
   };
-  const renderProposalQueue = (items) => {
-    const conversation = currentConversation;
+  const renderProposalQueue = (items, host = messages) => {
+    const proposalGroup = items[0];
     const details = document.createElement('details');
     details.className = 'ai-proposal-queue';
-    details.open = conversation.proposalsOpen !== false;
-    details.addEventListener('toggle', () => { conversation.proposalsOpen = details.open; });
+    details.open = proposalGroup.proposalsOpen !== false;
+    details.addEventListener('toggle', () => { proposalGroup.proposalsOpen = details.open; });
     const counts = items.reduce((summary, item) => {
       if (item.status === 'applied') summary.applied += 1;
       else if (item.status === 'previewed') summary.reviewed += 1;
@@ -551,9 +575,9 @@
     if (counts.answered) statusParts.push(`回答済み${counts.answered}件`);
     summary.textContent = `変更案（${items.length}件・${statusParts.join('・')}）`;
     details.append(summary, ...items.map(renderProposalCard));
-    messages.append(details);
+    host.append(details);
   };
-  const renderQuestionQueue = (item) => {
+  const renderQuestionQueue = (item, host = messages) => {
     const details = document.createElement('details');
     details.className = 'ai-question-queue';
     details.open = Boolean(item.open);
@@ -565,11 +589,22 @@
       : `確認事項（${item.questions.length}件・${answeredCount}件回答済み）`;
     details.append(summary);
     if (item.submitted) {
-      const submitted = document.createElement('p');
-      submitted.className = 'ai-question-complete';
-      submitted.textContent = '回答をまとめてAIへ送りました。更新された提案を確認してください。';
-      details.append(submitted);
-      messages.append(details);
+      const review = document.createElement('div');
+      review.className = 'ai-question-review';
+      item.questions.forEach((question, index) => {
+        const entry = document.createElement('article');
+        entry.className = 'ai-question-review-item';
+        const prompt = document.createElement('p');
+        prompt.className = 'ai-question-prompt';
+        prompt.textContent = `${index + 1}. ${question.text}`;
+        const answer = document.createElement('p');
+        answer.className = 'ai-question-review-answer';
+        answer.textContent = `回答: ${question.answer || '（回答なし）'}`;
+        entry.append(prompt, answer);
+        review.append(entry);
+      });
+      details.append(review);
+      host.append(details);
       return;
     }
     const question = item.questions[item.activeIndex] || item.questions[0];
@@ -617,11 +652,13 @@
     actions.append(previous, recommend, next);
     content.append(actions);
     details.append(content);
-    messages.append(details);
+    host.append(details);
   };
   const renderDataRequest = (item) => {
     const card = document.createElement('article');
     card.className = `ai-data-request-card is-${item.status || 'pending'}`;
+    const candidateGroups = item.candidateGroups || [];
+    const hasShareRequest = item.requests.length > 0 || candidateGroups.length > 0;
     const heading = document.createElement('strong');
     heading.textContent = '追加クラス情報の共有確認';
     card.append(heading);
@@ -630,30 +667,88 @@
       unresolved.textContent = `クラスを特定できませんでした: ${item.unresolved.join('、')}。ツリーから該当クラスを選択して、改めて依頼してください。`;
       card.append(unresolved);
     }
-    if (item.requests.length) {
+    if (hasShareRequest) {
       const note = document.createElement('p');
-      note.textContent = '許可すると、次のクラス情報を今回のAI相談に追加で共有します。編集対象には追加されません。';
+      note.textContent = '選んだクラス情報を許可すると、今回のAI相談に参照用として共有します。編集対象には追加されません。';
       card.append(note);
-      const list = document.createElement('ul');
-      item.requests.forEach(({ item: requestedClass, reason }) => {
-        const row = document.createElement('li');
-        const label = `${requestedClass.type === 'top' ? '上位' : requestedClass.type === 'middle' ? '中間' : '対象'}クラス「${requestedClass.label}」 (${requestedClass.id})`;
-        row.textContent = reason ? `${label} — ${reason}` : label;
-        list.append(row);
+      if (item.requests.length) {
+        const list = document.createElement('ul');
+        item.requests.forEach(({ item: requestedClass, reason }) => {
+          const row = document.createElement('li');
+          const label = `${requestedClass.type === 'top' ? '上位' : requestedClass.type === 'middle' ? '中間' : '対象'}クラス「${requestedClass.label}」 (${requestedClass.id})`;
+          row.textContent = reason ? `${label} — ${reason}` : label;
+          list.append(row);
+        });
+        card.append(list);
+      }
+      candidateGroups.forEach((group, groupIndex) => {
+        const section = document.createElement('section');
+        section.className = 'ai-data-request-candidate-group';
+        const groupHeading = document.createElement('strong');
+        const typeLabel = { top: '上位', middle: '中間', class: '対象' }[group.query.classType] || '全種別';
+        groupHeading.textContent = `${typeLabel}クラスの候補${group.candidates.length ? `（${group.candidates.length}件）` : ''}`;
+        section.append(groupHeading);
+        if (group.reason) {
+          const reason = document.createElement('p');
+          reason.textContent = group.reason;
+          section.append(reason);
+        }
+        if (group.candidates.length) {
+          const list = document.createElement('ul');
+          group.candidates.forEach(({ item: candidate, path }) => {
+            const row = document.createElement('li');
+            const label = document.createElement('label');
+            label.className = 'ai-data-request-candidate';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = group.selectedIds.includes(candidate.id);
+            checkbox.disabled = Boolean(item.submitting) || item.status !== 'pending';
+            checkbox.addEventListener('change', () => {
+              group.selectedIds = checkbox.checked
+                ? [...new Set([...group.selectedIds, candidate.id])]
+                : group.selectedIds.filter((id) => id !== candidate.id);
+              allow.disabled = Boolean(item.submitting) || item.status !== 'pending'
+                || (!item.requests.length && !candidateGroups.some((entry) => entry.selectedIds.length));
+            });
+            const candidateName = document.createElement('span');
+            candidateName.className = 'ai-data-request-candidate-name';
+            candidateName.textContent = `${candidate.type === 'top' ? '上位' : candidate.type === 'middle' ? '中間' : '対象'}クラス「${candidate.label}」`;
+            const candidatePath = document.createElement('small');
+            candidatePath.textContent = path;
+            label.append(checkbox, candidateName, candidatePath);
+            row.append(label);
+            list.append(row);
+          });
+          section.append(list);
+        } else {
+          const empty = document.createElement('p');
+          empty.textContent = '条件に合う候補がありません。選択範囲を変えるか、ツリーから対象を選んでください。';
+          section.append(empty);
+        }
+        if (group.truncated) {
+          const limit = document.createElement('p');
+          limit.textContent = '候補が多いため一部のみ表示しています。検索条件を絞ってください。';
+          section.append(limit);
+        }
+        card.append(section);
       });
-      card.append(list);
       const actions = document.createElement('div');
       actions.className = 'ai-data-request-actions';
       const allow = document.createElement('button');
       allow.type = 'button';
       allow.className = 'search-button';
       allow.textContent = item.status === 'approved' ? '共有を許可しました' : '許可して共有';
-      allow.disabled = Boolean(item.submitting) || item.status !== 'pending';
+      allow.disabled = Boolean(item.submitting) || item.status !== 'pending'
+        || (!item.requests.length && !candidateGroups.some((entry) => entry.selectedIds.length));
       allow.addEventListener('click', async () => {
         if (item.submitting || item.status !== 'pending') return;
         item.submitting = true;
         renderConversation();
-        const approved = item.requests.map(({ item: requestedClass }) => requestedClass);
+        const approvedIds = [...new Set([
+          ...item.requests.map(({ item: requestedClass }) => requestedClass.id),
+          ...candidateGroups.flatMap((group) => group.selectedIds)
+        ])];
+        const approved = approvedIds.map((id) => editor.getState().classes.find((candidate) => candidate.id === id)).filter(Boolean);
         const lines = approved.map(({ id, label }) => `${label} (${id})`).join('、');
         const succeeded = await sendRequest(`追加情報の共有を許可します。次のクラス情報を使って、前の依頼を続けてください: ${lines}`, approved.map(({ id }) => id));
         item.submitting = false;
@@ -673,7 +768,8 @@
         if (succeeded) item.status = 'denied';
         renderConversation();
       });
-      actions.append(allow, deny);
+      if (item.requests.length || candidateGroups.some((group) => group.candidates.length)) actions.append(allow);
+      actions.append(deny);
       card.append(actions);
     }
     if (item.status === 'approved' || item.status === 'denied') {
@@ -864,7 +960,8 @@
   const previewableProposals = () => currentConversation.items.filter((item) => item.type === 'proposal'
     && item.proposal.operations.length
     && !['applied', 'awaiting-answers', 'superseded', 'invalid'].includes(item.status));
-  const hasUnsubmittedQuestions = () => currentConversation.items.some((item) => item.type === 'questions' && !item.submitted);
+  const hasUnsubmittedQuestions = (responseGroupId) => currentConversation.items.some((item) =>
+    item.type === 'questions' && !item.submitted && item.responseGroupId === responseGroupId);
   const updatePreviewNavigation = (proposalItem) => {
     const items = previewableProposals();
     const index = items.indexOf(proposalItem);
@@ -889,7 +986,7 @@
     document.getElementById('ai-preview-proposal-heading').textContent = `変更案（${operationsCount}件・${status}${questionStatus}）`;
   };
   const showPreview = async (proposalItem, applyRequested = false, fastUpdate = false) => {
-    if (hasUnsubmittedQuestions()) {
+    if (hasUnsubmittedQuestions(proposalItem.responseGroupId)) {
       if (previewDialog.open) closePreview();
       return false;
     }
@@ -1103,12 +1200,24 @@
     }
     result.dataRequests = result.dataRequests.filter((request) => request && typeof request.reason === 'string'
       && ((typeof request.classId === 'string' && request.classId.trim())
-        || (typeof request.className === 'string' && request.className.trim())))
-      .map((request) => ({
-        classId: typeof request.classId === 'string' ? request.classId.trim() : '',
-        className: typeof request.className === 'string' ? request.className.trim() : '',
-        reason: request.reason.trim()
-      }));
+        || (typeof request.className === 'string' && request.className.trim())
+        || (request.classQuery && typeof request.classQuery === 'object')))
+      .map((request) => {
+        const query = request.classQuery && typeof request.classQuery === 'object' ? request.classQuery : null;
+        return {
+          classId: typeof request.classId === 'string' ? request.classId.trim() : '',
+          className: typeof request.className === 'string' ? request.className.trim() : '',
+          classQuery: query ? {
+            classType: ['top', 'middle', 'class'].includes(query.classType) ? query.classType : '',
+            nameKeywords: Array.isArray(query.nameKeywords)
+              ? query.nameKeywords.filter((keyword) => typeof keyword === 'string' && keyword.trim()).slice(0, 5).map((keyword) => keyword.trim()) : [],
+            relationToSelection: ['any', 'parent', 'child', 'sibling', 'same_top_ancestor'].includes(query.relationToSelection)
+              ? query.relationToSelection : 'any',
+            limit: Math.max(1, Math.min(20, Number.isInteger(query.limit) ? query.limit : 5))
+          } : null,
+          reason: request.reason.trim()
+        };
+      });
     // The browser owns the data fingerprint; asking the model to echo it can
     // produce harmless character errors that incorrectly invalidate a proposal.
     result.baseDataHash = expectedHash;
@@ -1139,7 +1248,62 @@
     const alreadyShared = new Set(scope.sharedContextIds || []);
     const resolved = new Map();
     const unresolved = [];
+    const candidateGroups = [];
+    const parentByChild = new Map(state.relations.map(({ child, parent }) => [child, parent]));
+    const topAncestorFor = (id) => {
+      let currentId = id;
+      const seen = new Set();
+      while (parentByChild.has(currentId) && !seen.has(currentId)) {
+        seen.add(currentId);
+        currentId = parentByChild.get(currentId);
+      }
+      return currentId;
+    };
+    const pathFor = (id) => {
+      const path = [];
+      const seen = new Set();
+      let currentId = id;
+      while (currentId && byId.has(currentId) && !seen.has(currentId)) {
+        seen.add(currentId);
+        path.push(byId.get(currentId).label || currentId);
+        currentId = parentByChild.get(currentId);
+      }
+      return path.reverse().join(' › ');
+    };
+    const selectedRoots = (scope.selectionRoots || scope.selectedIds || []).filter((id) => byId.has(id));
+    const matchesRelation = (candidateId, relation) => {
+      if (relation === 'any') return true;
+      if (!selectedRoots.length) return false;
+      if (relation === 'parent') return selectedRoots.some((id) => parentByChild.get(id) === candidateId);
+      if (relation === 'child') return selectedRoots.includes(parentByChild.get(candidateId));
+      if (relation === 'sibling') {
+        const candidateParent = parentByChild.get(candidateId);
+        return Boolean(candidateParent) && selectedRoots.some((id) => id !== candidateId && parentByChild.get(id) === candidateParent);
+      }
+      if (relation === 'same_top_ancestor') {
+        const candidateTop = topAncestorFor(candidateId);
+        return selectedRoots.some((id) => topAncestorFor(id) === candidateTop);
+      }
+      return false;
+    };
     requests.forEach((request) => {
+      if (request.classQuery) {
+        const query = request.classQuery;
+        const keywords = query.nameKeywords.map((value) => value.toLocaleLowerCase('ja-JP'));
+        const matches = state.classes.filter((candidate) => !selected.has(candidate.id) && !alreadyShared.has(candidate.id) && !resolved.has(candidate.id)
+          && (!query.classType || candidate.type === query.classType)
+          && keywords.every((keyword) => String(candidate.label || '').toLocaleLowerCase('ja-JP').includes(keyword))
+          && matchesRelation(candidate.id, query.relationToSelection))
+          .sort((left, right) => String(left.label || '').localeCompare(String(right.label || ''), 'ja'));
+        candidateGroups.push({
+          query,
+          reason: request.reason,
+          candidates: matches.slice(0, query.limit).map((item) => ({ item, path: pathFor(item.id) })),
+          truncated: matches.length > query.limit,
+          selectedIds: []
+        });
+        return;
+      }
       let candidate = null;
       if (request.classId) {
         candidate = byId.get(request.classId);
@@ -1166,7 +1330,7 @@
         reason: [previous?.reason, request.reason].filter(Boolean).join(' / ')
       });
     });
-    return { requests: [...resolved.values()], unresolved: [...new Set(unresolved)] };
+    return { requests: [...resolved.values()], candidateGroups, unresolved: [...new Set(unresolved)] };
   };
   const buildUserContent = (userText, activeScope, conversation, baseDataHash, options = {}) => {
     const usePrevious = !options.forceSnapshot && conversation.initialSnapshotSent && conversation.responseId;
@@ -1178,7 +1342,7 @@
       selectedScope: diffScope(previousScope, activeScope),
       instruction: options.instruction || (activeScope.mode === 'hierarchy_scope'
         ? 'これは階層クラスだけの範囲です。対象クラスの個別情報は含まれません。上位・中間クラスの追加・改名・移動・削除だけを提案してください。上位クラスを中間クラスへ移す場合は上位を中間化し、配下の親子関係を保ってください。対象クラスの操作は提案しないでください。'
-        : 'この相談の範囲にあるクラスの提案だけを返してください。selectionRootsは選択操作の起点です。editableIdsが操作できる移動元の正確な一覧です。sharedContextIdsは利用者が追加共有を許可した参照専用クラスで、移動元・改名・削除の対象にできません。選択外の情報が必要ならdataRequestsにclassIdまたは正確なclassNameと理由を返し、利用者の許可を待ってください。上位クラスを中間クラスへ移す場合は上位を新しい中間クラスIDに変換し、配下の所属先だけを自動的に付け替えて親子関係を保つため、配下を別々に移動する操作は作らないでください。未掲載の配下を推測した別操作は提案しないでください。個別インスタンスデータと件数は含みません。')
+        : 'この相談の範囲にあるクラスの提案だけを返してください。selectionRootsは選択操作の起点です。editableIdsが操作できる移動元の正確な一覧です。sharedContextIdsは利用者が追加共有を許可した参照専用クラスで、移動元・改名・削除の対象にできません。選択外の情報が必要ならdataRequestsにclassId、正確なclassName、またはclassQueryと理由を返し、利用者の許可を待ってください。クラス名やIDが分からない場合は推測せず、classQueryで種別・名前キーワード・選択範囲との関係を指定してください。上位クラスを中間クラスへ移す場合は上位を新しい中間クラスIDに変換し、配下の所属先だけを自動的に付け替えて親子関係を保つため、配下を別々に移動する操作は作らないでください。未掲載の配下を推測した別操作は提案しないでください。個別インスタンスデータと件数は含みません。')
     });
   };
   const makeLargeScopePlan = (userText, scope, conversation, baseDataHash) => {
@@ -1373,7 +1537,10 @@
     const lines = [`利用者の依頼: ${userText}`];
     if (result.message) lines.push(`回答: ${result.message}`);
     result.questions.forEach((question) => lines.push(`確認事項: ${question}`));
-    result.dataRequests.forEach((request) => lines.push(`追加情報要求: ${request.className || request.classId}。理由: ${request.reason}`));
+    result.dataRequests.forEach((request) => {
+      const requested = request.classQuery ? `検索条件 ${JSON.stringify(request.classQuery)}` : (request.className || request.classId);
+      lines.push(`追加情報要求: ${requested}。理由: ${request.reason}`);
+    });
     result.proposals.forEach((proposal) => {
       lines.push(`変更案「${proposal.title}」: ${proposal.summary}。理由: ${proposal.reason}`);
       proposal.operations.forEach((operation) => lines.push(`操作: ${JSON.stringify(operation)}`));
@@ -1631,9 +1798,10 @@
         });
         if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
       }
+      const responseGroupId = `reply-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       if (result.message) conversation.items.push({ type: 'message', role: 'assistant', text: result.message });
       const resolvedDataRequests = resolveDataRequests(result.dataRequests, scope);
-      if (resolvedDataRequests.requests.length || resolvedDataRequests.unresolved.length) {
+      if (resolvedDataRequests.requests.length || resolvedDataRequests.candidateGroups.length || resolvedDataRequests.unresolved.length) {
         conversation.items.push({ type: 'data-requests', ...resolvedDataRequests, status: 'pending', submitting: false });
       }
       const queuedQuestions = result.questions.map((question) => ({ text: question, proposalTitle: '', proposalId: '' }));
@@ -1645,6 +1813,7 @@
         const awaitingAnswers = proposal.questions.length > 0;
         conversation.items.push({
           type: 'proposal',
+          responseGroupId,
           proposal,
           editableIds: proposalScopes.get(proposal.id) || [...scope.editableIds],
           availableIds: proposalAvailableScopes.get(proposal.id) || scope.classes.map((item) => item.id),
@@ -1657,6 +1826,7 @@
       if (queuedQuestions.length) {
         conversation.items.push({
           type: 'questions',
+          responseGroupId,
           questions: queuedQuestions,
           proposalIds: [...new Set(queuedProposalIds)],
           activeIndex: 0,
@@ -1741,7 +1911,7 @@
   });
   document.getElementById('ai-apply-proposal').addEventListener('click', async () => {
     if (!previewPlan) return;
-    if (hasUnsubmittedQuestions()) { closePreview(); return; }
+    if (hasUnsubmittedQuestions(previewPlan.proposalItem.responseGroupId)) { closePreview(); return; }
     try {
       const currentProposal = previewPlan.proposalItem;
       const proposals = previewableProposals();
