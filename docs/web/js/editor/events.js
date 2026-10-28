@@ -118,8 +118,10 @@ if (treeFilter && heldPanel && 'ResizeObserver' in window) {
   syncCollapsedHeldPanelHeight();
   const layout = document.querySelector('#edit-tree-panel .edit-tree-layout');
   if (layout) new ResizeObserver(syncPinnedHeldPanelBounds).observe(layout);
+  const taskbar = document.querySelector('.edit-taskbar');
+  if (taskbar) new ResizeObserver(syncPinnedHeldPanelBounds).observe(taskbar);
+  new ResizeObserver(syncPinnedHeldPanelBounds).observe(heldPanel);
 }
-window.addEventListener('scroll', syncPinnedHeldPanelBounds, { passive: true });
 window.addEventListener('resize', syncPinnedHeldPanelBounds);
 if (heldPanel) new MutationObserver(syncPinnedHeldPanelBounds).observe(heldPanel, { attributes: true, attributeFilter: ['class', 'hidden'] });
 syncPinnedHeldPanelBounds();

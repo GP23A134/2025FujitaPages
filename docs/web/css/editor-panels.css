@@ -40,6 +40,14 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selectio
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed) { grid-template-columns: minmax(0, 1fr); }
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed) .held-panel-spacer { display: none; }
 .edit-tree-pane { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
+@media (min-width: 761px) {
+  body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection:not([hidden])) {
+    --edit-tree-bottom-space: 0.5rem;
+  }
+  body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection:not([hidden])) .edit-tree-pane {
+    padding-bottom: var(--edit-pane-available-height, calc(100vh - 5.5rem));
+  }
+}
 body[data-mode="edit"] .edit-taskbar { margin-bottom: 0; }
 body[data-mode="edit"] main { padding-top: 0.5rem; }
 body[data-mode="edit"] #edit-tree-panel .tree-filter { margin-top: 0; }
@@ -71,21 +79,25 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .tree-filter {
   z-index: 50;
 }
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection:not(.is-collapsed) {
-  position: fixed;
+  position: sticky;
   top: var(--edit-pane-position-top, 4.5rem);
-  right: var(--page-side-gutter, 1rem);
   z-index: 60;
-  width: min(var(--held-panel-width), calc(100vw - 2rem));
+  grid-row: 1;
+  grid-column: 2;
+  width: 100%;
   height: var(--edit-pane-available-height, calc(100vh - 5.5rem));
   max-height: var(--edit-pane-available-height, calc(100vh - 5.5rem));
   box-sizing: border-box;
   margin-top: 0;
 }
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection.is-collapsed {
-  position: fixed;
+  position: sticky;
+  grid-row: 1;
+  grid-column: 1;
+  justify-self: end;
+  align-self: start;
   inset: auto;
   top: var(--edit-pane-position-top, 4.5rem);
-  right: var(--page-side-gutter, 1rem);
   z-index: 60;
   width: min(var(--held-panel-width), calc(100vw - 2rem));
   margin-top: 0;

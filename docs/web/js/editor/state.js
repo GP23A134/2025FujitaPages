@@ -40,44 +40,24 @@ const syncPinnedHeldPanelBounds = () => {
     pinnedHeldPanelBoundsFrame = 0;
     const panel = document.getElementById('held-panel');
     const layout = document.querySelector('#edit-tree-panel .edit-tree-layout');
-    if (!panel) return;
-    if (!layout || document.getElementById('edit-tree-panel')?.hidden || window.innerWidth <= 760) {
-      if (layout) {
-        removeInlineStyleIfPresent(layout, '--edit-pane-position-top');
-        removeInlineStyleIfPresent(layout, '--edit-pane-available-height');
-        removeInlineStyleIfPresent(layout, '--edit-top-class-sticky-top');
-      }
-      removeInlineStyleIfPresent(panel, 'top');
-      removeInlineStyleIfPresent(panel, 'height');
-      removeInlineStyleIfPresent(panel, 'max-height');
-      removeInlineStyleIfPresent(panel, 'visibility');
-      return;
-    }
-    const toolbarBounds = document.querySelector('.edit-taskbar')?.getBoundingClientRect();
-    // 固定欄はツリー領域の上端を追従させず、sticky ツールバーの少し下に揃える。
-    // paneTop と toolbar bottom の間をスクロール中に追いかけると、保持欄が長く上下移動する。
-    const top = (toolbarBounds?.bottom ?? 0) + 8;
+    if (!panel || !layout) return;
+    const toolbar = document.querySelector('.edit-taskbar');
+    const toolbarHeight = toolbar?.offsetHeight ?? 0;
+    const top = toolbarHeight + 8;
     const treeFilter = document.getElementById('tree-filter');
     const searchTreeGap = Number.parseFloat(getComputedStyle(layout).getPropertyValue('--edit-pane-search-tree-gap')) || 0;
-    const treeStickyTop = treeFilter && !treeFilter.hidden
-      ? Math.max(treeFilter.getBoundingClientRect().bottom + searchTreeGap, top)
-      : top;
-    const bottom = window.innerHeight - 8;
+    const filterHeight = treeFilter && !treeFilter.hidden ? treeFilter.offsetHeight : 0;
+    const treeStickyTop = filterHeight ? top + filterHeight + searchTreeGap : top;
     setInlineStyleIfChanged(layout, '--edit-pane-position-top', `${top}px`);
     setInlineStyleIfChanged(layout, '--edit-top-class-sticky-top', `${treeStickyTop}px`);
-    if (panel.hidden) {
-      removeInlineStyleIfPresent(panel, 'top');
+    if (panel.hidden || document.getElementById('edit-tree-panel')?.hidden || window.innerWidth <= 760) {
+      removeInlineStyleIfPresent(layout, '--edit-pane-available-height');
       removeInlineStyleIfPresent(panel, 'height');
       removeInlineStyleIfPresent(panel, 'max-height');
       removeInlineStyleIfPresent(panel, 'visibility');
       return;
     }
-    if (bottom <= top) {
-      setInlineStyleIfChanged(panel, 'visibility', 'hidden');
-      return;
-    }
-    setInlineStyleIfChanged(panel, 'visibility', 'visible');
-    const availableHeight = bottom - top;
+    const availableHeight = Math.max(0, window.innerHeight - top - 8);
     setInlineStyleIfChanged(layout, '--edit-pane-available-height', `${Math.max(0, availableHeight)}px`);
     const desiredHeight = panel.classList.contains('is-collapsed')
       ? Number.parseFloat(getComputedStyle(panel).getPropertyValue('--held-collapsed-height')) || panel.scrollHeight
