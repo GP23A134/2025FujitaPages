@@ -12,6 +12,11 @@ let refreshBrowseListFilterSummary = null;
 let treeStickyLayoutFrame = 0;
 let browseStickyBoundsFrame = 0;
 
+function setInlineStyleIfChanged(element, property, value) {
+  if (element.style.getPropertyValue(property) === value) return;
+  element.style.setProperty(property, value);
+}
+
 function scheduleBrowseTreeLayout() {
   if (treeStickyLayoutFrame) return;
   treeStickyLayoutFrame = requestAnimationFrame(() => {
@@ -27,11 +32,11 @@ function syncBrowseTreeStickyBounds() {
   const filter = panel?.querySelector('.tree-filter');
   if (!panel || !controls) return;
   const controlsBounds = controls.getBoundingClientRect();
-  panel.style.setProperty('--browse-controls-sticky-top', `${controlsBounds.height}px`);
+  setInlineStyleIfChanged(panel, '--browse-controls-sticky-top', `${controlsBounds.height}px`);
   const filterBounds = filter && !filter.hidden ? filter.getBoundingClientRect() : null;
   const filterGap = filter ? Number.parseFloat(getComputedStyle(filter).marginBottom) || 0 : 0;
   const headingTop = Math.max(controlsBounds.bottom, filterBounds ? filterBounds.bottom + filterGap : controlsBounds.bottom);
-  treeElement.style.setProperty('--browse-tree-heading-sticky-top', `${headingTop}px`);
+  setInlineStyleIfChanged(treeElement, '--browse-tree-heading-sticky-top', `${headingTop}px`);
 }
 function alignBrowseHeadingToStickyPosition(heading) {
   let attempts = 0;
