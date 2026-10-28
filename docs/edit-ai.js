@@ -232,6 +232,7 @@
     currentConversation.items.forEach((item) => {
       if (item.type === 'message') renderMessage(item);
       else if (item.type === 'proposal') renderProposalCard(item);
+      else if (item.type === 'questions') renderQuestionQueue(item);
     });
     messages.scrollTop = scrollToBottom ? messages.scrollHeight : previousScrollTop;
     status.textContent = currentConversation.status || '';
@@ -367,9 +368,9 @@
     const actions = document.createElement('div'); actions.className = 'ai-proposal-actions';
     const preview = document.createElement('button'); preview.type = 'button'; preview.className = 'ai-proposal-preview'; preview.textContent = 'プレビュー';
     const statusLabel = document.createElement('span'); statusLabel.className = 'ai-proposal-status';
-    const statusText = { pending: '', previewed: '確認済み', stale: '適用後の状態で再確認が必要', applied: '適用済み' };
+    const statusText = { pending: '', previewed: '確認済み', stale: '適用後の状態で再確認が必要', applied: '適用済み', 'awaiting-answers': '確認事項への回答待ち', superseded: '回答を送信済み。更新後の案を確認してください。' };
     statusLabel.textContent = statusText[item.status] || '';
-    const unavailable = item.status === 'applied';
+    const unavailable = ['applied', 'awaiting-answers', 'superseded'].includes(item.status);
     preview.disabled = unavailable || item.status === 'invalid';
     const updateStatus = () => {
       statusLabel.textContent = item.status === 'previewed' ? '確認済み' : item.status === 'stale' ? '適用後の状態で再確認が必要' : '';
@@ -381,6 +382,88 @@
     actions.append(preview, statusLabel);
     card.append(actions);
     messages.append(card);
+  };
+  const renderQuestionQueue = (item) => {
+    const details = document.createElement('details');
+    details.className = 'ai-question-queue';
+    details.open = Boolean(item.open);
+    details.addEventListener('toggle', () => { item.open = details.open; });
+    const summary = document.createElement('summary');
+    const answeredCount = item.questions.filter((question) => question.answer?.trim()).length;
+    summary.textContent = item.submitted
+      ? `確認事項（${item.questions.length}件・回答送信済み）`
+      : `確認事項（${item.questions.length}件・${answeredCount}件回答済み）`;
+    details.append(summary);
+    if (item.submitted) {
+      const submitted = document.createElement('p');
+      submitted.className = 'ai-question-complete';
+      submitted.textContent = '回答をまとめてAIへ送りました。更新された提案を確認してください。';
+      details.append(submitted);
+      messages.append(details);
+      return;
+    }
+    const question = item.questions[item.activeIndex] || item.questions[0];
+    const content = document.createElement('div'); content.className = 'ai-question-content';
+    const progress = document.createElement('p'); progress.className = 'ai-question-progress';
+    progress.textContent = `質問 ${item.activeIndex + 1} / ${item.questions.length}`;
+    content.append(progress);
+    if (question.proposalTitle) {
+      const context = document.createElement('p'); context.className = 'ai-question-context';
+      context.textContent = `変更案「${question.proposalTitle}」について`;
+      content.append(context);
+    }
+    const prompt = document.createElement('p'); prompt.className = 'ai-question-prompt'; prompt.textContent = question.text;
+    const answer = document.createElement('textarea'); answer.rows = 2; answer.className = 'ai-question-answer';
+    answer.placeholder = '回答を入力してください'; answer.value = question.answer || '';
+    answer.setAttribute('aria-label', `質問 ${item.activeIndex + 1} への回答`);
+    answer.addEventListener('input', () => { question.answer = answer.value; });
+    content.append(prompt, answer);
+    const actions = document.createElement('div'); actions.className = 'ai-question-actions';
+    const previous = document.createElement('button'); previous.type = 'button'; previous.textContent = '前へ';
+    previous.disabled = item.activeIndex === 0;
+    previous.addEventListener('click', () => { item.activeIndex -= 1; renderConversation(); });
+    const recommend = document.createElement('button'); recommend.type = 'button'; recommend.textContent = 'おすすめに任せる';
+    recommend.addEventListener('click', () => { question.answer = 'おすすめに任せる'; renderConversation(); });
+    const next = document.createElement('button'); next.type = 'button'; next.className = 'search-button';
+    const isLast = item.activeIndex === item.questions.length - 1;
+    next.textContent = isLast ? '回答をまとめて送る' : '次へ';
+    next.disabled = Boolean(item.submitting);
+    next.addEventListener('click', () => {
+      question.answer = answer.value.trim();
+      if (!question.answer) {
+        answer.setCustomValidity('回答を入力するか、「おすすめに任せる」を選んでください。');
+        answer.reportValidity();
+        return;
+      }
+      answer.setCustomValidity('');
+      if (!isLast) { item.activeIndex += 1; renderConversation(); return; }
+      void submitQuestionAnswers(item);
+    });
+    actions.append(previous, recommend, next);
+    content.append(actions);
+    details.append(content);
+    messages.append(details);
+  };
+  const submitQuestionAnswers = async (item) => {
+    if (item.submitting || item.submitted) return;
+    item.submitting = true;
+    item.open = false;
+    renderConversation();
+    setStatus('確認事項への回答をまとめて送信しています…');
+    const answerLines = item.questions.map((question, index) => {
+      const context = question.proposalTitle ? `（変更案「${question.proposalTitle}」）` : '';
+      return `${index + 1}. ${question.text}${context}\n回答: ${question.answer.trim()}`;
+    });
+    const succeeded = await sendRequest(`確認事項への回答です。以下をまとめて反映し、同じ点を再質問せず、必要なら前提を明記して変更案を更新してください。\n\n${answerLines.join('\n\n')}`);
+    item.submitting = false;
+    if (succeeded) {
+      item.submitted = true;
+      item.proposalIds.forEach((id) => {
+        const proposalItem = currentConversation.items.find((entry) => entry.type === 'proposal' && entry.proposal.id === id);
+        if (proposalItem && proposalItem.status === 'awaiting-answers') proposalItem.status = 'superseded';
+      });
+    }
+    renderConversation();
   };
   const countHierarchyTargets = (state) => {
     const classesById = new Map(state.classes.map((item) => [item.id, item]));
@@ -1019,7 +1102,7 @@
     return discardedOperationCount;
   };
   const sendRequest = async (userText) => {
-    if (isSending) return;
+    if (isSending) return false;
     const key = keyInput.value.trim();
     if (!key) { setStatus('設定欄にOpenAI APIキーを入力してください。', 'error'); keyInput.focus(); return; }
     if (!/^[\x21-\x7E]+$/.test(key)) {
@@ -1070,6 +1153,7 @@
     updateUsageSummary(preflightNote);
     setStatus(splitTasks ? `OpenAI APIに接続しています…（1/${splitTasks.length}）` : 'OpenAI APIに接続しています…');
     isSending = true; sendButton.disabled = true; document.getElementById('ai-new-consultation').disabled = true;
+    let requestSucceeded = false;
     try {
       activeRequestController = new AbortController();
       const sendApiRequest = async (input, previousResponseId = '') => {
@@ -1134,7 +1218,7 @@
           if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
         }
         result.message = messagesFromParts.join('\n');
-        result.questions.push(...splitWarnings);
+        if (splitWarnings.size) result.message = [result.message, ...splitWarnings].filter(Boolean).join('\n');
         conversation.responseId = '';
         conversation.initialSnapshotSent = false;
         conversation.previousScope = null;
@@ -1156,29 +1240,44 @@
         if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
       }
       if (result.message) conversation.items.push({ type: 'message', role: 'assistant', text: result.message });
-      result.questions.forEach((question) => conversation.items.push({ type: 'message', role: 'assistant', text: question }));
+      const queuedQuestions = result.questions.map((question) => ({ text: question, proposalTitle: '', proposalId: '' }));
+      const queuedProposalIds = [];
       result.proposals.forEach((proposal) => {
         if (proposal.questions.length) {
-          proposal.questions.forEach((question) => conversation.items.push({ type: 'message', role: 'assistant', text: question }));
-          return;
+          proposal.questions.forEach((question) => queuedQuestions.push({ text: question, proposalTitle: proposal.title, proposalId: proposal.id }));
         }
+        const awaitingAnswers = proposal.questions.length > 0;
         conversation.items.push({
           type: 'proposal',
           proposal,
           editableIds: proposalScopes.get(proposal.id) || [...scope.editableIds],
           previewClassIds: proposalPreviewScopes.get(proposal.id) || scope.classes.map((item) => item.id),
           baseDataHash,
-          status: 'pending'
+          status: awaitingAnswers ? 'awaiting-answers' : 'pending'
         });
+        if (awaitingAnswers) queuedProposalIds.push(proposal.id);
       });
+      if (queuedQuestions.length) {
+        conversation.items.push({
+          type: 'questions',
+          questions: queuedQuestions,
+          proposalIds: [...new Set(queuedProposalIds)],
+          activeIndex: 0,
+          open: false,
+          submitted: false,
+          submitting: false
+        });
+      }
       conversation.updatedAt = Date.now();
       renderConversation();
       setStatus(result.proposals.length ? '提案を確認し、プレビューしてから適用してください。' : '変更案はありません。確認事項への回答や追加依頼を入力できます。');
+      requestSucceeded = true;
     } catch (error) {
       setStatus(error.message || '接続に失敗しました。設定と通信状態を確認してください。', 'error');
     } finally {
       isSending = false; sendButton.disabled = false; document.getElementById('ai-new-consultation').disabled = false; activeRequestController = null;
     }
+    return requestSucceeded;
   };
 
   document.getElementById('ai-new-consultation').addEventListener('click', () => {

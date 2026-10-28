@@ -658,6 +658,18 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-proposal-status { color: #64748b; font-size: 0.76rem; }
 .ai-proposal-uncertainty, .ai-question { color: #9a3412; }
 .ai-question { margin: 0; padding: 0.45rem 0.55rem; border-radius: 6px; background: #fff7ed; font-size: 0.82rem; }
+.ai-question-queue { flex: 0 0 auto; padding: 0.6rem 0.7rem; border: 1px solid #fdba74; border-radius: 9px; background: #fff7ed; color: #7c2d12; font-size: 0.84rem; }
+.ai-question-queue > summary { cursor: pointer; font-weight: 700; }
+.ai-question-content { display: grid; gap: 0.4rem; margin-top: 0.55rem; }
+.ai-question-content p { margin: 0; }
+.ai-question-progress, .ai-question-context { color: #9a3412; font-size: 0.76rem; font-weight: 650; }
+.ai-question-prompt { color: #1e293b; line-height: 1.5; }
+.ai-question-answer { width: 100%; min-height: 4rem; box-sizing: border-box; padding: 0.5rem; border: 1px solid #fdba74; border-radius: 6px; font: inherit; resize: vertical; }
+.ai-question-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.35rem; }
+.ai-question-actions button { min-height: 2rem; padding: 0.3rem 0.55rem; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.76rem; }
+.ai-question-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+.ai-question-actions .search-button { border-color: #0369a1; color: #fff; background: #0369a1; }
+.ai-question-complete { margin: 0.5rem 0 0; color: #475569; font-size: 0.78rem; }
 .ai-preview-dialog {
   --ai-preview-node-height: 1.65rem;
   --ai-preview-heading-font-size: 0.75rem;
