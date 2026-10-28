@@ -252,6 +252,16 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-question-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
 .ai-question-actions .search-button { border-color: #0369a1; color: #fff; background: #0369a1; }
 .ai-question-complete { margin: 0.5rem 0 0; color: #475569; font-size: 0.78rem; }
+.ai-data-request-card { flex: 0 0 auto; padding: 0.7rem; border: 1px solid #fbbf24; border-radius: 9px; color: #713f12; background: #fffbeb; font-size: 0.82rem; }
+.ai-data-request-card > strong { display: block; color: #854d0e; }
+.ai-data-request-card p { margin: 0.4rem 0; line-height: 1.45; }
+.ai-data-request-card ul { margin: 0.35rem 0 0.55rem; padding-left: 1.2rem; }
+.ai-data-request-card li { margin: 0.2rem 0; overflow-wrap: anywhere; }
+.ai-data-request-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.4rem; }
+.ai-data-request-actions button { min-height: 2rem; padding: 0.3rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.76rem; }
+.ai-data-request-actions button:disabled { opacity: 0.55; cursor: not-allowed; }
+.ai-data-request-actions .search-button { border-color: #0369a1; color: #fff; background: #0369a1; }
+.ai-data-request-status { margin: 0.45rem 0 0; color: #475569; font-size: 0.76rem; }
 .ai-preview-dialog {
   --ai-preview-node-height: 1.65rem;
   --ai-preview-heading-font-size: 0.75rem;
@@ -405,7 +415,6 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #apply-held-destination { width: 100%; height: 2.6rem; min-height: 2.6rem; flex: 0 0 2.6rem; margin: 0.5rem 0 0; }
 #apply-held-destination:disabled { opacity: 0.5; cursor: not-allowed; }
 /* 保持中のクラス一覧と選択状態 */
-.held-count { display: inline-block; margin-left: 0.35rem; padding: 0.15rem 0.55rem; border-radius: 999px; color: #075985; background: #bae6fd; font-size: 0.8em; font-weight: 700; vertical-align: middle; }
 .instance-selection-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
 .instance-selection-columns > div { min-width: 0; padding: 0.75rem; border: 1px solid #d8dee9; border-radius: 10px; background: #fff; }
 .instance-option { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.5rem; border-bottom: 1px solid #e2e8f0; cursor: pointer; }

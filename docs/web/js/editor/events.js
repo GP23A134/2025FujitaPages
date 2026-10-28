@@ -505,7 +505,7 @@ window.classEditorAI = {
       targetClassCount: all.classes.filter((item) => item.type === 'class').length
     };
   },
-  applyOperations(operations, expectedFingerprint, editableIds = []) {
+  applyOperations(operations, expectedFingerprint, editableIds = [], availableIds = editableIds) {
     const current = this.getState();
     const fingerprint = JSON.stringify({ classes: current.classes, relations: current.relations });
     if (fingerprint !== expectedFingerprint) throw new Error('提案作成後にクラスデータが変更されています。最新データで提案し直してください。');
@@ -513,11 +513,15 @@ window.classEditorAI = {
     const relationByChild = new Map(current.relations.map((item) => [item.child, { ...item }]));
     const byId = new Map(candidateClasses.map((item) => [item.id, item]));
     const editable = new Set(editableIds);
+    const available = new Set(availableIds);
     const editableSource = (id) => {
       if (!editable.has(id)) throw new Error('選択範囲外のクラスを変更する提案は適用できません。');
     };
     const temporaryIds = new Map();
     const convertedIds = new Map();
+    const availableReference = (id) => available.has(id)
+      || [...temporaryIds.values()].includes(id)
+      || [...convertedIds.values()].includes(id);
     const newClassId = (type) => {
       const prefix = type === 'top' ? 't' : 'm';
       const max = candidateClasses.reduce((value, item) => {
@@ -556,7 +560,9 @@ window.classEditorAI = {
         const item = { id, type: operation.classType, label };
         candidateClasses.push(item); byId.set(id, item);
         if (operation.classType === 'middle') {
-          const parent = byId.get(resolve(operation.parentId));
+          const parentId = resolve(operation.parentId);
+          if (!availableReference(parentId)) throw new Error('選択中または共有許可済みのクラスだけを追加先に指定できます。');
+          const parent = byId.get(parentId);
           if (!parent || !['top', 'middle'].includes(parent.type)) throw new Error('新しい中間クラスには上位または中間クラスの親が必要です。');
           addRelationCandidate(id, parent.id);
         } else if (operation.parentId) throw new Error('上位クラスに親は指定できません。');
@@ -577,6 +583,7 @@ window.classEditorAI = {
       if (operation.type === 'moveClass') {
         const id = resolve(operation.classId); const destinationId = resolve(operation.destinationId);
         editableSource(id);
+        if (!availableReference(destinationId)) throw new Error('選択中または共有許可済みのクラスだけを移動先に指定できます。');
         const item = byId.get(id); const destination = byId.get(destinationId);
         if (item && isUnclassified(item)) throw new Error('未分類は受け皿のため移動できません。');
         const convertsTopToMiddle = item?.type === 'top' && destination?.type === 'middle';
@@ -616,6 +623,7 @@ window.classEditorAI = {
       if (operation.type === 'moveChildren') {
         const fromId = resolve(operation.from); const toId = resolve(operation.to);
         editableSource(fromId);
+        if (!availableReference(toId)) throw new Error('選択中または共有許可済みのクラスだけを移動先に指定できます。');
         const from = byId.get(fromId); const destination = byId.get(toId);
         if (!from || from.type !== 'middle' || !destination || !['top', 'middle'].includes(destination.type)) throw new Error('配下一括移動の指定が不正です。');
         const directChildren = [...relationByChild.values()].filter((relation) => relation.parent === fromId).map((relation) => relation.child);

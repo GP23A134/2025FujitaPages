@@ -105,7 +105,6 @@ function renderInstances() {
   observeHeldListSize(held);
   const heldPagination = document.getElementById('held-pagination');
   const panel = document.getElementById('held-panel');
-  const count = document.getElementById('held-count');
   const kindLabel = document.getElementById('held-kind-label');
   const selectionKind = activeSelectionKind();
   const heldListView = document.getElementById('held-list-view');
@@ -160,10 +159,6 @@ function renderInstances() {
     tab.classList.toggle('is-active', isActive);
     tab.setAttribute('aria-selected', String(isActive));
   });
-  const heldCountText = `${heldInstances.size + heldMiddleClasses.size + heldTopClasses.size}件`;
-  if (count) count.textContent = heldCountText;
-  const toolbarHeldCount = document.getElementById('held-count-toolbar');
-  if (toolbarHeldCount) toolbarHeldCount.textContent = heldCountText;
   const selectionSummary = document.getElementById('edit-selection-summary');
   if (selectionSummary) {
     const total = heldInstances.size + heldMiddleClasses.size + heldTopClasses.size;

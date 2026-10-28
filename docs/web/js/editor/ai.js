@@ -39,9 +39,20 @@
           required: ['id', 'title', 'summary', 'reason', 'questions', 'uncertainties', 'operations']
         }
       },
-      questions: { type: 'array', items: { type: 'string' } }
+      questions: { type: 'array', items: { type: 'string' } },
+      dataRequests: {
+        type: 'array', items: {
+          type: 'object', additionalProperties: false,
+          properties: {
+            classId: { type: ['string', 'null'] },
+            className: { type: ['string', 'null'] },
+            reason: { type: 'string' }
+          },
+          required: ['classId', 'className', 'reason']
+        }
+      }
     },
-    required: ['message', 'proposals', 'questions']
+    required: ['message', 'proposals', 'questions', 'dataRequests']
   };
 
   const keyInput = document.getElementById('ai-api-key');
@@ -258,6 +269,7 @@
       if (item.type === 'message') renderMessage(item);
       else if (item.type === 'proposal') renderProposalCard(item);
       else if (item.type === 'questions') renderQuestionQueue(item);
+      else if (item.type === 'data-requests') renderDataRequest(item);
     });
     messages.scrollTop = scrollToBottom ? messages.scrollHeight : previousScrollTop;
     status.textContent = currentConversation.status || '';
@@ -315,6 +327,7 @@
     selectedIds: [...(scope.selectedIds || [])],
     selectionRoots: [...(scope.selectionRoots || scope.selectedIds || [])],
     editableIds: [...(scope.editableIds || [])],
+    sharedContextIds: [...(scope.sharedContextIds || [])],
     classes: scope.classes.map(({ id, type, label }) => [id, type, label]),
     relations: scope.relations.map(({ child, parent }) => [child, parent])
   });
@@ -336,6 +349,7 @@
       selectedIds: current.selectedIds,
       selectionRoots: current.selectionRoots,
       editableIds: current.editableIds,
+      sharedContextIds: current.sharedContextIds,
       addedOrChangedClasses: changedClasses,
       removedClassIds: removedClasses,
       addedRelations: current.relations.filter((item) => !beforeRelations.has(relationKey(item))),
@@ -343,10 +357,23 @@
       currentScopeClassIds: current.classes.map(([id]) => id)
     };
   };
-  const getPayloadSnapshot = () => {
+  const getPayloadSnapshot = (additionalContextIds = []) => {
     const selectedIds = editor.selectedIds;
     if (!selectedIds.length) return null;
-    return editor.getScopedState(selectedIds);
+    const scope = editor.getScopedState(selectedIds);
+    const selected = new Set(scope.editableIds);
+    const knownIds = new Set(editor.getState().classes.map((item) => item.id));
+    const sharedContextIds = [...new Set(additionalContextIds)].filter((id) => knownIds.has(id) && !selected.has(id));
+    if (!sharedContextIds.length) return scope;
+    const included = new Set([...selected, ...sharedContextIds]);
+    const state = editor.getState();
+    return {
+      ...scope,
+      sharedContextIds,
+      classes: state.classes.filter((item) => included.has(item.id)),
+      relations: state.relations.filter((item) => included.has(item.child) && included.has(item.parent)),
+      counts: Object.fromEntries(state.classes.filter((item) => included.has(item.id)).map((item) => [item.id, state.counts[item.id] || 0]))
+    };
   };
   const formatHttpError = (body, response) => {
     const apiMessage = body?.error?.message;
@@ -475,6 +502,71 @@
     content.append(actions);
     details.append(content);
     messages.append(details);
+  };
+  const renderDataRequest = (item) => {
+    const card = document.createElement('article');
+    card.className = `ai-data-request-card is-${item.status || 'pending'}`;
+    const heading = document.createElement('strong');
+    heading.textContent = '追加クラス情報の共有確認';
+    card.append(heading);
+    if (item.unresolved?.length) {
+      const unresolved = document.createElement('p');
+      unresolved.textContent = `クラスを特定できませんでした: ${item.unresolved.join('、')}。ツリーから該当クラスを選択して、改めて依頼してください。`;
+      card.append(unresolved);
+    }
+    if (item.requests.length) {
+      const note = document.createElement('p');
+      note.textContent = '許可すると、次のクラス情報を今回のAI相談に追加で共有します。編集対象には追加されません。';
+      card.append(note);
+      const list = document.createElement('ul');
+      item.requests.forEach(({ item: requestedClass, reason }) => {
+        const row = document.createElement('li');
+        const label = `${requestedClass.type === 'top' ? '上位' : requestedClass.type === 'middle' ? '中間' : '対象'}クラス「${requestedClass.label}」 (${requestedClass.id})`;
+        row.textContent = reason ? `${label} — ${reason}` : label;
+        list.append(row);
+      });
+      card.append(list);
+      const actions = document.createElement('div');
+      actions.className = 'ai-data-request-actions';
+      const allow = document.createElement('button');
+      allow.type = 'button';
+      allow.className = 'search-button';
+      allow.textContent = item.status === 'approved' ? '共有を許可しました' : '許可して共有';
+      allow.disabled = Boolean(item.submitting) || item.status !== 'pending';
+      allow.addEventListener('click', async () => {
+        if (item.submitting || item.status !== 'pending') return;
+        item.submitting = true;
+        renderConversation();
+        const approved = item.requests.map(({ item: requestedClass }) => requestedClass);
+        const lines = approved.map(({ id, label }) => `${label} (${id})`).join('、');
+        const succeeded = await sendRequest(`追加情報の共有を許可します。次のクラス情報を使って、前の依頼を続けてください: ${lines}`, approved.map(({ id }) => id));
+        item.submitting = false;
+        if (succeeded) item.status = 'approved';
+        renderConversation();
+      });
+      const deny = document.createElement('button');
+      deny.type = 'button';
+      deny.textContent = '今回は共有しない';
+      deny.disabled = Boolean(item.submitting) || item.status !== 'pending';
+      deny.addEventListener('click', async () => {
+        if (item.submitting || item.status !== 'pending') return;
+        item.submitting = true;
+        renderConversation();
+        const succeeded = await sendRequest('追加クラス情報の共有は許可しません。現在の選択範囲だけで回答してください。');
+        item.submitting = false;
+        if (succeeded) item.status = 'denied';
+        renderConversation();
+      });
+      actions.append(allow, deny);
+      card.append(actions);
+    }
+    if (item.status === 'approved' || item.status === 'denied') {
+      const status = document.createElement('p');
+      status.className = 'ai-data-request-status';
+      status.textContent = item.status === 'approved' ? '共有を許可しました。' : '共有しないことをAIへ伝えました。';
+      card.append(status);
+    }
+    messages.append(card);
   };
   const submitQuestionAnswers = async (item) => {
     if (item.submitting || item.submitted) return;
@@ -684,9 +776,9 @@
     if (!expectedFingerprint || stateFingerprint() !== expectedFingerprint) {
       throw new Error('プレビュー作成後にデータが変更されています。最新データで提案し直してください。');
     }
-    const proposedCandidate = editor.applyOperations(operations, expectedFingerprint, proposalItem.editableIds);
+    const proposedCandidate = editor.applyOperations(operations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds);
     const activeOperations = operations.filter((_, index) => !proposalItem.excludedOperationIndexes.has(index));
-    const candidate = editor.applyOperations(activeOperations, expectedFingerprint, proposalItem.editableIds);
+    const candidate = editor.applyOperations(activeOperations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds);
     const expectedBaseHash = fastUpdate ? previewPlan.expectedBaseHash : await currentDataHash();
     if (proposalItem.status === 'stale') {
       proposalItem.baseDataHash = expectedBaseHash;
@@ -848,9 +940,17 @@
     if (!result || typeof result !== 'object' || Array.isArray(result)) {
       throw new Error('AIの応答がJSONオブジェクトではありません。提案は適用できません。');
     }
-    if (!Array.isArray(result.proposals) || !Array.isArray(result.questions)) {
+    if (!Array.isArray(result.proposals) || !Array.isArray(result.questions) || !Array.isArray(result.dataRequests)) {
       throw new Error('AIの応答に提案または確認事項の一覧がありません。もう一度依頼してください。');
     }
+    result.dataRequests = result.dataRequests.filter((request) => request && typeof request.reason === 'string'
+      && ((typeof request.classId === 'string' && request.classId.trim())
+        || (typeof request.className === 'string' && request.className.trim())))
+      .map((request) => ({
+        classId: typeof request.classId === 'string' ? request.classId.trim() : '',
+        className: typeof request.className === 'string' ? request.className.trim() : '',
+        reason: request.reason.trim()
+      }));
     // The browser owns the data fingerprint; asking the model to echo it can
     // produce harmless character errors that incorrectly invalidate a proposal.
     result.baseDataHash = expectedHash;
@@ -874,6 +974,42 @@
       });
     });
   };
+  const resolveDataRequests = (requests, scope) => {
+    const state = editor.getState();
+    const byId = new Map(state.classes.map((item) => [item.id, item]));
+    const selected = new Set(scope.editableIds);
+    const alreadyShared = new Set(scope.sharedContextIds || []);
+    const resolved = new Map();
+    const unresolved = [];
+    requests.forEach((request) => {
+      let candidate = null;
+      if (request.classId) {
+        candidate = byId.get(request.classId);
+        if (!candidate || (request.className && candidate.label !== request.className)) {
+          unresolved.push(request.className || request.classId);
+          return;
+        }
+      } else if (request.className) {
+        const matches = state.classes.filter((item) => item.label === request.className);
+        if (matches.length === 1) candidate = matches[0];
+        else {
+          unresolved.push(request.className);
+          return;
+        }
+      }
+      if (!candidate) {
+        unresolved.push(request.classId || request.className || '指定されたクラス');
+        return;
+      }
+      if (selected.has(candidate.id) || alreadyShared.has(candidate.id)) return;
+      const previous = resolved.get(candidate.id);
+      resolved.set(candidate.id, {
+        item: candidate,
+        reason: [previous?.reason, request.reason].filter(Boolean).join(' / ')
+      });
+    });
+    return { requests: [...resolved.values()], unresolved: [...new Set(unresolved)] };
+  };
   const buildUserContent = (userText, activeScope, conversation, baseDataHash, options = {}) => {
     const usePrevious = !options.forceSnapshot && conversation.initialSnapshotSent && conversation.responseId;
     const previousScope = usePrevious ? conversation.previousScope : null;
@@ -886,7 +1022,7 @@
         ? 'これは全体構造の要約です。個別対象クラス名は含みません。既存クラスの変更・移動・削除は提案せず、全体評価、確認事項、新しい上位・中間クラスの案だけを返してください。'
         : activeScope.mode === 'hierarchy_scope'
           ? 'これは階層クラスだけの範囲です。対象クラスの個別情報は含まれません。上位・中間クラスの追加・改名・移動・削除だけを提案してください。上位クラスを中間クラスへ移す場合は上位を中間化し、配下の親子関係を保ってください。対象クラスの操作は提案しないでください。'
-          : 'この相談の範囲にあるクラスの提案だけを返してください。selectionRootsは選択操作の起点です。editableIdsが操作できる移動元の正確な一覧です。上位クラスを中間クラスへ移す場合は上位を新しい中間クラスIDに変換し、配下の所属先だけを自動的に付け替えて親子関係を保つため、配下を別々に移動する操作は作らないでください。未掲載の配下を推測した別操作は提案しないでください。個別インスタンスデータと件数は含みません。')
+          : 'この相談の範囲にあるクラスの提案だけを返してください。selectionRootsは選択操作の起点です。editableIdsが操作できる移動元の正確な一覧です。sharedContextIdsは利用者が追加共有を許可した参照専用クラスで、移動元・改名・削除の対象にできません。選択外の情報が必要ならdataRequestsにclassIdまたは正確なclassNameと理由を返し、利用者の許可を待ってください。上位クラスを中間クラスへ移す場合は上位を新しい中間クラスIDに変換し、配下の所属先だけを自動的に付け替えて親子関係を保つため、配下を別々に移動する操作は作らないでください。未掲載の配下を推測した別操作は提案しないでください。個別インスタンスデータと件数は含みません。')
     });
   };
   const makeLargeScopePlan = (userText, scope, conversation, baseDataHash) => {
@@ -1081,6 +1217,7 @@
     const lines = [`利用者の依頼: ${userText}`];
     if (result.message) lines.push(`回答: ${result.message}`);
     result.questions.forEach((question) => lines.push(`確認事項: ${question}`));
+    result.dataRequests.forEach((request) => lines.push(`追加情報要求: ${request.className || request.classId}。理由: ${request.reason}`));
     result.proposals.forEach((proposal) => {
       lines.push(`変更案「${proposal.title}」: ${proposal.summary}。理由: ${proposal.reason}`);
       proposal.operations.forEach((operation) => lines.push(`操作: ${JSON.stringify(operation)}`));
@@ -1094,6 +1231,25 @@
       if (item.type === 'proposal') {
         lines.push(`AI変更案「${item.proposal.title}」: ${item.proposal.summary}。理由: ${item.proposal.reason}`);
         item.proposal.operations.forEach((operation) => lines.push(`操作: ${JSON.stringify(operation)}`));
+      }
+    });
+    return lines.join('\n').slice(-6000);
+  };
+  const summarizeSelectionContinuation = (conversation) => {
+    const lines = ['選択範囲が更新されたため、以前のクラス情報は引き継がれていません。以下は依頼の意図と確認事項だけです。クラスの事実は今回のselectedScopeだけを使ってください。'];
+    conversation.items.forEach((item) => {
+      if (item.type === 'message' && item.role === 'user') {
+        lines.push(`利用者の依頼・回答: ${item.text}`);
+      } else if (item.type === 'questions') {
+        item.questions.forEach((question) => {
+          lines.push(`前回の確認事項: ${question.text}`);
+          if (question.answer?.trim()) lines.push(`利用者の回答: ${question.answer.trim()}`);
+        });
+      } else if (item.type === 'data-requests') {
+        item.requests.forEach(({ item: requestedClass, reason }) => {
+          lines.push(`前回求められた追加情報: ${requestedClass.label} (${requestedClass.id})${reason ? `。理由: ${reason}` : ''}`);
+        });
+        item.unresolved?.forEach((name) => lines.push(`前回特定できなかった追加情報: ${name}`));
       }
     });
     return lines.join('\n').slice(-6000);
@@ -1152,7 +1308,7 @@
     });
     return discardedOperationCount;
   };
-  const sendRequest = async (userText) => {
+  const sendRequest = async (userText, additionalContextIds = []) => {
     if (isSending) return false;
     const key = keyInput.value.trim();
     if (!key) { setStatus('設定欄にOpenAI APIキーを入力してください。', 'error'); keyInput.focus(); return; }
@@ -1164,8 +1320,13 @@
     if (!await modelConfigPromise) { setStatus('モデル設定を読み込めないため依頼を送信できません。', 'error'); return; }
     const systemPrompt = await systemPromptPromise;
     if (!systemPrompt) { setStatus('AIプロンプトを読み込めないため依頼を送信できません。', 'error'); return; }
+    const conversation = currentConversation;
+    const currentSelectedIds = [...editor.selectedIds].sort();
+    const previousSelectedIds = [...(conversation.selectedIds || [])].sort();
+    const selectionChanged = JSON.stringify(currentSelectedIds) !== JSON.stringify(previousSelectedIds);
+    const previouslySharedIds = selectionChanged ? [] : (conversation.previousScope?.sharedContextIds || []);
     let scope;
-    try { scope = getPayloadSnapshot(); } catch (error) { setStatus(error.message, 'error'); return; }
+    try { scope = getPayloadSnapshot([...previouslySharedIds, ...additionalContextIds]); } catch (error) { setStatus(error.message, 'error'); return; }
     if (!scope) { setStatus('AIに相談するクラスを保持欄で選択してください。', 'error'); return; }
     try { await verifyLoadedDataVersion(); }
     catch (error) { setStatus(error.message, 'error'); return; }
@@ -1173,15 +1334,12 @@
     try { baseDataHash = await currentDataHash(); }
     catch (error) { setStatus(error.message, 'error'); return; }
     const fingerprintBeforeRequest = stateFingerprint();
-    const conversation = currentConversation;
-    const currentSelectedIds = [...editor.selectedIds].sort();
-    const previousSelectedIds = [...(conversation.selectedIds || [])].sort();
-    if (JSON.stringify(currentSelectedIds) !== JSON.stringify(previousSelectedIds)) {
-      // 選択範囲が変わったら、前の選択範囲を含むAPI会話を継続しない。
+    if (selectionChanged) {
+      // 前回のクラス情報は破棄し、依頼意図と確認事項だけを次の選択範囲へ引き継ぐ。
       conversation.responseId = '';
       conversation.initialSnapshotSent = false;
       conversation.previousScope = null;
-      conversation.localContext = '';
+      conversation.localContext = summarizeSelectionContinuation(conversation);
     }
     const userContent = buildUserContent(userText, scope, conversation);
     let splitTasks = null;
@@ -1243,8 +1401,9 @@
       let responseId = '';
       const proposalScopes = new Map();
       const proposalPreviewScopes = new Map();
+      const proposalAvailableScopes = new Map();
       if (splitTasks) {
-        result = { baseDataHash, message: '', proposals: [], questions: [] };
+        result = { baseDataHash, message: '', proposals: [], questions: [], dataRequests: [] };
         const messagesFromParts = [];
         const splitWarnings = new Set();
         for (let offset = 0; offset < splitTasks.length; offset += 2) {
@@ -1262,10 +1421,11 @@
             if (discardedOperationCount) splitWarnings.add(`${discardedOperationCount}件の範囲外操作を除外しました。表示される変更案を確認してください。`);
             if (part.result.message) messagesFromParts.push(part.result.message);
             result.questions.push(...part.result.questions);
+            result.dataRequests.push(...part.result.dataRequests);
             part.result.proposals.forEach((proposal) => {
               if (proposal.operations.length) {
                 try {
-                  editor.applyOperations(proposal.operations, fingerprintBeforeRequest, task.scope.editableIds);
+                  editor.applyOperations(proposal.operations, fingerprintBeforeRequest, task.scope.editableIds, task.scope.classes.map((item) => item.id));
                 } catch (error) {
                   proposal.operations = [];
                   proposal.questions.push(`この案は選択範囲全体で適用可能と確認できなかったため、プレビュー対象から外しました。${error.message}`);
@@ -1274,6 +1434,7 @@
               result.proposals.push(proposal);
               proposalScopes.set(proposal.id, [...task.scope.editableIds]);
             proposalPreviewScopes.set(proposal.id, task.scope.classes.map((item) => item.id));
+            proposalAvailableScopes.set(proposal.id, task.scope.classes.map((item) => item.id));
             });
           });
           if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
@@ -1297,10 +1458,15 @@
         result.proposals.forEach((proposal) => {
           proposalScopes.set(proposal.id, [...scope.editableIds]);
           proposalPreviewScopes.set(proposal.id, scope.classes.map((item) => item.id));
+          proposalAvailableScopes.set(proposal.id, scope.classes.map((item) => item.id));
         });
         if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
       }
       if (result.message) conversation.items.push({ type: 'message', role: 'assistant', text: result.message });
+      const resolvedDataRequests = resolveDataRequests(result.dataRequests, scope);
+      if (resolvedDataRequests.requests.length || resolvedDataRequests.unresolved.length) {
+        conversation.items.push({ type: 'data-requests', ...resolvedDataRequests, status: 'pending', submitting: false });
+      }
       const queuedQuestions = result.questions.map((question) => ({ text: question, proposalTitle: '', proposalId: '' }));
       const queuedProposalIds = [];
       result.proposals.forEach((proposal) => {
@@ -1312,6 +1478,7 @@
           type: 'proposal',
           proposal,
           editableIds: proposalScopes.get(proposal.id) || [...scope.editableIds],
+          availableIds: proposalAvailableScopes.get(proposal.id) || scope.classes.map((item) => item.id),
           previewClassIds: proposalPreviewScopes.get(proposal.id) || scope.classes.map((item) => item.id),
           baseDataHash,
           status: awaitingAnswers ? 'awaiting-answers' : 'pending'
@@ -1402,7 +1569,7 @@
       await verifyLoadedDataVersion();
       const currentHash = await currentDataHash();
       if (currentHash !== previewPlan.expectedBaseHash) throw new Error('提案の作成後にデータが変更されました。最新データで提案し直してください。');
-      const candidate = editor.applyOperations(previewPlan.operations, previewPlan.expectedFingerprint, previewPlan.proposalItem.editableIds);
+      const candidate = editor.applyOperations(previewPlan.operations, previewPlan.expectedFingerprint, previewPlan.proposalItem.editableIds, previewPlan.proposalItem.availableIds);
       editor.commitCandidate(candidate);
       previewPlan.proposalItem.status = 'applied';
       currentConversation.items.filter((item) => item.type === 'proposal' && item !== previewPlan.proposalItem && item.status !== 'applied')
