@@ -143,6 +143,13 @@ function renderTree() {
   const filterHidesTargets = filteredTargets.length < allTargetCount;
   const filterCount = document.getElementById('tree-filter-count');
   filterCount.textContent = `${filteredTargets.length}件`;
+  const selectFilteredButton = document.getElementById('select-filtered-targets');
+  const clearFilteredButton = document.getElementById('clear-filtered-targets-selection');
+  selectFilteredButton.hidden = !filterActive;
+  clearFilteredButton.hidden = !filterActive;
+  selectFilteredButton.textContent = `検索結果を選択（${filteredTargets.length}件）`;
+  selectFilteredButton.title = `現在の検索・件数条件に一致した対象クラス${filteredTargets.length}件を選択に追加`;
+  clearFilteredButton.title = `検索結果に一致した対象クラス${filteredTargets.length}件の選択だけを解除`;
 
   // 閲覧画面と同じ階層モデル・描画関数を使い、モードごとの差は操作UIに限定する。
   const targetIds = filterActive ? new Set(filteredTargets.map((target) => target.id)) : null;
@@ -172,6 +179,7 @@ function renderTree() {
     row.append(button);
     return row;
   };
+  currentFilteredTargetIds = filterActive ? targetIds : null;
   const addMiddleClass = (parentId) => {
     const label = window.prompt('中間クラス名を入力してください');
     if (!label || !label.trim()) return;
@@ -258,6 +266,9 @@ function renderTree() {
     button.type = 'button';
     button.className = 'tree-add-button tree-leaf-class';
     button.dataset.instanceId = item.id;
+    button.dataset.selectionId = item.id;
+    button.dataset.selectionKind = 'target';
+    button.title = 'クリックで選択・解除、Shift＋クリックで連続範囲を選択';
     button.style.setProperty('--tree-level-color', window.treeDepthColor(depth));
     const id = document.createElement('span');
     id.className = 'tree-leaf-id';
@@ -271,15 +282,9 @@ function renderTree() {
     button.append(id, label, count);
     button.classList.toggle('is-selected', heldInstances.has(item.id));
     targetButtonById.set(item.id, button);
-    button.addEventListener('click', () => {
-      if (heldInstances.has(item.id)) heldInstances.delete(item.id);
-      else {
-        heldInstances.set(item.id, item);
-        heldKindView = 'target';
-      }
+    button.addEventListener('click', (event) => {
+      applyTreeSelectionRange(button, event, !heldInstances.has(item.id));
       button.classList.toggle('is-selected', heldInstances.has(item.id));
-      syncTargetButtonAvailability();
-      renderInstances();
     });
     const li = document.createElement('li');
     li.style.setProperty('--tree-level-color', window.treeDepthColor(depth));
@@ -306,19 +311,14 @@ function renderTree() {
       checkbox.type = 'checkbox';
       checkbox.className = 'tree-level-selection-checkbox';
       checkbox.checked = heldMiddleClasses.has(item.id);
+      checkbox.dataset.selectionId = item.id;
+      checkbox.dataset.selectionKind = 'middle';
+      checkbox.title = '配下もまとめて選択・解除します。Shift＋クリックで連続範囲を選択します';
       checkbox.disabled = false;
       middleCheckboxById.set(item.id, checkbox);
-      checkbox.setAttribute('aria-label', `${item.label}を選択`);
-      checkbox.addEventListener('click', (event) => event.stopPropagation());
-      checkbox.addEventListener('change', () => {
-        if (checkbox.checked) {
-          heldMiddleClasses.set(item.id, item);
-          heldKindView = 'middle';
-        }
-        else heldMiddleClasses.delete(item.id);
-        syncTargetButtonAvailability();
-        renderInstances();
-      });
+      checkbox.setAttribute('aria-label', `${item.label}と配下を選択`);
+      checkbox.addEventListener('click', (event) => { event.stopPropagation(); checkbox.dataset.shiftKey = String(event.shiftKey); });
+      checkbox.addEventListener('change', (event) => applyTreeSelectionRange(checkbox, event, checkbox.checked));
       levelContent.prepend(checkbox);
     }
     if (classKind(item) === 'top') {
@@ -326,21 +326,16 @@ function renderTree() {
       checkbox.type = 'checkbox';
       checkbox.className = 'tree-level-selection-checkbox';
       checkbox.checked = heldTopClasses.has(item.id);
+      checkbox.dataset.selectionId = item.id;
+      checkbox.dataset.selectionKind = 'top';
+      checkbox.title = '配下もまとめて選択・解除します。Shift＋クリックで連続範囲を選択します';
       checkbox.disabled = false;
       topCheckboxById.set(item.id, checkbox);
       checkbox.setAttribute('aria-label', isUnclassified(item)
         ? '未分類を選択（未分類自体は移動できません）'
-        : `${item.label}を中間クラスとして選択`);
-      checkbox.addEventListener('click', (event) => event.stopPropagation());
-      checkbox.addEventListener('change', () => {
-        if (checkbox.checked) {
-          heldTopClasses.set(item.id, item);
-          heldKindView = 'top';
-        }
-        else heldTopClasses.delete(item.id);
-        syncTargetButtonAvailability();
-        renderInstances();
-      });
+        : `${item.label}と配下を選択`);
+      checkbox.addEventListener('click', (event) => { event.stopPropagation(); checkbox.dataset.shiftKey = String(event.shiftKey); });
+      checkbox.addEventListener('change', (event) => applyTreeSelectionRange(checkbox, event, checkbox.checked));
       levelContent.prepend(checkbox);
     }
     if (treeHierarchyEditModeEnabled && item.label !== '未分類'
@@ -381,7 +376,9 @@ function renderTree() {
       moveButton.hidden = heldMiddleClasses.has(item.id)
         || (!heldInstances.size && !heldMiddleClasses.size && !heldTopClasses.size);
       moveButton.setAttribute('aria-label', 'ここへ移動');
-      moveButton.title = '選択中のクラスをここへ移動';
+      moveButton.title = heldTopClasses.size
+        ? '上位クラスを中間クラスに変換し、配下を保ってここへ移動'
+        : '選択中のクラスをここへ移動';
       summary.append(moveButton);
     }
     if (classKind(item) === 'top') {

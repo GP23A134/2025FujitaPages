@@ -46,6 +46,14 @@
 
   const keyInput = document.getElementById('ai-api-key');
   const settingsDialog = document.getElementById('edit-settings-dialog');
+  const keyGuidance = document.getElementById('ai-key-guidance');
+  const updateKeyGuidance = () => { keyGuidance.hidden = Boolean(keyInput.value.trim()); };
+  updateKeyGuidance();
+  keyInput.addEventListener('input', updateKeyGuidance);
+  document.getElementById('ai-open-settings').addEventListener('click', () => {
+    settingsDialog.showModal();
+    keyInput.focus();
+  });
   const modelSelect = document.getElementById('ai-model');
   const settingsStatus = document.getElementById('ai-settings-status');
   let modelConfig = null;
@@ -107,6 +115,7 @@
   let isSending = false;
   let activeRequestController = null;
   let classLabelsById = new Map();
+  let classTypesById = new Map();
   let temporaryLabelsById = new Map();
 
   const createConversation = (selectedIds = editor.selectedIds) => {
@@ -236,7 +245,9 @@
   };
   const renderConversation = ({ scrollToBottom = false } = {}) => {
     const previousScrollTop = messages.scrollTop;
-    classLabelsById = new Map(editor.getState().classes.map((item) => [item.id, item.label]));
+    const currentClasses = editor.getState().classes;
+    classLabelsById = new Map(currentClasses.map((item) => [item.id, item.label]));
+    classTypesById = new Map(currentClasses.map((item) => [item.id, item.type]));
     temporaryLabelsById = new Map(currentConversation.items
       .filter((item) => item.type === 'proposal')
       .flatMap((item) => item.proposal.operations || [])
@@ -302,6 +313,7 @@
   const compactScope = (scope) => ({
     mode: scope.mode || 'selected_scope',
     selectedIds: [...(scope.selectedIds || [])],
+    selectionRoots: [...(scope.selectionRoots || scope.selectedIds || [])],
     editableIds: [...(scope.editableIds || [])],
     classes: scope.classes.map(({ id, type, label }) => [id, type, label]),
     relations: scope.relations.map(({ child, parent }) => [child, parent])
@@ -322,7 +334,8 @@
       kind: 'scope_and_data_diff',
       mode: current.mode,
       selectedIds: current.selectedIds,
-      editableScopeIds: current.editableIds,
+      selectionRoots: current.selectionRoots,
+      editableIds: current.editableIds,
       addedOrChangedClasses: changedClasses,
       removedClassIds: removedClasses,
       addedRelations: current.relations.filter((item) => !beforeRelations.has(relationKey(item))),
@@ -332,7 +345,7 @@
   };
   const getPayloadSnapshot = () => {
     const selectedIds = editor.selectedIds;
-    if (!selectedIds.length) return editor.getOverviewState();
+    if (!selectedIds.length) return null;
     return editor.getScopedState(selectedIds);
   };
   const formatHttpError = (body, response) => {
@@ -348,7 +361,12 @@
   const operationLabel = (operation) => {
     if (operation.type === 'addClass') return `${operation.classType === 'top' ? '上位' : '中間'}クラス「${operation.label}」を追加`;
     if (operation.type === 'renameClass') return `「${labelFor(operation.classId)}」を「${operation.label}」に改名`;
-    if (operation.type === 'moveClass') return `「${labelFor(operation.classId)}」を「${labelFor(operation.destinationId)}」へ移動`;
+    if (operation.type === 'moveClass') {
+      const sourceLabel = labelFor(operation.classId);
+      return classTypesById.get(operation.classId) === 'top'
+        ? `上位クラス「${sourceLabel}」を中間クラス化して「${labelFor(operation.destinationId)}」へ移動`
+        : `「${sourceLabel}」を「${labelFor(operation.destinationId)}」へ移動`;
+    }
     if (operation.type === 'moveChildren') return `「${labelFor(operation.from)}」の配下を「${labelFor(operation.to)}」へ移動`;
     if (operation.type === 'deleteClass') return `「${labelFor(operation.classId)}」を削除`;
     return '不明な操作';
@@ -697,11 +715,15 @@
       const addition = operations.find((operation) => operation.type === 'addClass'
         && (operation.temporaryId === reference || `${proposalItem.proposal.id}/${operation.temporaryId}` === reference));
       if (!addition) return null;
+      const convertedId = proposedCandidate.idRemaps?.get(reference)
+        || proposedCandidate.idRemaps?.get(addition.temporaryId);
+      if (convertedId) return proposedCandidate.classes.find((item) => item.id === convertedId) || null;
       return proposedCandidate.classes.find((item) => !beforeIds.has(item.id)
         && item.type === addition.classType && item.label === String(addition.label || '').trim()) || null;
     };
     const resolveProposedId = (reference) => proposedIds.has(reference) || beforeIds.has(reference)
-      ? reference : addedClassForReference(reference)?.id || reference;
+      ? proposedCandidate.idRemaps?.get(reference) || reference
+      : addedClassForReference(reference)?.id || proposedCandidate.idRemaps?.get(reference) || reference;
     operations.forEach((operation, index) => {
       if (operation.type === 'addClass') {
         addOperationClass(addedClassForReference(operation.temporaryId)?.id, index);
@@ -717,6 +739,7 @@
       }
       const id = resolveProposedId(operation.classId);
       addOperationClass(id, index);
+      if (id !== operation.classId && beforeIds.has(operation.classId)) addOperationClass(operation.classId, index);
       if (operation.type === 'deleteClass') deletionOperationByClass.set(id, index);
     });
     for (const id of new Set([...beforeParents.keys(), ...afterParents.keys()])) {
@@ -862,20 +885,21 @@
       instruction: options.instruction || (activeScope.mode === 'overview_summary'
         ? 'これは全体構造の要約です。個別対象クラス名は含みません。既存クラスの変更・移動・削除は提案せず、全体評価、確認事項、新しい上位・中間クラスの案だけを返してください。'
         : activeScope.mode === 'hierarchy_scope'
-          ? 'これは階層クラスだけの範囲です。対象クラスの個別情報は含まれません。上位・中間クラスの追加・改名・移動・削除だけを提案し、対象クラスの操作は提案しないでください。'
-          : 'この相談の範囲にあるクラスの提案だけを返してください。個別インスタンスデータと件数は含みません。')
+          ? 'これは階層クラスだけの範囲です。対象クラスの個別情報は含まれません。上位・中間クラスの追加・改名・移動・削除だけを提案してください。上位クラスを中間クラスへ移す場合は上位を中間化し、配下の親子関係を保ってください。対象クラスの操作は提案しないでください。'
+          : 'この相談の範囲にあるクラスの提案だけを返してください。selectionRootsは選択操作の起点です。editableIdsが操作できる移動元の正確な一覧です。上位クラスを中間クラスへ移す場合は上位を新しい中間クラスIDに変換し、配下の所属先だけを自動的に付け替えて親子関係を保つため、配下を別々に移動する操作は作らないでください。未掲載の配下を推測した別操作は提案しないでください。個別インスタンスデータと件数は含みません。')
     });
   };
   const makeLargeScopePlan = (userText, scope, conversation, baseDataHash) => {
-    const selectedClasses = scope.selectedIds.map((id) => scope.classes.find((item) => item.id === id)).filter(Boolean);
-    const isHierarchySelection = selectedClasses.length === scope.selectedIds.length
-      && selectedClasses.length > 0
-      && selectedClasses.every((item) => ['top', 'middle'].includes(item.type));
+    const selectionRoots = scope.selectionRoots || scope.selectedIds;
+    const selectedRootClasses = selectionRoots.map((id) => scope.classes.find((item) => item.id === id)).filter(Boolean);
+    const isHierarchySelection = selectedRootClasses.length === selectionRoots.length
+      && selectedRootClasses.length > 0
+      && selectedRootClasses.every((item) => ['top', 'middle'].includes(item.type));
     if (!isHierarchySelection) return null;
 
     const hierarchyScope = editor.getHierarchyScopedState(scope.selectedIds);
     if (!hierarchyScope) return null;
-    const hierarchyInstruction = 'この分割処理では上位・中間クラスの階層構造だけを検討してください。対象クラスの変更案は作らず、入力にない情報を推測しないでください。';
+    const hierarchyInstruction = 'この分割処理では上位・中間クラスの階層構造だけを検討してください。selectionRootsの上位クラスは中間クラスへ移動できます。その場合は上位を中間化し、配下の親子関係を保って移動してください。対象クラスの変更案は作らず、入力にない情報を推測しないでください。';
     const hierarchyClasses = scope.classes.filter((item) => ['top', 'middle'].includes(item.type));
     const hierarchyChunkLimit = MAX_REQUEST_CHARACTERS;
     const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
@@ -907,7 +931,8 @@
       });
       const taskScope = {
         mode: 'hierarchy_scope',
-        selectedIds: [...scope.selectedIds],
+        selectedIds: scope.selectedIds.filter((id) => includedIds.has(id)),
+        selectionRoots: (scope.selectionRoots || scope.selectedIds).filter((id) => includedIds.has(id)),
         editableIds: [...editableIds],
         classes: hierarchyClasses.filter((item) => includedIds.has(item.id)),
         relations: scope.relations.filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
@@ -958,7 +983,8 @@
         .map((item) => [`${item.child}\u0000${item.parent}`, item]));
       return {
         mode: 'hierarchy_scope',
-        selectedIds: [...scope.selectedIds],
+        selectedIds: [...new Set([...left.selectedIds, ...right.selectedIds])],
+        selectionRoots: [...new Set([...(left.selectionRoots || []), ...(right.selectionRoots || [])])],
         editableIds: [...new Set([...left.editableIds, ...right.editableIds])],
         classes: [...classesById.values()],
         relations: [...relationByKey.values()],
@@ -1006,7 +1032,8 @@
       const includedIds = new Set(classes.map((item) => item.id));
       return {
         mode: 'selected_scope',
-        selectedIds: [...scope.selectedIds],
+        selectedIds: scope.selectedIds.filter((id) => includedIds.has(id)),
+        selectionRoots: (scope.selectionRoots || scope.selectedIds).filter((id) => includedIds.has(id)),
         editableIds: [...targetIds],
         classes,
         relations: scope.relations.filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
@@ -1080,6 +1107,9 @@
       const temporaryIds = new Set(proposal.operations
         .filter((operation) => operation.type === 'addClass' && operation.temporaryId)
         .map((operation) => operation.temporaryId));
+      const temporaryTypeById = new Map(proposal.operations
+        .filter((operation) => operation.type === 'addClass' && operation.temporaryId)
+        .map((operation) => [operation.temporaryId, operation.classType]));
       const isDestination = (id) => {
         const item = classesById.get(id);
         return Boolean((item && ['top', 'middle'].includes(item.type)) || temporaryIds.has(id));
@@ -1095,7 +1125,14 @@
         const sourceId = operation.classId || operation.from;
         if (['renameClass', 'moveClass', 'moveChildren', 'deleteClass'].includes(operation.type)
           && !editable.has(sourceId)) return false;
-        if (operation.type === 'moveClass' && !isDestination(operation.destinationId)) return false;
+        if (operation.type === 'moveClass') {
+          if (!isDestination(operation.destinationId)) return false;
+          const sourceType = classesById.get(operation.classId)?.type
+            || temporaryTypeById.get(operation.classId);
+          const destinationType = classesById.get(operation.destinationId)?.type
+            || temporaryTypeById.get(operation.destinationId);
+          if (sourceType === 'top' && destinationType !== 'middle') return false;
+        }
         if (operation.type === 'moveChildren' && !isDestination(operation.to)) return false;
         if (operation.type === 'addClass') {
           if (!['top', 'middle'].includes(operation.classType)) return false;
@@ -1129,6 +1166,7 @@
     if (!systemPrompt) { setStatus('AIプロンプトを読み込めないため依頼を送信できません。', 'error'); return; }
     let scope;
     try { scope = getPayloadSnapshot(); } catch (error) { setStatus(error.message, 'error'); return; }
+    if (!scope) { setStatus('AIに相談するクラスを保持欄で選択してください。', 'error'); return; }
     try { await verifyLoadedDataVersion(); }
     catch (error) { setStatus(error.message, 'error'); return; }
     let baseDataHash;
@@ -1136,6 +1174,15 @@
     catch (error) { setStatus(error.message, 'error'); return; }
     const fingerprintBeforeRequest = stateFingerprint();
     const conversation = currentConversation;
+    const currentSelectedIds = [...editor.selectedIds].sort();
+    const previousSelectedIds = [...(conversation.selectedIds || [])].sort();
+    if (JSON.stringify(currentSelectedIds) !== JSON.stringify(previousSelectedIds)) {
+      // 選択範囲が変わったら、前の選択範囲を含むAPI会話を継続しない。
+      conversation.responseId = '';
+      conversation.initialSnapshotSent = false;
+      conversation.previousScope = null;
+      conversation.localContext = '';
+    }
     const userContent = buildUserContent(userText, scope, conversation);
     let splitTasks = null;
     if (userContent.length > MAX_REQUEST_CHARACTERS) {

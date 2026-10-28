@@ -23,6 +23,32 @@ function saveEditChanges() {
 // 保存と編集履歴
 document.getElementById('save-edit-changes').addEventListener('click', saveEditChanges);
 
+const scrollToTopButton = document.getElementById('scroll-to-top');
+const treePaneForScrollButton = document.querySelector('#edit-tree-panel .edit-tree-pane');
+let scrollToTopUpdateFrame = 0;
+const updateScrollToTopPosition = () => {
+  if (!treePaneForScrollButton) return;
+  const paneRight = treePaneForScrollButton.getBoundingClientRect().right;
+  scrollToTopButton.style.right = `${Math.max(0, window.innerWidth - paneRight)}px`;
+};
+const updateScrollToTopButton = () => {
+  scrollToTopUpdateFrame = 0;
+  scrollToTopButton.hidden = window.scrollY < 240;
+};
+window.addEventListener('scroll', () => {
+  if (scrollToTopUpdateFrame) return;
+  scrollToTopUpdateFrame = window.requestAnimationFrame(updateScrollToTopButton);
+}, { passive: true });
+window.addEventListener('resize', updateScrollToTopPosition);
+if (treePaneForScrollButton && 'ResizeObserver' in window) {
+  new ResizeObserver(updateScrollToTopPosition).observe(treePaneForScrollButton);
+}
+updateScrollToTopPosition();
+scrollToTopButton.addEventListener('click', () => {
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' });
+});
+
 // 保持中パネルの表示タブ
 document.querySelectorAll('.held-panel-mode-tab').forEach((tab) => tab.addEventListener('click', () => {
   if (!heldPanelClosed && heldPanelView === tab.dataset.heldPanelView) {
@@ -122,7 +148,17 @@ if (treeFilter && heldPanel && 'ResizeObserver' in window) {
   if (taskbar) new ResizeObserver(syncPinnedHeldPanelBounds).observe(taskbar);
   new ResizeObserver(syncPinnedHeldPanelBounds).observe(heldPanel);
 }
+const pageHeader = document.querySelector('.page-header');
+if (pageHeader && editTreeLayout && 'IntersectionObserver' in window) {
+  const headerVisibilitySteps = Array.from({ length: 101 }, (_, index) => index / 100);
+  new IntersectionObserver(([entry]) => {
+    const visibleHeight = entry.isIntersecting ? entry.intersectionRect.height : 0;
+    editTreeLayout.style.setProperty('--edit-pane-visible-header-height', `${visibleHeight}px`);
+    syncPinnedHeldPanelBounds();
+  }, { threshold: headerVisibilitySteps }).observe(pageHeader);
+}
 window.addEventListener('resize', syncPinnedHeldPanelBounds);
+window.visualViewport?.addEventListener('resize', syncPinnedHeldPanelBounds);
 if (heldPanel) new MutationObserver(syncPinnedHeldPanelBounds).observe(heldPanel, { attributes: true, attributeFilter: ['class', 'hidden'] });
 syncPinnedHeldPanelBounds();
 treeFilter?.addEventListener('toggle', () => {
@@ -159,21 +195,13 @@ document.getElementById('apply-held-destination').addEventListener('click', () =
 });
 document.getElementById('clear-held').addEventListener('click', () => {
   if (heldKindView === 'target') {
-    heldInstances.forEach((instance) => targetButtonById.get(instance.id)?.classList.remove('is-selected'));
     heldInstances.clear();
   } else if (heldKindView === 'middle') {
-    heldMiddleClasses.forEach((middle) => {
-      const checkbox = middleCheckboxById.get(middle.id);
-      if (checkbox) checkbox.checked = false;
-    });
-    heldMiddleClasses.clear();
+    [...heldMiddleClasses.keys()].forEach((id) => applyTreeSubtreeSelection([id], false));
   } else {
-    heldTopClasses.forEach((top) => {
-      const checkbox = topCheckboxById.get(top.id);
-      if (checkbox) checkbox.checked = false;
-    });
-    heldTopClasses.clear();
+    [...heldTopClasses.keys()].forEach((id) => applyTreeSubtreeSelection([id], false));
   }
+  syncTreeSelectionAppearance();
   syncTargetButtonAvailability();
   renderInstances();
   const kindLabel = heldKindView === 'target' ? '対象クラス' : heldKindView === 'middle' ? '中間クラス' : '上位クラス';
@@ -181,47 +209,45 @@ document.getElementById('clear-held').addEventListener('click', () => {
 });
 
 function updateVisibleTreeSelection(select) {
+  const roots = [
+    ...middleCheckboxById.keys(),
+    ...topCheckboxById.keys(),
+    ...targetButtonById.keys()
+  ];
+  applyTreeSubtreeSelection(roots, select);
   middleCheckboxById.forEach((checkbox, id) => {
-    const item = classById.get(id);
-    if (!item) return;
-    if (select) {
-      heldMiddleClasses.set(id, item);
-      heldKindView = 'middle';
-      checkbox.checked = true;
-    } else {
-      heldMiddleClasses.delete(id);
-      checkbox.checked = false;
-    }
+    checkbox.checked = heldMiddleClasses.has(id);
   });
   topCheckboxById.forEach((checkbox, id) => {
-    const item = classById.get(id);
-    if (!item) return;
-    if (select) {
-      heldTopClasses.set(id, item);
-      heldKindView = 'top';
-      checkbox.checked = true;
-    } else {
-      heldTopClasses.delete(id);
-      checkbox.checked = false;
-    }
+    checkbox.checked = heldTopClasses.has(id);
   });
   targetButtonById.forEach((button, id) => {
-    const item = classById.get(id);
-    if (!item) return;
-    if (select) {
-      heldInstances.set(id, item);
-      heldKindView = 'target';
-      button.classList.add('is-selected');
-    } else {
-      heldInstances.delete(id);
-      button.classList.remove('is-selected');
-    }
+    button.classList.toggle('is-selected', heldInstances.has(id));
   });
+  if (select) heldKindView = 'target';
   syncTargetButtonAvailability();
   renderInstances();
 }
 document.getElementById('select-visible-tree').addEventListener('click', () => updateVisibleTreeSelection(true));
 document.getElementById('clear-visible-tree-selection').addEventListener('click', () => updateVisibleTreeSelection(false));
+function updateFilteredTargetSelection(select) {
+  (currentFilteredTargetIds || []).forEach((id) => {
+    const item = classById.get(id);
+    if (!item) return;
+    if (select) {
+      heldInstances.set(id, item);
+      heldKindView = 'target';
+      targetButtonById.get(id)?.classList.add('is-selected');
+    } else {
+      heldInstances.delete(id);
+      targetButtonById.get(id)?.classList.remove('is-selected');
+    }
+  });
+  syncTargetButtonAvailability();
+  renderInstances();
+}
+document.getElementById('select-filtered-targets').addEventListener('click', () => updateFilteredTargetSelection(true));
+document.getElementById('clear-filtered-targets-selection').addEventListener('click', () => updateFilteredTargetSelection(false));
 
 // ツリーの検索・件数フィルター
 document.getElementById('tree-filter-type').addEventListener('change', () => {
@@ -397,30 +423,30 @@ window.classEditorAI = {
   getScopedState(selectedIds) {
     const all = this.getState();
     const classByIdLocal = new Map(all.classes.map((item) => [item.id, item]));
-    const children = buildChildrenMap();
     const parentByChild = new Map(data.classData.relations.map(({ child, parent }) => [child, parent]));
-    const included = new Set();
-    const editable = new Set();
-    const addDescendants = (id) => {
-      if (editable.has(id) || !classByIdLocal.has(id)) return;
-      editable.add(id);
-      included.add(id);
-      (children.get(id) || []).forEach(addDescendants);
-    };
-    selectedIds.forEach(addDescendants);
-    // 選択クラスと配下だけを編集対象にし、親階層は位置関係の文脈として加える。
-    [...included].forEach((id) => {
+    const selectedSet = new Set(selectedIds);
+    const selectionRoots = selectedIds.filter((id) => {
       let parentId = parentByChild.get(id);
       const seen = new Set();
       while (parentId && !seen.has(parentId)) {
+        if (selectedSet.has(parentId)) return false;
         seen.add(parentId);
-        included.add(parentId);
         parentId = parentByChild.get(parentId);
       }
+      return true;
     });
+    const included = new Set();
+    const editable = new Set();
+    selectedIds.forEach((id) => {
+      if (!classByIdLocal.has(id)) return;
+      editable.add(id);
+      included.add(id);
+    });
+    // AIに渡すクラス情報は、選択中のIDに限定する。
     const scopedClasses = all.classes.filter((item) => included.has(item.id));
     return {
       selectedIds: [...selectedIds],
+      selectionRoots,
       editableIds: [...editable],
       classes: scopedClasses,
       relations: all.relations.filter((item) => included.has(item.child) && included.has(item.parent)),
@@ -430,35 +456,34 @@ window.classEditorAI = {
   getHierarchyScopedState(selectedIds) {
     const all = this.getState();
     const classByIdLocal = new Map(all.classes.map((item) => [item.id, item]));
-    const children = buildChildrenMap();
     const parentByChild = new Map(data.classData.relations.map(({ child, parent }) => [child, parent]));
-    const editable = new Set();
-    const addHierarchyDescendants = (id) => {
-      const item = classByIdLocal.get(id);
-      if (!item || !['top', 'middle'].includes(item.type) || editable.has(id)) return;
-      editable.add(id);
-      (children.get(id) || []).forEach(addHierarchyDescendants);
-    };
-    selectedIds.forEach(addHierarchyDescendants);
-    if (!editable.size) return null;
-
-    // Keep parent context, but omit target classes so large subtrees can still support hierarchy-only edits.
-    const included = new Set(editable);
-    [...editable].forEach((id) => {
+    const selectedSet = new Set(selectedIds);
+    const selectionRoots = selectedIds.filter((id) => {
       let parentId = parentByChild.get(id);
       const seen = new Set();
       while (parentId && !seen.has(parentId)) {
+        if (selectedSet.has(parentId)) return false;
         seen.add(parentId);
-        const parent = classByIdLocal.get(parentId);
-        if (!parent || !['top', 'middle'].includes(parent.type)) break;
-        included.add(parentId);
         parentId = parentByChild.get(parentId);
       }
+      return true;
     });
+    const editable = new Set();
+    const addSelectedHierarchyClass = (id) => {
+      const item = classByIdLocal.get(id);
+      if (!item || !['top', 'middle'].includes(item.type)) return;
+      editable.add(id);
+    };
+    selectedIds.forEach(addSelectedHierarchyClass);
+    if (!editable.size) return null;
+
+    // AIに渡す階層情報も選択中の上位・中間クラスだけに限定する。
+    const included = new Set(editable);
     const scopedClasses = all.classes.filter((item) => included.has(item.id) && ['top', 'middle'].includes(item.type));
     return {
       mode: 'hierarchy_scope',
       selectedIds: [...selectedIds],
+      selectionRoots,
       editableIds: [...editable],
       classes: scopedClasses,
       relations: all.relations.filter((item) => included.has(item.child) && included.has(item.parent)),
@@ -472,6 +497,7 @@ window.classEditorAI = {
     return {
       mode: 'overview_summary',
       selectedIds: [],
+      selectionRoots: [],
       editableIds: [],
       classes: hierarchyClasses,
       relations: all.relations.filter((item) => hierarchyIds.has(item.child) && hierarchyIds.has(item.parent)),
@@ -491,6 +517,7 @@ window.classEditorAI = {
       if (!editable.has(id)) throw new Error('選択範囲外のクラスを変更する提案は適用できません。');
     };
     const temporaryIds = new Map();
+    const convertedIds = new Map();
     const newClassId = (type) => {
       const prefix = type === 'top' ? 't' : 'm';
       const max = candidateClasses.reduce((value, item) => {
@@ -506,7 +533,10 @@ window.classEditorAI = {
         relationByChild.set(child, { child, parent, relation: 'subClassOf' });
       }
     };
-    const resolve = (id) => temporaryIds.get(id) || id;
+    const resolve = (id) => {
+      const temporaryId = temporaryIds.get(id) || id;
+      return convertedIds.get(temporaryId) || temporaryId;
+    };
     operations.forEach((operation) => {
       if (!operation || typeof operation !== 'object') throw new Error('提案操作の形式が不正です。');
       if (operation.type === 'addClass') {
@@ -549,12 +579,36 @@ window.classEditorAI = {
         editableSource(id);
         const item = byId.get(id); const destination = byId.get(destinationId);
         if (item && isUnclassified(item)) throw new Error('未分類は受け皿のため移動できません。');
-        if (!item || !destination || !['middle', 'class'].includes(item.type)
+        const convertsTopToMiddle = item?.type === 'top' && destination?.type === 'middle';
+        if (!item || !destination || (!['middle', 'class'].includes(item.type) && !convertsTopToMiddle)
           || !['top', 'middle'].includes(destination.type) || item.id === destination.id) throw new Error('クラスの移動先または対象が不正です。');
         let ancestorId = destinationId;
         while (ancestorId) {
           if (ancestorId === id) throw new Error('自分自身または配下への移動はできません。');
           ancestorId = relationByChild.get(ancestorId)?.parent;
+        }
+        if (convertsTopToMiddle) {
+          const oldId = item.id;
+          const newId = newClassId('middle');
+          const newRelations = [...relationByChild.values()].map((relation) => ({
+            ...relation,
+            parent: relation.parent === oldId ? newId : relation.parent
+          }));
+          relationByChild.clear();
+          newRelations.forEach((relation) => relationByChild.set(relation.child, relation));
+          relationByChild.delete(oldId);
+          item.id = newId;
+          item.type = 'middle';
+          byId.delete(oldId);
+          byId.set(newId, item);
+          convertedIds.set(oldId, newId);
+          temporaryIds.forEach((allocatedId, temporaryId) => {
+            if (allocatedId === oldId) convertedIds.set(temporaryId, newId);
+          });
+          editable.delete(oldId);
+          editable.add(newId);
+          addRelationCandidate(newId, destinationId);
+          return;
         }
         relationByChild.delete(id);
         addRelationCandidate(id, destinationId); return;
@@ -599,7 +653,7 @@ window.classEditorAI = {
         visited.add(parent); parent = parentByChild.get(parent);
       }
     });
-    return { classes: candidateClasses, relations: candidateRelations, fingerprint };
+    return { classes: candidateClasses, relations: candidateRelations, fingerprint, idRemaps: convertedIds };
   },
   commitCandidate(candidate) {
     const before = snapshotEditState();

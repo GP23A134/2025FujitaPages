@@ -70,6 +70,7 @@ body {
 .edit-taskbar { flex-wrap: nowrap; padding-inline: var(--page-side-gutter); }
 #tree-panel .tree-controls { width: 100%; max-width: 100%; margin-inline: 0; padding-inline: var(--page-side-gutter); border-radius: 0; }
 .edit-taskbar-group { display: flex; align-items: center; gap: 0.25rem; }
+.edit-selection-summary { display: inline-flex; flex: 0 0 auto; align-items: center; padding: 0.2rem 0.5rem; border: 1px solid #bae6fd; border-radius: 999px; color: #075985; background: #f0f9ff; font-size: 0.75rem; font-weight: 650; white-space: nowrap; }
 .edit-taskbar-group:not(:last-child) { padding-right: 0.4rem; border-right: 1px solid #e2e8f0; }
 .edit-taskbar-spacer { flex: 1; }
 .edit-taskbar-button { display: inline-flex; min-height: 2rem; align-items: center; justify-content: center; gap: 0.35rem; padding: 0.2rem 0.55rem; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.8rem; font-weight: 650; line-height: 1.2; white-space: nowrap; }

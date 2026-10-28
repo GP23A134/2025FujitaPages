@@ -62,10 +62,48 @@ function render() {
   renderTree();
   renderInstances();
 }
+let heldListResizeObserver = null;
+let heldPageSizeUpdateScheduled = false;
+function syncHeldPageSize() {
+  const held = document.getElementById('held-instance-list');
+  if (!held || held.clientHeight <= 0) return;
+  const table = held.querySelector('.held-instance-table:not([hidden])');
+  const headerHeight = table?.tHead?.getBoundingClientRect().height || 30;
+  const rows = [...(table?.tBodies[0]?.rows || [])];
+  const rowHeight = rows.length
+    ? rows.reduce((total, row) => total + row.getBoundingClientRect().height, 0) / rows.length
+    : 34;
+  const nextPageSize = Math.max(1, Math.min(50, Math.floor((held.clientHeight - headerHeight - 4) / rowHeight)));
+  if (nextPageSize === HELD_PAGE_SIZE) return;
+  HELD_PAGE_SIZE = nextPageSize;
+  renderInstances();
+}
+function observeHeldListSize(held) {
+  if (!heldListResizeObserver && typeof ResizeObserver !== 'undefined') {
+    heldListResizeObserver = new ResizeObserver(() => {
+      if (heldPageSizeUpdateScheduled) return;
+      heldPageSizeUpdateScheduled = true;
+      requestAnimationFrame(() => {
+        heldPageSizeUpdateScheduled = false;
+        syncHeldPageSize();
+      });
+    });
+    heldListResizeObserver.observe(held);
+  }
+  if (!heldPageSizeUpdateScheduled) {
+    heldPageSizeUpdateScheduled = true;
+    requestAnimationFrame(() => {
+      heldPageSizeUpdateScheduled = false;
+      syncHeldPageSize();
+    });
+  }
+}
 function renderInstances() {
   // 保持中のクラスがある場合だけサイドパネルと移動用ボタンを表示する。
   // 解除操作後もこの関数だけを呼べば、件数と表示状態を同期できる。
   const held = document.getElementById('held-instance-list');
+  observeHeldListSize(held);
+  const heldPagination = document.getElementById('held-pagination');
   const panel = document.getElementById('held-panel');
   const count = document.getElementById('held-count');
   const kindLabel = document.getElementById('held-kind-label');
@@ -103,6 +141,19 @@ function renderInstances() {
     tab.classList.toggle('is-active', isActive);
     tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
   });
+  const destinationMoveHint = document.getElementById('held-destination-move-hint');
+  const movingTopClasses = [...heldTopClasses.values()].some((item) => !isUnclassified(item));
+  const convertsTopToMiddle = heldDestinationKind === 'middle' && movingTopClasses;
+  if (destinationMoveHint) {
+    destinationMoveHint.hidden = !convertsTopToMiddle;
+    destinationMoveHint.textContent = convertsTopToMiddle
+      ? '上位クラスを中間クラスに変換し、配下の階層を保って移動します。'
+      : '';
+  }
+  applyDestination.textContent = convertsTopToMiddle ? '上位を中間化して移動' : '選択先へ移動';
+  applyDestination.title = convertsTopToMiddle
+    ? '選択した上位クラスを中間化し、配下を保って移動'
+    : '選択中のクラスを選択先へ移動';
   if (kindLabel) kindLabel.textContent = heldPanelView === 'chat' ? 'AIチャット' : heldPanelView === 'destination' ? '移動先' : '保持中';
   document.querySelectorAll('.held-panel-mode-tab').forEach((tab) => {
     const isActive = !heldPanelClosed && tab.dataset.heldPanelView === heldPanelView;
@@ -113,6 +164,12 @@ function renderInstances() {
   if (count) count.textContent = heldCountText;
   const toolbarHeldCount = document.getElementById('held-count-toolbar');
   if (toolbarHeldCount) toolbarHeldCount.textContent = heldCountText;
+  const selectionSummary = document.getElementById('edit-selection-summary');
+  if (selectionSummary) {
+    const total = heldInstances.size + heldMiddleClasses.size + heldTopClasses.size;
+    selectionSummary.textContent = `選択 ${total}件（上位 ${heldTopClasses.size}・中間 ${heldMiddleClasses.size}・対象 ${heldInstances.size}）`;
+    selectionSummary.setAttribute('aria-label', `選択中 ${total}件。上位クラス ${heldTopClasses.size}件、中間クラス ${heldMiddleClasses.size}件、対象クラス ${heldInstances.size}件`);
+  }
   if (historyAnchor) historyAnchor.hidden = heldPanelView !== 'chat';
   document.querySelectorAll('.move-held-button').forEach((button) => {
     button.hidden = heldInstances.size === 0;
@@ -124,52 +181,115 @@ function renderInstances() {
     button.hidden = destinationIsSelected
       || (heldMiddleClasses.size === 0 && heldTopClasses.size === 0 && heldInstances.size === 0);
   });
-  held.replaceChildren(...[...heldInstances.values()].map((instance) => {
-    const item = document.createElement('div'); item.className = 'held-instance-item'; item.dataset.heldKind = 'target';
-    const label = document.createElement('span');
-    label.textContent = instance.label || '(ラベルなし)';
-    const id = document.createElement('small');
-    id.className = 'held-instance-id';
-    id.textContent = instance.id.match(/(?:^|\/)((?:c|m|t)_\d+)$/)?.[1] || instance.id;
-    item.append(id, label);
-    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '解除';
-    remove.addEventListener('click', () => {
-      heldInstances.delete(instance.id);
-      targetButtonById.get(instance.id)?.classList.remove('is-selected');
-      syncTargetButtonAvailability();
-      renderInstances();
-    });
-    item.append(remove); return item;
-  }), ...[...heldMiddleClasses.values()].map((middle) => {
-    const item = document.createElement('div'); item.className = 'held-instance-item'; item.dataset.heldKind = 'middle';
-    item.textContent = `中間: ${middle.label}`;
-    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '解除';
-    remove.addEventListener('click', () => {
-      heldMiddleClasses.delete(middle.id);
-      const checkbox = middleCheckboxById.get(middle.id);
-      if (checkbox) checkbox.checked = false;
-      syncTargetButtonAvailability();
-      renderInstances();
-    });
-    item.append(remove); return item;
-  }), ...[...heldTopClasses.values()].map((top) => {
-    const item = document.createElement('div'); item.className = 'held-instance-item'; item.dataset.heldKind = 'top';
-    item.textContent = `上位: ${top.label}`;
-    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '解除';
-    remove.addEventListener('click', () => {
-      heldTopClasses.delete(top.id);
-      const checkbox = topCheckboxById.get(top.id);
-      if (checkbox) checkbox.checked = false;
-      syncTargetButtonAvailability();
-      renderInstances();
-    });
-    item.append(remove); return item;
-  }));
-  held.querySelectorAll('[data-held-kind]').forEach((item) => { item.hidden = item.dataset.heldKind !== heldKindView; });
   const heldKindCounts = { top: heldTopClasses.size, middle: heldMiddleClasses.size, target: heldInstances.size };
-  document.querySelectorAll('[data-held-kind-count]').forEach((badge) => { badge.textContent = String(heldKindCounts[badge.dataset.heldKindCount] || 0); });
+  document.querySelectorAll('[data-held-kind-count]').forEach((badge) => {
+    badge.textContent = String(heldKindCounts[badge.dataset.heldKindCount] || 0);
+  });
+  const makeHeldTable = (kind, rows) => {
+    const lastPage = Math.max(0, Math.ceil(rows.length / HELD_PAGE_SIZE) - 1);
+    heldPageByKind[kind] = Math.min(heldPageByKind[kind] || 0, lastPage);
+    const page = heldPageByKind[kind];
+    const visibleRows = rows.slice(page * HELD_PAGE_SIZE, (page + 1) * HELD_PAGE_SIZE);
+    const table = document.createElement('table');
+    table.className = 'held-instance-table';
+    table.dataset.heldKind = kind;
+    table.hidden = kind !== heldKindView;
+    const head = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    ['ID', 'クラス名', '操作'].forEach((text) => {
+      const cell = document.createElement('th');
+      cell.scope = 'col';
+      cell.textContent = text;
+      headerRow.append(cell);
+    });
+    head.append(headerRow);
+    const body = document.createElement('tbody');
+    visibleRows.forEach(({ item, remove }) => {
+      const row = document.createElement('tr');
+      const idCell = document.createElement('td');
+      idCell.className = 'held-instance-table-id';
+      idCell.textContent = item.id.match(/(?:^|\/)((?:c|m|t)_\d+)$/)?.[1] || item.id;
+      const labelCell = document.createElement('td');
+      labelCell.textContent = item.label || '(ラベルなし)';
+      const actionCell = document.createElement('td');
+      actionCell.className = 'held-instance-table-action';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = '解除';
+      button.title = remove.title || `${item.label || 'クラス'}を解除`;
+      button.addEventListener('click', remove.run);
+      actionCell.append(button);
+      row.append(idCell, labelCell, actionCell);
+      body.append(row);
+    });
+    table.append(head, body);
+    return table;
+  };
+  held.replaceChildren(
+    makeHeldTable('top', [...heldTopClasses.values()].map((item) => ({
+      item,
+      remove: { title: `${item.label}と配下の選択を解除`, run: () => {
+        applyTreeSubtreeSelection([item.id], false);
+        syncTargetButtonAvailability();
+        renderInstances();
+      } }
+    }))),
+    makeHeldTable('middle', [...heldMiddleClasses.values()].map((item) => ({
+      item,
+      remove: { title: `${item.label}と配下の選択を解除`, run: () => {
+        applyTreeSubtreeSelection([item.id], false);
+        syncTargetButtonAvailability();
+        renderInstances();
+      } }
+    }))),
+    makeHeldTable('target', [...heldInstances.values()].map((item) => ({
+      item,
+      remove: { run: () => {
+        heldInstances.delete(item.id);
+        syncTreeSelectionAppearance();
+        syncTargetButtonAvailability();
+        renderInstances();
+      } }
+    })))
+  );
+  heldPagination.replaceChildren();
+  Object.entries({ top: heldTopClasses.size, middle: heldMiddleClasses.size, target: heldInstances.size }).forEach(([kind, total]) => {
+    if (!total) return;
+    const page = heldPageByKind[kind] || 0;
+    const pageCount = Math.ceil(total / HELD_PAGE_SIZE);
+    const start = page * HELD_PAGE_SIZE + 1;
+    const end = Math.min((page + 1) * HELD_PAGE_SIZE, total);
+    const navigation = document.createElement('nav');
+    navigation.className = 'held-pagination';
+    navigation.hidden = kind !== heldKindView;
+    navigation.setAttribute('aria-label', `${kind === 'top' ? '上位クラス' : kind === 'middle' ? '中間クラス' : '対象クラス'}一覧のページ`);
+    const previous = document.createElement('button');
+    previous.type = 'button';
+    previous.textContent = '前へ';
+    previous.disabled = page === 0;
+    previous.addEventListener('click', () => {
+      heldPageByKind[kind] = Math.max(0, page - 1);
+      renderInstances();
+    });
+    const status = document.createElement('span');
+    status.setAttribute('aria-live', 'polite');
+    status.textContent = `${start}–${end}件 / ${total}件　${page + 1} / ${pageCount}ページ`;
+    const next = document.createElement('button');
+    next.type = 'button';
+    next.textContent = '次へ';
+    next.disabled = page >= pageCount - 1;
+    next.addEventListener('click', () => {
+      heldPageByKind[kind] = Math.min(pageCount - 1, page + 1);
+      renderInstances();
+    });
+    navigation.append(previous, status, next);
+    heldPagination.append(navigation);
+  });
   if (!heldKindCounts[heldKindView]) {
-    const empty = document.createElement('p'); empty.className = 'held-kind-empty'; empty.textContent = 'この種類の保持項目はありません。'; held.append(empty);
+    const empty = document.createElement('p');
+    empty.className = 'held-kind-empty';
+    empty.textContent = 'この種類の保持項目はありません。';
+    held.append(empty);
   }
   document.querySelectorAll('.held-kind-tab').forEach((tab) => {
     const selected = tab.dataset.heldKind === heldKindView;
@@ -346,6 +466,17 @@ function moveHeldToMiddle(middleId) {
     return;
   }
 
+  // 親クラスの選択で配下も保持されるが、移動時は選択された最上位だけを付け替え、
+  // その配下の親子関係を保つ。別に選択された枝だけを個別の移動対象にする。
+  const belowSelectedTop = new Set();
+  selectedTopIds.forEach((id) => descendantIds(id).forEach((descendantId) => belowSelectedTop.add(descendantId)));
+  const movingMiddleIds = new Set([...selectedMiddleIds].filter((id) => !belowSelectedTop.has(id)));
+  const belowMovingMiddle = new Set();
+  movingMiddleIds.forEach((id) => descendantIds(id).forEach((descendantId) => belowMovingMiddle.add(descendantId)));
+  const movingTargetIds = new Set([...selectedTargetIds].filter((id) =>
+    !belowSelectedTop.has(id) && !belowMovingMiddle.has(id)));
+  const movingRootIds = new Set([...selectedTopIds, ...movingMiddleIds, ...movingTargetIds]);
+
   const undoBefore = snapshotEditState();
   const convertedTopIds = new Map();
   movableTopEntries.forEach(([, top]) => {
@@ -358,12 +489,12 @@ function moveHeldToMiddle(middleId) {
     classById.set(newId, top);
   });
   data.classData.relations = data.classData.relations
-    .filter((relation) => !selectedIds.has(relation.child))
+    .filter((relation) => !movingRootIds.has(relation.child))
     .map((relation) => ({ ...relation, parent: convertedTopIds.get(relation.parent) || relation.parent }));
-  selectedMiddleIds.forEach((id) => addRelation(id, middleId));
-  selectedTargetIds.forEach((id) => addRelation(id, middleId));
+  movingMiddleIds.forEach((id) => addRelation(id, middleId));
+  movingTargetIds.forEach((id) => addRelation(id, middleId));
   convertedTopIds.forEach((id) => addRelation(id, middleId));
-  const movedCount = selectedIds.size;
+  const movedCount = movingRootIds.size;
   heldMiddleClasses.clear();
   heldTopClasses.clear();
   unclassifiedEntries.forEach(([id, item]) => heldTopClasses.set(id, item));
@@ -371,7 +502,7 @@ function moveHeldToMiddle(middleId) {
   heldDestinationId = '';
   hasUnsavedChanges = true;
   recordEditHistory(undoBefore, middleId, 'クラス移動');
-  logEditAction(`${movedCount}件を中間クラス「${classById.get(middleId)?.label || ''}」へ移動しました。上位クラスは中間クラスに変更しました。${hasUnclassifiedSelection ? '未分類は移動対象から除外しました。' : ''}`);
+  logEditAction(`${movedCount}件を中間クラス「${classById.get(middleId)?.label || ''}」へ移動しました。上位クラスは中間クラスに変更し、配下の階層は維持しました。${hasUnclassifiedSelection ? '未分類は移動対象から除外しました。' : ''}`);
   render();
 }
 

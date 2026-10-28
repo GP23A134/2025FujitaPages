@@ -6,19 +6,19 @@
   <title>クラス編集</title>
   <link rel="icon" type="image/svg+xml" href="web/favicon.svg">
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
-  <link rel="stylesheet" href="web/css/base.css?v=20261028-tree-gap-v1">
-  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261028-tree-gap-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261028-tree-gap-v1">
-  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261028-tree-gap-v1">
-  <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261028-tree-gap-v1">
+  <link rel="stylesheet" href="web/css/base.css?v=20261028-held-dynamic-pages-v1">
+  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261028-held-dynamic-pages-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261028-held-dynamic-pages-v1">
+  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261028-held-dynamic-pages-v1">
+  <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261028-held-dynamic-pages-v1">
   <script src="web/data/generated/class-data.js" defer></script>
   <script src="web/data/generated/instance-data.js" defer></script>
   <!-- データ → 共通ツリー → 編集状態・パネル・ツリー・イベント → AIの順で実行する。 -->
-  <script src="web/js/shared/tree.js?v=20261028-tree-gap-v1" defer></script>
-  <script src="web/js/editor/state.js?v=20261028-tree-gap-v1" defer></script>
-  <script src="web/js/editor/panels.js?v=20261028-tree-gap-v1" defer></script>
-  <script src="web/js/editor/tree.js?v=20261028-tree-gap-v1" defer></script>
-  <script src="web/js/editor/events.js?v=20261028-tree-gap-v1" defer></script>
+  <script src="web/js/shared/tree.js?v=20261028-held-dynamic-pages-v1" defer></script>
+  <script src="web/js/editor/state.js?v=20261028-held-dynamic-pages-v1" defer></script>
+  <script src="web/js/editor/panels.js?v=20261028-held-dynamic-pages-v1" defer></script>
+  <script src="web/js/editor/tree.js?v=20261028-held-dynamic-pages-v1" defer></script>
+  <script src="web/js/editor/events.js?v=20261028-held-dynamic-pages-v1" defer></script>
 </head>
 <body class="edit-panes-pinned" data-mode="edit">
   <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>
@@ -38,8 +38,11 @@
     </div>
     <div class="edit-taskbar-group edit-taskbar-tree-actions" aria-label="ツリー操作">
       <button type="button" id="close-all-tree" class="edit-taskbar-button tree-toolbar-button" hidden><span class="edit-taskbar-icon" aria-hidden="true">⊟</span>すべて閉じる</button>
-      <button type="button" id="select-visible-tree" class="edit-taskbar-button tree-toolbar-button" title="現在のツリー表示範囲にあるクラスをすべて選択">全選択</button>
-      <button type="button" id="clear-visible-tree-selection" class="edit-taskbar-button tree-toolbar-button" title="現在のツリー表示範囲にあるクラスの選択を解除">選択解除</button>
+      <button type="button" id="select-visible-tree" class="edit-taskbar-button tree-toolbar-button" aria-label="現在のツリー表示範囲をすべて選択" title="現在表示されているクラスを選択します。上位・中間クラスを選ぶと配下も含めます">表示範囲を全選択</button>
+      <button type="button" id="clear-visible-tree-selection" class="edit-taskbar-button tree-toolbar-button" aria-label="現在のツリー表示範囲の選択を解除" title="現在表示されている上位・中間クラスの選択を解除すると配下も解除します">表示範囲を解除</button>
+      <button type="button" id="select-filtered-targets" class="edit-taskbar-button tree-toolbar-button" hidden>検索結果を選択</button>
+      <button type="button" id="clear-filtered-targets-selection" class="edit-taskbar-button tree-toolbar-button" hidden>検索結果を解除</button>
+      <span id="edit-selection-summary" class="edit-selection-summary" role="status" aria-live="polite">選択 0件</span>
       <button type="button" id="toggle-tree-filter-open" class="edit-taskbar-button" hidden><span class="edit-taskbar-icon" aria-hidden="true">⌕</span>検索欄を表示</button>
     </div>
     <div class="edit-taskbar-spacer" aria-hidden="true"></div>
@@ -96,6 +99,7 @@
             </div>
           </details>
           <div id="edit-tree" class="tree" role="tree"></div>
+          <button type="button" id="scroll-to-top" class="scroll-to-top-button" title="ページの一番上に戻る" aria-label="ページの一番上に戻る" hidden>↑</button>
         </div>
         <div class="held-panel-spacer" aria-hidden="true"></div>
         <aside id="held-panel" class="instance-selection">
@@ -126,6 +130,7 @@
               <button type="button" id="clear-held" class="held-action-button">表示中を解除</button>
             </div>
             <div id="held-instance-list" class="held-instance-list"></div>
+            <div id="held-pagination" class="held-pagination-container" aria-live="polite"></div>
           </div>
           <section id="held-destination-picker" class="held-destination-picker" aria-label="移動先を選択" hidden>
             <label class="held-destination-search-label" for="held-destination-search">移動先を検索
@@ -135,6 +140,7 @@
               <button type="button" class="held-destination-tab is-active" data-destination-kind="top" role="tab" aria-selected="true">上位クラス</button>
               <button type="button" class="held-destination-tab" data-destination-kind="middle" role="tab" aria-selected="false">中間クラス</button>
             </div>
+            <p id="held-destination-move-hint" class="held-destination-move-hint" hidden></p>
             <section id="held-destination-recent" class="held-destination-recent" aria-label="最近使った移動先" hidden>
               <h3>最近使った移動先</h3>
               <div id="held-destination-recent-list" class="held-destination-recent-list"></div>
@@ -146,6 +152,7 @@
             <div id="ai-chat-messages" class="ai-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
             <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
             <p id="ai-usage-summary" class="ai-usage-summary" aria-live="polite"></p>
+            <p id="ai-key-guidance" class="ai-key-guidance" hidden>AIチャットを使うにはAPIキーが必要です。<button type="button" id="ai-open-settings" class="ai-settings-inline-link">設定</button>から入力してください。</p>
             <form id="ai-chat-form" class="ai-chat-form">
               <button type="button" id="ai-new-consultation" class="ai-new-consultation" aria-label="新しい相談" title="新しい相談">＋</button>
               <label class="sr-only" for="ai-chat-input">AIへの依頼</label>
@@ -226,6 +233,6 @@
       <button type="button" id="ai-apply-proposal" class="search-button">この変更を適用</button>
     </div>
   </dialog>
-  <script src="web/js/editor/ai.js?v=20261028-tree-gap-v1" defer></script>
+  <script src="web/js/editor/ai.js?v=20261028-held-dynamic-pages-v1" defer></script>
 </body>
 </html>

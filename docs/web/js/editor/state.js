@@ -51,14 +51,13 @@ const syncPinnedHeldPanelBounds = () => {
     setInlineStyleIfChanged(layout, '--edit-pane-position-top', `${top}px`);
     setInlineStyleIfChanged(layout, '--edit-top-class-sticky-top', `${treeStickyTop}px`);
     if (panel.hidden || document.getElementById('edit-tree-panel')?.hidden || window.innerWidth <= 760) {
-      removeInlineStyleIfPresent(layout, '--edit-pane-available-height');
       removeInlineStyleIfPresent(panel, 'height');
       removeInlineStyleIfPresent(panel, 'max-height');
       removeInlineStyleIfPresent(panel, 'visibility');
       return;
     }
-    const availableHeight = Math.max(0, window.innerHeight - top - 8);
-    setInlineStyleIfChanged(layout, '--edit-pane-available-height', `${Math.max(0, availableHeight)}px`);
+    const visibleHeaderHeight = Number.parseFloat(getComputedStyle(layout).getPropertyValue('--edit-pane-visible-header-height')) || 0;
+    const availableHeight = Math.max(0, (window.visualViewport?.height || window.innerHeight) - top - 8 - visibleHeaderHeight);
     const desiredHeight = panel.classList.contains('is-collapsed')
       ? Number.parseFloat(getComputedStyle(panel).getPropertyValue('--held-collapsed-height')) || panel.scrollHeight
       : availableHeight;
@@ -131,12 +130,70 @@ const topCheckboxById = new Map();
 let hasUnsavedChanges = false;
 let heldPanelView = 'held';
 let heldKindView = 'top';
+const heldPageByKind = { top: 0, middle: 0, target: 0 };
+let HELD_PAGE_SIZE = 10;
 let heldPanelCollapsed = false;
 let heldPanelClosed = false;
 let heldDestinationKind = 'top';
 let heldDestinationId = '';
 let recentHeldDestinationIds = [];
 const treeFilterKeywords = [];
+let currentFilteredTargetIds = null;
+let selectionRangeAnchorId = null;
+
+function applyTreeSubtreeSelection(rootIds, selected) {
+  const childrenByParent = new Map();
+  data.classData.relations.forEach(({ child, parent }) => {
+    if (!childrenByParent.has(parent)) childrenByParent.set(parent, []);
+    childrenByParent.get(parent).push(child);
+  });
+  const visited = new Set();
+  const pending = [...rootIds];
+  while (pending.length) {
+    const id = pending.pop();
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const item = classById.get(id);
+    if (item) {
+      const type = classKind(item);
+      const selection = type === 'class' ? heldInstances : type === 'middle' ? heldMiddleClasses : heldTopClasses;
+      if (selected) selection.set(id, item);
+      else selection.delete(id);
+    }
+    pending.push(...(childrenByParent.get(id) || []));
+  }
+  syncTreeSelectionAppearance();
+}
+
+function syncTreeSelectionAppearance() {
+  middleCheckboxById.forEach((checkbox, id) => { checkbox.checked = heldMiddleClasses.has(id); });
+  topCheckboxById.forEach((checkbox, id) => { checkbox.checked = heldTopClasses.has(id); });
+  targetButtonById.forEach((button, id) => button.classList.toggle('is-selected', heldInstances.has(id)));
+}
+
+function applyTreeSelectionRange(control, event, selected) {
+  const tree = document.getElementById('edit-tree');
+  const controls = [...tree.querySelectorAll('.tree-level-selection-checkbox, .tree-leaf-class')];
+  const ids = controls.map((element) => element.dataset.selectionId);
+  const index = ids.indexOf(control.dataset.selectionId);
+  const anchorIndex = ids.indexOf(selectionRangeAnchorId);
+  const shiftRange = event.shiftKey || control.dataset.shiftKey === 'true';
+  delete control.dataset.shiftKey;
+  let selectedIds;
+  if (shiftRange && index >= 0 && anchorIndex >= 0) {
+    const [start, end] = [index, anchorIndex].sort((a, b) => a - b);
+    selectedIds = controls.slice(start, end + 1).map((element) => element.dataset.selectionId);
+  } else {
+    selectedIds = [control.dataset.selectionId];
+  }
+  applyTreeSubtreeSelection(selectedIds, selected);
+  selectionRangeAnchorId = control.dataset.selectionId;
+  heldKindView = control.dataset.selectionKind === 'target'
+    ? 'target'
+    : control.dataset.selectionKind === 'middle' ? 'middle' : 'top';
+  syncTargetButtonAvailability();
+  renderInstances();
+}
 
 // 未分類の上位クラスは予約ID t_0 に統一する（旧データの t_16 なども移行）。
 const unclassifiedTop = classes.find((item) => classKind(item) === 'top' && item.label === '未分類');
