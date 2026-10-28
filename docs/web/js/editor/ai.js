@@ -839,6 +839,18 @@
     next.disabled = index < 0 || index >= items.length - 1;
     document.getElementById('ai-preview-position').textContent = index < 0 ? '' : `${index + 1} / ${items.length}`;
   };
+  const updatePreviewProposalHeading = (proposalItem) => {
+    const operationsCount = proposalItem.proposal.operations.length;
+    const statusLabels = {
+      pending: '保留中', previewed: '確認済み', stale: '再確認待ち', applied: '適用済み',
+      'awaiting-answers': '回答待ち', superseded: '回答済み', invalid: '無効'
+    };
+    const status = statusLabels[proposalItem.status] || '保留中';
+    const questionCount = proposalItem.proposal.questions?.length || 0;
+    const questionStatus = proposalItem.status === 'awaiting-answers' && questionCount
+      ? `・確認事項${questionCount}件` : '';
+    document.getElementById('ai-preview-proposal-heading').textContent = `変更案（${operationsCount}件・${status}${questionStatus}）`;
+  };
   const showPreview = async (proposalItem, applyRequested = false, fastUpdate = false) => {
     const applyButton = document.getElementById('ai-apply-proposal');
     if (!fastUpdate) {
@@ -850,6 +862,7 @@
     proposalItem.excludedOperationIndexes ||= new Set();
     if (!fastUpdate) {
       updatePreviewNavigation(proposalItem);
+      updatePreviewProposalHeading(proposalItem);
       document.getElementById('ai-preview-summary').textContent = proposalItem.proposal.summary || proposalItem.proposal.title || '変更内容の説明はありません。';
       document.getElementById('ai-preview-reason').textContent = proposalItem.proposal.reason || '理由の記載はありません。';
       document.getElementById('ai-preview-uncertainties').textContent = proposalItem.proposal.uncertainties?.length
@@ -881,6 +894,7 @@
     } else if (proposalItem.status === 'pending') {
       proposalItem.status = 'previewed';
     }
+    updatePreviewProposalHeading(proposalItem);
     if (stateFingerprint() !== expectedFingerprint) throw new Error('プレビュー作成中にデータが変更されました。最新データで提案し直してください。');
     const beforeState = editor.getState();
     const beforeIds = new Set(beforeState.classes.map((item) => item.id));
