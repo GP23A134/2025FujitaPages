@@ -318,17 +318,19 @@
       .filter((operation) => operation.type === 'addClass' && operation.temporaryId)
       .map((operation) => [operation.temporaryId, operation.label]));
     messages.replaceChildren();
-    let proposalQueueRendered = false;
     const allProposalItems = currentConversation.items.filter((item) => item.type === 'proposal');
-    for (let index = 0; index < currentConversation.items.length; index += 1) {
-      const item = currentConversation.items[index];
+    const questionItems = currentConversation.items.filter((item) => item.type === 'questions');
+    currentConversation.items.forEach((item) => {
       if (item.type === 'message') renderMessage(item);
-      else if (item.type === 'proposal' && !proposalQueueRendered) {
-        renderProposalQueue(allProposalItems);
-        proposalQueueRendered = true;
-      } else if (item.type === 'questions') renderQuestionQueue(item);
       else if (item.type === 'data-requests') renderDataRequest(item);
-    }
+    });
+    questionItems.forEach(renderQuestionQueue);
+    if (allProposalItems.length && questionItems.some((item) => !item.submitted)) {
+      const waiting = document.createElement('p');
+      waiting.className = 'ai-proposal-waiting';
+      waiting.textContent = '確認事項への回答を送信すると、変更案が表示されます。';
+      messages.append(waiting);
+    } else if (allProposalItems.length) renderProposalQueue(allProposalItems);
     messages.scrollTop = scrollToBottom ? messages.scrollHeight : previousScrollTop;
     status.textContent = currentConversation.status || '';
     updateUsageSummary();
@@ -544,7 +546,7 @@
     const question = item.questions[item.activeIndex] || item.questions[0];
     const content = document.createElement('div'); content.className = 'ai-question-content';
     const progress = document.createElement('p'); progress.className = 'ai-question-progress';
-    progress.textContent = `質問 ${item.activeIndex + 1} / ${item.questions.length}`;
+    progress.textContent = `質問 ${item.activeIndex + 1} / ${item.questions.length}　Enterで次へ／送信・Shift+Enterで改行`;
     content.append(progress);
     if (question.proposalTitle) {
       const context = document.createElement('p'); context.className = 'ai-question-context';
@@ -577,6 +579,11 @@
       answer.setCustomValidity('');
       if (!isLast) { item.activeIndex += 1; renderConversation(); return; }
       void submitQuestionAnswers(item);
+    });
+    answer.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' || event.shiftKey || event.isComposing || event.repeat) return;
+      event.preventDefault();
+      next.click();
     });
     actions.append(previous, recommend, next);
     content.append(actions);
@@ -1152,7 +1159,7 @@
 
     const hierarchyScope = editor.getHierarchyScopedState(scope.selectedIds);
     if (!hierarchyScope) return null;
-    const hierarchyInstruction = 'この分割処理では上位・中間クラスの階層構造だけを検討してください。selectionRootsの上位クラスは中間クラスへ移動できます。その場合は上位を中間化し、配下の親子関係を保って移動してください。対象クラスの変更案は作らず、入力にない情報を推測しないでください。';
+    const hierarchyInstruction = 'この分割範囲では上位・中間クラスの追加・改名・移動・削除を提案できます。対象クラスの個別情報は含まれないため対象クラスの変更案は作らず、入力にない情報を推測しないでください。この制約は今回の階層分割範囲だけに適用し、AIシステム全体が対象クラスの移動しかできないなどと説明してはいけません。selectionRootsの上位クラスは中間クラスへ移動できます。その場合は上位を中間化し、配下の親子関係を保って移動してください。';
     const hierarchyClasses = scope.classes.filter((item) => ['top', 'middle'].includes(item.type));
     const hierarchyChunkLimit = MAX_REQUEST_CHARACTERS;
     const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
@@ -1258,7 +1265,7 @@
     hierarchyTasks.splice(0, hierarchyTasks.length, ...packedHierarchyTasks);
 
     const targetClasses = scope.classes.filter((item) => item.type === 'class' && scope.editableIds.includes(item.id));
-    const targetInstruction = 'この分割範囲に含まれる対象クラスだけを評価してください。許可する操作は対象クラスの移動だけです。上位・中間クラスの追加・改名・移動・削除や、入力にない対象クラスの操作は提案しないでください。移動先は入力にある上位・中間クラスのIDだけを使ってください。';
+    const targetInstruction = 'この分割範囲に含まれる対象クラスだけを評価してください。この範囲で許可する操作は対象クラスの移動だけです。上位・中間クラスの追加・改名・移動・削除や、入力にない対象クラスの操作は提案しないでください。移動先は入力にある上位・中間クラスのIDだけを使ってください。この制約は今回の対象クラス分割範囲だけに適用されます。AIシステム全体が上位・中間クラスを再編できない、または新しい中間クラスを作成できないと説明してはいけません。階層の再編が今回必要だが入力に階層クラスがない場合は、今回の範囲に階層情報がないため別途階層クラスの選択が必要だと説明してください。';
     const targetTasks = [];
     const targetUnits = [];
     targetClasses.forEach((target) => {
