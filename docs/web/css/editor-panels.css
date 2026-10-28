@@ -346,6 +346,21 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-proposal p { margin: 0; color: #334155; font-size: 0.76rem; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ai-preview-uncertainties { grid-column: 1 / -1; }
 @media (max-width: 700px) { .ai-preview-proposal { grid-template-columns: minmax(0, 1fr); } }
+.ai-preview-page[hidden] { display: none; }
+.ai-preview-page-heading { margin: 0.75rem 0 0.45rem; color: #0f3d63; font-size: 0.95rem; }
+.ai-preview-group-overview { display: grid; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
+.ai-preview-group-overview li { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; padding: 0.55rem 0.65rem; border: 1px solid #dbe3ec; border-radius: 7px; background: #f8fafc; }
+.ai-preview-group-overview strong { min-width: 0; color: #334155; font-size: 0.82rem; }
+.ai-preview-group-overview span { flex: 0 0 auto; color: #64748b; font-size: 0.72rem; }
+.ai-preview-change-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.25rem; }
+.ai-preview-change-page-heading h3 { min-width: 0; margin: 0; color: #0f3d63; font-size: 0.95rem; }
+.ai-preview-final-actions { justify-content: flex-end; margin: 0.45rem 0; }
+.ai-preview-page-navigation { position: sticky; bottom: -1rem; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin: 0.9rem -1rem -1rem; padding: 0.65rem 1rem; border-top: 1px solid #dbe3ec; background: rgba(255, 255, 255, 0.97); }
+.ai-preview-page-navigation > span { flex: 1 1 auto; color: #64748b; font-size: 0.78rem; text-align: center; }
+.ai-preview-page-navigation button { min-height: 2.2rem; padding: 0.35rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.8rem; }
+.ai-preview-page-navigation button.search-button { border-color: #0369a1; color: #fff; background: #0369a1; }
+.ai-preview-page-navigation button:disabled { color: #94a3b8; background: #f1f5f9; cursor: not-allowed; }
+.ai-preview-page-navigation button[hidden] { display: none; }
 .ai-preview-column-header { display: flex; min-height: 2rem; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 0.4rem 0.65rem; margin: 0.4rem 0; }
 .ai-preview-column-header h3 { margin: 0; }
 .ai-preview-after-header { flex-wrap: wrap; }

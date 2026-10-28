@@ -8,7 +8,7 @@
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261028-scroll-perf-v1">
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261028-class-query-sharing-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261028-class-query-sharing-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261028-ai-preview-pages-v1">
   <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261028-class-query-sharing-v1">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261028-class-query-sharing-v1">
   <script src="web/data/generated/class-data.js" defer></script>
@@ -219,34 +219,53 @@
       <button type="button" id="ai-preview-close" class="target-instance-dialog-close" aria-label="閉じる">×</button>
     </div>
     <p id="ai-preview-impact" class="ai-preview-impact" role="status" aria-live="polite"></p>
-    <details class="ai-preview-proposal-section">
-      <summary id="ai-preview-proposal-heading">提案の内容と変更一覧</summary>
-      <section class="ai-preview-proposal" aria-label="提案の内容">
-        <div><h3>変更内容</h3><p id="ai-preview-summary"></p></div>
-        <div><h3>理由</h3><p id="ai-preview-reason"></p></div>
-        <div class="ai-preview-uncertainties"><h3>不確かな点</h3><p id="ai-preview-uncertainties"></p></div>
-      </section>
-      <ul id="ai-preview-change-list" class="ai-preview-change-list"></ul>
-    </details>
-    <div class="ai-preview-columns">
-      <section>
-        <div class="ai-preview-column-header"><h3>変更前</h3></div>
-        <div id="ai-preview-before" class="ai-preview-tree"></div>
-      </section>
-      <section>
-        <div class="ai-preview-column-header ai-preview-after-header">
-          <h3>変更後</h3>
-          <div class="ai-preview-selection-actions">
-            <button type="button" id="ai-preview-select-all">すべて適用</button>
-            <button type="button" id="ai-preview-exclude-all">すべて除外</button>
-          </div>
+    <section id="ai-preview-overview-page" class="ai-preview-page">
+      <details class="ai-preview-proposal-section">
+        <summary id="ai-preview-proposal-heading">変更案の概要</summary>
+        <section class="ai-preview-proposal" aria-label="変更案の概要">
+          <div><h3>変更内容</h3><p id="ai-preview-summary"></p></div>
+          <div><h3>理由</h3><p id="ai-preview-reason"></p></div>
+          <div class="ai-preview-uncertainties"><h3>不確かな点</h3><p id="ai-preview-uncertainties"></p></div>
+        </section>
+      </details>
+      <h3 class="ai-preview-page-heading">変更のまとまり</h3>
+      <ul id="ai-preview-group-overview" class="ai-preview-group-overview"></ul>
+    </section>
+    <section id="ai-preview-change-page" class="ai-preview-page" hidden>
+      <div class="ai-preview-change-page-heading">
+        <h3 id="ai-preview-group-title"></h3>
+        <div class="ai-preview-selection-actions">
+          <button type="button" id="ai-preview-group-include">このまとまりを適用</button>
+          <button type="button" id="ai-preview-group-exclude">このまとまりを除外</button>
         </div>
-        <div id="ai-preview-after" class="ai-preview-tree"></div>
-      </section>
-    </div>
-    <div class="ai-preview-actions">
-      <p class="ai-preview-note">青は適用、灰は除外。対象はクリック、上位はチェックで切替（配下一括移動は一括）。</p>
-      <button type="button" id="ai-apply-proposal" class="search-button">この変更を適用</button>
+      </div>
+      <ul id="ai-preview-change-list" class="ai-preview-change-list"></ul>
+      <div class="ai-preview-columns">
+        <section>
+          <div class="ai-preview-column-header"><h3>変更前</h3></div>
+          <div id="ai-preview-before" class="ai-preview-tree"></div>
+        </section>
+        <section>
+          <div class="ai-preview-column-header"><h3>変更後</h3></div>
+          <div id="ai-preview-after" class="ai-preview-tree"></div>
+        </section>
+      </div>
+      <p class="ai-preview-note">青は適用、灰は除外。対象クラスはクリック、上位クラスはチェックで切替できます。</p>
+    </section>
+    <section id="ai-preview-final-page" class="ai-preview-page" hidden>
+      <h3 class="ai-preview-page-heading">適用前の最終確認</h3>
+      <div class="ai-preview-selection-actions ai-preview-final-actions">
+        <button type="button" id="ai-preview-select-all">すべて適用</button>
+        <button type="button" id="ai-preview-exclude-all">すべて除外</button>
+      </div>
+      <ul id="ai-preview-final-change-list" class="ai-preview-change-list"></ul>
+      <p class="ai-preview-note">適用する変更だけが編集データに反映されます。</p>
+    </section>
+    <div class="ai-preview-page-navigation">
+      <button type="button" id="ai-preview-page-previous">前へ</button>
+      <span id="ai-preview-page-position" aria-live="polite"></span>
+      <button type="button" id="ai-preview-page-next" class="search-button">変更を確認</button>
+      <button type="button" id="ai-apply-proposal" class="search-button" hidden>この変更を適用</button>
     </div>
   </dialog>
   <dialog id="ai-send-confirm-dialog" class="ai-send-confirm-dialog" aria-labelledby="ai-send-confirm-title">
@@ -274,6 +293,6 @@
       <button type="button" id="ai-send-confirm-approve" class="search-button">この内容で送信</button>
     </div>
   </dialog>
-  <script src="web/js/editor/ai.js?v=20261028-class-query-sharing-v1" defer></script>
+  <script src="web/js/editor/ai.js?v=20261028-ai-preview-pages-v1" defer></script>
 </body>
 </html>
