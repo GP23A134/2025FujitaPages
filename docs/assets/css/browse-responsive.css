@@ -1,0 +1,94 @@
+/* 集計・一覧と、画面幅に応じた閲覧画面レイアウトの調整。 */
+/* 9. 一覧表 */
+.aggregation-panel { padding: 1rem 0; }
+.aggregation-description { margin: 0 0 1rem; color: #475569; }
+.aggregation-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; margin: 0 0 1.25rem; }
+.aggregation-card { display: flex; flex-direction: column; gap: 0.25rem; padding: 1rem; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; }
+.aggregation-card span { color: #475569; font-size: 0.88rem; }
+.aggregation-card strong { color: #0f3d63; font-size: 1.55rem; }
+.aggregation-controls { display: flex; justify-content: flex-end; margin: 0 0 1rem; }
+.aggregation-controls label { display: flex; align-items: center; gap: 0.5rem; color: #334155; font-weight: 650; }
+.aggregation-controls select { min-width: 12rem; padding: 0.45rem; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; }
+.aggregation-flow { display: grid; grid-template-columns: repeat(4, minmax(16rem, 1fr)); gap: 0.75rem; overflow-x: auto; align-items: start; padding-bottom: 0.5rem; }
+.aggregation-section { min-width: 0; margin: 0; padding: 1rem; border: 1px solid #dbe3ec; border-radius: 12px; background: #fff; }
+.aggregation-section h2 { margin: 0 0 0.75rem; color: #0f3d63; font-size: 1.2rem; }
+.aggregation-table th { position: static; }
+.aggregation-table th[scope="row"] { color: #1e293b; background: transparent; font-weight: 600; }
+.aggregation-table td { min-width: 7rem; }
+.aggregation-bar-cell { width: 25%; }
+.aggregation-bar { display: block; min-width: 0; height: 0.75rem; border-radius: 999px; background: #0284c7; }
+.aggregation-table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.94rem; overflow: hidden; border-radius: 14px; }
+th, td { border-bottom: 1px solid #e2e8f0; padding: 0.65rem 0.75rem; text-align: left; }
+th { position: sticky; top: 0; background: #e0f2fe; color: #0f3d63; }
+tbody tr:nth-child(even) { background: #f8fafc; }
+tbody tr:hover { background: #eff6ff; }
+
+/* 10. 画面幅に応じたレイアウト調整 */
+@media (max-width: 760px) {
+  .edit-tree-layout { grid-template-columns: 1fr; }
+  .edit-tree-layout .tree-filter,
+  .edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .tree-filter,
+  .edit-tree-layout:has(.instance-selection[hidden]) .tree-filter { width: 100%; }
+  .edit-tree-layout .instance-selection,
+  .edit-tree-layout .instance-selection.is-collapsed { position: static; width: auto; }
+  .held-panel-resize { display: none; }
+  .ai-preview-columns { grid-template-columns: minmax(0, 1fr); }
+  .ai-preview-proposal { grid-template-columns: minmax(0, 1fr); }
+  .ai-preview-uncertainties { grid-column: auto; }
+  .ai-preview-dialog { padding: 0.75rem; }
+}
+
+@media (max-width: 720px) {
+  #tree-panel .tree { height: auto; max-height: none; overflow: visible; }
+  .list-tabs { overflow-x: auto; }
+  .list-tab { white-space: nowrap; }
+}
+
+@media (max-width: 640px) {
+  .aggregation-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .aggregation-controls label { align-items: stretch; flex-direction: column; width: 100%; }
+  .aggregation-controls select { width: 100%; }
+  .aggregation-section { padding: 0.6rem; }
+  .tree-filter-body { gap: 0.55rem; padding: 0.65rem; }
+  .tree-filter-count-settings > .tree-filter-count-range,
+  .tree-filter-count-settings > .tree-filter-count-exact { min-width: min(100%, 14rem); }
+  .page-header { width: 100%; margin: 0; padding: 0 1rem 0.75rem; }
+  .page-header-actions { top: 0.75rem; right: 1rem; }
+  .page-header h1, .page-header .page-description { padding-right: 9rem; }
+  .edit-taskbar { width: 100%; flex-wrap: wrap; gap: 0.3rem; padding: 0.25rem 1rem; }
+  .edit-taskbar-group:not(:last-child) { padding-right: 0.3rem; }
+  .edit-taskbar-button { min-height: 1.9rem; padding: 0.18rem 0.4rem; font-size: 0.76rem; }
+  .edit-taskbar .held-panel-mode-tab { min-height: 1.7rem; padding-inline: 0.35rem; font-size: 0.74rem; }
+  .tree-toolbar-button { min-height: 2.2rem; padding-inline: 0.55rem; font-size: 0.8rem; }
+  main { width: 100%; margin: 0; padding: 1rem; border-radius: 0; }
+  #target-search-panel .class-search { grid-template-columns: minmax(0, 1fr) auto; gap: 0.65rem; }
+  #target-search-panel .class-search > label,
+  #target-search-panel .class-search-text { grid-column: 1 / -1; min-width: 0; }
+  #target-search-panel #target-search-submit { grid-column: 2; justify-self: end; }
+  .search-active-filter-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .search-active-filter-label { grid-column: 1 / -1; }
+  .target-search-toolbar { align-items: stretch; flex-direction: column; }
+  .target-search-selection-actions { justify-content: flex-end; }
+  .search-form { align-items: stretch; flex-wrap: wrap; }
+  .search-label { width: 100%; }
+  .search-input-wrapper { flex-basis: calc(100% - 6.5rem); }
+  .tabs { margin-inline: -1rem; padding-inline: 0.5rem; overflow-x: auto; }
+  .tab { white-space: nowrap; flex: 1; padding-inline: 0.8rem; }
+  #table-panel { overflow-x: auto; }
+  table { min-width: 720px; }
+  #list-panel .class-search { align-items: stretch; gap: 0.55rem; }
+  #list-panel .class-search label:not(.class-search-text) { flex: 1 1 calc(50% - 0.55rem); min-width: 0; }
+  #list-panel .class-search select { width: 100%; min-width: 0; }
+  #list-panel .class-search-text { flex: 1 1 100%; min-width: 0; }
+  #list-panel .class-search-text input { min-width: 0; }
+  #list-panel .list-panel-heading { align-items: stretch; flex-direction: column; gap: 0.45rem; }
+  #list-panel .list-sort-slot { justify-content: flex-end; }
+  #list-panel .list-sort-filter { justify-content: space-between; }
+  #list-panel .list-sort-filter select { flex: 1; min-width: 0; }
+  #list-panel .list-actions { flex: 1 1 100%; margin-left: 0; }
+  #list-panel .list-actions > button { flex: 1 1 0; }
+  #list-panel .list-pagination, #list-panel .instance-pagination { grid-template-columns: 1fr auto 1fr; }
+  #list-panel .list-subpanel { overflow-x: auto; }
+  #list-panel table { min-width: 720px; }
+}

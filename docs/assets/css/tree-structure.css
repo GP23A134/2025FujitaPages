@@ -1,0 +1,126 @@
+/* 閲覧・編集で共用するツリー領域の寸法、階層線、検索パネルの構造。 */
+/* 4. 階層ツリーの共通構造 */
+/* ツリー領域の寸法とクラスカード間隔 */
+.tree {
+  --tree-target-width: 300px;
+  --tree-target-row-gap: 0.15rem;
+  --tree-target-column-gap: 0.95rem;
+  margin: 0;
+  padding: 0 0.075rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  overflow: auto;
+}
+/* 開閉式の階層見出し、子リスト、接続線 */
+.tree details { margin: 0.35rem 0; }
+.tree summary { cursor: pointer; font-weight: 600; padding: 0.45rem 0.6rem; border-radius: 6px; }
+.tree-level-id { display: inline; margin-left: 0.75rem; color: #64748b; font-size: 0.72rem; font-weight: 400; overflow-wrap: anywhere; }
+.tree details > summary:hover { background: #e0f2fe; }
+.tree ul { margin: 0.45rem 0 0.75rem 1.25rem; padding: 0; list-style: none; }
+/* 全階層の横線接点を各行の高さの50%に揃える。 */
+.tree li { position: relative; --tree-connector-y: 50%; margin: 0.4rem 0; }
+.tree-top-class > summary { position: sticky; top: 0; z-index: 10; color: #075985; background: #e0f2fe; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08); }
+.tree-middle-class > summary { position: sticky; top: 2.25rem; z-index: 5; background: #f8fafc; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06); }
+.tree > details > ul { position: relative; margin-left: 0.7rem; padding-left: 1.15rem; border-left: 0; }
+.tree > details > ul::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0.75rem; border-left: 2px solid #7dd3fc; }
+/* 上位クラス直下のli: ::beforeが横線。topは接続点の高さ、left/widthが線の横位置と長さ。 */
+.tree > details > ul > li::before { content: ""; position: absolute; left: -1.15rem; top: var(--tree-connector-y); transform: translateY(-50%); width: 1.15rem; border-top: 2px solid var(--tree-level-color, #7dd3fc); }
+.tree > details > ul > li > details > ul {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 0.45rem 0.75rem;
+  padding: 0.35rem 0.75rem;
+  border-left: 0;
+}
+.tree > details > ul > li > details > ul::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0.75rem; border-left: 2px solid #cbd5e1; }
+/* クラスを表示する階層では、上位クラス側の縦線だけを残す。 */
+.tree > details > ul > li > details:has(> ul > .tree-target-row) > ul::before { display: none; }
+.tree > details > ul > li > details > ul > li { margin: 0; }
+/* 中間クラス配下の通常の対象行: ::beforeが横線。 */
+.tree > details > ul > li > details > ul > li::before { content: ""; position: absolute; left: -1rem; top: var(--tree-connector-y); transform: translateY(-50%); width: 1rem; border-top: 1px solid var(--tree-level-color, #7dd3fd); }
+.tree .tree-target-list > li::before { content: ""; position: absolute; left: -1rem; top: var(--tree-connector-y); transform: translateY(-50%); width: 1rem; border-top: 1px solid var(--tree-level-color, #7dd3fd); }
+.tree > details > ul > li > details > ul > .tree-target-row { grid-column: 1 / -1; }
+.tree li:has(> .tree-leaf-class) {
+  width: min(100%, var(--tree-target-width));
+  box-sizing: border-box;
+}
+/* 中間クラス行も横線の接点を行の中央に揃える。 */
+.tree li:has(> details.tree-middle-class) {
+  margin-block: 0;
+}
+.tree li:has(> details.tree-middle-class)::before { top: var(--tree-connector-y); }
+.tree .tree-middle-class > ul { display: grid; row-gap: var(--tree-target-row-gap); }
+.tree a { color: #334155; text-decoration: none; }
+
+/* 階層見出しの件数バッジ */
+.count-badge { display: inline-block; min-width: 1.8rem; margin-left: 0.55rem; padding: 0.05rem 0.45rem; border-radius: 999px; text-align: center; font-size: 0.78rem; font-weight: 700; vertical-align: 0.08em; }
+
+/* 5. 絞り込みパネルの開閉見出しと件数 */
+.tree-filter { position: relative; margin: var(--edit-pane-top-offset, 0px) 0 var(--edit-pane-search-tree-gap, 0.85rem); border: 1px solid #d8dee9; border-radius: 10px; background: #f8fafc; }
+.tree-filter[hidden] { display: none; }
+.tree-filter-heading { position: relative; display: flex; min-height: var(--edit-pane-header-height, 2.8rem); align-items: center; justify-content: flex-start; gap: 0.6rem; padding: var(--edit-pane-header-padding-block, 0.4rem) 2.85rem var(--edit-pane-header-padding-block, 0.4rem) 3.5rem; border-radius: 9px; color: #334155; background: #f1f5f9; cursor: pointer; font-size: var(--tree-panel-heading-font-size, 1rem); font-weight: 700; line-height: 1.35; list-style: none; }
+.tree-filter-close { position: absolute; top: 50%; right: 0.85rem; z-index: 1; transform: translateY(-50%); }
+.tree-filter-heading::-webkit-details-marker { display: none; }
+.tree-filter-heading::after { position: absolute; left: 0.85rem; content: "▾"; color: #64748b; font-size: 1rem; }
+.tree-filter[open] > .tree-filter-heading { border-bottom: 1px solid #cbd5e1; border-radius: 9px 9px 0 0; }
+.tree-filter[open] > .tree-filter-heading::after { content: "▴"; }
+.tree-filter-heading:hover, .tree-filter-heading:focus-visible { background: #e2e8f0; outline: none; }
+.tree-filter-count { position: static; transform: none; margin: 0; padding: 0.1rem 0.55rem; border: 1px solid #cbd5e1; border-radius: 999px; color: #475569; background: #fff; font-size: 0.78rem; font-weight: 700; line-height: 1.5; }
+/* 絞り込み条件の入力欄、キーワード、件数方式の切り替え */
+.tree-filter-body { display: flex; flex-wrap: wrap; align-items: end; gap: 0.7rem; padding: 0.75rem 0.85rem; }
+.tree-filter-search-controls { display: contents; }
+.tree-filter label { display: flex; min-width: 0; flex-direction: column; gap: 0.3rem; color: #475569; font-size: 0.78rem; font-weight: 700; }
+.tree-filter select, .tree-filter input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 2.7rem; padding: 0.5rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font: inherit; font-weight: 400; }
+.tree-filter select:focus-visible, .tree-filter input:focus-visible { border-color: #0284c7; outline: 3px solid rgba(56, 189, 248, 0.2); }
+.tree-filter-query-label input { width: 100%; }
+.tree-filter-query-label { flex: 1 1 14rem; }
+.tree-filter-count-settings { display: contents; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; }
+.tree-filter-count-settings > label { flex: 1 1 14rem; min-width: 0; }
+.tree-filter-count-settings[hidden] { display: none; }
+#tree-filter-type,
+#tree-filter-count-mode { width: 8rem; min-width: 8rem; max-width: 8rem; }
+.tree-filter-count-mode-label { flex: 0 0 8rem !important; width: 8rem; }
+.tree-filter-mode-switch { display: inline-flex; flex: 0 0 auto; align-self: end; align-items: center; gap: 0.2rem; width: fit-content; max-width: 100%; height: 2.7rem; box-sizing: border-box; padding: 0.15rem; border: 1px solid #cbd5e1; border-radius: 8px; background: #f1f5f9; }
+.tree-filter-mode-switch button { height: 100%; padding: 0.35rem 0.85rem; border: 1px solid transparent; border-radius: 6px; color: #475569; background: transparent; cursor: pointer; font: inherit; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.tree-filter-mode-switch button.is-active { border-color: #94a3b8; color: #1e3a5f; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1); }
+.tree-filter-mode-switch button:hover { background: #e2e8f0; }
+.tree-filter-mode-switch button.is-active:hover { background: #fff; }
+.tree-filter-mode-switch button:focus-visible { outline: 2px solid #0284c7; outline-offset: 2px; }
+.tree-filter-count-settings > .tree-filter-count-range,
+.tree-filter-count-settings > .tree-filter-count-exact { flex: 1 1 0; min-width: 0; }
+.tree-filter-search-controls[hidden] { display: none; }
+.tree-filter-exact-slider-row { display: flex; flex: 1 1 auto; align-items: center; gap: 0.55rem; width: 100%; min-width: 0; color: #64748b; font-size: 0.75rem; font-weight: 500; }
+.tree-filter-exact-slider-wrap { position: relative; flex: 1 1 auto; min-width: 4rem; }
+.tree-filter .tree-filter-exact-slider { display: block; width: 100%; min-width: 4rem; min-height: auto; padding: 0; border: 0; background: transparent; accent-color: #64748b; }
+.tree-filter-exact-bubble { left: 0; }
+.tree-filter-exact-slider-wrap.is-adjusting .tree-filter-exact-bubble { opacity: 1; visibility: visible; }
+.tree-filter-count-exact output { color: #334155; font-weight: 700; }
+.tree-filter-count-exact-title { white-space: nowrap; }
+#tree-filter-count-range[hidden],
+#tree-filter-count-exact[hidden] { display: none; }
+/* 範囲指定スライダーと、操作中の件数吹き出し */
+.tree-filter-count-range { display: flex; flex: 1 1 0; flex-direction: column; gap: 0.25rem; box-sizing: border-box; width: 100%; min-width: 0; min-inline-size: 0; margin: 0; padding: 0; border: 0; background: transparent; }
+.tree-filter-range-values { display: flex; justify-content: space-between; gap: 0.5rem; color: #64748b; font-size: 0.75rem; font-weight: 500; }
+.tree-filter-range-values output { color: #334155; font-weight: 700; }
+.tree-filter-range-sliders { position: relative; height: 1.5rem; margin: 0 0.35rem; --range-start: 0%; --range-end: 100%; }
+.tree-filter-range-sliders::before, .tree-filter-range-sliders::after { position: absolute; top: 50%; height: 0.3rem; transform: translateY(-50%); border-radius: 999px; content: ""; pointer-events: none; }
+.tree-filter-range-sliders::before { right: 0; left: 0; background: #e2e8f0; }
+.tree-filter-range-sliders::after { left: var(--range-start); right: calc(100% - var(--range-end)); background: #475569; }
+.tree-filter .tree-filter-range-sliders input[type="range"] { position: absolute; inset: 0; width: 100%; height: 1.5rem; min-height: 1.5rem; margin: 0; padding: 0; border: 0; appearance: none; -webkit-appearance: none; background: transparent; pointer-events: none; }
+.tree-filter .tree-filter-range-sliders input[type="range"]::-webkit-slider-runnable-track { background: transparent; }
+.tree-filter .tree-filter-range-sliders input[type="range"]::-moz-range-track { background: transparent; }
+.tree-filter .tree-filter-range-sliders input[type="range"]::-moz-range-progress { background: transparent; }
+.tree-filter .tree-filter-range-sliders input[type="range"]::-webkit-slider-thumb { width: 1rem; height: 1rem; -webkit-appearance: none; appearance: none; border: 2px solid #fff; border-radius: 50%; background: #475569; box-shadow: 0 0 0 1px #64748b; pointer-events: auto; }
+.tree-filter .tree-filter-range-sliders input[type="range"]::-moz-range-thumb { width: 0.75rem; height: 0.75rem; border: 2px solid #fff; border-radius: 50%; background: #475569; box-shadow: 0 0 0 1px #64748b; pointer-events: auto; }
+.tree-filter-range-sliders #tree-filter-count-min { z-index: 1; }
+.tree-filter-range-sliders #tree-filter-count-max { z-index: 2; }
+.tree-filter-range-bubble { position: absolute; top: -1.45rem; z-index: 3; transform: translateX(-50%); padding: 0.15rem 0.45rem; border-radius: 0.35rem; color: #fff; background: #334155; font-size: 0.7rem; font-weight: 700; line-height: 1.2; white-space: nowrap; opacity: 0; visibility: hidden; pointer-events: none; }
+.tree-filter-range-bubble::after { position: absolute; bottom: -0.25rem; left: 50%; width: 0.45rem; height: 0.45rem; transform: translateX(-50%) rotate(45deg); background: inherit; content: ""; }
+.tree-filter-range-sliders[data-active-thumb="min"] #tree-filter-count-min-bubble,
+.tree-filter-range-sliders[data-active-thumb="max"] #tree-filter-count-max-bubble { opacity: 1; visibility: visible; }

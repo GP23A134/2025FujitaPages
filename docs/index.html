@@ -4,12 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>クラス階層</title>
-  <link rel="icon" type="image/svg+xml" href="data/web/favicon.svg">
-  <link rel="stylesheet" href="style.css">
-  <script src="data/web/class-data.js" defer></script>
-  <script src="data/web/instance-data.js" defer></script>
-    <script src="tree.js" defer></script>
-    <script src="main.js" defer></script>
+  <link rel="icon" type="image/svg+xml" href="data/web/assets/favicon.svg">
+  <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
+  <link rel="stylesheet" href="assets/css/base.css?v=20261028-reorg-v1">
+  <link rel="stylesheet" href="assets/css/tree-structure.css?v=20261028-reorg-v1">
+  <link rel="stylesheet" href="assets/css/editor-panels.css?v=20261028-reorg-v1">
+  <link rel="stylesheet" href="assets/css/tree-appearance.css?v=20261028-reorg-v1">
+  <link rel="stylesheet" href="assets/css/browse-responsive.css?v=20261028-reorg-v1">
+  <script src="data/web/generated/class-data.js" defer></script>
+  <script src="data/web/generated/instance-data.js" defer></script>
+  <!-- defer付きクラシックスクリプトをこの順で実行する。各画面ファイルは共有グローバル状態を使う。 -->
+  <script src="assets/js/shared/tree.js?v=20261028-reorg-v1" defer></script>
+  <script src="assets/js/browse/bootstrap.js?v=20261028-reorg-v1" defer></script>
+  <script src="assets/js/browse/lists.js?v=20261028-reorg-v1" defer></script>
+  <script src="assets/js/browse/aggregation.js?v=20261028-reorg-v1" defer></script>
+  <script src="assets/js/browse/tree.js?v=20261028-reorg-v1" defer></script>
+  <script src="assets/js/browse/main.js?v=20261028-reorg-v1" defer></script>
 </head>
 <body data-mode="browse">
   <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>

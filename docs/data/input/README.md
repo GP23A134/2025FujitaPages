@@ -1,6 +1,6 @@
 # データ更新・移動・追加
 
-クラス分類を更新するときは、編集画面から全件JSONを保存する方法と、AIに変更差分だけを作成させる方法があります。どちらも`class-update.json`としてこのフォルダーに置き、`ClassDataUpdate`を実行してください。AI用の指示は[`classification-prompt.md`](classification-prompt.md)を参照してください。
+クラス分類を更新するときは、編集画面から全件JSONを保存する方法と、AIに変更差分だけを作成させる方法があります。どちらも`class-update.json`としてこのフォルダーに置き、`ClassDataUpdate`を実行してください。`class-update.json`は一時入力としてGit追跡対象外です。反映後は統合データをコミットしてください。AI用の指示は[`classification-prompt.md`](classification-prompt.md)を参照してください。
 
 差分JSONには、必ず[`current-class-data-version.txt`](current-class-data-version.txt)の値を`baseDataHash`として含めます。これはAIへ現在のクラス一覧と一緒に渡してください。差分作成後に元データが更新されていた場合や版情報がない場合、更新プログラムは適用を止め、差分の作り直しを促します。全件JSONによる復元には`baseDataHash`は不要です。
 

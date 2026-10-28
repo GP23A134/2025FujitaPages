@@ -1,0 +1,11 @@
+# 適用後に履歴へ移す一時的な分類更新入力
+/data/input/class-update.json
+
+# ローカルに保管する分類更新履歴（大量のスナップショット）
+/data/input/history/*.json
+
+# 統合データから再生成できる確認用ファイル
+/data/output/*.tsv
+
+# クエリ実行中に作られる一時ファイル
+/data/query-results/**/*.tmp
