@@ -394,6 +394,23 @@
     }
     throw new Error('AIから読み取れるテキストが返りませんでした。もう一度依頼してください。');
   };
+  const parseAIResponse = (response) => {
+    if (response.status === 'incomplete') {
+      const reason = response.incomplete_details?.reason;
+      if (reason === 'max_output_tokens') {
+        throw new Error('AIの返答が出力上限に達して途中で終わりました。確認事項への回答は保持されています。選択範囲を小さくして、もう一度送信してください。');
+      }
+      throw new Error('AIの返答が完了しなかったため、変更案を読み取れませんでした。確認事項への回答は保持されています。もう一度送信してください。');
+    }
+    try {
+      return JSON.parse(readResponseText(response));
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error('AIの返答形式が不完全で、変更案を読み取れませんでした。確認事項への回答は保持されています。依頼を短くするか、選択範囲を小さくしてもう一度送信してください。');
+      }
+      throw error;
+    }
+  };
   const compactScope = (scope) => ({
     mode: scope.mode || 'selected_scope',
     selectedIds: [...(scope.selectedIds || [])],
@@ -1159,11 +1176,9 @@
       request: userText,
       conversationContext: conversation.localContext || undefined,
       selectedScope: diffScope(previousScope, activeScope),
-      instruction: options.instruction || (activeScope.mode === 'overview_summary'
-        ? 'これは全体構造の要約です。個別対象クラス名は含みません。既存クラスの変更・移動・削除は提案せず、全体評価、確認事項、新しい上位・中間クラスの案だけを返してください。'
-        : activeScope.mode === 'hierarchy_scope'
-          ? 'これは階層クラスだけの範囲です。対象クラスの個別情報は含まれません。上位・中間クラスの追加・改名・移動・削除だけを提案してください。上位クラスを中間クラスへ移す場合は上位を中間化し、配下の親子関係を保ってください。対象クラスの操作は提案しないでください。'
-          : 'この相談の範囲にあるクラスの提案だけを返してください。selectionRootsは選択操作の起点です。editableIdsが操作できる移動元の正確な一覧です。sharedContextIdsは利用者が追加共有を許可した参照専用クラスで、移動元・改名・削除の対象にできません。選択外の情報が必要ならdataRequestsにclassIdまたは正確なclassNameと理由を返し、利用者の許可を待ってください。上位クラスを中間クラスへ移す場合は上位を新しい中間クラスIDに変換し、配下の所属先だけを自動的に付け替えて親子関係を保つため、配下を別々に移動する操作は作らないでください。未掲載の配下を推測した別操作は提案しないでください。個別インスタンスデータと件数は含みません。')
+      instruction: options.instruction || (activeScope.mode === 'hierarchy_scope'
+        ? 'これは階層クラスだけの範囲です。対象クラスの個別情報は含まれません。上位・中間クラスの追加・改名・移動・削除だけを提案してください。上位クラスを中間クラスへ移す場合は上位を中間化し、配下の親子関係を保ってください。対象クラスの操作は提案しないでください。'
+        : 'この相談の範囲にあるクラスの提案だけを返してください。selectionRootsは選択操作の起点です。editableIdsが操作できる移動元の正確な一覧です。sharedContextIdsは利用者が追加共有を許可した参照専用クラスで、移動元・改名・削除の対象にできません。選択外の情報が必要ならdataRequestsにclassIdまたは正確なclassNameと理由を返し、利用者の許可を待ってください。上位クラスを中間クラスへ移す場合は上位を新しい中間クラスIDに変換し、配下の所属先だけを自動的に付け替えて親子関係を保つため、配下を別々に移動する操作は作らないでください。未掲載の配下を推測した別操作は提案しないでください。個別インスタンスデータと件数は含みません。')
     });
   };
   const makeLargeScopePlan = (userText, scope, conversation, baseDataHash) => {
@@ -1536,7 +1551,7 @@
           instructions: systemPrompt,
           input,
           text: { format: { type: 'json_schema', name: 'class_edit_proposals', strict: true, schema: responseSchema } },
-          max_output_tokens: 5000,
+          max_output_tokens: 8000,
           store: true
         };
         if (previousResponseId) body.previous_response_id = previousResponseId;
@@ -1549,7 +1564,7 @@
         const responseBody = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(formatHttpError(responseBody, response));
         recordUsage(responseBody);
-        return { responseBody, result: JSON.parse(readResponseText(responseBody)) };
+        return { responseBody, result: parseAIResponse(responseBody) };
       };
       let result;
       let responseId = '';

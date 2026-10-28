@@ -490,21 +490,6 @@ window.classEditorAI = {
       counts: Object.fromEntries(scopedClasses.map((item) => [item.id, all.counts[item.id] || 0]))
     };
   },
-  getOverviewState() {
-    const all = this.getState();
-    const hierarchyClasses = all.classes.filter((item) => ['top', 'middle'].includes(item.type));
-    const hierarchyIds = new Set(hierarchyClasses.map((item) => item.id));
-    return {
-      mode: 'overview_summary',
-      selectedIds: [],
-      selectionRoots: [],
-      editableIds: [],
-      classes: hierarchyClasses,
-      relations: all.relations.filter((item) => hierarchyIds.has(item.child) && hierarchyIds.has(item.parent)),
-      counts: Object.fromEntries(hierarchyClasses.map((item) => [item.id, all.counts[item.id] || 0])),
-      targetClassCount: all.classes.filter((item) => item.type === 'class').length
-    };
-  },
   applyOperations(operations, expectedFingerprint, editableIds = [], availableIds = editableIds) {
     const current = this.getState();
     const fingerprint = JSON.stringify({ classes: current.classes, relations: current.relations });
