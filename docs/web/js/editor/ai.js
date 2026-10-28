@@ -48,7 +48,7 @@
   const modelSelect = document.getElementById('ai-model');
   const settingsStatus = document.getElementById('ai-settings-status');
   let modelConfig = null;
-  const systemPromptPromise = fetch('data/web/config/ai-system-prompt.md', { cache: 'no-store' })
+  const systemPromptPromise = fetch('web/data/config/ai-system-prompt.md', { cache: 'no-store' })
     .then((response) => { if (!response.ok) throw new Error('AIプロンプトを読み込めません。'); return response.text(); })
     .then((prompt) => {
       const trimmedPrompt = prompt.trim();
@@ -60,7 +60,7 @@
       settingsStatus.classList.add('is-error');
       return null;
     });
-  const modelConfigPromise = fetch('data/web/config/ai-models.json', { cache: 'no-store' })
+  const modelConfigPromise = fetch('web/data/config/ai-models.json', { cache: 'no-store' })
     .then((response) => { if (!response.ok) throw new Error('モデル設定ファイルを読み込めません。'); return response.json(); })
     .then((config) => {
       if (!Array.isArray(config.models) || !config.models.length || !config.models.some((item) => item.id === config.defaultModel)) {

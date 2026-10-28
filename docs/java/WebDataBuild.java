@@ -16,8 +16,8 @@ import com.google.gson.JsonParser;
 /** 統合JSONを、クラスデータとインスタンスデータの2つのJavaScriptへ変換します。 */
 public final class WebDataBuild {
     private static final Path INPUT_DIRECTORY = Paths.get("data/integrated");
-    private static final Path CLASS_OUTPUT_FILE = Paths.get("data/web/generated/class-data.js");
-    private static final Path INSTANCE_OUTPUT_FILE = Paths.get("data/web/generated/instance-data.js");
+    private static final Path CLASS_OUTPUT_FILE = Paths.get("web/data/generated/class-data.js");
+    private static final Path INSTANCE_OUTPUT_FILE = Paths.get("web/data/generated/instance-data.js");
     private static final String CLASS_URI_PREFIX = "https://kozaki-lab.jp/REFV-KG/class/";
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
