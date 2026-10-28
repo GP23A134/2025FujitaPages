@@ -437,7 +437,6 @@
   };
   const compactScope = (scope) => ({
     mode: scope.mode || 'selected_scope',
-    selectedIds: [...(scope.selectedIds || [])],
     selectionRoots: [...(scope.selectionRoots || scope.selectedIds || [])],
     editableIds: [...(scope.editableIds || [])],
     sharedContextIds: [...(scope.sharedContextIds || [])],
@@ -459,7 +458,6 @@
     return {
       kind: 'scope_and_data_diff',
       mode: current.mode,
-      selectedIds: current.selectedIds,
       selectionRoots: current.selectionRoots,
       editableIds: current.editableIds,
       sharedContextIds: current.sharedContextIds,
@@ -1332,11 +1330,10 @@
     });
     return { requests: [...resolved.values()], candidateGroups, unresolved: [...new Set(unresolved)] };
   };
-  const buildUserContent = (userText, activeScope, conversation, baseDataHash, options = {}) => {
+  const buildUserContent = (userText, activeScope, conversation, options = {}) => {
     const usePrevious = !options.forceSnapshot && conversation.initialSnapshotSent && conversation.responseId;
     const previousScope = usePrevious ? conversation.previousScope : null;
     return JSON.stringify({
-      baseDataHash,
       request: userText,
       conversationContext: conversation.localContext || undefined,
       selectedScope: diffScope(previousScope, activeScope),
@@ -1345,7 +1342,7 @@
         : 'この相談の範囲にあるクラスの提案だけを返してください。selectionRootsは選択操作の起点です。editableIdsが操作できる移動元の正確な一覧です。sharedContextIdsは利用者が追加共有を許可した参照専用クラスで、移動元・改名・削除の対象にできません。選択外の情報が必要ならdataRequestsにclassId、正確なclassName、またはclassQueryと理由を返し、利用者の許可を待ってください。クラス名やIDが分からない場合は推測せず、classQueryで種別・名前キーワード・選択範囲との関係を指定してください。上位クラスを中間クラスへ移す場合は上位を新しい中間クラスIDに変換し、配下の所属先だけを自動的に付け替えて親子関係を保つため、配下を別々に移動する操作は作らないでください。未掲載の配下を推測した別操作は提案しないでください。個別インスタンスデータと件数は含みません。')
     });
   };
-  const makeLargeScopePlan = (userText, scope, conversation, baseDataHash) => {
+  const makeLargeScopePlan = (userText, scope, conversation) => {
     const selectionRoots = scope.selectionRoots || scope.selectedIds;
     const selectedRootClasses = selectionRoots.map((id) => scope.classes.find((item) => item.id === id)).filter(Boolean);
     const isHierarchySelection = selectedRootClasses.length === selectionRoots.length
@@ -1368,7 +1365,7 @@
     });
     const hierarchyEditableIds = new Set(hierarchyScope.editableIds);
     const buildHierarchyTask = (taskScope) => {
-      const input = buildUserContent(userText, taskScope, conversation, baseDataHash, {
+      const input = buildUserContent(userText, taskScope, conversation, {
         forceSnapshot: true,
         instruction: hierarchyInstruction
       });
@@ -1498,7 +1495,7 @@
     };
     const buildTargetTask = (units) => {
       const taskScope = makeTargetScope(units);
-      const input = buildUserContent(userText, taskScope, conversation, baseDataHash, {
+      const input = buildUserContent(userText, taskScope, conversation, {
         forceSnapshot: true,
         instruction: targetInstruction
       });
@@ -1668,7 +1665,7 @@
     let splitTasks = null;
     if (userContent.length > MAX_REQUEST_CHARACTERS) {
       conversation.localContext = conversation.localContext || summarizeVisibleConversation(conversation);
-      try { splitTasks = makeLargeScopePlan(userText, scope, conversation, baseDataHash); }
+      try { splitTasks = makeLargeScopePlan(userText, scope, conversation); }
       catch (error) { setStatus(error.message, 'error'); return; }
       if (!splitTasks?.length) {
         setStatus(`送信データが大きすぎます（約${userContent.length.toLocaleString()}文字）。上位クラスを選択して配下を分割するか、選択範囲を小さくしてください。入力文は保持しています。`, 'error');

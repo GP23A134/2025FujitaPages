@@ -11,7 +11,6 @@ let renderInstanceList = null;
 let refreshListSortOptions = null;
 let refreshBrowseListFilterSummary = null;
 let treeStickyLayoutFrame = 0;
-let browseStickyBoundsFrame = 0;
 
 function setInlineStyleIfChanged(element, property, value) {
   if (element.style.getPropertyValue(property) === value) return;
@@ -32,11 +31,11 @@ function syncBrowseTreeStickyBounds() {
   const controls = panel?.querySelector('.tree-controls');
   const filter = panel?.querySelector('.tree-filter');
   if (!panel || !controls) return;
-  const controlsBounds = controls.getBoundingClientRect();
-  setInlineStyleIfChanged(panel, '--browse-controls-sticky-top', `${controlsBounds.height}px`);
-  const filterBounds = filter && !filter.hidden ? filter.getBoundingClientRect() : null;
+  const controlsHeight = controls.getBoundingClientRect().height;
+  setInlineStyleIfChanged(panel, '--browse-controls-sticky-top', `${controlsHeight}px`);
+  const filterHeight = filter && !filter.hidden ? filter.getBoundingClientRect().height : 0;
   const filterGap = filter ? Number.parseFloat(getComputedStyle(filter).marginBottom) || 0 : 0;
-  const headingTop = Math.max(controlsBounds.bottom, filterBounds ? filterBounds.bottom + filterGap : controlsBounds.bottom);
+  const headingTop = controlsHeight + (filterHeight ? filterHeight + filterGap : 0);
   setInlineStyleIfChanged(treeElement, '--browse-tree-heading-sticky-top', `${headingTop}px`);
 }
 function alignBrowseHeadingToStickyPosition(heading) {
@@ -74,13 +73,6 @@ function getBrowseStickyHeadersBottom(target) {
 }
 
 window.addEventListener('resize', scheduleBrowseTreeLayout);
-window.addEventListener('scroll', () => {
-  if (browseStickyBoundsFrame) return;
-  browseStickyBoundsFrame = requestAnimationFrame(() => {
-    browseStickyBoundsFrame = 0;
-    syncBrowseTreeStickyBounds();
-  });
-}, { passive: true });
 
 let pendingBrowseCloseDetails = null;
 treeElement.addEventListener('click', (event) => {

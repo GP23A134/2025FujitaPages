@@ -65,7 +65,6 @@ body {
   border-radius: 10px;
   background: rgba(248, 250, 252, 0.97);
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
-  backdrop-filter: blur(8px);
 }
 .edit-taskbar { flex-wrap: nowrap; padding-inline: var(--page-side-gutter); }
 #tree-panel .tree-controls { width: 100%; max-width: 100%; margin-inline: 0; padding-inline: var(--page-side-gutter); border-radius: 0; }
