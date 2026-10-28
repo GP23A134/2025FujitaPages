@@ -67,7 +67,13 @@
   });
   const modelSelect = document.getElementById('ai-model');
   const settingsStatus = document.getElementById('ai-settings-status');
+  const currentModelLabel = document.getElementById('ai-current-model');
   let modelConfig = null;
+  const updateCurrentModelLabel = () => {
+    const selected = modelConfig?.models.find((item) => item.id === modelSelect.value);
+    currentModelLabel.textContent = selected ? `使用モデル：${selected.label || selected.id}` : 'モデル未選択';
+    currentModelLabel.title = selected?.description || '';
+  };
   const systemPromptPromise = fetch('web/data/config/ai-system-prompt.md', { cache: 'no-store' })
     .then((response) => { if (!response.ok) throw new Error('AIプロンプトを読み込めません。'); return response.text(); })
     .then((prompt) => {
@@ -95,12 +101,14 @@
         return option;
       }));
       modelSelect.value = config.defaultModel;
+      updateCurrentModelLabel();
       const selected = config.models.find((item) => item.id === config.defaultModel);
       if (selected?.description) document.getElementById('ai-model-description').textContent = selected.description;
       return config;
     })
     .catch((error) => {
       modelSelect.disabled = true;
+      updateCurrentModelLabel();
       settingsStatus.textContent = `${error.message}。AI補助を利用できません。`;
       settingsStatus.classList.add('is-error');
       return null;
@@ -108,11 +116,20 @@
   modelSelect.addEventListener('change', () => {
     const selected = modelConfig?.models.find((item) => item.id === modelSelect.value);
     document.getElementById('ai-model-description').textContent = selected?.description || '選択したモデルを次の依頼から使用します。';
+    updateCurrentModelLabel();
   });
   const messages = document.getElementById('ai-chat-messages');
   const status = document.getElementById('ai-status');
   const sendButton = document.getElementById('ai-send');
   const textInput = document.getElementById('ai-chat-input');
+  const resizeChatInput = () => {
+    textInput.style.height = 'auto';
+    const maxHeight = 160;
+    textInput.style.height = `${Math.min(textInput.scrollHeight, maxHeight)}px`;
+    textInput.style.overflowY = textInput.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  };
+  textInput.addEventListener('input', resizeChatInput);
+  resizeChatInput();
   const previewDialog = document.getElementById('ai-preview-dialog');
   const confirmBeforeSendToggle = document.getElementById('ai-confirm-before-send');
   const sendConfirmDialog = document.getElementById('ai-send-confirm-dialog');
@@ -325,12 +342,7 @@
       else if (item.type === 'data-requests') renderDataRequest(item);
     });
     questionItems.forEach(renderQuestionQueue);
-    if (allProposalItems.length && questionItems.some((item) => !item.submitted)) {
-      const waiting = document.createElement('p');
-      waiting.className = 'ai-proposal-waiting';
-      waiting.textContent = '確認事項への回答を送信すると、変更案が表示されます。';
-      messages.append(waiting);
-    } else if (allProposalItems.length) renderProposalQueue(allProposalItems);
+    if (allProposalItems.length && questionItems.every((item) => item.submitted)) renderProposalQueue(allProposalItems);
     messages.scrollTop = scrollToBottom ? messages.scrollHeight : previousScrollTop;
     status.textContent = currentConversation.status || '';
     updateUsageSummary();
@@ -835,6 +847,7 @@
   const previewableProposals = () => currentConversation.items.filter((item) => item.type === 'proposal'
     && item.proposal.operations.length
     && !['applied', 'awaiting-answers', 'superseded', 'invalid'].includes(item.status));
+  const hasUnsubmittedQuestions = () => currentConversation.items.some((item) => item.type === 'questions' && !item.submitted);
   const updatePreviewNavigation = (proposalItem) => {
     const items = previewableProposals();
     const index = items.indexOf(proposalItem);
@@ -859,6 +872,10 @@
     document.getElementById('ai-preview-proposal-heading').textContent = `変更案（${operationsCount}件・${status}${questionStatus}）`;
   };
   const showPreview = async (proposalItem, applyRequested = false, fastUpdate = false) => {
+    if (hasUnsubmittedQuestions()) {
+      if (previewDialog.open) closePreview();
+      return false;
+    }
     const applyButton = document.getElementById('ai-apply-proposal');
     if (!fastUpdate) {
       applyButton.disabled = true;
@@ -1495,14 +1512,20 @@
       return false;
     }
     textInput.value = '';
+    resizeChatInput();
     conversation.selectedIds = [...editor.selectedIds];
     conversation.items.push({ type: 'message', role: 'user', text: userText });
     conversation.updatedAt = Date.now();
     refreshConversationTitle(conversation);
     renderConversation({ scrollToBottom: true });
     updateUsageSummary(preflightNote);
-    setStatus(splitTasks ? `OpenAI APIに接続しています…（1/${splitTasks.length}）` : 'OpenAI APIに接続しています…');
+    setStatus(splitTasks ? `AIが変更案を作成中です…（1/${splitTasks.length}）` : 'AIが変更案を作成中です…');
     isSending = true; sendButton.disabled = true; document.getElementById('ai-new-consultation').disabled = true;
+    sendButton.classList.add('is-sending');
+    sendButton.textContent = '';
+    sendButton.setAttribute('aria-label', 'AIが処理中です');
+    sendButton.title = 'AIが処理中です';
+    document.getElementById('ai-chat-form').setAttribute('aria-busy', 'true');
     let requestSucceeded = false;
     try {
       activeRequestController = new AbortController();
@@ -1539,7 +1562,7 @@
         const splitWarnings = new Set();
         for (let offset = 0; offset < splitTasks.length; offset += 2) {
           const batch = splitTasks.slice(offset, offset + 2);
-          setStatus(`OpenAI APIに接続しています…（${offset + 1}/${splitTasks.length}）`);
+          setStatus(`AIが変更案を作成中です…（${offset + 1}/${splitTasks.length}）`);
           const parts = await Promise.all(batch.map((task) => sendApiRequest(task.input)));
           parts.forEach((part, batchIndex) => {
             const index = offset + batchIndex;
@@ -1629,12 +1652,17 @@
       }
       conversation.updatedAt = Date.now();
       renderConversation();
-      setStatus(result.proposals.length ? '提案を確認し、プレビューしてから適用してください。' : '変更案はありません。確認事項への回答や追加依頼を入力できます。');
+      setStatus(result.proposals.length ? '' : '変更案はありません。確認事項への回答や追加依頼を入力できます。');
       requestSucceeded = true;
     } catch (error) {
       setStatus(error.message || '接続に失敗しました。設定と通信状態を確認してください。', 'error');
     } finally {
       isSending = false; sendButton.disabled = false; document.getElementById('ai-new-consultation').disabled = false; activeRequestController = null;
+      sendButton.classList.remove('is-sending');
+      sendButton.textContent = '↑';
+      sendButton.setAttribute('aria-label', '送信');
+      sendButton.title = '送信';
+      document.getElementById('ai-chat-form').removeAttribute('aria-busy');
     }
     return requestSucceeded;
   };
@@ -1664,7 +1692,7 @@
     void sendRequest(value);
   });
   textInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && !event.repeat) {
       event.preventDefault(); document.getElementById('ai-chat-form').requestSubmit();
     }
   });
@@ -1698,6 +1726,7 @@
   });
   document.getElementById('ai-apply-proposal').addEventListener('click', async () => {
     if (!previewPlan) return;
+    if (hasUnsubmittedQuestions()) { closePreview(); return; }
     try {
       const currentProposal = previewPlan.proposalItem;
       const proposals = previewableProposals();

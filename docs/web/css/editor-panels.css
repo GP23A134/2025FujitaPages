@@ -219,11 +219,21 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-message.is-user { align-self: flex-end; max-width: 88%; padding: 0.55rem 0.7rem; border: 1px solid #dbeafe; border-radius: 12px; background: #eff6ff; }
 .ai-message strong { color: #0f3d63; font-size: 0.78rem; }
 .ai-message p { margin: 0.2rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.ai-chat-form { display: grid; flex: 0 0 auto; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; gap: 0.4rem; padding-top: 0.45rem; border-top: 1px solid #e2e8f0; }
-.ai-new-consultation { width: 2.45rem; height: 2.45rem; border: 1px solid #cbd5e1; border-radius: 50%; color: #334155; background: #fff; font-size: 1.35rem; cursor: pointer; }
+.ai-chat-form { display: grid; flex: 0 0 auto; grid-template-columns: minmax(0, 1fr); align-items: end; gap: 0.45rem; padding-top: 0.45rem; border-top: 1px solid #e2e8f0; }
+.ai-new-consultation { width: 1.8rem; height: 1.8rem; flex: 0 0 auto; border: 1px solid #cbd5e1; border-radius: 50%; color: #334155; background: #fff; font-size: 1.1rem; cursor: pointer; }
 .ai-new-consultation:hover { border-color: #7dd3fc; color: #075985; background: #f0f9ff; }
-.ai-chat-form textarea { width: 100%; min-width: 0; box-sizing: border-box; resize: vertical; padding: 0.55rem; border: 1px solid #cbd5e1; border-radius: 7px; font: inherit; font-size: 0.86rem; }
-.ai-chat-form .search-button { min-height: 2.45rem; }
+.ai-chat-composer { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); align-items: end; gap: 0.25rem; padding: 0.45rem 0.55rem; border: 1px solid #cbd5e1; border-radius: 1.25rem; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05); }
+.ai-chat-composer:focus-within { border-color: #7dd3fc; outline: 3px solid rgba(56, 189, 248, 0.18); }
+.ai-chat-form textarea { width: 100%; min-width: 0; min-height: 2rem; max-height: 10rem; overflow-y: auto; box-sizing: border-box; resize: none; padding: 0.35rem 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 0.86rem; line-height: 1.35; }
+.ai-chat-composer-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.ai-chat-composer-submit { display: grid; min-width: 0; grid-template-columns: minmax(0, max-content) 1.8rem; grid-template-rows: 1.8rem; align-items: center; gap: 0.45rem; white-space: nowrap; }
+.ai-current-model { display: block; max-width: 12rem; overflow: hidden; color: #64748b; font-size: 0.7rem; text-overflow: ellipsis; white-space: nowrap; }
+.ai-chat-composer .search-button { display: grid; width: 1.8rem; height: 1.8rem; min-height: 1.8rem; place-items: center; padding: 0; border: 0; border-radius: 50%; color: #fff; background: #0369a1; font-size: 1.15rem; line-height: 1; }
+.ai-chat-composer .search-button:hover:not(:disabled) { background: #075985; }
+.ai-chat-composer .search-button:disabled { opacity: 0.5; cursor: not-allowed; }
+.ai-chat-composer .search-button.is-sending { position: relative; color: transparent; }
+.ai-chat-composer .search-button.is-sending::after { position: absolute; width: 0.8rem; height: 0.8rem; border: 2px solid rgba(255, 255, 255, 0.45); border-top-color: #fff; border-radius: 50%; content: ""; animation: search-loading-spin 0.8s linear infinite; }
+.ai-chat-form[aria-busy="true"] .ai-chat-composer { border-color: #7dd3fc; background: #f8fcff; }
 .ai-status { margin: 0; color: #475569; font-size: 0.8rem; line-height: 1.4; }
 .ai-status.is-error { color: #b91c1c; }
 .ai-usage-summary, .ai-chat-guidance { margin: 0; color: #64748b; font-size: 0.72rem; line-height: 1.45; }
@@ -343,7 +353,6 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-proposal-queue { margin: 0.55rem 0; padding: 0.45rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; }
 .ai-proposal-queue > summary { color: #334155; cursor: pointer; font-size: 0.82rem; font-weight: 700; }
 .ai-proposal-queue .ai-proposal-card { margin-top: 0.45rem; }
-.ai-proposal-waiting { margin: 0.55rem 0; padding: 0.55rem 0.7rem; border-left: 3px solid #0284c7; border-radius: 5px; color: #075985; background: #f0f9ff; font-size: 0.8rem; }
 .ai-preview-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 0.75rem; }
 .ai-preview-columns > section { min-width: 0; }
 .ai-preview-columns h3 { margin: 0.4rem 0; color: #334155; font-size: 0.95rem; }
