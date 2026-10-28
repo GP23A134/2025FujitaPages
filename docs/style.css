@@ -1,5 +1,5 @@
-@import url('web/css/base.css');
-@import url('web/css/tree-structure.css');
-@import url('web/css/editor-panels.css');
-@import url('web/css/tree-appearance.css');
-@import url('web/css/browse-responsive.css');
+@import url('web/css/base.css?v=20261028-tree-gap-v1');
+@import url('web/css/tree-structure.css?v=20261028-tree-gap-v1');
+@import url('web/css/editor-panels.css?v=20261028-tree-gap-v1');
+@import url('web/css/tree-appearance.css?v=20261028-tree-gap-v1');
+@import url('web/css/browse-responsive.css?v=20261028-tree-gap-v1');

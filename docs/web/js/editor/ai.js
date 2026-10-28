@@ -45,6 +45,7 @@
   };
 
   const keyInput = document.getElementById('ai-api-key');
+  const settingsDialog = document.getElementById('edit-settings-dialog');
   const modelSelect = document.getElementById('ai-model');
   const settingsStatus = document.getElementById('ai-settings-status');
   let modelConfig = null;
@@ -183,6 +184,18 @@
     status.textContent = text;
     status.className = `ai-status${kind ? ` is-${kind}` : ''}`;
     if (currentConversation) currentConversation.status = text;
+  };
+  const appendSettingsLink = () => {
+    status.append(document.createTextNode(' '));
+    const link = document.createElement('button');
+    link.type = 'button';
+    link.className = 'ai-settings-inline-link';
+    link.textContent = '設定へ';
+    link.addEventListener('click', () => {
+      settingsDialog.showModal();
+      keyInput.focus();
+    });
+    status.append(link);
   };
   const makeMessage = (role, text) => {
     const item = { type: 'message', role, text };
@@ -1371,5 +1384,8 @@
   fetch('data/input/current-class-data-version.txt', { cache: 'no-store' })
     .then((response) => { if (!response.ok) throw new Error('データ版ファイルを取得できません。'); return response.text(); })
     .then((value) => { sourceDataVersion = value.trim(); if (!sourceDataVersion) throw new Error('データ版が空です。'); })
-    .catch((error) => setStatus(`${error.message}。編集画面は利用できますが、AI提案はデータ版を確認できるまで送信できません。`, 'error'));
+    .catch(() => {
+      setStatus('データ版を確認できません。通信状態を確認してください。AI提案は確認できるまで送信できません。APIキーの確認・入力は', 'error');
+      appendSettingsLink();
+    });
 })();

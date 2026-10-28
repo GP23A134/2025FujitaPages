@@ -25,9 +25,13 @@ document.getElementById('save-edit-changes').addEventListener('click', saveEditC
 
 // 保持中パネルの表示タブ
 document.querySelectorAll('.held-panel-mode-tab').forEach((tab) => tab.addEventListener('click', () => {
-  heldPanelView = tab.dataset.heldPanelView;
-  heldPanelClosed = false;
-  heldPanelCollapsed = false;
+  if (!heldPanelClosed && heldPanelView === tab.dataset.heldPanelView) {
+    heldPanelClosed = true;
+  } else {
+    heldPanelView = tab.dataset.heldPanelView;
+    heldPanelClosed = false;
+    heldPanelCollapsed = false;
+  }
   renderInstances();
 }));
 document.querySelectorAll('.held-kind-tab').forEach((tab) => tab.addEventListener('click', () => {

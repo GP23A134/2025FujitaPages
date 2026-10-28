@@ -173,6 +173,7 @@
 #edit-tree-panel .tree > details > ul > li > details > ul { border-left: 0; }
 
 #edit-tree-panel .tree details { margin: 0.45rem 0; }
+#edit-tree-panel .tree > .tree-top-class { margin-top: 0; }
 
 #edit-tree-panel .tree summary {
   display: flex;
@@ -460,13 +461,13 @@ body[data-mode="browse"] .tree-add-button { display: none; }
   border-left: 2px solid transparent;
 }
 #tree-panel .tree > details > ul { margin: 0; }
-#tree-panel .tree-filter { position: sticky; top: var(--browse-controls-sticky-top, 0px); z-index: 90; margin-bottom: 0.1rem; }
+#tree-panel .tree-filter { position: sticky; top: var(--browse-controls-sticky-top, 0px); z-index: 90; margin-bottom: 0; }
 #tree-panel .tree-top-class > summary { top: var(--browse-tree-heading-sticky-top, 0px); }
 #tree-panel .tree-middle-class > summary { top: calc(var(--browse-tree-heading-sticky-top, 0px) + var(--middle-sticky-top, 3.35rem)); }
 #tree-panel .tree details { margin-block: 0.1rem; }
 #tree-panel .tree > details > .tree-level-rows,
 #tree-panel .tree .tree-middle-class > .tree-level-rows { margin-block: 0.1rem; }
-#tree-panel .tree > .tree-top-class { margin-block: 0.2rem; }
+#tree-panel .tree > .tree-top-class { margin-block: 0.2rem; margin-top: 0; }
 #tree-panel .tree > .tree-top-class > .tree-level-rows { margin: 0.25rem 0 0.4rem 1.15rem; }
 #tree-panel .tree .tree-middle-class > summary { margin-top: 0; }
 #tree-panel .tree .tree-child-middle-list { row-gap: 0.1rem; }

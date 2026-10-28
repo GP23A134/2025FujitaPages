@@ -17,7 +17,7 @@
   --tree-panel-heading-font-size: 1rem;
   --edit-pane-gap: 1rem;
   --edit-pane-top-offset: -25px;
-  --edit-pane-search-tree-gap: 0.85rem;
+  --edit-pane-search-tree-gap: 0.5rem;
   --edit-pane-card-padding: 1rem;
   --edit-pane-header-height: 2.8rem;
   --edit-pane-header-padding-block: 0.4rem;
@@ -40,6 +40,9 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selectio
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed) { grid-template-columns: minmax(0, 1fr); }
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed) .held-panel-spacer { display: none; }
 .edit-tree-pane { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
+body[data-mode="edit"] .edit-taskbar { margin-bottom: 0; }
+body[data-mode="edit"] main { padding-top: 0.5rem; }
+body[data-mode="edit"] #edit-tree-panel .tree-filter { margin-top: 0; }
 .edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .tree-filter { width: calc(100% - var(--held-panel-width) - 1rem); box-sizing: border-box; }
 .edit-tree-layout:has(.instance-selection[hidden]) .tree-filter { width: 100%; box-sizing: border-box; }
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .tree-filter { width: calc(100% - var(--held-panel-width) - 1rem); }
@@ -88,7 +91,7 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection.is
   margin-top: 0;
 }
 body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pane {
-  margin-top: var(--edit-pane-top-offset);
+  margin-top: 0;
 }
 .edit-tree-layout .instance-selection[hidden] { display: none; }
 .edit-tree-layout .instance-selection.is-collapsed {
@@ -196,6 +199,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-usage-summary, .ai-chat-guidance { margin: 0; color: #64748b; font-size: 0.72rem; line-height: 1.45; }
 .ai-usage-summary { padding: 0.35rem 0.45rem; border-radius: 6px; background: #f1f5f9; overflow-wrap: anywhere; }
 .ai-chat-guidance { padding: 0.25rem 0.1rem; }
+.ai-settings-inline-link { padding: 0; border: 0; background: none; color: #1d4ed8; font: inherit; text-decoration: underline; cursor: pointer; }
 .ai-proposal-card { flex: 0 0 auto; padding: 0.7rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #f8fbff; font-size: 0.84rem; }
 .ai-proposal-card.is-stale { border-color: #fbbf24; background: #fffbeb; }
 .ai-proposal-card.is-applied { border-color: #86efac; background: #f0fdf4; }

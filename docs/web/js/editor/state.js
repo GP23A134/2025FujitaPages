@@ -54,9 +54,9 @@ const syncPinnedHeldPanelBounds = () => {
       return;
     }
     const toolbarBounds = document.querySelector('.edit-taskbar')?.getBoundingClientRect();
-    // 固定欄はツリー領域の上端を追従させず、sticky ツールバーの直下に揃える。
+    // 固定欄はツリー領域の上端を追従させず、sticky ツールバーの少し下に揃える。
     // paneTop と toolbar bottom の間をスクロール中に追いかけると、保持欄が長く上下移動する。
-    const top = toolbarBounds?.bottom ?? 0;
+    const top = (toolbarBounds?.bottom ?? 0) + 8;
     const treeFilter = document.getElementById('tree-filter');
     const searchTreeGap = Number.parseFloat(getComputedStyle(layout).getPropertyValue('--edit-pane-search-tree-gap')) || 0;
     const treeStickyTop = treeFilter && !treeFilter.hidden
