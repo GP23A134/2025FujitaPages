@@ -42,12 +42,12 @@ const syncPinnedHeldPanelBounds = () => {
     const layout = document.querySelector('#edit-tree-panel .edit-tree-layout');
     if (!panel || !layout) return;
     const toolbar = document.querySelector('.edit-taskbar');
-    const toolbarHeight = toolbar?.offsetHeight ?? 0;
+    const toolbarHeight = toolbar?.getBoundingClientRect().height ?? 0;
     const top = toolbarHeight;
     const treeFilter = document.getElementById('tree-filter');
-    const searchTreeGap = Number.parseFloat(getComputedStyle(layout).getPropertyValue('--edit-pane-search-tree-gap')) || 0;
-    const filterHeight = treeFilter && !treeFilter.hidden ? treeFilter.offsetHeight : 0;
-    const treeStickyTop = filterHeight ? top + filterHeight + searchTreeGap : top;
+    const filterHeight = treeFilter && !treeFilter.hidden ? treeFilter.getBoundingClientRect().height : 0;
+    const filterGap = treeFilter ? Number.parseFloat(getComputedStyle(treeFilter).marginBottom) || 0 : 0;
+    const treeStickyTop = toolbarHeight + (filterHeight ? filterHeight + filterGap : 0);
     setInlineStyleIfChanged(layout, '--edit-pane-position-top', `${top}px`);
     setInlineStyleIfChanged(layout, '--edit-top-class-sticky-top', `${treeStickyTop}px`);
     if (panel.hidden || document.getElementById('edit-tree-panel')?.hidden || window.innerWidth <= 760) {
