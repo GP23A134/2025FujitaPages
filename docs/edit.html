@@ -6,19 +6,19 @@
   <title>クラス編集</title>
   <link rel="icon" type="image/svg+xml" href="web/favicon.svg">
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
-  <link rel="stylesheet" href="web/css/base.css?v=20261028-preview-class-spacing-v1">
-  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261028-preview-class-spacing-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261028-preview-class-spacing-v1">
-  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261028-preview-class-spacing-v1">
-  <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261028-preview-class-spacing-v1">
+  <link rel="stylesheet" href="web/css/base.css?v=20261028-single-proposal-queue-v1">
+  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261028-single-proposal-queue-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261028-single-proposal-queue-v1">
+  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261028-single-proposal-queue-v1">
+  <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261028-single-proposal-queue-v1">
   <script src="web/data/generated/class-data.js" defer></script>
   <script src="web/data/generated/instance-data.js" defer></script>
   <!-- データ → 共通ツリー → 編集状態・パネル・ツリー・イベント → AIの順で実行する。 -->
-  <script src="web/js/shared/tree.js?v=20261028-preview-class-spacing-v1" defer></script>
-  <script src="web/js/editor/state.js?v=20261028-preview-class-spacing-v1" defer></script>
-  <script src="web/js/editor/panels.js?v=20261028-preview-class-spacing-v1" defer></script>
-  <script src="web/js/editor/tree.js?v=20261028-preview-class-spacing-v1" defer></script>
-  <script src="web/js/editor/events.js?v=20261028-preview-class-spacing-v1" defer></script>
+  <script src="web/js/shared/tree.js?v=20261028-single-proposal-queue-v1" defer></script>
+  <script src="web/js/editor/state.js?v=20261028-single-proposal-queue-v1" defer></script>
+  <script src="web/js/editor/panels.js?v=20261028-single-proposal-queue-v1" defer></script>
+  <script src="web/js/editor/tree.js?v=20261028-single-proposal-queue-v1" defer></script>
+  <script src="web/js/editor/events.js?v=20261028-single-proposal-queue-v1" defer></script>
 </head>
 <body class="edit-panes-pinned" data-mode="edit">
   <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>
@@ -204,21 +204,21 @@
       <div class="ai-preview-title-row">
         <h2 id="ai-preview-title">変更案のプレビュー</h2>
         <nav id="ai-preview-navigation" class="ai-preview-navigation" aria-label="提案の切り替え">
-          <button type="button" id="ai-preview-previous">前の提案</button>
-          <span id="ai-preview-position" aria-live="polite"></span>
-          <button type="button" id="ai-preview-next">次の提案</button>
+          <button type="button" id="ai-preview-previous" aria-label="前の提案">‹</button>
+          <button type="button" id="ai-preview-next" aria-label="次の提案">›</button>
         </nav>
+        <span id="ai-preview-position" class="ai-preview-position" aria-live="polite"></span>
       </div>
       <button type="button" id="ai-preview-close" class="target-instance-dialog-close" aria-label="閉じる">×</button>
     </div>
     <p id="ai-preview-impact" class="ai-preview-impact" role="status" aria-live="polite"></p>
-    <section class="ai-preview-proposal" aria-label="提案の内容">
-      <div><h3>変更内容</h3><p id="ai-preview-summary"></p></div>
-      <div><h3>理由</h3><p id="ai-preview-reason"></p></div>
-      <div class="ai-preview-uncertainties"><h3>不確かな点</h3><p id="ai-preview-uncertainties"></p></div>
-    </section>
-    <details class="ai-preview-change-section">
-      <summary id="ai-preview-change-heading">変更一覧</summary>
+    <details class="ai-preview-proposal-section" open>
+      <summary>提案の内容と変更一覧</summary>
+      <section class="ai-preview-proposal" aria-label="提案の内容">
+        <div><h3>変更内容</h3><p id="ai-preview-summary"></p></div>
+        <div><h3>理由</h3><p id="ai-preview-reason"></p></div>
+        <div class="ai-preview-uncertainties"><h3>不確かな点</h3><p id="ai-preview-uncertainties"></p></div>
+      </section>
       <ul id="ai-preview-change-list" class="ai-preview-change-list"></ul>
     </details>
     <div class="ai-preview-columns">
@@ -267,6 +267,6 @@
       <button type="button" id="ai-send-confirm-approve" class="search-button">この内容で送信</button>
     </div>
   </dialog>
-  <script src="web/js/editor/ai.js?v=20261028-preview-class-spacing-v1" defer></script>
+  <script src="web/js/editor/ai.js?v=20261028-single-proposal-queue-v1" defer></script>
 </body>
 </html>

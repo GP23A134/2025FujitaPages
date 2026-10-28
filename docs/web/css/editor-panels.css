@@ -278,7 +278,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
   --ai-preview-root-middle-link-length: calc(1.15rem - 3px);
   --ai-preview-nested-middle-link-length: calc(0.75rem - 1px);
   box-sizing: border-box;
-  width: min(1300px, calc(100vw - 1.5rem));
+  width: min(1300px, calc(100vw - 5rem));
   max-width: 1300px;
   height: calc(100vh - 1rem);
   max-height: calc(100vh - 1rem);
@@ -295,11 +295,12 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .ai-preview-header h2 { margin: 0; color: #0f3d63; font-size: 1.2rem; }
 .ai-preview-title-row { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; justify-content: space-between; gap: 0.75rem; }
-.ai-preview-navigation { display: flex; flex: 0 0 auto; align-items: center; gap: 0.35rem; }
-.ai-preview-navigation button { min-height: 1.9rem; padding: 0.25rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; color: #075985; background: #fff; cursor: pointer; font: inherit; font-size: 0.74rem; }
+.ai-preview-navigation { position: fixed; inset: 50% auto auto 50%; z-index: 2; display: flex; width: min(1380px, 100vw); height: 0; box-sizing: border-box; align-items: center; justify-content: space-between; transform: translate(-50%, -50%); pointer-events: none; }
+.ai-preview-navigation button { display: grid; width: 2.5rem; height: 3.5rem; place-items: center; padding: 0; border: 1px solid #cbd5e1; border-radius: 8px; color: #075985; background: #fff; box-shadow: 0 3px 12px rgba(15, 23, 42, 0.18); cursor: pointer; font: inherit; font-size: 2rem; line-height: 1; pointer-events: auto; }
 .ai-preview-navigation button:hover:not(:disabled), .ai-preview-navigation button:focus-visible { border-color: #7dd3fc; background: #e0f2fe; }
 .ai-preview-navigation button:disabled { color: #94a3b8; background: #f1f5f9; cursor: not-allowed; }
-.ai-preview-navigation span { min-width: 3.7rem; color: #475569; font-size: 0.72rem; text-align: center; white-space: nowrap; }
+.ai-preview-navigation[hidden] { display: none; }
+.ai-preview-position { flex: 0 0 auto; color: #475569; font-size: 0.72rem; white-space: nowrap; }
 .ai-send-confirm-dialog { width: min(760px, calc(100vw - 1.5rem)); max-height: min(88vh, 780px); overflow: auto; box-sizing: border-box; padding: 1rem; border: 1px solid #cbd5e1; border-radius: 12px; color: #1e293b; box-shadow: 0 20px 60px rgba(15, 23, 42, 0.28); }
 .ai-send-confirm-dialog::backdrop { background: rgba(15, 23, 42, 0.48); }
 .ai-send-confirm-dialog h2 { margin: 0; color: #0f3d63; font-size: 1.15rem; }
@@ -319,24 +320,27 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-impact.is-loading { display: flex; align-items: center; gap: 0.55rem; color: #075985; }
 .ai-preview-impact.is-loading::before { width: 0.9rem; height: 0.9rem; flex: 0 0 auto; border: 2px solid #bae6fd; border-top-color: #0284c7; border-radius: 50%; content: ""; animation: search-loading-spin 0.8s linear infinite; }
 .ai-preview-note { margin: 0.35rem 0; color: #64748b; font-size: 0.8rem; }
-.ai-preview-proposal { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin: 0.6rem 0; padding: 0.65rem 0.75rem; border: 1px solid #dbe3ec; border-radius: 8px; background: #f8fafc; }
-.ai-preview-proposal h3, .ai-preview-change-section > summary { margin: 0 0 0.25rem; color: #334155; font-size: 0.85rem; }
+.ai-preview-proposal-section { margin: 0.6rem 0; border: 1px solid #dbe3ec; border-radius: 8px; background: #f8fafc; }
+.ai-preview-proposal-section > summary { padding: 0.55rem 0.7rem; color: #334155; cursor: pointer; font-size: 0.85rem; font-weight: 650; }
+.ai-preview-proposal { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin: 0; padding: 0.35rem 0.75rem 0.65rem; }
+.ai-preview-proposal h3 { margin: 0 0 0.25rem; color: #334155; font-size: 0.85rem; }
 .ai-preview-proposal p { margin: 0; color: #475569; font-size: 0.82rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ai-preview-uncertainties { grid-column: 1 / -1; }
-.ai-preview-change-section { margin: 0.6rem 0; }
-.ai-preview-change-section > summary { cursor: pointer; font-weight: 650; }
 .ai-preview-column-header { display: flex; min-height: 2rem; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 0.4rem 0.65rem; margin: 0.4rem 0; }
 .ai-preview-column-header h3 { margin: 0; }
 .ai-preview-after-header { flex-wrap: wrap; }
 .ai-preview-selection-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .ai-preview-selection-actions button { padding: 0.25rem 0.5rem; border: 1px solid #94a3b8; border-radius: 5px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.75rem; }
 .ai-preview-selection-actions button:hover, .ai-preview-selection-actions button:focus-visible { border-color: #2563eb; background: #eff6ff; }
-.ai-preview-change-list { margin: 0.35rem 0 0; padding: 0; border: 1px solid #dbe3ec; border-radius: 7px; list-style: none; }
+.ai-preview-change-list { margin: 0 0.65rem 0.65rem; padding: 0; border: 1px solid #dbe3ec; border-radius: 7px; list-style: none; }
 .ai-preview-change-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.2rem 0.75rem; padding: 0.45rem 0.6rem; border-bottom: 1px solid #e2e8f0; font-size: 0.78rem; }
 .ai-preview-change-item:last-child { border-bottom: 0; }
 .ai-preview-change-item.is-excluded { color: #64748b; background: #f1f5f9; }
 .ai-preview-change-text { min-width: 0; overflow-wrap: anywhere; }
 .ai-preview-change-status { color: #475569; font-size: 0.72rem; white-space: nowrap; }
+.ai-proposal-queue { margin: 0.55rem 0; padding: 0.45rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; }
+.ai-proposal-queue > summary { color: #334155; cursor: pointer; font-size: 0.82rem; font-weight: 700; }
+.ai-proposal-queue .ai-proposal-card { margin-top: 0.45rem; }
 .ai-preview-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 0.75rem; }
 .ai-preview-columns > section { min-width: 0; }
 .ai-preview-columns h3 { margin: 0.4rem 0; color: #334155; font-size: 0.95rem; }

@@ -318,12 +318,17 @@
       .filter((operation) => operation.type === 'addClass' && operation.temporaryId)
       .map((operation) => [operation.temporaryId, operation.label]));
     messages.replaceChildren();
-    currentConversation.items.forEach((item) => {
+    let proposalQueueRendered = false;
+    const allProposalItems = currentConversation.items.filter((item) => item.type === 'proposal');
+    for (let index = 0; index < currentConversation.items.length; index += 1) {
+      const item = currentConversation.items[index];
       if (item.type === 'message') renderMessage(item);
-      else if (item.type === 'proposal') renderProposalCard(item);
-      else if (item.type === 'questions') renderQuestionQueue(item);
+      else if (item.type === 'proposal' && !proposalQueueRendered) {
+        renderProposalQueue(allProposalItems);
+        proposalQueueRendered = true;
+      } else if (item.type === 'questions') renderQuestionQueue(item);
       else if (item.type === 'data-requests') renderDataRequest(item);
-    });
+    }
     messages.scrollTop = scrollToBottom ? messages.scrollHeight : previousScrollTop;
     status.textContent = currentConversation.status || '';
     updateUsageSummary();
@@ -489,11 +494,33 @@
       card.className = `ai-proposal-card is-${item.status}`;
     };
     preview.addEventListener('click', () => {
-      void showPreview(item, false).then(updateStatus).catch(reportPreviewError);
+      void showPreview(item, false).then(() => { updateStatus(); renderConversation(); }).catch(reportPreviewError);
     });
     actions.append(preview, statusLabel);
     card.append(actions);
-    messages.append(card);
+    return card;
+  };
+  const renderProposalQueue = (items) => {
+    const conversation = currentConversation;
+    const details = document.createElement('details');
+    details.className = 'ai-proposal-queue';
+    details.open = conversation.proposalsOpen !== false;
+    details.addEventListener('toggle', () => { conversation.proposalsOpen = details.open; });
+    const counts = items.reduce((summary, item) => {
+      if (item.status === 'applied') summary.applied += 1;
+      else if (item.status === 'previewed') summary.reviewed += 1;
+      else if (item.status === 'awaiting-answers') summary.awaiting += 1;
+      else if (item.status === 'superseded') summary.answered += 1;
+      else if (item.status !== 'invalid') summary.pending += 1;
+      return summary;
+    }, { pending: 0, reviewed: 0, applied: 0, awaiting: 0, answered: 0 });
+    const summary = document.createElement('summary');
+    const statusParts = [`保留${counts.pending}件`, `確認済み${counts.reviewed}件`, `適用済み${counts.applied}件`];
+    if (counts.awaiting) statusParts.push(`回答待ち${counts.awaiting}件`);
+    if (counts.answered) statusParts.push(`回答済み${counts.answered}件`);
+    summary.textContent = `変更案（${items.length}件・${statusParts.join('・')}）`;
+    details.append(summary, ...items.map(renderProposalCard));
+    messages.append(details);
   };
   const renderQuestionQueue = (item) => {
     const details = document.createElement('details');
@@ -1651,18 +1678,28 @@
   document.getElementById('ai-apply-proposal').addEventListener('click', async () => {
     if (!previewPlan) return;
     try {
+      const currentProposal = previewPlan.proposalItem;
+      const proposals = previewableProposals();
+      const currentProposalIndex = proposals.indexOf(currentProposal);
+      const nextProposal = currentProposalIndex >= 0 ? proposals[currentProposalIndex + 1] : null;
       await verifyLoadedDataVersion();
       const currentHash = await currentDataHash();
       if (currentHash !== previewPlan.expectedBaseHash) throw new Error('提案の作成後にデータが変更されました。最新データで提案し直してください。');
       const candidate = editor.applyOperations(previewPlan.operations, previewPlan.expectedFingerprint, previewPlan.proposalItem.editableIds, previewPlan.proposalItem.availableIds);
       editor.commitCandidate(candidate);
-      previewPlan.proposalItem.status = 'applied';
-      currentConversation.items.filter((item) => item.type === 'proposal' && item !== previewPlan.proposalItem && item.status !== 'applied')
+      currentProposal.status = 'applied';
+      currentConversation.items.filter((item) => item.type === 'proposal' && item !== currentProposal && item.status !== 'applied')
         .forEach((item) => { item.status = 'stale'; });
-      closePreview();
-      document.getElementById('ai-apply-proposal').disabled = true;
       renderConversation();
-      setStatus('提案を適用しました。必要なら最新状態について改めて依頼してください。');
+      if (nextProposal) {
+        setStatus('提案を適用しました。次の提案を確認しています。');
+        await showPreview(nextProposal);
+        renderConversation();
+      } else {
+        closePreview();
+        document.getElementById('ai-apply-proposal').disabled = true;
+        setStatus('提案を適用しました。必要なら最新状態について改めて依頼してください。');
+      }
     } catch (error) { setStatus(error.message, 'error'); }
   });
   window.aiAssistant = {
