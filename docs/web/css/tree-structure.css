@@ -19,7 +19,7 @@
 /* 開閉式の階層見出し、子リスト、接続線 */
 .tree details { margin: 0.35rem 0; }
 .tree summary { cursor: pointer; font-weight: 600; padding: 0.45rem 0.6rem; border-radius: 6px; }
-.tree-level-id { display: inline; margin-left: 0.75rem; color: #64748b; font-size: 0.72rem; font-weight: 400; overflow-wrap: anywhere; }
+.tree-level-id { display: inline; margin-left: 0.5rem; color: #64748b; font-size: 0.72rem; font-weight: 400; overflow-wrap: anywhere; }
 .tree details > summary:hover { background: #e0f2fe; }
 .tree ul { margin: 0.45rem 0 0.75rem 1.25rem; padding: 0; list-style: none; }
 /* 全階層の横線接点を各行の高さの50%に揃える。 */

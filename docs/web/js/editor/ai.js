@@ -309,6 +309,7 @@
   const renderMessage = (item) => {
     const bubble = document.createElement('article');
     bubble.className = `ai-message is-${item.role}`;
+    if (item.responseGroupId) bubble.dataset.responseGroupId = item.responseGroupId;
     const title = document.createElement('strong');
     title.textContent = item.role === 'user' ? 'あなた' : 'AI';
     const body = document.createElement('p');
@@ -336,7 +337,7 @@
       historyList.append(button);
     });
   };
-  const renderConversation = ({ scrollToBottom = false } = {}) => {
+  const renderConversation = ({ scrollToBottom = false, scrollToResponseGroupId = '' } = {}) => {
     const previousScrollTop = messages.scrollTop;
     const currentClasses = editor.getState().classes;
     classLabelsById = new Map(currentClasses.map((item) => [item.id, item.label]));
@@ -362,6 +363,7 @@
         const questionItems = groupItems.filter((entry) => entry.type === 'questions');
         const responseGroup = document.createElement('section');
         responseGroup.className = 'ai-response-group';
+        if (item.responseGroupId) responseGroup.dataset.responseGroupId = item.responseGroupId;
         questionItems.forEach((questionItem) => renderQuestionQueue(questionItem, responseGroup));
         if (proposalItems.length && questionItems.every((questionItem) => questionItem.submitted)) {
           renderProposalQueue(proposalItems, responseGroup);
@@ -369,7 +371,22 @@
         messages.append(responseGroup);
       }
     });
-    messages.scrollTop = scrollToBottom ? messages.scrollHeight : previousScrollTop;
+    if (currentConversation.isThinking) {
+      const indicator = document.createElement('div');
+      indicator.className = 'ai-thinking-indicator';
+      indicator.setAttribute('role', 'status');
+      indicator.setAttribute('aria-live', 'polite');
+      indicator.textContent = 'AIが考えています…';
+      messages.append(indicator);
+    }
+    if (scrollToResponseGroupId) {
+      const target = [...messages.querySelectorAll('[data-response-group-id]')]
+        .find((element) => element.dataset.responseGroupId === scrollToResponseGroupId);
+      if (target) {
+        const offset = target.getBoundingClientRect().top - messages.getBoundingClientRect().top + messages.scrollTop;
+        messages.scrollTo({ top: offset, behavior: 'smooth' });
+      } else messages.scrollTop = previousScrollTop;
+    } else messages.scrollTop = scrollToBottom ? messages.scrollHeight : previousScrollTop;
     status.textContent = currentConversation.status || '';
     updateUsageSummary();
     updateHistoryList();
@@ -675,6 +692,7 @@
   const renderDataRequest = (item) => {
     const card = document.createElement('article');
     card.className = `ai-data-request-card is-${item.status || 'pending'}`;
+    if (item.responseGroupId) card.dataset.responseGroupId = item.responseGroupId;
     const candidateGroups = item.candidateGroups || [];
     const hasShareRequest = item.requests.length > 0 || candidateGroups.length > 0;
     const heading = document.createElement('strong');
@@ -807,7 +825,7 @@
         ])];
         const approved = approvedIds.map((id) => editor.getState().classes.find((candidate) => candidate.id === id)).filter(Boolean);
         const lines = approved.map(({ id, label }) => `${label} (${id})`).join('、');
-        const succeeded = await sendRequest(`追加情報の共有を許可します。次のクラス情報を使って、前の依頼を続けてください: ${lines}`, approved.map(({ id }) => id));
+        const succeeded = await sendRequest(`追加クラス情報の共有を許可します。共有された情報を使って、最初の依頼を改めて評価してください。共有確認と確認事項を同じ返答で求めず、追加確認が必要なら確認事項だけを、変更案を作成できるなら変更案を返してください: ${lines}`, approved.map(({ id }) => id));
         item.submitting = false;
         if (succeeded) item.status = 'approved';
         renderConversation();
@@ -820,7 +838,7 @@
         if (item.submitting || item.status !== 'pending') return;
         item.submitting = true;
         renderConversation();
-        const succeeded = await sendRequest('追加クラス情報の共有は許可しません。現在の選択範囲だけで回答してください。');
+        const succeeded = await sendRequest('追加クラス情報の共有は許可しません。同じ情報を再要求せず、現在利用できる情報だけで最初の依頼を改めて評価してください。共有確認と確認事項を同じ返答で求めず、安全に進められない場合は確認事項だけを返してください。');
         item.submitting = false;
         if (succeeded) item.status = 'denied';
         renderConversation();
@@ -947,9 +965,9 @@
           updateBadge();
           summary.parentElement?.addEventListener('toggle', updateBadge);
         }
-        if (affectedIds.has(node.id)) {
-          const indexes = indexesFor(node.id);
-          summary.classList.add(indexes.length && indexes.some((index) => options.excludedOperationIndexes.has(index))
+        const indexes = indexesFor(node.id);
+        if (indexes.length) {
+          summary.classList.add(indexes.some((index) => options.excludedOperationIndexes.has(index))
             ? 'is-ai-preview-excluded' : 'is-ai-preview-changed');
         }
         const checkbox = node.type === 'middle' ? null : makeToggle(node.id, node.label);
@@ -1358,21 +1376,9 @@
     before.replaceChildren();
     after.replaceChildren();
     if (currentGroup) {
-      const groupIndexes = new Set(currentGroup.indexes);
-      const groupDirectIds = new Set([...operationIndexesByClass.entries()]
-        .filter(([, indexes]) => [...indexes].some((index) => groupIndexes.has(index)))
-        .map(([id]) => id));
-      const isDescendantOfGroupChange = (id, parentByChild, validIds) => {
-        let parent = parentByChild.get(id);
-        const seen = new Set();
-        while (parent && validIds.has(parent) && !seen.has(parent)) {
-          if (groupDirectIds.has(parent)) return true;
-          seen.add(parent);
-          parent = parentByChild.get(parent);
-        }
-        return false;
-      };
-      const groupAffectedIds = new Set([...beforeIds, ...displayIds]);
+      // 変更箇所と、その変更前後の親経路だけを表示対象にする。
+      // 全クラスを含めると、提案と無関係な枝までプレビューに出てしまう。
+      const groupAffectedIds = new Set(operationIds);
       addAncestors(groupAffectedIds, beforeParents, beforeIds);
       addAncestors(groupAffectedIds, displayParents, displayIds);
       const groupPreviewState = (state) => previewState(state, groupAffectedIds);
@@ -1609,7 +1615,9 @@
       selectedScope: diffScope(previousScope, activeScope),
       instruction: options.instruction || (activeScope.mode === 'hierarchy_scope'
         ? 'これは階層クラスだけの範囲です。対象クラスの個別情報は含まれません。上位・中間クラスの追加・改名・移動・削除だけを提案してください。上位クラスを中間クラスへ移す場合は上位を中間化し、配下の親子関係を保ってください。対象クラスの操作は提案しないでください。'
-        : '依頼の目的に沿って、選択範囲とsharedContextIdsの参照情報を使い、分類全体の観点から改善案や代替案を検討してください。検討の幅を選択範囲だけに狭める必要はありません。ただし、共有されていないクラスの情報は推測せず、事実として扱わないでください。selectionRootsは利用者が選んだ起点、editableIdsは実際に変更できる移動元の正確な一覧です。sharedContextIdsは利用者が共有を許可した参照専用情報で、共有クラス自体を移動元・改名・削除の対象にはできません。提案する操作はeditableIds内の対象だけにし、範囲外の変更が必要なら利用者に対象クラスの選択を促してください。比較に必要な範囲外情報が入力にない場合だけ、dataRequestsで必要なクラス情報を求め、利用者の許可を待ってください。クラス名やIDが分からない場合は推測せず、classQueryで種別・名前キーワード・選択範囲との関係を指定してください。過去の合意や回答を毎回言い直さず、messageは今回の結論だけを1〜2文で簡潔に伝えてください。変更案がない場合は、今回の範囲で決められない直接の理由だけを述べてください。上位クラスを中間クラスへ移す場合は上位を新しい中間クラスIDに変換し、配下の所属先だけを自動的に付け替えて親子関係を保つため、配下を別々に移動する操作は作らないでください。未掲載の配下を推測した別操作は提案しないでください。個別インスタンスデータと件数は含みません。')
+        : '依頼の目的に沿って、選択範囲とsharedContextIdsの参照情報を使い、分類全体の観点から改善案や代替案を検討してください。検討の幅を選択範囲だけに狭める必要はありません。ただし、共有されていないクラスの情報は推測せず、事実として扱わないでください。selectionRootsは利用者が選んだ起点、editableIdsは実際に変更できる移動元の正確な一覧です。sharedContextIdsは利用者が共有を許可した参照専用情報で、共有クラス自体を移動元・改名・削除の対象にはできません。提案する操作はeditableIds内の対象だけにし、範囲外の変更が必要なら利用者に対象クラスの選択を促してください。比較に必要な範囲外情報が入力にない場合だけ、dataRequestsで必要なクラス情報を求め、利用者の許可を待ってください。クラス名やIDが分からない場合は推測せず、classQueryで種別・名前キーワード・選択範囲との関係を指定してください。過去の合意や回答を毎回言い直さず、messageは今回の結論だけを1〜2文で簡潔に伝えてください。変更案がない場合は、今回の範囲で決められない直接の理由だけを述べてください。上位クラスを中間クラスへ移す場合は上位を新しい中間クラスIDに変換し、配下の所属先だけを自動的に付け替えて親子関係を保つため、配下を別々に移動する操作は作らないでください。未掲載の配下を推測した別操作は提案しないでください。個別インスタンスデータと件数は含みません.'),
+      proposalPolicy: '選択範囲全体を見て、分類上の問題を解決するのに関連する複数の追加・改名・移動などは、一つの一貫した変更案にまとめてください。変更数を増やすための操作は足さず、解決に必要な変更を細かな単発案に分けないでください。変更後にどう整理されるかと、関連操作をまとめる理由をsummaryとreasonで説明してください。',
+      responsePolicy: '追加クラス情報の共有確認と確認事項を同じ返答で同時に求めないでください。範囲外情報が必要な場合はdataRequestsだけを返し、questionsとproposalsは空にしてください。利用者の許可・拒否後に依頼を再評価し、必要なら確認事項か変更案を返してください。共有を拒否された同じ情報は再要求しないでください.'
     });
   };
   const makeLargeScopePlan = (userText, scope, conversation) => {
@@ -1966,10 +1974,11 @@
     conversation.items.push({ type: 'message', role: 'user', text: userText });
     conversation.updatedAt = Date.now();
     refreshConversationTitle(conversation);
-    renderConversation({ scrollToBottom: true });
     updateUsageSummary(preflightNote);
-    setStatus(splitTasks ? `AIが変更案を作成中です…（1/${splitTasks.length}）` : 'AIが変更案を作成中です…');
     isSending = true; sendButton.disabled = true; document.getElementById('ai-new-consultation').disabled = true;
+    conversation.isThinking = true;
+    setStatus(splitTasks ? `AIが変更案を作成中です…（1/${splitTasks.length}）` : '');
+    renderConversation({ scrollToBottom: true });
     sendButton.classList.add('is-sending');
     sendButton.textContent = '';
     sendButton.setAttribute('aria-label', 'AIが処理中です');
@@ -2066,14 +2075,17 @@
         if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
       }
       const responseGroupId = `reply-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      if (result.message) conversation.items.push({ type: 'message', role: 'assistant', text: result.message });
       const resolvedDataRequests = resolveDataRequests(result.dataRequests, scope);
-      if (resolvedDataRequests.requests.length || resolvedDataRequests.candidateGroups.length || resolvedDataRequests.unresolved.length) {
-        conversation.items.push({ type: 'data-requests', ...resolvedDataRequests, status: 'pending', submitting: false });
+      const hasShareRequest = resolvedDataRequests.requests.length > 0
+        || resolvedDataRequests.candidateGroups.length > 0
+        || resolvedDataRequests.unresolved.length > 0;
+      if (result.message && !hasShareRequest) conversation.items.push({ type: 'message', role: 'assistant', text: result.message, responseGroupId });
+      if (hasShareRequest) {
+        conversation.items.push({ type: 'data-requests', ...resolvedDataRequests, responseGroupId, status: 'pending', submitting: false });
       }
       const queuedQuestions = result.questions.map((question) => ({ text: question, proposalTitle: '', proposalId: '' }));
       const queuedProposalIds = [];
-      result.proposals.forEach((proposal) => {
+      (hasShareRequest ? [] : result.proposals).forEach((proposal) => {
         if (proposal.questions.length) {
           proposal.questions.forEach((question) => queuedQuestions.push({ text: question, proposalTitle: proposal.title, proposalId: proposal.id }));
         }
@@ -2090,7 +2102,7 @@
         });
         if (awaitingAnswers) queuedProposalIds.push(proposal.id);
       });
-      if (queuedQuestions.length) {
+      if (!hasShareRequest && queuedQuestions.length) {
         conversation.items.push({
           type: 'questions',
           responseGroupId,
@@ -2103,11 +2115,14 @@
         });
       }
       conversation.updatedAt = Date.now();
-      renderConversation();
-      setStatus(result.proposals.length ? '' : '変更案はありません。確認事項への回答や追加依頼を入力できます。');
+      conversation.isThinking = false;
+      renderConversation({ scrollToResponseGroupId: responseGroupId });
+      setStatus(hasShareRequest || result.proposals.length ? '' : '変更案はありません。確認事項への回答や追加依頼を入力できます。');
       requestSucceeded = true;
     } catch (error) {
+      conversation.isThinking = false;
       setStatus(error.message || '接続に失敗しました。設定と通信状態を確認してください。', 'error');
+      renderConversation();
     } finally {
       isSending = false; sendButton.disabled = false; document.getElementById('ai-new-consultation').disabled = false; activeRequestController = null;
       sendButton.classList.remove('is-sending');
