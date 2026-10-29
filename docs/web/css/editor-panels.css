@@ -284,6 +284,9 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-data-request-candidate-name { min-width: 0; color: #334155; font-size: 0.78rem; }
 .ai-data-request-candidate small { min-width: 0; overflow: hidden; color: #64748b; font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
 .ai-data-request-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.4rem; }
+.ai-data-request-selection-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
+.ai-data-request-selection-actions button { min-height: 1.9rem; padding: 0.25rem 0.55rem; border: 1px solid #94a3b8; border-radius: 6px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.74rem; }
+.ai-data-request-selection-actions button:disabled { opacity: 0.55; cursor: not-allowed; }
 .ai-data-request-actions button { min-height: 2rem; padding: 0.3rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.76rem; }
 .ai-data-request-actions button:disabled { opacity: 0.55; cursor: not-allowed; }
 .ai-data-request-actions .search-button { border-color: #0369a1; color: #fff; background: #0369a1; }
