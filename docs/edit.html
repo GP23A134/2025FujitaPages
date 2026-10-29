@@ -44,14 +44,16 @@
       <button type="button" id="clear-visible-tree-selection" class="edit-taskbar-button tree-toolbar-button" aria-label="現在のツリー表示範囲の選択を解除" title="現在表示されている上位・中間クラスの選択を解除すると配下も解除します">表示範囲を解除</button>
       <button type="button" id="select-filtered-targets" class="edit-taskbar-button tree-toolbar-button" hidden>検索結果を選択</button>
       <button type="button" id="clear-filtered-targets-selection" class="edit-taskbar-button tree-toolbar-button" hidden>検索結果を解除</button>
-      <span id="edit-selection-summary" class="edit-selection-summary" role="status" aria-live="polite">選択 0件</span>
       <button type="button" id="toggle-tree-filter-open" class="edit-taskbar-button" hidden><span class="edit-taskbar-icon" aria-hidden="true">⌕</span>検索欄を表示</button>
     </div>
     <div class="edit-taskbar-spacer" aria-hidden="true"></div>
-    <div class="edit-taskbar-group edit-taskbar-panel-modes" role="tablist" aria-label="サイド欄">
-      <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="held" role="tab" aria-selected="false" aria-controls="held-list-view"><span class="edit-taskbar-icon" aria-hidden="true">▤</span>保持中</button>
-      <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="destination" role="tab" aria-selected="false" aria-controls="held-destination-picker"><span class="edit-taskbar-icon" aria-hidden="true">⇥</span>移動先</button>
-      <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="chat" role="tab" aria-selected="false" aria-controls="ai-assistant-panel"><span class="edit-taskbar-icon" aria-hidden="true">◉</span>AIチャット</button>
+    <div class="edit-taskbar-held-controls">
+      <div class="edit-taskbar-group edit-taskbar-panel-modes" role="tablist" aria-label="サイド欄">
+        <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="held" role="tab" aria-selected="false" aria-controls="held-list-view"><span class="edit-taskbar-icon" aria-hidden="true">▤</span>保持中</button>
+        <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="destination" role="tab" aria-selected="false" aria-controls="held-destination-picker"><span class="edit-taskbar-icon" aria-hidden="true">⇥</span>移動先</button>
+        <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="chat" role="tab" aria-selected="false" aria-controls="ai-assistant-panel"><span class="edit-taskbar-icon" aria-hidden="true">◉</span>AIチャット</button>
+      </div>
+      <span id="edit-selection-summary" class="edit-selection-summary" role="status" aria-live="polite">選択 0件</span>
     </div>
     <button type="button" id="save-edit-changes" class="edit-taskbar-button edit-header-save">編集内容を保存</button>
   </div>
@@ -222,7 +224,7 @@
     </div>
     <p id="ai-preview-impact" class="ai-preview-impact" role="status" aria-live="polite"></p>
     <section id="ai-preview-overview-page" class="ai-preview-page">
-      <details class="ai-preview-proposal-section">
+      <details class="ai-preview-proposal-section" open>
         <summary id="ai-preview-proposal-heading">変更案の概要</summary>
         <section class="ai-preview-proposal" aria-label="変更案の概要">
           <div><h3>変更内容</h3><p id="ai-preview-summary"></p></div>
@@ -230,17 +232,18 @@
           <div class="ai-preview-uncertainties"><h3>不確かな点</h3><p id="ai-preview-uncertainties"></p></div>
         </section>
       </details>
-      <h3 class="ai-preview-page-heading">変更のまとまり</h3>
-      <ul id="ai-preview-group-overview" class="ai-preview-group-overview"></ul>
     </section>
     <section id="ai-preview-change-page" class="ai-preview-page" hidden>
       <div class="ai-preview-change-page-heading">
         <h3 id="ai-preview-group-title"></h3>
         <div class="ai-preview-selection-actions">
-          <button type="button" id="ai-preview-group-include">このまとまりを適用</button>
-          <button type="button" id="ai-preview-group-exclude">このまとまりを除外</button>
+          <button type="button" id="ai-preview-group-include">すべて適用</button>
+          <button type="button" id="ai-preview-group-exclude">すべて除外</button>
         </div>
       </div>
+      <ul class="ai-preview-type-legend" aria-label="変更の種類">
+        <li class="is-add">追加（緑）</li><li class="is-rename">改名（青）</li><li class="is-move">移動（紫）</li><li class="is-delete">削除（赤）</li>
+      </ul>
       <ul id="ai-preview-change-list" class="ai-preview-change-list"></ul>
       <div class="ai-preview-columns">
         <section>
@@ -252,7 +255,7 @@
           <div id="ai-preview-after" class="ai-preview-tree"></div>
         </section>
       </div>
-      <p class="ai-preview-note">青は適用、灰は除外。対象クラスはクリック、上位クラスはチェックで切替できます。</p>
+      <p class="ai-preview-note">色ラベルは変更の種類、チェック状態は適用・除外を示します。対象クラスはクリック、上位クラスはチェックで切替できます。</p>
     </section>
     <section id="ai-preview-final-page" class="ai-preview-page" hidden>
       <h3 class="ai-preview-page-heading">適用前の最終確認</h3>

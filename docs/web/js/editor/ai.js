@@ -511,6 +511,13 @@
     if (operation.type === 'deleteClass') return `「${labelFor(operation.classId)}」を削除`;
     return '不明な操作';
   };
+  const operationCategory = (operation) => {
+    if (operation?.type === 'addClass') return { label: '追加', className: 'is-add' };
+    if (operation?.type === 'renameClass') return { label: '改名', className: 'is-rename' };
+    if (operation?.type === 'moveClass' || operation?.type === 'moveChildren') return { label: '移動', className: 'is-move' };
+    if (operation?.type === 'deleteClass') return { label: '削除', className: 'is-delete' };
+    return { label: 'その他', className: 'is-other' };
+  };
   const labelFor = (id) => {
     return temporaryLabelsById.get(id) || classLabelsById.get(id) || id || '未指定';
   };
@@ -542,7 +549,7 @@
     const statusLabel = document.createElement('span'); statusLabel.className = 'ai-proposal-status';
     const statusText = { pending: '', previewed: '確認済み', stale: '適用後の状態で再確認が必要', applied: '適用済み', 'awaiting-answers': '確認事項への回答待ち', superseded: '回答を送信済み。更新後の案を確認してください。' };
     statusLabel.textContent = statusText[item.status] || '';
-    const unavailable = ['applied', 'awaiting-answers', 'superseded'].includes(item.status);
+    const unavailable = ['awaiting-answers', 'superseded'].includes(item.status);
     preview.disabled = unavailable || item.status === 'invalid';
     const updateStatus = () => {
       statusLabel.textContent = item.status === 'previewed' ? '確認済み' : item.status === 'stale' ? '適用後の状態で再確認が必要' : '';
@@ -574,7 +581,18 @@
     if (counts.awaiting) statusParts.push(`回答待ち${counts.awaiting}件`);
     if (counts.answered) statusParts.push(`回答済み${counts.answered}件`);
     summary.textContent = `変更案（${items.length}件・${statusParts.join('・')}）`;
-    details.append(summary, ...items.map(renderProposalCard));
+    const pageIndex = Math.max(0, Math.min(items.length - 1, proposalGroup.proposalPageIndex || 0));
+    proposalGroup.proposalPageIndex = pageIndex;
+    const navigation = document.createElement('div');
+    navigation.className = 'ai-proposal-page-navigation';
+    const previous = document.createElement('button'); previous.type = 'button'; previous.textContent = '前へ'; previous.disabled = pageIndex === 0;
+    previous.addEventListener('click', () => { proposalGroup.proposalPageIndex = pageIndex - 1; renderConversation(); });
+    const position = document.createElement('span'); position.textContent = `${pageIndex + 1} / ${items.length}`;
+    const next = document.createElement('button'); next.type = 'button'; next.textContent = '次へ'; next.disabled = pageIndex >= items.length - 1;
+    next.addEventListener('click', () => { proposalGroup.proposalPageIndex = pageIndex + 1; renderConversation(); });
+    navigation.append(previous, position, next);
+    navigation.hidden = items.length < 2;
+    details.append(summary, navigation, renderProposalCard(items[pageIndex]));
     host.append(details);
   };
   const renderQuestionQueue = (item, host = messages) => {
@@ -688,12 +706,29 @@
         const typeLabel = { top: '上位', middle: '中間', class: '対象' }[group.query.classType] || '全種別';
         groupHeading.textContent = `${typeLabel}クラスの候補${group.candidates.length ? `（${group.candidates.length}件）` : ''}`;
         section.append(groupHeading);
+        const relationLabels = { any: '指定なし', parent: '選択クラスの親', child: '選択クラスの子', descendant: '選択クラスの配下', sibling: '選択クラスの兄弟', same_top_ancestor: '同じ上位クラス配下' };
+        const criteria = document.createElement('p');
+        const keywordText = group.query.nameKeywords.length ? `・名称キーワード: ${group.query.nameKeywords.join('、')}` : '';
+        criteria.className = 'ai-data-request-query';
+        criteria.textContent = `検索条件: ${typeLabel}クラス・${relationLabels[group.query.relationToSelection] || '指定なし'}${keywordText}`;
+        section.append(criteria);
         if (group.reason) {
           const reason = document.createElement('p');
           reason.textContent = group.reason;
           section.append(reason);
         }
         if (group.candidates.length) {
+          if (group.matchMode === 'without-keywords') {
+            const broadened = document.createElement('p');
+            broadened.className = 'ai-data-request-query-note';
+            broadened.textContent = '名称キーワードに一致する候補がなかったため、選択範囲との関係を保って候補を広げました。';
+            section.append(broadened);
+          } else if (group.matchMode === 'without-keywords-or-relation') {
+            const broadened = document.createElement('p');
+            broadened.className = 'ai-data-request-query-note';
+            broadened.textContent = '条件に完全一致する候補がなかったため、クラス種別だけで候補を広げました。所属先を確認して選んでください。';
+            section.append(broadened);
+          }
           const list = document.createElement('ul');
           group.candidates.forEach(({ item: candidate, path }) => {
             const row = document.createElement('li');
@@ -855,6 +890,17 @@
     const targetCountFor = (item) => state.counts?.[item.id] || 0;
     const countFor = (node) => node.targets.length + node.children.reduce((sum, child) => sum + countFor(child), 0);
     const indexesFor = (id) => Array.from(options.operationIndexesByClass?.get(id) || []);
+    const appendTypeBadges = (host, indexes) => {
+      const categories = [...new Map(indexes.map((index) => operationCategory(options.operations?.[index]))
+        .filter(Boolean).map((category) => [category.label, category])).values()];
+      categories.forEach((category) => {
+        host.classList.add(`is-ai-preview-type-${category.className.slice(3)}`);
+        const badge = document.createElement('span');
+        badge.className = `ai-preview-type-badge ${category.className}`;
+        badge.textContent = category.label;
+        host.append(badge);
+      });
+    };
     const makeToggle = (id, label) => {
       const indexes = indexesFor(id);
       if (!options.selectable || !indexes.length) return null;
@@ -886,6 +932,7 @@
         }
         const checkbox = node.type === 'middle' ? null : makeToggle(node.id, node.label);
         if (checkbox) summary.prepend(checkbox);
+        appendTypeBadges(summary, indexesFor(node.id));
         if (node.previewDeleted) {
           summary.classList.add('is-ai-preview-deleted');
           const note = document.createElement('span');
@@ -929,6 +976,7 @@
         label.className = 'tree-leaf-label';
         label.textContent = item.label;
         row.append(id, label);
+        appendTypeBadges(row, indexes);
         li.append(row);
         return li;
       },
@@ -951,16 +999,26 @@
       const excluded = proposalItem.excludedOperationIndexes.has(index);
       const row = document.createElement('li');
       row.className = `ai-preview-change-item${excluded ? ' is-excluded' : ''}`;
+      const toggle = document.createElement('input');
+      toggle.type = 'checkbox'; toggle.checked = !excluded;
+      toggle.disabled = proposalItem.status === 'applied';
+      toggle.setAttribute('aria-label', `${operationLabel(operation)}を適用する`);
+      toggle.addEventListener('change', () => updatePreviewSelection(proposalItem, () => {
+        if (toggle.checked) proposalItem.excludedOperationIndexes.delete(index);
+        else proposalItem.excludedOperationIndexes.add(index);
+      }));
       const text = document.createElement('span'); text.className = 'ai-preview-change-text'; text.textContent = operationLabel(operation);
+      const type = document.createElement('span'); type.className = `ai-preview-type-badge ${operationCategory(operation).className}`;
+      type.textContent = operationCategory(operation).label;
       const status = document.createElement('span'); status.className = 'ai-preview-change-status'; status.textContent = excluded ? '除外' : '適用';
-      row.append(text, status);
+      row.append(toggle, type, text, status);
       return row;
     });
     list.replaceChildren(...rows);
   };
   const buildPreviewGroups = (proposalItem) => {
     const operations = proposalItem.proposal.operations;
-    const state = editor.getState();
+    return [{ key: 'all', kind: 'all', indexes: operations.map((_, index) => index), title: 'すべての変更' }];
     const parentByChild = new Map(state.relations.map(({ child, parent }) => [child, parent]));
     const typeById = new Map(state.classes.map(({ id, type }) => [id, type]));
     const topAncestorFor = (id) => {
@@ -1032,6 +1090,7 @@
   };
   const renderPreviewGroupOverview = (proposalItem) => {
     const host = document.getElementById('ai-preview-group-overview');
+    if (!host) return;
     host.replaceChildren(...previewGroups.map((group) => {
       const row = document.createElement('li');
       const title = document.createElement('strong');
@@ -1044,34 +1103,27 @@
     }));
   };
   const updatePreviewPageChrome = (proposalItem) => {
-    const totalPages = previewGroups.length + 2;
+    const totalPages = 1;
     const overview = document.getElementById('ai-preview-overview-page');
     const changes = document.getElementById('ai-preview-change-page');
     const final = document.getElementById('ai-preview-final-page');
     const previous = document.getElementById('ai-preview-page-previous');
     const next = document.getElementById('ai-preview-page-next');
     const apply = document.getElementById('ai-apply-proposal');
-    const groupIndex = previewPageIndex - 1;
-    overview.hidden = previewPageIndex !== 0;
-    changes.hidden = groupIndex < 0 || groupIndex >= previewGroups.length;
-    final.hidden = previewPageIndex !== totalPages - 1;
-    previous.disabled = previewPageIndex === 0;
-    next.hidden = previewPageIndex === totalPages - 1;
-    next.textContent = previewPageIndex === 0
-      ? '変更を確認'
-      : previewPageIndex === previewGroups.length ? '最終確認へ' : '次のまとまりへ';
-    apply.hidden = previewPageIndex !== totalPages - 1;
-    document.getElementById('ai-preview-page-position').textContent = previewPageIndex === 0
-      ? `概要　1 / ${totalPages}`
-      : previewPageIndex === totalPages - 1
-        ? `最終確認　${totalPages} / ${totalPages}`
-        : `変更のまとまり ${groupIndex + 1} / ${previewGroups.length}`;
-    if (!changes.hidden) document.getElementById('ai-preview-group-title').textContent = previewGroups[groupIndex].title;
+    const groupIndex = 0;
+    overview.hidden = false;
+    changes.hidden = false;
+    final.hidden = true;
+    previous.hidden = true;
+    next.hidden = true;
+    apply.hidden = proposalItem.status === 'applied';
+    document.getElementById('ai-preview-page-position').textContent = '';
+    if (!changes.hidden) document.getElementById('ai-preview-group-title').textContent = 'すべての変更';
     renderPreviewGroupOverview(proposalItem);
   };
   const previewableProposals = () => currentConversation.items.filter((item) => item.type === 'proposal'
     && item.proposal.operations.length
-    && !['applied', 'awaiting-answers', 'superseded', 'invalid'].includes(item.status));
+    && !['awaiting-answers', 'superseded', 'invalid'].includes(item.status));
   const hasUnsubmittedQuestions = (responseGroupId) => currentConversation.items.some((item) =>
     item.type === 'questions' && !item.submitted && item.responseGroupId === responseGroupId);
   const updatePreviewNavigation = (proposalItem) => {
@@ -1097,7 +1149,16 @@
       ? `・確認事項${questionCount}件` : '';
     document.getElementById('ai-preview-proposal-heading').textContent = `変更案（${operationsCount}件・${status}${questionStatus}）`;
   };
+  const syncProposalPage = (proposalItem) => {
+    const groupItems = currentConversation.items.filter((item) => item.type === 'proposal'
+      && (proposalItem.responseGroupId
+        ? item.responseGroupId === proposalItem.responseGroupId
+        : item === proposalItem));
+    const index = groupItems.indexOf(proposalItem);
+    if (index >= 0 && groupItems.length) groupItems[0].proposalPageIndex = index;
+  };
   const showPreview = async (proposalItem, applyRequested = false, fastUpdate = false) => {
+    syncProposalPage(proposalItem);
     if (hasUnsubmittedQuestions(proposalItem.responseGroupId)) {
       if (previewDialog.open) closePreview();
       return false;
@@ -1108,6 +1169,7 @@
       previewPlan = null;
     }
     const operations = proposalItem.proposal.operations;
+    const isApplied = proposalItem.status === 'applied' && Boolean(proposalItem.appliedPreviewSnapshot);
     if (!operations.length) throw new Error('変更操作が残っていません。この提案は適用する内容がありません。');
     proposalItem.excludedOperationIndexes ||= new Set();
     if (!fastUpdate) {
@@ -1129,18 +1191,20 @@
       if (!previewDialog.open) previewDialog.showModal();
       await new Promise((resolve) => requestAnimationFrame(resolve));
       await verifyLoadedDataVersion();
-      if (proposalItem.status !== 'stale' && proposalItem.baseDataHash !== await currentDataHash()) {
+      if (!isApplied && proposalItem.status !== 'stale' && proposalItem.baseDataHash !== await currentDataHash()) {
         throw new Error('提案作成後にデータが変更されています。最新状態で依頼し直してください。');
       }
     }
     const expectedFingerprint = fastUpdate ? previewPlan?.expectedFingerprint : stateFingerprint();
-    if (!expectedFingerprint || stateFingerprint() !== expectedFingerprint) {
+    if (!isApplied && (!expectedFingerprint || stateFingerprint() !== expectedFingerprint)) {
       throw new Error('プレビュー作成後にデータが変更されています。最新データで提案し直してください。');
     }
-    const proposedCandidate = editor.applyOperations(operations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds);
     const activeOperations = operations.filter((_, index) => !proposalItem.excludedOperationIndexes.has(index));
-    const candidate = editor.applyOperations(activeOperations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds);
-    const expectedBaseHash = fastUpdate ? previewPlan.expectedBaseHash : await currentDataHash();
+    const proposedCandidate = isApplied ? proposalItem.appliedPreviewSnapshot.after
+      : editor.applyOperations(operations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds);
+    const candidate = isApplied ? proposedCandidate
+      : editor.applyOperations(activeOperations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds);
+    const expectedBaseHash = isApplied ? '' : fastUpdate ? previewPlan.expectedBaseHash : await currentDataHash();
     if (proposalItem.status === 'stale') {
       proposalItem.baseDataHash = expectedBaseHash;
       proposalItem.status = 'previewed';
@@ -1148,8 +1212,8 @@
       proposalItem.status = 'previewed';
     }
     updatePreviewProposalHeading(proposalItem);
-    if (stateFingerprint() !== expectedFingerprint) throw new Error('プレビュー作成中にデータが変更されました。最新データで提案し直してください。');
-    const beforeState = editor.getState();
+    if (!isApplied && stateFingerprint() !== expectedFingerprint) throw new Error('プレビュー作成中にデータが変更されました。最新データで提案し直してください。');
+    const beforeState = isApplied ? proposalItem.appliedPreviewSnapshot.before : editor.getState();
     const beforeIds = new Set(beforeState.classes.map((item) => item.id));
     const beforeParents = new Map(beforeState.relations.map(({ child, parent }) => [child, parent]));
     const afterParents = new Map(proposedCandidate.relations.map(({ child, parent }) => [child, parent]));
@@ -1267,7 +1331,7 @@
       return `合計 ${total}件・直下 ${direct}件`;
     };
     updatePreviewPageChrome(proposalItem);
-    const currentGroupIndex = previewPageIndex - 1;
+    const currentGroupIndex = 0;
     const currentGroup = previewGroups[currentGroupIndex];
     before.replaceChildren();
     after.replaceChildren();
@@ -1286,22 +1350,19 @@
         }
         return false;
       };
-      const groupAffectedIds = new Set(groupDirectIds);
-      operationIds.forEach((id) => {
-        if (groupDirectIds.has(id)
-          || isDescendantOfGroupChange(id, beforeParents, beforeIds)
-          || isDescendantOfGroupChange(id, displayParents, displayIds)) groupAffectedIds.add(id);
-      });
+      const groupAffectedIds = new Set([...beforeIds, ...displayIds]);
       addAncestors(groupAffectedIds, beforeParents, beforeIds);
       addAncestors(groupAffectedIds, displayParents, displayIds);
       const groupPreviewState = (state) => previewState(state, groupAffectedIds);
       appendTree(before, groupPreviewState(beforeState), groupAffectedIds, {
-        countLabelFor: hierarchyCountLabel(beforeHierarchyCounts)
+        countLabelFor: hierarchyCountLabel(beforeHierarchyCounts),
+        operationIndexesByClass, operations, deletionOperationByClass,
+        excludedOperationIndexes: proposalItem.excludedOperationIndexes
       });
       appendTree(after, groupPreviewState(proposedDisplayState), groupAffectedIds, {
-        selectable: true,
+        selectable: !isApplied,
         countLabelFor: hierarchyCountLabel(afterHierarchyCounts),
-        operationIndexesByClass,
+        operationIndexesByClass, operations,
         deletionOperationByClass,
         excludedOperationIndexes: proposalItem.excludedOperationIndexes,
         onToggle: (indexes, include) => {
@@ -1324,9 +1385,13 @@
     });
     const impact = document.getElementById('ai-preview-impact');
     impact.classList.remove('is-loading');
-    impact.textContent = `適用中 ${activeOperations.length}/${operations.length}件（追加 ${operationCounts.addClass}・改名 ${operationCounts.renameClass}・移動 ${operationCounts.move}・削除 ${operationCounts.deleteClass}）`;
-    previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), candidate, expectedFingerprint, expectedBaseHash };
-    applyButton.disabled = activeOperations.length === 0;
+    impact.textContent = isApplied
+      ? `適用済みの履歴プレビュー（適用時点の変更前後・${operations.length}件）`
+      : `適用対象 ${activeOperations.length}/${operations.length}件（追加 ${operationCounts.addClass}・改名 ${operationCounts.renameClass}・移動 ${operationCounts.move}・削除 ${operationCounts.deleteClass}）`;
+    document.getElementById('ai-preview-group-include').hidden = isApplied;
+    document.getElementById('ai-preview-group-exclude').hidden = isApplied;
+    previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), candidate, expectedFingerprint, expectedBaseHash, readOnly: isApplied };
+    applyButton.disabled = isApplied || activeOperations.length === 0;
     if (applyRequested && activeOperations.length) applyButton.focus();
   };
   const navigatePreview = (direction) => {
@@ -1459,14 +1524,26 @@
       if (request.classQuery) {
         const query = request.classQuery;
         const keywords = query.nameKeywords.map((value) => value.toLocaleLowerCase('ja-JP'));
-        const matches = state.classes.filter((candidate) => !selected.has(candidate.id) && !alreadyShared.has(candidate.id) && !resolved.has(candidate.id)
+        const findMatches = ({ useKeywords, useRelation }) => state.classes.filter((candidate) => !selected.has(candidate.id)
+          && !alreadyShared.has(candidate.id) && !resolved.has(candidate.id)
           && (!query.classType || candidate.type === query.classType)
-          && keywords.every((keyword) => String(candidate.label || '').toLocaleLowerCase('ja-JP').includes(keyword))
-          && matchesRelation(candidate.id, query.relationToSelection))
+          && (!useKeywords || keywords.every((keyword) => String(candidate.label || '').toLocaleLowerCase('ja-JP').includes(keyword)))
+          && (!useRelation || matchesRelation(candidate.id, query.relationToSelection)))
           .sort((left, right) => String(left.label || '').localeCompare(String(right.label || ''), 'ja'));
+        let matchMode = 'strict';
+        let matches = findMatches({ useKeywords: true, useRelation: true });
+        if (!matches.length && keywords.length) {
+          matches = findMatches({ useKeywords: false, useRelation: true });
+          if (matches.length) matchMode = 'without-keywords';
+        }
+        if (!matches.length && query.relationToSelection !== 'any') {
+          matches = findMatches({ useKeywords: false, useRelation: false });
+          if (matches.length) matchMode = 'without-keywords-or-relation';
+        }
         candidateGroups.push({
           query,
           reason: request.reason,
+          matchMode,
           candidates: matches.slice(0, query.limit).map((item) => ({ item, path: pathFor(item.id) })),
           truncated: matches.length > query.limit,
           selectedIds: []
@@ -1998,7 +2075,7 @@
           questions: queuedQuestions,
           proposalIds: [...new Set(queuedProposalIds)],
           activeIndex: 0,
-          open: false,
+          open: true,
           submitted: false,
           submitting: false
         });
@@ -2069,13 +2146,13 @@
   document.getElementById('ai-preview-page-next').addEventListener('click', () => navigatePreviewPage(1));
   document.getElementById('ai-preview-group-include').addEventListener('click', () => {
     const item = previewPlan?.proposalItem;
-    const group = previewGroups[previewPageIndex - 1];
+    const group = previewGroups[0];
     if (!item || !group) return;
     updatePreviewSelection(item, () => group.indexes.forEach((index) => item.excludedOperationIndexes.delete(index)));
   });
   document.getElementById('ai-preview-group-exclude').addEventListener('click', () => {
     const item = previewPlan?.proposalItem;
-    const group = previewGroups[previewPageIndex - 1];
+    const group = previewGroups[0];
     if (!item || !group) return;
     updatePreviewSelection(item, () => group.indexes.forEach((index) => item.excludedOperationIndexes.add(index)));
   });
@@ -2093,6 +2170,7 @@
   });
   document.getElementById('ai-apply-proposal').addEventListener('click', async () => {
     if (!previewPlan) return;
+    if (previewPlan.readOnly || previewPlan.proposalItem.status === 'applied') return;
     if (hasUnsubmittedQuestions(previewPlan.proposalItem.responseGroupId)) { closePreview(); return; }
     try {
       const currentProposal = previewPlan.proposalItem;
@@ -2103,8 +2181,18 @@
       const currentHash = await currentDataHash();
       if (currentHash !== previewPlan.expectedBaseHash) throw new Error('提案の作成後にデータが変更されました。最新データで提案し直してください。');
       const candidate = editor.applyOperations(previewPlan.operations, previewPlan.expectedFingerprint, previewPlan.proposalItem.editableIds, previewPlan.proposalItem.availableIds);
+      const beforeSnapshot = editor.getState();
+      currentProposal.appliedPreviewSnapshot = {
+        before: { classes: beforeSnapshot.classes.map((item) => ({ ...item })), relations: beforeSnapshot.relations.map((item) => ({ ...item })), counts: beforeSnapshot.counts },
+        after: { classes: candidate.classes.map((item) => ({ ...item })), relations: candidate.relations.map((item) => ({ ...item })), idRemaps: new Map(candidate.idRemaps || []) }
+      };
       editor.commitCandidate(candidate);
       currentProposal.status = 'applied';
+      const proposalGroup = currentConversation.items.find((item) => item.type === 'proposal'
+        && (currentProposal.responseGroupId
+          ? item.responseGroupId === currentProposal.responseGroupId
+          : item === currentProposal));
+      if (proposalGroup) proposalGroup.proposalsOpen = false;
       currentConversation.items.filter((item) => item.type === 'proposal' && item !== currentProposal && item.status !== 'applied')
         .forEach((item) => { item.status = 'stale'; });
       renderConversation();

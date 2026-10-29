@@ -12,7 +12,7 @@
 /* ツリーと保持中パネルの列幅・高さ */
 .edit-tree-layout {
   --edit-tree-content-height: 100vh;
-  --edit-tree-bottom-space: 4rem;
+  --edit-tree-bottom-space: 1rem;
   --held-panel-width: 30%;
   --tree-panel-heading-font-size: 1rem;
   --edit-pane-gap: 0;
@@ -49,8 +49,8 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selectio
   body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection:not([hidden])) {
     --edit-tree-bottom-space: 0.5rem;
   }
-  body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection:not([hidden])) .edit-tree-pane {
-    padding-bottom: var(--edit-pane-available-height, calc(100vh - 5.5rem));
+  body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection:not(.is-collapsed):not([hidden])) .edit-tree-pane {
+    padding-bottom: 1rem;
   }
 }
 body[data-mode="edit"] .edit-taskbar { margin-bottom: 0; }
@@ -288,6 +288,8 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-data-request-actions button:disabled { opacity: 0.55; cursor: not-allowed; }
 .ai-data-request-actions .search-button { border-color: #0369a1; color: #fff; background: #0369a1; }
 .ai-data-request-status { margin: 0.45rem 0 0; color: #475569; font-size: 0.76rem; }
+.ai-data-request-query, .ai-data-request-query-note { margin: 0.35rem 0; color: #475569; font-size: 0.74rem; line-height: 1.4; }
+.ai-data-request-query-note { padding: 0.4rem 0.5rem; border-left: 3px solid #f59e0b; color: #854d0e; background: #fffbeb; }
 .ai-preview-dialog {
   --ai-preview-node-height: 1.65rem;
   --ai-preview-heading-font-size: 0.75rem;
@@ -368,14 +370,23 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-selection-actions button { padding: 0.25rem 0.5rem; border: 1px solid #94a3b8; border-radius: 5px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.75rem; }
 .ai-preview-selection-actions button:hover, .ai-preview-selection-actions button:focus-visible { border-color: #2563eb; background: #eff6ff; }
 .ai-preview-change-list { margin: 0 0.55rem 0.55rem; padding: 0; border: 1px solid #dbe3ec; border-radius: 7px; list-style: none; }
-.ai-preview-change-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.15rem 0.5rem; padding: 0.3rem 0.5rem; border-bottom: 1px solid #e2e8f0; font-size: 0.74rem; }
+.ai-preview-change-item { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 0.15rem 0.5rem; padding: 0.3rem 0.5rem; border-bottom: 1px solid #e2e8f0; font-size: 0.74rem; }
 .ai-preview-change-item:last-child { border-bottom: 0; }
 .ai-preview-change-item.is-excluded { color: #64748b; background: #f1f5f9; }
 .ai-preview-change-text { min-width: 0; overflow-wrap: anywhere; }
 .ai-preview-change-status { color: #475569; font-size: 0.72rem; white-space: nowrap; }
+.ai-preview-type-legend { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.35rem 0; padding: 0; list-style: none; }
+.ai-preview-type-legend li, .ai-preview-type-badge { display: inline-flex; flex: 0 0 auto; align-items: center; padding: 0.12rem 0.4rem; border: 1px solid currentColor; border-radius: 999px; font-size: 0.67rem; font-weight: 700; line-height: 1.25; white-space: nowrap; }
+.ai-preview-type-legend .is-add, .ai-preview-type-badge.is-add { color: #166534; background: #dcfce7; }
+.ai-preview-type-legend .is-rename, .ai-preview-type-badge.is-rename { color: #1d4ed8; background: #dbeafe; }
+.ai-preview-type-legend .is-move, .ai-preview-type-badge.is-move { color: #6d28d9; background: #ede9fe; }
+.ai-preview-type-legend .is-delete, .ai-preview-type-badge.is-delete { color: #b91c1c; background: #fee2e2; }
 .ai-proposal-queue { margin: 0.55rem 0; padding: 0.45rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; }
 .ai-proposal-queue > summary { color: #334155; cursor: pointer; font-size: 0.82rem; font-weight: 700; }
 .ai-proposal-queue .ai-proposal-card { margin-top: 0.45rem; }
+.ai-proposal-page-navigation { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin: 0.35rem 0; color: #64748b; font-size: 0.76rem; }
+.ai-proposal-page-navigation button { min-height: 1.8rem; padding: 0.2rem 0.55rem; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; background: #fff; cursor: pointer; font: inherit; }
+.ai-proposal-page-navigation button:disabled { opacity: 0.45; cursor: not-allowed; }
 .ai-response-group { display: flex; flex: 0 0 auto; flex-direction: column; gap: 0.4rem; margin: 0.15rem 0 0.35rem; padding-left: 0.55rem; border-left: 2px solid #e2e8f0; }
 .ai-response-group .ai-question-queue, .ai-response-group .ai-proposal-queue { margin: 0; }
 .ai-question-review { display: grid; gap: 0.45rem; margin-top: 0.5rem; }
@@ -456,6 +467,14 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .is-ai-preview-changed:not(.tree-leaf-class) { outline: 2px solid #f59e0b; outline-offset: 1px; }
 #ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-changed { outline: none; }
 #ai-preview-dialog .tree .is-ai-preview-excluded { opacity: 0.5; outline: 1px dashed #64748b; outline-offset: 1px; }
+#ai-preview-dialog .tree .is-ai-preview-type-add { outline: 2px solid #16a34a; outline-offset: 1px; }
+#ai-preview-dialog .tree .is-ai-preview-type-rename { outline: 2px solid #2563eb; outline-offset: 1px; }
+#ai-preview-dialog .tree .is-ai-preview-type-move { outline: 2px solid #7c3aed; outline-offset: 1px; }
+#ai-preview-dialog .tree .is-ai-preview-type-delete { outline: 2px solid #dc2626; outline-offset: 1px; }
+#ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-type-add { outline: 2px solid #16a34a; outline-offset: 1px; }
+#ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-type-rename { outline: 2px solid #2563eb; outline-offset: 1px; }
+#ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-type-move { outline: 2px solid #7c3aed; outline-offset: 1px; }
+#ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-type-delete { outline: 2px solid #dc2626; outline-offset: 1px; }
 .ai-preview-change-toggle { flex: 0 0 auto; width: 0.95rem; height: 0.95rem; margin: 0 0.35rem 0 0; accent-color: #d97706; cursor: pointer; }
 .ai-preview-deleted-label { margin-left: 0.45rem; color: #b91c1c; font-size: 0.68rem; font-weight: 700; }
 .ai-preview-operation-inclusion { flex: 0 0 auto; color: #475569; font-size: 0.72rem; }
