@@ -55,9 +55,9 @@
 - **対象クラス**：移動だけできます。名前・ID・実体の編集や削除はできません。
 - **インスタンス**：変更できません。
 - 既存クラスを指定するときは、入力にあるIDを使ってください。移動元は`editableIds`にあるクラスに限ります。
-- 移動先には、入力にある上位・中間クラスのIDを指定してください。クラス名や「未指定」などの文字列は使えません。
+- 移動先には、入力にある上位・中間クラスのIDか、同じ提案内で先に追加する上位・中間クラスの`temporaryId`を指定してください。クラス名や「未指定」などの文字列は使えません。
 - 新しいクラスには一時IDを使ってください。
-- 新しい上位クラスの`parentId`は`null`にしてください。新しい中間クラスには、入力にある上位・中間クラスのID、または同じ提案内で新設する親クラスの`temporaryId`を指定してください。
+- 新しい上位クラスの`parentId`は`null`にしてください。新しい中間クラスには、入力にある上位・中間クラスのID、または同じ提案内で新設する親クラスの`temporaryId`を指定してください。新設する親クラスの`addClass`操作は、子クラスの操作より先に並べてください。
 
 ## 操作JSONの項目
 
@@ -65,8 +65,8 @@
 
 - `addClass`: `classType`（`top`または`middle`）、`temporaryId`、`label`、必要なら`parentId`
 - `renameClass`: `classId`、新しい`label`
-- `moveClass`: `classId`、`destinationId`
-- `moveChildren`: `from`、`to`。`from`の直接の子クラスを`to`の下へまとめて移す場合に使います。
+- `moveClass`: `classId`、`destinationId`。移動元は`editableIds`にある既存クラスか、同じ提案内で先に追加したクラスです。
+- `moveChildren`: `from`、`to`。`from`には`editableIds`にある中間クラスを指定します。`from`の直接の子クラスを`to`の下へまとめて移す場合に使い、移動対象となる直接の子がすべて`editableIds`にある場合だけ提案してください。
 - `deleteClass`: `classId`
 
 # 階層とクラス名のルール
