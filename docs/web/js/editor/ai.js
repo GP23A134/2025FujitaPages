@@ -900,7 +900,24 @@
     state.classes.filter((item) => item.type === 'top' || item.type === 'middle').forEach((item) => countFor(item.id));
     return { totals, direct };
   };
+  const keepPreviewTreeExpanded = (host) => {
+    if (host.dataset.previewTreeStatic === 'true') return;
+    host.dataset.previewTreeStatic = 'true';
+    const isControl = (target) => target.closest('input, button, a, select, textarea, [role="checkbox"]');
+    host.addEventListener('click', (event) => {
+      const summary = event.target.closest('summary');
+      if (!summary || isControl(event.target)) return;
+      event.preventDefault();
+    }, true);
+    host.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const summary = event.target.closest('summary');
+      if (!summary || isControl(event.target)) return;
+      event.preventDefault();
+    }, true);
+  };
   const appendTree = (host, state, affectedIds = new Set(), options = {}) => {
+    keepPreviewTreeExpanded(host);
     const classesById = new Map(state.classes.map((item) => [item.id, item]));
     const children = new Map(); const parentIds = new Set();
     state.relations.forEach(({ child, parent }) => {
