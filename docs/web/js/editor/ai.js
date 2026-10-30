@@ -8,6 +8,8 @@
   // Context tokenization varies by model and language; cap the serialized user payload conservatively.
   const MAX_REQUEST_CHARACTERS = 60000;
   const MAX_OUTPUT_TOKENS = 8000;
+  // Keep structured replies small enough to finish within the output budget.
+  const AI_OUTPUT_LIMITS = { proposals: 30, questions: 3, operationsPerProposal: 40, uncertaintiesPerProposal: 5 };
 
   const operationSchema = {
     type: 'object', additionalProperties: false,
@@ -33,16 +35,16 @@
           type: 'object', additionalProperties: false,
           properties: {
             id: { type: 'string' }, title: { type: 'string' }, summary: { type: 'string' },
-            reason: { type: 'string' }, questions: { type: 'array', items: { type: 'string' } },
-            uncertainties: { type: 'array', items: { type: 'string' } },
-            operations: { type: 'array', items: operationSchema }
+            reason: { type: 'string' }, questions: { type: 'array', maxItems: AI_OUTPUT_LIMITS.questions, items: { type: 'string' } },
+            uncertainties: { type: 'array', maxItems: AI_OUTPUT_LIMITS.uncertaintiesPerProposal, items: { type: 'string' } },
+            operations: { type: 'array', maxItems: AI_OUTPUT_LIMITS.operationsPerProposal, items: operationSchema }
           },
           required: ['id', 'title', 'summary', 'reason', 'questions', 'uncertainties', 'operations']
-        }
+        }, maxItems: AI_OUTPUT_LIMITS.proposals
       },
-      questions: { type: 'array', items: { type: 'string' } },
+      questions: { type: 'array', maxItems: AI_OUTPUT_LIMITS.questions, items: { type: 'string' } },
       dataRequests: {
-        type: 'array', items: {
+        type: 'array', maxItems: 5, items: {
           type: 'object', additionalProperties: false,
           properties: {
             classId: { type: ['string', 'null'] },
