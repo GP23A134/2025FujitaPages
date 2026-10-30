@@ -549,6 +549,34 @@
     if (operation?.type === 'deleteClass') return { label: '削除', className: 'is-delete' };
     return { label: 'その他', className: 'is-other' };
   };
+  const operationLegendCategories = [
+    { label: '追加', className: 'is-add' },
+    { label: '改名', className: 'is-rename' },
+    { label: '移動', className: 'is-move' },
+    { label: '削除', className: 'is-delete' }
+  ];
+  const countOperationTypes = (operations) => {
+    const counts = new Map(operationLegendCategories.map(({ className }) => [className, 0]));
+    operations.forEach((operation) => {
+      const category = operationCategory(operation);
+      if (counts.has(category.className)) counts.set(category.className, counts.get(category.className) + 1);
+    });
+    return counts;
+  };
+  const renderOperationCountBadges = (operations, className) => {
+    const counts = countOperationTypes(operations);
+    return operationLegendCategories.map(({ label, className: categoryClass }) => {
+      const badge = document.createElement('span');
+      badge.className = `${className} ${categoryClass}`;
+      badge.textContent = `${label}（${counts.get(categoryClass)}件）`;
+      return badge;
+    });
+  };
+  const renderPreviewTypeLegend = (operations) => {
+    document.getElementById('ai-preview-type-legend').replaceChildren(
+      ...renderOperationCountBadges(operations, 'ai-preview-type-legend-item')
+    );
+  };
   const labelFor = (id) => {
     return temporaryLabelsById.get(id) || classLabelsById.get(id) || id || '未指定';
   };
@@ -597,7 +625,7 @@
     const proposalGroup = items[0];
     const details = document.createElement('details');
     details.className = 'ai-proposal-queue';
-    details.open = proposalGroup.proposalsOpen !== false;
+    details.open = proposalGroup.proposalsOpen === true;
     details.addEventListener('toggle', () => { proposalGroup.proposalsOpen = details.open; });
     const counts = items.reduce((summary, item) => {
       if (item.status === 'applied') summary.applied += 1;
@@ -611,7 +639,15 @@
     const statusParts = [`保留${counts.pending}件`, `確認済み${counts.reviewed}件`, `適用済み${counts.applied}件`];
     if (counts.awaiting) statusParts.push(`回答待ち${counts.awaiting}件`);
     if (counts.answered) statusParts.push(`回答済み${counts.answered}件`);
-    summary.textContent = `変更案（${items.length}件・${statusParts.join('・')}）`;
+    const title = document.createElement('span');
+    title.className = 'ai-proposal-queue-title';
+    title.textContent = `変更案（${items.length}件・${statusParts.join('・')}）`;
+    const operations = items.flatMap((item) => item.proposal.operations || []);
+    const typeCounts = document.createElement('span');
+    typeCounts.className = 'ai-proposal-queue-type-counts';
+    typeCounts.setAttribute('aria-label', '変更種類ごとの件数');
+    typeCounts.append(...renderOperationCountBadges(operations, 'ai-preview-type-badge'));
+    summary.append(title, typeCounts);
     const pageIndex = Math.max(0, Math.min(items.length - 1, proposalGroup.proposalPageIndex || 0));
     proposalGroup.proposalPageIndex = pageIndex;
     const navigation = document.createElement('div');
@@ -989,7 +1025,7 @@
       targetCountFor,
       isOpen: () => true,
       displayId: () => '',
-      decorateSummary: (summary, _content, node, _depth, controls) => {
+      decorateSummary: (summary, _content, node) => {
         if (options.countLabelFor) {
           const badge = summary.querySelector('.count-badge');
           const updateBadge = () => { badge.textContent = options.countLabelFor(node); };
@@ -1002,7 +1038,7 @@
             ? 'is-ai-preview-excluded' : 'is-ai-preview-changed');
         }
         const checkbox = node.type === 'middle' ? null : makeToggle(node.id, node.label);
-        if (checkbox) controls.append(checkbox);
+        if (checkbox) summary.prepend(checkbox);
         appendTypeBadges(summary, indexesFor(node.id));
         if (node.previewDeleted) {
           summary.classList.add('is-ai-preview-deleted');
@@ -1248,6 +1284,7 @@
       previewGroups = buildPreviewGroups(proposalItem);
       updatePreviewNavigation(proposalItem);
       updatePreviewProposalHeading(proposalItem);
+      renderPreviewTypeLegend(proposalItem.proposal.operations);
       document.getElementById('ai-preview-summary').textContent = proposalItem.proposal.summary || proposalItem.proposal.title || '変更内容の説明はありません。';
       document.getElementById('ai-preview-reason').textContent = proposalItem.proposal.reason || '理由の記載はありません。';
       document.getElementById('ai-preview-uncertainties').textContent = proposalItem.proposal.uncertainties?.length
@@ -2029,7 +2066,9 @@
     updateUsageSummary(preflightNote);
     isSending = true; sendButton.disabled = true; document.getElementById('ai-new-consultation').disabled = true;
     conversation.isThinking = true;
-    setStatus(splitTasks ? `AIが変更案を作成中です…（1/${splitTasks.length}）` : '');
+    setStatus(splitTasks?.length
+      ? `AIが考えています…（1/${splitTasks.length}）`
+      : 'AIが考えています…');
     renderConversation({ scrollToBottom: true });
     sendButton.classList.add('is-sending');
     sendButton.textContent = '';
@@ -2065,7 +2104,6 @@
         validatePayload(response.result, baseDataHash);
         if (scope.scopeCoverage !== 'all_classes' || !response.result.dataRequests.length) return response;
         if (!response.responseBody.id) throw new Error('修正回答の会話IDを取得できませんでした。');
-        setStatus('AIが共有済みの全クラス情報を使って回答を作り直しています…');
         const correctionInput = JSON.stringify({
           request: isChunk
             ? '前回の回答を修正してください。全クラスの情報は複数のリクエストに分割して処理中です。今回の入力はその一部なので、追加のクラス情報は要求せず、この範囲だけを評価してください。全体評価を終えたとは断定せず、最初の利用者依頼に沿って回答してください。'
@@ -2101,7 +2139,7 @@
         let splitRepairFailed = false;
         for (let offset = 0; offset < splitTasks.length; offset += 2) {
           const batch = splitTasks.slice(offset, offset + 2);
-          setStatus(`AIが変更案を作成中です…（${offset + 1}/${splitTasks.length}）`);
+          setStatus(`AIが考えています…（${offset + 1}/${splitTasks.length}）`);
           const parts = await Promise.all(batch.map(async (task) => {
             const response = await sendApiRequest(task.input);
             return retryCompleteScopeDataRequest(response, task.scope.scopeCoverage === 'all_classes_chunk');
@@ -2183,7 +2221,7 @@
             synthesisInput = buildSynthesisInput(maxTextLength, includeStructure);
           }
           if (synthesisInput.length <= MAX_REQUEST_CHARACTERS) {
-            setStatus('全分割範囲の評価をまとめています…');
+            setStatus(`AIが考えています…（${splitTasks.length}/${splitTasks.length}、結果をまとめています）`);
             try {
               let synthesis = await sendApiRequest(synthesisInput);
               if (scope.scopeCoverage === 'all_classes') synthesis = await retryCompleteScopeDataRequest(synthesis);
@@ -2337,6 +2375,13 @@
     if (clickedOutside) closePreview();
   });
   document.getElementById('ai-preview-close').addEventListener('click', closePreview);
+  const previewArrowToggle = document.getElementById('ai-preview-arrow-toggle');
+  previewArrowToggle.addEventListener('click', () => {
+    const visible = previewArrowToggle.getAttribute('aria-checked') !== 'true';
+    previewArrowToggle.setAttribute('aria-checked', String(visible));
+    previewArrowToggle.querySelector('.ai-preview-arrow-toggle-state').textContent = visible ? 'ON' : 'OFF';
+    document.getElementById('ai-preview-direction').hidden = !visible;
+  });
   document.getElementById('ai-preview-previous').addEventListener('click', () => navigatePreview(-1));
   document.getElementById('ai-preview-next').addEventListener('click', () => navigatePreview(1));
   document.getElementById('ai-preview-page-previous').addEventListener('click', () => navigatePreviewPage(-1));

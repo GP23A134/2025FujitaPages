@@ -17,8 +17,6 @@
 #edit-tree-panel .tree-middle-class > summary {
   display: flex; align-items: center; list-style: none;
 }
-.tree .tree-level-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.3rem; min-height: 1.55rem; padding: 0 0.55rem 0.2rem; }
-.tree details:not([open]) > .tree-level-controls { display: flex; }
 #tree-panel .tree-top-class > summary::-webkit-details-marker,
 #edit-tree-panel .tree-top-class > summary::-webkit-details-marker,
 #tree-panel .tree-middle-class > summary::-webkit-details-marker,
