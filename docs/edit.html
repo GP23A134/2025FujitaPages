@@ -235,23 +235,30 @@
     </section>
     <section id="ai-preview-change-page" class="ai-preview-page" hidden>
       <div class="ai-preview-change-page-heading">
-        <h3 id="ai-preview-group-title"></h3>
-        <ul id="ai-preview-type-legend" class="ai-preview-type-legend" aria-label="変更種類ごとの件数"></ul>
         <div class="ai-preview-selection-actions">
           <button type="button" id="ai-preview-group-include">すべて適用</button>
           <button type="button" id="ai-preview-group-exclude">すべて除外</button>
         </div>
+      </div>
+      <details id="ai-preview-change-list-details" class="ai-preview-change-list-details">
+        <summary id="ai-preview-group-title">
+          <span id="ai-preview-group-label">すべての変更</span>
+          <span id="ai-preview-type-legend" class="ai-preview-type-legend" role="list" aria-label="変更種類ごとの件数"></span>
+        </summary>
+        <ul id="ai-preview-change-list" class="ai-preview-change-list"></ul>
+      </details>
+      <div class="ai-preview-tree-controls">
         <button type="button" id="ai-preview-arrow-toggle" class="ai-preview-arrow-toggle" role="switch" aria-checked="true" aria-label="矢印表示">
           <span>矢印表示</span><span class="ai-preview-arrow-toggle-state">ON</span><span class="ai-preview-arrow-toggle-track" aria-hidden="true"><span></span></span>
         </button>
       </div>
-      <ul id="ai-preview-change-list" class="ai-preview-change-list"></ul>
       <div class="ai-preview-columns">
+        <svg id="ai-preview-direction" class="ai-preview-direction" aria-hidden="true"></svg>
         <section>
           <div class="ai-preview-column-header"><h3>変更前</h3></div>
           <div id="ai-preview-before" class="ai-preview-tree"></div>
         </section>
-        <span id="ai-preview-direction" class="ai-preview-direction" aria-hidden="true">→</span>
+        <div class="ai-preview-arrow-lane" aria-hidden="true"></div>
         <section>
           <div class="ai-preview-column-header"><h3>変更後</h3></div>
           <div id="ai-preview-after" class="ai-preview-tree"></div>

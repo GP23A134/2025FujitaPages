@@ -7,6 +7,7 @@
   const API_URL = 'https://api.openai.com/v1/responses';
   // Context tokenization varies by model and language; cap the serialized user payload conservatively.
   const MAX_REQUEST_CHARACTERS = 60000;
+  const MAX_OUTPUT_TOKENS = 8000;
 
   const operationSchema = {
     type: 'object', additionalProperties: false,
@@ -131,6 +132,7 @@
   const messages = document.getElementById('ai-chat-messages');
   const status = document.getElementById('ai-status');
   const sendButton = document.getElementById('ai-send');
+  const promptExamples = document.getElementById('ai-prompt-examples');
   const textInput = document.getElementById('ai-chat-input');
   const resizeChatInput = () => {
     textInput.style.height = 'auto';
@@ -189,8 +191,39 @@
     const pricingAvailable = current.costKnown && sessionUsage.costKnown;
     const conversationCost = current.requests ? formatUsd(current.costUsd) : '$0.000000';
     const sessionCost = sessionUsage.requests ? formatUsd(sessionUsage.costUsd) : '$0.000000';
-    const actual = `この相談: ${current.requests}回・入力 ${current.inputTokens.toLocaleString()} / 出力 ${current.outputTokens.toLocaleString()} tokens・${pricingAvailable ? conversationCost : '料金不明'}　|　このページ: ${sessionUsage.requests}回・${pricingAvailable ? sessionCost : '料金不明'}`;
-    usageSummary.textContent = [actual, note].filter(Boolean).join('　');
+    const makeRow = (label, requests, cost, details = '') => {
+      const row = document.createElement('span');
+      row.className = 'ai-usage-row';
+      const name = document.createElement('span');
+      name.className = 'ai-usage-label';
+      name.textContent = label;
+      const count = document.createElement('span');
+      count.className = 'ai-usage-count';
+      count.textContent = `${requests}回`;
+      row.append(name, count);
+      if (details) {
+        const detail = document.createElement('span');
+        detail.className = 'ai-usage-detail';
+        detail.textContent = details;
+        row.append(detail);
+      }
+      const amount = document.createElement('strong');
+      amount.className = 'ai-usage-cost';
+      amount.textContent = pricingAvailable ? cost : '料金不明';
+      row.append(amount);
+      return row;
+    };
+    usageSummary.replaceChildren(
+      makeRow('相談', current.requests, conversationCost,
+        `入力 ${current.inputTokens.toLocaleString()} · 出力 ${current.outputTokens.toLocaleString()} tokens`),
+      makeRow('ページ合計', sessionUsage.requests, sessionCost)
+    );
+    if (note) {
+      const noteNode = document.createElement('span');
+      noteNode.className = 'ai-usage-note';
+      noteNode.textContent = note;
+      usageSummary.append(noteNode);
+    }
   };
   const recordUsage = (responseBody) => {
     const usage = responseBody?.usage;
@@ -225,19 +258,23 @@
   };
   const estimateRequestCost = (inputs, systemPrompt) => {
     const rates = selectedModelPricing();
-    if (!rates) return '料金目安を表示できません（モデル料金の設定なし）';
+    const splitNote = inputs.length > 1
+      ? `この依頼はクラス情報を${inputs.length}分割して処理します。\n最後に全体をまとめるため、追加の送信が発生する場合があります。`
+      : '';
+    if (!rates) return [splitNote, '料金の目安を表示できません（モデル料金の設定なし）'].filter(Boolean).join('\n\n');
     const inputTokens = inputs.reduce((total, input) => total + estimateTokensFromText(input) + estimateTokensFromText(systemPrompt), 0);
     const inputUsd = inputTokens * rates.inputUsdPerMillion / 1_000_000;
-    const outputCapUsd = inputs.length * 5000 * rates.outputUsdPerMillion / 1_000_000;
-    const pricingDate = modelConfig?.pricingAsOf ? `料金単価 ${modelConfig.pricingAsOf} 時点。` : '';
-    return `今回の概算: ${inputs.length}リクエスト、入力約${inputTokens.toLocaleString()} tokens。最大出力枠を使う想定で約${formatUsd(inputUsd + outputCapUsd)}（精度の低い目安。${pricingDate}会話履歴・JSON形式指定などを含まず、実額は異なります）`;
+    const outputCapUsd = inputs.length * MAX_OUTPUT_TOKENS * rates.outputUsdPerMillion / 1_000_000;
+    const pricingDate = modelConfig?.pricingAsOf ? `料金単価は${modelConfig.pricingAsOf}時点です。` : '';
+    const estimate = `料金の目安：約 ${formatUsd(inputUsd + outputCapUsd)}\n※概算です。会話履歴や追加の送信は含まれず、実際の料金と異なる場合があります。${pricingDate ? ` ${pricingDate}` : ''}`;
+    return [splitNote, estimate].filter(Boolean).join('\n\n');
   };
-  const confirmSendBeforeRequest = (userText, scope, summary, conversation, splitTasks) => {
+  const confirmSendBeforeRequest = (userText, scope, summary, conversation) => {
     if (!confirmBeforeSendToggle.checked) return Promise.resolve(true);
     if (pendingSendConfirmation) return Promise.resolve(false);
     const summaryNode = document.getElementById('ai-send-confirm-summary');
-    summaryNode.textContent = `${summary}　今回の相談で参照できるクラス ${scope.classes.length}件（選択中 ${scope.editableIds.length}件・追加共有 ${scope.sharedContextIds?.length || 0}件、親子関係 ${scope.relations.length}件）。`;
-    if (splitTasks?.length) summaryNode.textContent += ` 送信を${splitTasks.length}回に分けます。`;
+    const scopeSummary = `今回参照するクラス：${scope.classes.length}件（選択中 ${scope.editableIds.length}件・追加共有 ${scope.sharedContextIds?.length || 0}件、親子関係 ${scope.relations.length}件）`;
+    summaryNode.textContent = [summary, scopeSummary].filter(Boolean).join('\n\n');
     document.getElementById('ai-send-confirm-request').textContent = userText;
     const historyNote = document.getElementById('ai-send-confirm-history-note');
     historyNote.hidden = !conversation.responseId && !conversation.localContext;
@@ -286,6 +323,17 @@
     status.textContent = text;
     status.className = `ai-status${kind ? ` is-${kind}` : ''}`;
     if (currentConversation) currentConversation.status = text;
+  };
+  const setThinkingStatus = (conversation, text) => {
+    conversation.thinkingProgress = text;
+    if (currentConversation === conversation) {
+      const indicator = messages.querySelector('.ai-thinking-indicator');
+      if (indicator) indicator.textContent = formatThinkingStatus(conversation);
+    }
+  };
+  const formatThinkingStatus = (conversation) => {
+    const elapsed = Math.max(0, Math.floor((Date.now() - conversation.thinkingStartedAt) / 1000));
+    return `${elapsed}s 作業中${conversation.thinkingProgress ? `（${conversation.thinkingProgress}）` : ''}`;
   };
   const appendSettingsLink = () => {
     status.append(document.createTextNode(' '));
@@ -352,6 +400,12 @@
     currentConversation.items.forEach((item) => {
       if (item.type === 'message') renderMessage(item);
       else if (item.type === 'data-requests') renderDataRequest(item);
+      else if (item.type === 'work-duration') {
+        const duration = document.createElement('div');
+        duration.className = 'ai-thinking-indicator is-complete';
+        duration.textContent = `${item.seconds}s間作業しました`;
+        messages.append(duration);
+      }
       else if (item.type === 'proposal' || item.type === 'questions') {
         const responseGroupId = item.responseGroupId || item;
         if (renderedResponseGroups.has(responseGroupId)) return;
@@ -376,7 +430,7 @@
       indicator.className = 'ai-thinking-indicator';
       indicator.setAttribute('role', 'status');
       indicator.setAttribute('aria-live', 'polite');
-      indicator.textContent = 'AIが考えています…';
+      indicator.textContent = formatThinkingStatus(currentConversation);
       messages.append(indicator);
     }
     if (scrollToResponseGroupId) {
@@ -387,7 +441,9 @@
         messages.scrollTo({ top: offset, behavior: 'smooth' });
       } else messages.scrollTop = previousScrollTop;
     } else messages.scrollTop = scrollToBottom ? messages.scrollHeight : previousScrollTop;
-    status.textContent = currentConversation.status || '';
+    promptExamples.hidden = currentConversation.items.some((item) => item.type === 'message' && item.role === 'user')
+      || Boolean(currentConversation.isThinking);
+    status.textContent = currentConversation.isThinking ? '' : (currentConversation.status || '');
     updateUsageSummary();
     updateHistoryList();
   };
@@ -573,8 +629,10 @@
     });
   };
   const renderPreviewTypeLegend = (operations) => {
+    const badges = renderOperationCountBadges(operations, 'ai-preview-type-legend-item');
+    badges.forEach((badge) => badge.setAttribute('role', 'listitem'));
     document.getElementById('ai-preview-type-legend').replaceChildren(
-      ...renderOperationCountBadges(operations, 'ai-preview-type-legend-item')
+      ...badges
     );
   };
   const labelFor = (id) => {
@@ -625,7 +683,7 @@
     const proposalGroup = items[0];
     const details = document.createElement('details');
     details.className = 'ai-proposal-queue';
-    details.open = proposalGroup.proposalsOpen === true;
+    details.open = proposalGroup.proposalsOpen !== false;
     details.addEventListener('toggle', () => { proposalGroup.proposalsOpen = details.open; });
     const counts = items.reduce((summary, item) => {
       if (item.status === 'applied') summary.applied += 1;
@@ -659,7 +717,7 @@
     next.addEventListener('click', () => { proposalGroup.proposalPageIndex = pageIndex + 1; renderConversation(); });
     navigation.append(previous, position, next);
     navigation.hidden = items.length < 2;
-    details.append(summary, navigation, renderProposalCard(items[pageIndex]));
+    details.append(summary, renderProposalCard(items[pageIndex]), navigation);
     host.append(details);
   };
   const renderQuestionQueue = (item, host = messages) => {
@@ -1054,6 +1112,7 @@
         li.style.setProperty('--tree-level-color', window.treeDepthColor(depth));
         const row = document.createElement('div');
         row.className = 'tree-leaf-class ai-preview-class';
+        row.dataset.classId = item.id;
         const indexes = indexesFor(item.id);
         if (affectedIds.has(item.id) && indexes.length) {
           const included = indexes.every((index) => !options.excludedOperationIndexes.has(index));
@@ -1088,6 +1147,97 @@
         return li;
       },
       afterRender: (container) => window.updateTreeTargetRowStarts(container)
+    });
+  };
+  const previewArrowColors = {
+    'is-add': '#16a34a',
+    'is-rename': '#2563eb',
+    'is-move': '#7c3aed',
+    'is-delete': '#dc2626'
+  };
+  const previewNodeRow = (host, id) => {
+    if (!id) return null;
+    const detail = [...host.querySelectorAll('details[data-class-id]')]
+      .find((item) => item.dataset.classId === id);
+    if (detail) return detail.querySelector(':scope > summary');
+    return [...host.querySelectorAll('.ai-preview-class[data-class-id]')]
+      .find((item) => item.dataset.classId === id) || null;
+  };
+  const renderPreviewArrows = (arrows = []) => {
+    const svg = document.getElementById('ai-preview-direction');
+    const columns = document.querySelector('.ai-preview-columns');
+    if (!svg || !columns || svg.hidden) return;
+    const bounds = svg.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    const width = bounds.width;
+    const height = bounds.height;
+    const namespace = 'http://www.w3.org/2000/svg';
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.replaceChildren();
+    const defs = document.createElementNS(namespace, 'defs');
+    Object.entries(previewArrowColors).forEach(([kind, color]) => {
+      const marker = document.createElementNS(namespace, 'marker');
+      marker.id = `ai-preview-arrowhead-${kind}`;
+      marker.setAttribute('viewBox', '0 0 10 10');
+      marker.setAttribute('refX', '9');
+      marker.setAttribute('refY', '5');
+      marker.setAttribute('markerWidth', '6');
+      marker.setAttribute('markerHeight', '6');
+      marker.setAttribute('orient', 'auto');
+      const head = document.createElementNS(namespace, 'path');
+      head.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+      head.setAttribute('fill', color);
+      marker.append(head);
+      defs.append(marker);
+    });
+    svg.append(defs);
+    const before = document.getElementById('ai-preview-before');
+    const after = document.getElementById('ai-preview-after');
+    const laneX = width / 2;
+    arrows.forEach((arrow, index) => {
+      const color = previewArrowColors[arrow.kind];
+      if (!color) return;
+      const source = previewNodeRow(before, arrow.from)?.getBoundingClientRect();
+      const target = previewNodeRow(after, arrow.to)?.getBoundingClientRect();
+      if (!source && !target) return;
+      const startX = source ? source.right - bounds.left : laneX;
+      const endX = target ? target.left - bounds.left : laneX;
+      const startY = source ? source.top + source.height / 2 - bounds.top : target.top + target.height / 2 - bounds.top;
+      const endY = target ? target.top + target.height / 2 - bounds.top : startY;
+      const bendX = laneX + ((index % 5) - 2) * 8;
+      const path = document.createElementNS(namespace, 'path');
+      path.setAttribute('d', `M ${startX} ${startY} C ${bendX} ${startY}, ${bendX} ${endY}, ${endX} ${endY}`);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', color);
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('marker-end', `url(#ai-preview-arrowhead-${arrow.kind})`);
+      if (arrow.excluded) path.setAttribute('stroke-dasharray', '4 3');
+      if (arrow.excluded) path.setAttribute('opacity', '0.45');
+      svg.append(path);
+
+      const label = document.createElementNS(namespace, 'g');
+      if (arrow.excluded) label.setAttribute('opacity', '0.55');
+      const labelWidth = Math.max(48, [...arrow.label].length * 12 + 16);
+      const labelX = Math.max(2, Math.min(width - labelWidth - 2, laneX - labelWidth / 2 + ((index % 5) - 2) * 8));
+      const labelY = Math.max(11, Math.min(height - 11, (startY + endY) / 2 + ((index % 3) - 1) * 12));
+      const background = document.createElementNS(namespace, 'rect');
+      background.setAttribute('x', String(labelX));
+      background.setAttribute('y', String(labelY - 10));
+      background.setAttribute('width', String(labelWidth));
+      background.setAttribute('height', '20');
+      background.setAttribute('rx', '10');
+      background.setAttribute('fill', '#fff');
+      background.setAttribute('stroke', color);
+      label.append(background);
+      const text = document.createElementNS(namespace, 'text');
+      text.setAttribute('x', String(labelX + labelWidth / 2));
+      text.setAttribute('y', String(labelY + 4));
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('fill', color);
+      text.setAttribute('font-size', '11');
+      text.textContent = arrow.label;
+      label.append(text);
+      svg.append(label);
     });
   };
   const updatePreviewSelection = (proposalItem, update) => {
@@ -1225,7 +1375,7 @@
     next.hidden = true;
     apply.hidden = proposalItem.status === 'applied';
     document.getElementById('ai-preview-page-position').textContent = '';
-    if (!changes.hidden) document.getElementById('ai-preview-group-title').textContent = 'すべての変更';
+    if (!changes.hidden) document.getElementById('ai-preview-group-label').textContent = 'すべての変更';
     renderPreviewGroupOverview(proposalItem);
   };
   const previewableProposals = () => currentConversation.items.filter((item) => item.type === 'proposal'
@@ -1368,6 +1518,35 @@
       if (id !== operation.classId && beforeIds.has(operation.classId)) addOperationClass(operation.classId, index);
       if (operation.type === 'deleteClass') deletionOperationByClass.set(id, index);
     });
+    const typeById = new Map([...beforeState.classes, ...proposedCandidate.classes].map((item) => [item.id, item.type]));
+    const typeLabel = (id, fallback = '') => {
+      const type = typeById.get(id) || fallback;
+      return type === 'top' ? '上位' : type === 'middle' ? '中間' : '対象';
+    };
+    const previewArrows = [];
+    operations.forEach((operation, index) => {
+      const kind = operationCategory(operation).className;
+      const excluded = proposalItem.excludedOperationIndexes.has(index);
+      if (operation.type === 'addClass') {
+        const added = addedClassForReference(operation.temporaryId);
+        if (added) previewArrows.push({ kind, from: '', to: added.id, label: `${typeLabel(added.id, operation.classType)}追加`, excluded });
+      } else if (operation.type === 'deleteClass') {
+        previewArrows.push({ kind, from: operation.classId, to: '', label: `${typeLabel(operation.classId)}削除`, excluded });
+      } else if (operation.type === 'renameClass') {
+        const id = resolveProposedId(operation.classId);
+        previewArrows.push({ kind, from: operation.classId, to: id, label: `${typeLabel(operation.classId)}改名`, excluded });
+      } else if (operation.type === 'moveClass') {
+        const id = resolveProposedId(operation.classId);
+        previewArrows.push({ kind, from: operation.classId, to: id, label: '階層移動', excluded });
+      } else if (operation.type === 'moveChildren') {
+        const destination = resolveProposedId(operation.to);
+        for (const id of beforeParents.keys()) {
+          if (beforeParents.get(id) === operation.from && afterParents.get(id) === destination) {
+            previewArrows.push({ kind, from: id, to: id, label: '配下移動', excluded });
+          }
+        }
+      }
+    });
     for (const id of new Set([...beforeParents.keys(), ...afterParents.keys()])) {
       if (beforeParents.get(id) !== afterParents.get(id)) {
         operationIds.add(id);
@@ -1486,7 +1665,8 @@
       : `適用対象 ${activeOperations.length}/${operations.length}件（追加 ${operationCounts.addClass}・改名 ${operationCounts.renameClass}・移動 ${operationCounts.move}・削除 ${operationCounts.deleteClass}）`;
     document.getElementById('ai-preview-group-include').hidden = isApplied;
     document.getElementById('ai-preview-group-exclude').hidden = isApplied;
-    previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), candidate, expectedFingerprint, expectedBaseHash, readOnly: isApplied };
+    previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), arrows: previewArrows, candidate, expectedFingerprint, expectedBaseHash, readOnly: isApplied };
+    requestAnimationFrame(() => renderPreviewArrows(previewArrows));
     applyButton.disabled = isApplied || activeOperations.length === 0;
     if (applyRequested && activeOperations.length) applyButton.focus();
   };
@@ -2044,14 +2224,9 @@
     const longConversationNote = userMessageCount >= 7
       ? '会話が長くなっています。前のやりとりも利用量に影響するため、必要なら「＋」から新しい相談を始めてください。'
       : '';
-    const preflightNote = [estimateRequestCost(requestInputs, systemPrompt), longConversationNote].filter(Boolean).join('　');
+    const preflightNote = [estimateRequestCost(requestInputs, systemPrompt), longConversationNote].filter(Boolean).join('\n\n');
     updateUsageSummary(preflightNote);
-    if (splitTasks?.length > 1 && !confirmBeforeSendToggle.checked
-      && !window.confirm(`この依頼は${splitTasks.length}回のAPIリクエストに分割されます。\n${preflightNote}\n\n続けますか？`)) {
-      updateUsageSummary();
-      return;
-    }
-    const sendApproved = await confirmSendBeforeRequest(userText, scope, preflightNote, conversation, splitTasks);
+    const sendApproved = await confirmSendBeforeRequest(userText, scope, preflightNote, conversation);
     if (!sendApproved) {
       updateUsageSummary();
       setStatus('送信をキャンセルしました。入力内容は保持されています。');
@@ -2060,20 +2235,24 @@
     textInput.value = '';
     resizeChatInput();
     conversation.selectedIds = [...editor.selectedIds];
-    conversation.items.push({ type: 'message', role: 'user', text: userText });
+    const pendingUserMessage = { type: 'message', role: 'user', text: userText };
+    conversation.items.push(pendingUserMessage);
     conversation.updatedAt = Date.now();
     refreshConversationTitle(conversation);
     updateUsageSummary(preflightNote);
-    isSending = true; sendButton.disabled = true; document.getElementById('ai-new-consultation').disabled = true;
+    isSending = true; sendButton.disabled = false; document.getElementById('ai-new-consultation').disabled = true;
     conversation.isThinking = true;
-    setStatus(splitTasks?.length
-      ? `AIが考えています…（1/${splitTasks.length}）`
-      : 'AIが考えています…');
+    conversation.thinkingStartedAt = Date.now();
+    conversation.thinkingProgress = splitTasks?.length ? `1/${splitTasks.length}` : '';
     renderConversation({ scrollToBottom: true });
-    sendButton.classList.add('is-sending');
-    sendButton.textContent = '';
-    sendButton.setAttribute('aria-label', 'AIが処理中です');
-    sendButton.title = 'AIが処理中です';
+    const thinkingTimer = window.setInterval(() => {
+      const indicator = messages.querySelector('.ai-thinking-indicator');
+      if (indicator && currentConversation === conversation) indicator.textContent = formatThinkingStatus(conversation);
+    }, 1000);
+    sendButton.classList.add('is-cancel');
+    sendButton.textContent = '■';
+    sendButton.setAttribute('aria-label', 'リクエストを中止');
+    sendButton.title = 'リクエストを中止';
     document.getElementById('ai-chat-form').setAttribute('aria-busy', 'true');
     let requestSucceeded = false;
     try {
@@ -2085,7 +2264,7 @@
           instructions: systemPrompt,
           input,
           text: { format: { type: 'json_schema', name: 'class_edit_proposals', strict: true, schema: responseSchema } },
-          max_output_tokens: 8000,
+          max_output_tokens: MAX_OUTPUT_TOKENS,
           store: true
         };
         if (previousResponseId) body.previous_response_id = previousResponseId;
@@ -2139,7 +2318,7 @@
         let splitRepairFailed = false;
         for (let offset = 0; offset < splitTasks.length; offset += 2) {
           const batch = splitTasks.slice(offset, offset + 2);
-          setStatus(`AIが考えています…（${offset + 1}/${splitTasks.length}）`);
+          setThinkingStatus(conversation, `${offset + 1}/${splitTasks.length}`);
           const parts = await Promise.all(batch.map(async (task) => {
             const response = await sendApiRequest(task.input);
             return retryCompleteScopeDataRequest(response, task.scope.scopeCoverage === 'all_classes_chunk');
@@ -2221,7 +2400,7 @@
             synthesisInput = buildSynthesisInput(maxTextLength, includeStructure);
           }
           if (synthesisInput.length <= MAX_REQUEST_CHARACTERS) {
-            setStatus(`AIが考えています…（${splitTasks.length}/${splitTasks.length}、結果をまとめています）`);
+            setThinkingStatus(conversation, '結果をまとめています');
             try {
               let synthesis = await sendApiRequest(synthesisInput);
               if (scope.scopeCoverage === 'all_classes') synthesis = await retryCompleteScopeDataRequest(synthesis);
@@ -2313,17 +2492,36 @@
         });
       }
       conversation.updatedAt = Date.now();
+      const elapsed = Math.max(0, Math.floor((Date.now() - conversation.thinkingStartedAt) / 1000));
+      conversation.items.push({ type: 'work-duration', seconds: elapsed });
       conversation.isThinking = false;
+      conversation.thinkingProgress = '';
+      conversation.thinkingStartedAt = null;
       renderConversation({ scrollToResponseGroupId: responseGroupId });
       setStatus(hasShareRequest || result.proposals.length ? '' : '変更案はありません。確認事項への回答や追加依頼を入力できます。');
       requestSucceeded = true;
     } catch (error) {
       conversation.isThinking = false;
-      setStatus(error.message || '接続に失敗しました。設定と通信状態を確認してください。', 'error');
+      conversation.thinkingProgress = '';
+      conversation.thinkingStartedAt = null;
+      if (error.name === 'AbortError') {
+        const pendingIndex = conversation.items.indexOf(pendingUserMessage);
+        if (pendingIndex >= 0) conversation.items.splice(pendingIndex, 1);
+        if (conversation.items.some((item) => item.type === 'message' && item.role === 'user')) refreshConversationTitle(conversation);
+        else conversation.title = '新しい相談';
+        conversation.updatedAt = Date.now();
+        if (textInput.value.trim()) textInput.value = `${userText}\n${textInput.value}`;
+        else textInput.value = userText;
+        resizeChatInput();
+        setStatus('リクエストを中止しました。入力内容は保持されています。');
+      } else {
+        setStatus(error.message || '接続に失敗しました。設定と通信状態を確認してください。', 'error');
+      }
       renderConversation();
     } finally {
+      window.clearInterval(thinkingTimer);
       isSending = false; sendButton.disabled = false; document.getElementById('ai-new-consultation').disabled = false; activeRequestController = null;
-      sendButton.classList.remove('is-sending');
+      sendButton.classList.remove('is-cancel');
       sendButton.textContent = '↑';
       sendButton.setAttribute('aria-label', '送信');
       sendButton.title = '送信';
@@ -2352,9 +2550,26 @@
     button.setAttribute('aria-pressed', String(visible));
   });
   document.getElementById('ai-chat-form').addEventListener('submit', (event) => {
-    event.preventDefault(); const value = textInput.value.trim();
+    event.preventDefault();
+    if (isSending) return;
+    const value = textInput.value.trim();
     if (!value) return;
     void sendRequest(value);
+  });
+  promptExamples.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-ai-prompt]');
+    if (!button) return;
+    textInput.value = button.dataset.aiPrompt;
+    resizeChatInput();
+    textInput.focus();
+  });
+  sendButton.addEventListener('click', (event) => {
+    if (!isSending) return;
+    event.preventDefault();
+    if (!activeRequestController || activeRequestController.signal.aborted) return;
+    sendButton.disabled = true;
+    setStatus('リクエストを中止しています…');
+    activeRequestController.abort();
   });
   textInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && !event.repeat) {
@@ -2380,7 +2595,12 @@
     const visible = previewArrowToggle.getAttribute('aria-checked') !== 'true';
     previewArrowToggle.setAttribute('aria-checked', String(visible));
     previewArrowToggle.querySelector('.ai-preview-arrow-toggle-state').textContent = visible ? 'ON' : 'OFF';
-    document.getElementById('ai-preview-direction').hidden = !visible;
+    const arrowSvg = document.getElementById('ai-preview-direction');
+    arrowSvg.hidden = !visible;
+    if (visible) requestAnimationFrame(() => renderPreviewArrows(previewPlan?.arrows || []));
+  });
+  window.addEventListener('resize', () => {
+    if (!document.getElementById('ai-preview-direction').hidden) renderPreviewArrows(previewPlan?.arrows || []);
   });
   document.getElementById('ai-preview-previous').addEventListener('click', () => navigatePreview(-1));
   document.getElementById('ai-preview-next').addEventListener('click', () => navigatePreview(1));
