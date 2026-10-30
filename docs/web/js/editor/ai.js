@@ -10,6 +10,19 @@
   const MAX_OUTPUT_TOKENS = 8000;
   const MAX_CACHED_SPLIT_SUMMARY_CHARACTERS = 24000;
   const MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS = 8000;
+  const MAX_CACHED_SPLIT_CHUNK_CHARACTERS = 450000;
+  const boundSplitChunkCache = (entries) => {
+    const bounded = [];
+    let size = 0;
+    for (const entry of [...entries].reverse()) {
+      const serialized = JSON.stringify(entry);
+      if (size + serialized.length > MAX_CACHED_SPLIT_CHUNK_CHARACTERS) continue;
+      bounded.unshift(entry);
+      size += serialized.length;
+      if (bounded.length >= 120) break;
+    }
+    return bounded;
+  };
   // Keep structured replies small enough to finish within the output budget.
   const AI_OUTPUT_LIMITS = { proposals: 30, questions: 3, operationsPerProposal: 40, uncertaintiesPerProposal: 5 };
 
@@ -200,6 +213,10 @@
               sharedContextIds: Array.isArray(item.splitMemory.sharedContextIds) ? item.splitMemory.sharedContextIds.filter((id) => typeof id === 'string') : [],
               mode: typeof item.splitMemory.mode === 'string' ? item.splitMemory.mode : 'selected_scope',
               model: typeof item.splitMemory.model === 'string' ? item.splitMemory.model : '',
+              chunkCache: Array.isArray(item.splitMemory.chunkCache) ? item.splitMemory.chunkCache
+                .filter((entry) => entry && typeof entry.key === 'string' && entry.result && typeof entry.result === 'object')
+                .map((entry) => ({ key: entry.key, result: entry.result }))
+                .reduce((bounded, entry) => boundSplitChunkCache([...bounded, entry]), []) : [],
               summaryText: item.splitMemory.summaryText.slice(0, MAX_CACHED_SPLIT_SUMMARY_CHARACTERS),
               followupContext: typeof item.splitMemory.followupContext === 'string'
                 ? item.splitMemory.followupContext.slice(-MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS) : ''
@@ -2354,7 +2371,7 @@
     });
     return `${lines[0].slice(0, 500)}\n${lines.slice(1).join('\n').slice(-5500)}`;
   };
-  const buildSplitMemory = (scope, tasks, chunkResults, result, baseDataHash) => {
+  const buildSplitMemory = (scope, tasks, chunkResults, result, baseDataHash, chunkCache = []) => {
     const selectedIds = [...(scope.selectedIds || [])].sort();
     const sharedContextIds = [...(scope.sharedContextIds || [])].sort();
     const labelsById = new Map(scope.classes.map((item) => [item.id, item.label || item.id]));
@@ -2391,18 +2408,29 @@
       sharedContextIds,
       mode: scope.mode || 'selected_scope',
       model: modelSelect.value,
+      chunkCache: boundSplitChunkCache(chunkCache),
       summaryText: summaryText.length > MAX_CACHED_SPLIT_SUMMARY_CHARACTERS
         ? `${summaryText.slice(0, MAX_CACHED_SPLIT_SUMMARY_CHARACTERS)} [要約の残りは省略]`
         : summaryText,
       followupContext: ''
     };
   };
-  const splitMemoryMatches = (memory, scope, baseDataHash) => Boolean(memory
-    && memory.baseDataHash === baseDataHash
+  const splitMemoryMatches = (memory, scope) => Boolean(memory
     && memory.mode === (scope.mode || 'selected_scope')
     && memory.model === modelSelect.value
     && JSON.stringify(memory.selectedIds) === JSON.stringify([...(scope.selectedIds || [])].sort())
     && JSON.stringify(memory.sharedContextIds) === JSON.stringify([...(scope.sharedContextIds || [])].sort()));
+  const splitTaskCacheKey = async (task, userText, systemPrompt) => digest(JSON.stringify({
+    sourceDataVersion,
+    model: modelSelect.value,
+    systemPrompt,
+    responseSchema,
+    request: userText.trim(),
+    kind: task.kind,
+    editableIds: [...task.scope.editableIds].sort(),
+    classes: task.scope.classes.map(({ id, type, label }) => [id, type, label]).sort((a, b) => a[0].localeCompare(b[0])),
+    relations: task.scope.relations.map(({ child, parent }) => [child, parent]).sort((a, b) => `${a[0]}:${a[1]}`.localeCompare(`${b[0]}:${b[1]}`))
+  }));
   const buildSplitMemoryFollowup = (userText, memory) => JSON.stringify({
     request: userText,
     priorSplitAnalysis: memory.summaryText,
@@ -2412,6 +2440,7 @@
     responsePolicy: '要約から確認できる事実と、要約だけでは判断できない事項を区別してください。全クラスデータを改めて確認したかのように説明しないでください。'
   });
   const explicitlyRequestsFullReanalysis = (userText) => /(?:全体|全範囲|選択範囲|すべて).{0,12}(?:再分析|再評価|再チェック|再編|見直)|(?:再分析|再評価|再チェック|再編).{0,12}(?:全体|全範囲|選択範囲|すべて)|最初から.{0,8}(?:分析|評価|見直)/.test(userText);
+  const requiresFullClassStructure = (userText) => /(?:中間|上位|対象)?クラス.{0,24}(?:構造|親子|階層|種別|配下|問題|評価|判断|移動|再編)|(?:親子関係|階層構造|クラス種別)/.test(userText);
   const appendSplitFollowupContext = (memory, userText, result) => {
     const latest = createLocalConversationContext(userText, result);
     memory.followupContext = [memory.followupContext, latest].filter(Boolean).join('\n\n').slice(-MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS);
@@ -2521,6 +2550,7 @@
     try { baseDataHash = await currentDataHash(); }
     catch (error) { setStatus(error.message, 'error'); return; }
     const fingerprintBeforeRequest = stateFingerprint();
+    const priorSplitMemory = conversation.splitMemory;
     if (selectionChanged) {
       // 前回のクラス情報は破棄し、依頼意図と確認事項だけを次の選択範囲へ引き継ぐ。
       conversation.responseId = '';
@@ -2529,9 +2559,13 @@
       conversation.localContext = summarizeSelectionContinuation(conversation);
       conversation.splitMemory = null;
     }
-    const forceFullReanalysis = explicitlyRequestsFullReanalysis(userText);
-    const usesSplitMemory = !forceFullReanalysis && splitMemoryMatches(conversation.splitMemory, scope, baseDataHash);
-    if (conversation.splitMemory && !usesSplitMemory && !forceFullReanalysis) conversation.splitMemory = null;
+    const automaticStructureReanalysis = Boolean(priorSplitMemory
+      && requiresFullClassStructure(userText)
+      && !explicitlyRequestsFullReanalysis(userText));
+    const forceFullReanalysis = explicitlyRequestsFullReanalysis(userText) || automaticStructureReanalysis;
+    const canReuseSplitChunks = !forceFullReanalysis && splitMemoryMatches(priorSplitMemory, scope);
+    const usesSplitMemory = canReuseSplitChunks && priorSplitMemory.baseDataHash === baseDataHash;
+    if (priorSplitMemory && !canReuseSplitChunks && !forceFullReanalysis) conversation.splitMemory = null;
     const userContent = usesSplitMemory
       ? buildSplitMemoryFollowup(userText, conversation.splitMemory)
       : buildUserContent(userText, scope, conversation);
@@ -2639,21 +2673,36 @@
       if (splitTasks) {
         result = { baseDataHash, message: '', proposals: [], questions: [], dataRequests: [] };
         const messagesFromParts = [];
-        const chunkResults = [];
+        const chunkResults = new Array(splitTasks.length);
+        const nextChunkCache = [];
+        const cachedChunkEntries = canReuseSplitChunks ? priorSplitMemory.chunkCache || [] : [];
+        const chunkCacheByKey = new Map(cachedChunkEntries.map((entry) => [entry.key, entry.result]));
+        const chunkKeys = await Promise.all(splitTasks.map((task) => splitTaskCacheKey(task, userText, systemPrompt)));
+        const cachedChunkCount = chunkKeys.reduce((count, key) => count + (chunkCacheByKey.has(key) ? 1 : 0), 0);
         const splitWarnings = new Set();
         let splitRepairFailed = false;
         for (let offset = 0; offset < splitTasks.length; offset += 2) {
           const batch = splitTasks.slice(offset, offset + 2);
-          setThinkingStatus(conversation, `${offset + 1}/${splitTasks.length}`);
-          const parts = await Promise.all(batch.map(async (task) => {
+          setThinkingStatus(conversation, `${offset + 1}/${splitTasks.length}${cachedChunkCount ? `（再利用 ${cachedChunkCount}件）` : ''}`);
+          const parts = await Promise.all(batch.map(async (task, batchIndex) => {
+            const index = offset + batchIndex;
+            const key = chunkKeys[index];
+            const cached = chunkCacheByKey.get(key);
+            if (cached) return {
+              result: { ...structuredClone(cached), baseDataHash },
+              responseBody: null,
+              fromCache: true
+            };
             const response = await sendApiRequest(task.input);
-            return retryCompleteScopeDataRequest(response, task.scope.scopeCoverage === 'all_classes_chunk');
+            return { ...(await retryCompleteScopeDataRequest(response, task.scope.scopeCoverage === 'all_classes_chunk')), fromCache: false };
           }));
           parts.forEach((part, batchIndex) => {
             const index = offset + batchIndex;
             const task = splitTasks[index];
             validatePayload(part.result, baseDataHash);
-            chunkResults[index] = part.result;
+            const cacheResult = structuredClone(part.result);
+            chunkResults[index] = cacheResult;
+            nextChunkCache.push({ key: chunkKeys[index], result: cacheResult });
             if (part.repairFailed) splitRepairFailed = true;
             part.result.proposals.forEach((proposal, proposalIndex) => {
               proposal.id = `part${index + 1}_proposal${proposalIndex + 1}`;
@@ -2750,11 +2799,15 @@
           }
         }
         conversation.splitMemory = result.dataRequests.length || splitRepairFailed
-          ? null : buildSplitMemory(scope, splitTasks, chunkResults, result, baseDataHash);
+          ? null : buildSplitMemory(scope, splitTasks, chunkResults, result, baseDataHash,
+            [...cachedChunkEntries.filter((entry) => !chunkKeys.includes(entry.key)), ...nextChunkCache]);
         conversation.responseId = '';
         conversation.initialSnapshotSent = false;
         conversation.previousScope = null;
         conversation.localContext = createLocalConversationContext(userText, result);
+        if (cachedChunkCount) {
+          result.message = [`分割結果のうち${cachedChunkCount}件は、入力データと依頼内容が一致した保存済み評価を再利用しました。変更のあった範囲のみ再評価しています。`, result.message].filter(Boolean).join('\n\n');
+        }
       } else {
         let response = await sendApiRequest(userContent, usesSplitMemory ? '' : conversation.responseId);
         if (!usesSplitMemory) response = await retryCompleteScopeDataRequest(response);
@@ -2804,6 +2857,10 @@
           proposalAvailableScopes.set(proposal.id, scope.classes.map((item) => item.id));
         });
         if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
+      }
+      if (automaticStructureReanalysis) {
+        result.message = ['この質問はクラス種別や階層構造の確認が必要なため、要約だけで回答せず、元データを再評価しました。', result.message]
+          .filter(Boolean).join('\n\n');
       }
       const responseGroupId = `reply-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       if (scope.scopeCoverage === 'all_classes' && result.dataRequests.length) {
