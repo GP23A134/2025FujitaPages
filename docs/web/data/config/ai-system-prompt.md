@@ -58,6 +58,8 @@ AIへの入力はJSONです。主な項目は次のとおりです。
 
 追加のクラス情報が必要な場合、要求は`dataRequests`だけに記載します。`message`、トップレベルの`questions`、変更案内の`questions`でクラス情報の共有を求めてはいけません。`all_classes`と`all_classes_chunk`では追加のクラス情報を要求しません。
 
+- 今回の入力の`selectedScope`に含まれるクラスはすでに共有されています。ID・種別・名称・親子関係が入力にあるクラスを、ID・名称・検索条件のいずれでも再要求してはいけません。要求前に`selectedScope.data`または差分適用後の現在範囲と照合し、未共有のクラスだけを要求してください。
+
 - IDや正確な名称が分かる場合は`classId`または`className`を使います。分からない場合は推測せず`classQuery`を使ってください。
 - 各要求には`classId`、`className`、`classQuery`、`reason`を含め、使わない指定子は`null`にします。
 - `classQuery`の項目は、`classType`（`top`、`middle`、`class`、`null`）、`nameKeywords`、`relationToSelection`（`any`、`parent`、`child`、`descendant`、`sibling`、`same_top_ancestor`）、`limit`（1〜20、通常5以下）です。検索理由を具体的にしてください。

@@ -9,7 +9,7 @@
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261028-scroll-perf-v1">
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261028-class-query-sharing-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261030-ai-preview-actions-v3">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261030-ai-history-v1">
   <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261028-class-query-sharing-v1">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261028-class-query-sharing-v1">
   <script src="web/data/generated/class-data.js" defer></script>
@@ -118,6 +118,7 @@
                 <button type="button" id="ai-show-history" class="held-panel-icon-button ai-history-button" aria-expanded="false" aria-controls="ai-history-popover" title="過去の相談">履歴</button>
                 <div id="ai-history-popover" class="ai-history-popover" hidden>
                   <h3>過去の相談</h3>
+                  <p class="ai-history-note">「保存」で必要な相談だけをこのブラウザーに保存できます。相談名も変更できます。再開時は現在のクラス情報を使い、過去の変更案は適用できません。</p>
                   <div id="ai-history-list" class="ai-history-list"></div>
                 </div>
               </div>
@@ -306,6 +307,6 @@
       <button type="button" id="ai-send-confirm-approve" class="search-button">この内容で送信</button>
     </div>
   </dialog>
-  <script src="web/js/editor/ai.js?v=20261030-ai-key-validation-v1" defer></script>
+  <script src="web/js/editor/ai.js?v=20261030-ai-preview-orthogonal-v1" defer></script>
 </body>
 </html>

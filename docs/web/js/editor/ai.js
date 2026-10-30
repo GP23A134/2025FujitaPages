@@ -166,6 +166,68 @@
   const historyList = document.getElementById('ai-history-list');
   const usageSummary = document.getElementById('ai-usage-summary');
   const conversations = [];
+  const savedConversationsKey = 'fujita.ai-saved-conversations-v1';
+  const archiveDataRequest = (item) => {
+    const requested = [
+      ...(item.requests || []).map(({ item: requestedClass }) => requestedClass?.label || requestedClass?.id),
+      ...(item.candidateGroups || []).flatMap((group) => (group.candidates || []).map(({ item: candidate }) => candidate?.label || candidate?.id))
+    ].filter(Boolean);
+    return {
+      type: 'message', role: 'assistant',
+      text: `前回の相談では追加クラス情報を要求しました${requested.length ? `（${[...new Set(requested)].join('、')}）` : ''}。履歴から再開したため、この要求は再実行されていません。`
+    };
+  };
+  const restoreSavedConversations = () => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(savedConversationsKey) || '[]');
+      if (!Array.isArray(stored)) return [];
+      return stored.filter((item) => item && typeof item.id === 'string' && Array.isArray(item.items))
+        .map((item) => ({
+          id: item.id,
+          title: typeof item.title === 'string' ? item.title : '保存した相談',
+          titleIsCustom: Boolean(item.titleIsCustom),
+          updatedAt: Number.isFinite(item.updatedAt) ? item.updatedAt : Date.now(),
+          selectedIds: Array.isArray(item.selectedIds) ? item.selectedIds.filter((id) => typeof id === 'string') : [],
+          responseId: '', initialSnapshotSent: false, previousScope: null, localContext: '',
+          items: item.items.flatMap((entry) => {
+            if (!entry || typeof entry !== 'object') return [];
+            if (entry.type === 'data-requests') return [archiveDataRequest(entry)];
+            if (entry.type === 'proposal') return [{ ...entry, status: 'invalid' }];
+            if (entry.type === 'questions') return [{ ...entry, submitting: false }];
+            if (entry.type === 'message' && ['user', 'assistant'].includes(entry.role)) return [entry];
+            if (entry.type === 'work-duration' && Number.isFinite(entry.seconds)) return [entry];
+            if (entry.type === 'scope-summary' && Array.isArray(entry.classes)) return [entry];
+            return [];
+          }),
+          status: '',
+          usage: { requests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, costKnown: true },
+          saved: true,
+          restoredFromStorage: true
+        }));
+    } catch { return []; }
+  };
+  conversations.push(...restoreSavedConversations());
+  const persistSavedConversations = () => {
+    const saved = conversations.filter((conversation) => conversation.saved);
+    try {
+      const payload = JSON.stringify(saved.map((conversation) => ({
+        id: conversation.id,
+        title: conversation.title,
+        titleIsCustom: Boolean(conversation.titleIsCustom),
+        updatedAt: conversation.updatedAt,
+        selectedIds: conversation.selectedIds,
+        items: conversation.items.map((item) => item.type === 'data-requests' ? archiveDataRequest(item)
+          : item.type === 'proposal' ? { ...item, status: 'invalid' }
+            : item.type === 'questions' ? { ...item, submitting: false }
+              : item)
+      })));
+      if (payload.length > 1_500_000) throw new Error('保存できる容量を超えています。古い相談を保存解除してください。');
+      localStorage.setItem(savedConversationsKey, payload);
+      return true;
+    } catch (error) {
+      return error;
+    }
+  };
   const sessionUsage = { requests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, costKnown: true };
   let currentConversation = null;
   let previewPlan = null;
@@ -185,6 +247,7 @@
     const conversation = {
       id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title: '新しい相談',
+      titleIsCustom: false,
       updatedAt: Date.now(),
       selectedIds: [...selectedIds],
       responseId: '',
@@ -193,7 +256,9 @@
       localContext: '',
       items: [],
       status: '',
-      usage: { requests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, costKnown: true }
+      usage: { requests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, costKnown: true },
+      saved: false,
+      restoredFromStorage: false
     };
     conversations.unshift(conversation);
     return conversation;
@@ -362,7 +427,7 @@
   const setThinkingStatus = (conversation, text) => {
     conversation.thinkingProgress = text;
     if (currentConversation === conversation) {
-      const indicator = messages.querySelector('.ai-thinking-indicator');
+      const indicator = messages.querySelector('.ai-thinking-indicator:not(.is-complete)');
       if (indicator) indicator.textContent = formatThinkingStatus(conversation);
     }
   };
@@ -420,6 +485,7 @@
       return;
     }
     saved.forEach((conversation) => {
+      const row = document.createElement('div'); row.className = 'ai-history-entry';
       const button = document.createElement('button'); button.type = 'button'; button.className = 'ai-history-item';
       button.classList.toggle('is-active', conversation.id === currentConversation.id);
       button.disabled = isSending;
@@ -428,7 +494,47 @@
       updated.textContent = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(conversation.updatedAt);
       button.append(title, updated);
       button.addEventListener('click', () => activateConversation(conversation));
-      historyList.append(button);
+      const saveButton = document.createElement('button'); saveButton.type = 'button';
+      saveButton.className = 'ai-history-save';
+      saveButton.textContent = conversation.saved ? '保存済み' : '保存';
+      saveButton.setAttribute('aria-pressed', String(Boolean(conversation.saved)));
+      saveButton.disabled = isSending;
+      saveButton.addEventListener('click', () => {
+        const wasSaved = Boolean(conversation.saved);
+        conversation.saved = !wasSaved;
+        const result = persistSavedConversations();
+        if (result !== true) {
+          conversation.saved = wasSaved;
+          setStatus(result.message || '相談を保存できませんでした。ブラウザーの保存領域を確認してください。', 'error');
+        } else if (conversation === currentConversation) {
+          setStatus(conversation.saved ? 'この相談をブラウザーに保存しました。' : '保存を解除しました。');
+        }
+        updateHistoryList();
+      });
+      const renameButton = document.createElement('button'); renameButton.type = 'button';
+      renameButton.className = 'ai-history-rename'; renameButton.textContent = '名前';
+      renameButton.title = '相談名を変更';
+      renameButton.disabled = isSending;
+      renameButton.addEventListener('click', () => {
+        const nextTitle = window.prompt('相談名', conversation.title);
+        if (nextTitle === null) return;
+        const trimmedTitle = nextTitle.trim();
+        if (!trimmedTitle) return;
+        const previousTitle = conversation.title;
+        const previousCustomTitle = conversation.titleIsCustom;
+        conversation.title = trimmedTitle.slice(0, 80);
+        conversation.titleIsCustom = true;
+        conversation.updatedAt = Date.now();
+        const result = persistSavedConversations();
+        if (result !== true) {
+          conversation.title = previousTitle;
+          conversation.titleIsCustom = previousCustomTitle;
+          setStatus(result.message || '相談名を保存できませんでした。', 'error');
+        }
+        updateHistoryList();
+      });
+      row.append(button, renameButton, saveButton);
+      historyList.append(row);
     });
   };
   const renderConversation = ({ scrollToBottom = false, scrollToResponseGroupId = '' } = {}) => {
@@ -446,6 +552,23 @@
     currentConversation.items.forEach((item) => {
       if (item.type === 'message') renderMessage(item);
       else if (item.type === 'data-requests') renderDataRequest(item);
+      else if (item.type === 'scope-summary') {
+        const details = document.createElement('details');
+        details.className = 'ai-scope-summary';
+        const summary = document.createElement('summary');
+        const selectedCount = item.classes.filter((entry) => entry.shareType === '選択中').length;
+        const sharedCount = item.classes.length - selectedCount;
+        summary.textContent = `送信時のクラス情報（選択中 ${selectedCount}件・参照情報 ${sharedCount}件）`;
+        details.append(summary);
+        const list = document.createElement('ul');
+        item.classes.forEach((entry) => {
+          const row = document.createElement('li');
+          row.textContent = `${entry.shareType}：${entry.typeLabel}「${entry.label || '(ラベルなし)'}」 (${entry.id})`;
+          list.append(row);
+        });
+        details.append(list);
+        messages.append(details);
+      }
       else if (item.type === 'work-duration') {
         const duration = document.createElement('div');
         duration.className = 'ai-thinking-indicator is-complete';
@@ -490,16 +613,23 @@
     status.textContent = currentConversation.isThinking ? '' : (currentConversation.status || '');
     updateUsageSummary();
     updateHistoryList();
+    if (currentConversation.saved) persistSavedConversations();
   };
   const activateConversation = (conversation) => {
     if (isSending || !conversation) return;
     currentConversation = conversation;
     editor.setSelectedIds(conversation.selectedIds);
+    if (conversation.restoredFromStorage) {
+      conversation.localContext = summarizeVisibleConversation(conversation);
+      conversation.restoredFromStorage = false;
+      conversation.status = '保存済み相談を再開しました。次の依頼には現在のクラス情報を使います。以前の変更案は適用できません。';
+    }
     historyPopover.hidden = true;
     historyButton.setAttribute('aria-expanded', 'false');
     renderConversation();
   };
   const refreshConversationTitle = (conversation) => {
+    if (conversation.titleIsCustom) return;
     const firstRequest = conversation.items.find((item) => item.type === 'message' && item.role === 'user');
     if (!firstRequest) return;
     const normalized = firstRequest.text.replace(/\s+/g, ' ').trim();
@@ -1204,6 +1334,17 @@
     if (!svg || !columns || svg.hidden) return;
     const bounds = svg.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
+    const laneWidth = Math.max(144, arrows.length * 8 + 32);
+    const routingHeight = Math.max(180, arrows.length * 6 + 32);
+    if (columns.dataset.previewLaneWidth !== String(laneWidth)
+      || columns.dataset.previewRoutingHeight !== String(routingHeight)) {
+      columns.dataset.previewLaneWidth = String(laneWidth);
+      columns.dataset.previewRoutingHeight = String(routingHeight);
+      columns.style.setProperty('--ai-preview-arrow-lane-width', `${laneWidth}px`);
+      columns.style.minHeight = `${routingHeight}px`;
+      requestAnimationFrame(() => renderPreviewArrows(arrows));
+      return;
+    }
     const width = bounds.width;
     const height = bounds.height;
     const namespace = 'http://www.w3.org/2000/svg';
@@ -1228,51 +1369,62 @@
     svg.append(defs);
     const before = document.getElementById('ai-preview-before');
     const after = document.getElementById('ai-preview-after');
-    const laneX = width / 2;
-    arrows.forEach((arrow, index) => {
+    const beforeBounds = before.getBoundingClientRect();
+    const afterBounds = after.getBoundingClientRect();
+    const gutterLeft = beforeBounds.right - bounds.left;
+    const gutterRight = afterBounds.left - bounds.left;
+    const routes = arrows.map((arrow) => {
       const color = previewArrowColors[arrow.kind];
-      if (!color) return;
+      if (!color) return null;
       const source = previewNodeRow(before, arrow.from)?.getBoundingClientRect();
       const target = previewNodeRow(after, arrow.to)?.getBoundingClientRect();
-      if (!source && !target) return;
-      const startX = source ? source.right - bounds.left : laneX;
-      const endX = target ? target.left - bounds.left : laneX;
-      const startY = source ? source.top + source.height / 2 - bounds.top : target.top + target.height / 2 - bounds.top;
-      const endY = target ? target.top + target.height / 2 - bounds.top : startY;
-      const bendX = laneX + ((index % 5) - 2) * 8;
+      if (!source && !target) return null;
+      return { arrow, color, source, target };
+    }).filter(Boolean);
+    const assignPorts = (side) => {
+      const groups = new Map();
+      routes.forEach((route, index) => {
+        const rect = route[side];
+        if (!rect) return;
+        const center = rect.top + rect.height / 2;
+        const key = Math.round(center);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push({ route, index, rect });
+      });
+      groups.forEach((entries) => {
+        const range = Math.min(...entries.map(({ rect }) => Math.max(0, rect.height - 4)));
+        const step = entries.length > 1 ? Math.min(4, range / (entries.length - 1)) : 0;
+        entries.forEach(({ route, index }, position) => {
+          route[side === 'source' ? 'startY' : 'endY'] = route[side].top + route[side].height / 2 - bounds.top
+            + (position - (entries.length - 1) / 2) * step;
+        });
+      });
+    };
+    assignPorts('source');
+    assignPorts('target');
+    routes.forEach(({ arrow, color, source, target }, index) => {
+      const leftTrack = gutterLeft + 8 + index * 4;
+      const rightTrack = gutterRight - 8 - index * 4;
+      const channelY = height * (index + 1) / (routes.length + 1);
+      const startX = source ? source.right - bounds.left : leftTrack;
+      const endX = target ? target.left - bounds.left : rightTrack;
+      const startY = routes[index].startY ?? (target ? target.top + target.height / 2 - bounds.top : channelY);
+      const endY = routes[index].endY ?? (source ? source.top + source.height / 2 - bounds.top : channelY);
       const path = document.createElementNS(namespace, 'path');
-      path.setAttribute('d', `M ${startX} ${startY} C ${bendX} ${startY}, ${bendX} ${endY}, ${endX} ${endY}`);
+      const commands = [];
+      if (source) commands.push(`M ${startX} ${startY} H ${leftTrack} V ${channelY}`);
+      else commands.push(`M ${leftTrack} ${channelY}`);
+      commands.push(`H ${rightTrack}`);
+      if (target) commands.push(`V ${endY} H ${endX}`);
+      path.setAttribute('d', commands.join(' '));
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke', color);
-      path.setAttribute('stroke-width', '2');
+      path.setAttribute('stroke-width', '2.5');
+      path.setAttribute('stroke-linejoin', 'round');
       path.setAttribute('marker-end', `url(#ai-preview-arrowhead-${arrow.kind})`);
       if (arrow.excluded) path.setAttribute('stroke-dasharray', '4 3');
       if (arrow.excluded) path.setAttribute('opacity', '0.45');
       svg.append(path);
-
-      const label = document.createElementNS(namespace, 'g');
-      if (arrow.excluded) label.setAttribute('opacity', '0.55');
-      const labelWidth = Math.max(48, [...arrow.label].length * 12 + 16);
-      const labelX = Math.max(2, Math.min(width - labelWidth - 2, laneX - labelWidth / 2 + ((index % 5) - 2) * 8));
-      const labelY = Math.max(11, Math.min(height - 11, (startY + endY) / 2 + ((index % 3) - 1) * 12));
-      const background = document.createElementNS(namespace, 'rect');
-      background.setAttribute('x', String(labelX));
-      background.setAttribute('y', String(labelY - 10));
-      background.setAttribute('width', String(labelWidth));
-      background.setAttribute('height', '20');
-      background.setAttribute('rx', '10');
-      background.setAttribute('fill', '#fff');
-      background.setAttribute('stroke', color);
-      label.append(background);
-      const text = document.createElementNS(namespace, 'text');
-      text.setAttribute('x', String(labelX + labelWidth / 2));
-      text.setAttribute('y', String(labelY + 4));
-      text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('fill', color);
-      text.setAttribute('font-size', '11');
-      text.textContent = arrow.label;
-      label.append(text);
-      svg.append(label);
     });
   };
   const updatePreviewSelection = (proposalItem, update) => {
@@ -1558,31 +1710,26 @@
       if (id !== operation.classId && beforeIds.has(operation.classId)) addOperationClass(operation.classId, index);
       if (operation.type === 'deleteClass') deletionOperationByClass.set(id, index);
     });
-    const typeById = new Map([...beforeState.classes, ...proposedCandidate.classes].map((item) => [item.id, item.type]));
-    const typeLabel = (id, fallback = '') => {
-      const type = typeById.get(id) || fallback;
-      return type === 'top' ? '上位' : type === 'middle' ? '中間' : '対象';
-    };
     const previewArrows = [];
     operations.forEach((operation, index) => {
       const kind = operationCategory(operation).className;
       const excluded = proposalItem.excludedOperationIndexes.has(index);
       if (operation.type === 'addClass') {
         const added = addedClassForReference(operation.temporaryId);
-        if (added) previewArrows.push({ kind, from: '', to: added.id, label: `${typeLabel(added.id, operation.classType)}追加`, excluded });
+        if (added) previewArrows.push({ kind, from: '', to: added.id, excluded });
       } else if (operation.type === 'deleteClass') {
-        previewArrows.push({ kind, from: operation.classId, to: '', label: `${typeLabel(operation.classId)}削除`, excluded });
+        previewArrows.push({ kind, from: operation.classId, to: '', excluded });
       } else if (operation.type === 'renameClass') {
         const id = resolveProposedId(operation.classId);
-        previewArrows.push({ kind, from: operation.classId, to: id, label: `${typeLabel(operation.classId)}改名`, excluded });
+        previewArrows.push({ kind, from: operation.classId, to: id, excluded });
       } else if (operation.type === 'moveClass') {
         const id = resolveProposedId(operation.classId);
-        previewArrows.push({ kind, from: operation.classId, to: id, label: '階層移動', excluded });
+        previewArrows.push({ kind, from: operation.classId, to: id, excluded });
       } else if (operation.type === 'moveChildren') {
         const destination = resolveProposedId(operation.to);
         for (const id of beforeParents.keys()) {
           if (beforeParents.get(id) === operation.from && afterParents.get(id) === destination) {
-            previewArrows.push({ kind, from: id, to: id, label: '配下移動', excluded });
+            previewArrows.push({ kind, from: id, to: id, excluded });
           }
         }
       }
@@ -1777,6 +1924,7 @@
     const byId = new Map(state.classes.map((item) => [item.id, item]));
     const selected = new Set(scope.editableIds);
     const alreadyShared = new Set(scope.sharedContextIds || []);
+    const alreadySent = new Set(scope.classes.map((item) => item.id));
     const resolved = new Map();
     const unresolved = [];
     const candidateGroups = [];
@@ -1833,8 +1981,8 @@
       if (request.classQuery) {
         const query = request.classQuery;
         const keywords = query.nameKeywords.map((value) => value.toLocaleLowerCase('ja-JP'));
-        const findMatches = ({ useKeywords, useRelation }) => state.classes.filter((candidate) => !selected.has(candidate.id)
-          && !alreadyShared.has(candidate.id) && !resolved.has(candidate.id)
+        const findMatches = ({ useKeywords, useRelation }) => state.classes.filter((candidate) => !alreadySent.has(candidate.id)
+          && !resolved.has(candidate.id)
           && (!query.classType || candidate.type === query.classType)
           && (!useKeywords || keywords.every((keyword) => String(candidate.label || '').toLocaleLowerCase('ja-JP').includes(keyword)))
           && (!useRelation || matchesRelation(candidate.id, query.relationToSelection)))
@@ -1878,7 +2026,7 @@
         unresolved.push(request.classId || request.className || '指定されたクラス');
         return;
       }
-      if (selected.has(candidate.id) || alreadyShared.has(candidate.id)) return;
+      if (alreadySent.has(candidate.id) || selected.has(candidate.id) || alreadyShared.has(candidate.id)) return;
       const previous = resolved.get(candidate.id);
       resolved.set(candidate.id, {
         item: candidate,
@@ -2272,7 +2420,7 @@
     conversation.thinkingProgress = splitTasks?.length ? `1/${splitTasks.length}` : '';
     renderConversation({ scrollToBottom: true });
     const thinkingTimer = window.setInterval(() => {
-      const indicator = messages.querySelector('.ai-thinking-indicator');
+      const indicator = messages.querySelector('.ai-thinking-indicator:not(.is-complete)');
       if (indicator && currentConversation === conversation) indicator.textContent = formatThinkingStatus(conversation);
     }, 1000);
     sendButton.classList.add('is-cancel');
@@ -2519,7 +2667,24 @@
       }
       conversation.updatedAt = Date.now();
       const elapsed = elapsedSeconds(conversation);
-      conversation.items.push({ type: 'work-duration', seconds: elapsed });
+      const pendingMessageIndex = conversation.items.indexOf(pendingUserMessage);
+      const editableScopeIds = new Set(scope.editableIds);
+      const sharedScopeIds = new Set(scope.sharedContextIds || []);
+      const typeLabels = { top: '上位', middle: '中間', class: '対象' };
+      const scopeSummary = {
+        type: 'scope-summary',
+        scopeCoverage: scope.scopeCoverage,
+        classes: scope.classes.map((item) => ({
+          id: item.id,
+          label: item.label,
+          typeLabel: typeLabels[item.type] || item.type,
+          shareType: editableScopeIds.has(item.id) ? '選択中'
+            : sharedScopeIds.has(item.id) ? '追加共有・参照のみ' : '範囲内の参照情報'
+        }))
+      };
+      conversation.items.splice(pendingMessageIndex + 1, 0,
+        scopeSummary,
+        { type: 'work-duration', seconds: elapsed });
       conversation.isThinking = false;
       conversation.thinkingProgress = '';
       conversation.thinkingStartedAt = null;
@@ -2541,7 +2706,15 @@
         resizeChatInput();
         setStatus('リクエストを中止しました。入力内容は保持されています。');
       } else {
-        setStatus(error.message || '接続に失敗しました。設定と通信状態を確認してください。', 'error');
+        const pendingIndex = conversation.items.indexOf(pendingUserMessage);
+        if (pendingIndex >= 0) conversation.items.splice(pendingIndex, 1);
+        if (textInput.value.trim()) textInput.value = `${userText}\n${textInput.value}`;
+        else textInput.value = userText;
+        resizeChatInput();
+        if (conversation.items.some((item) => item.type === 'message' && item.role === 'user')) refreshConversationTitle(conversation);
+        else conversation.title = '新しい相談';
+        conversation.updatedAt = Date.now();
+        setStatus(`${error.message || '接続に失敗しました。設定と通信状態を確認してください。'} 入力内容は入力欄に戻しました。選択範囲を調整して再送できます。別の相談として再送する場合は「＋」から新しい相談を始めてください。`, 'error');
       }
       renderConversation();
     } finally {
@@ -2552,6 +2725,7 @@
       sendButton.setAttribute('aria-label', '送信');
       sendButton.title = '送信';
       document.getElementById('ai-chat-form').removeAttribute('aria-busy');
+      updateHistoryList();
     }
     return requestSucceeded;
   };
