@@ -1856,7 +1856,24 @@
     const index = items.indexOf(previewPlan.proposalItem);
     const next = items[index + direction];
     if (!next) return;
-    void showPreview(next).then(() => renderConversation()).catch(reportPreviewError);
+    void transitionPreview(() => showPreview(next)).then(() => renderConversation()).catch(reportPreviewError);
+  };
+  const transitionPreview = async (renderNext) => {
+    const arrowSvg = document.getElementById('ai-preview-direction');
+    const arrowToggle = document.getElementById('ai-preview-arrow-toggle');
+    const shouldRestoreArrows = arrowToggle.getAttribute('aria-checked') === 'true' && !arrowSvg.hidden;
+    if (shouldRestoreArrows) arrowSvg.style.visibility = 'hidden';
+    try {
+      await renderNext();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    } finally {
+      if (shouldRestoreArrows) {
+        arrowSvg.style.visibility = '';
+        if (arrowToggle.getAttribute('aria-checked') === 'true' && !arrowSvg.hidden) {
+          renderPreviewArrows(previewPlan?.arrows || []);
+        }
+      }
+    }
   };
   const navigatePreviewPage = (direction) => {
     if (!previewPlan) return;
@@ -1864,7 +1881,7 @@
     const nextIndex = Math.max(0, Math.min(totalPages - 1, previewPageIndex + direction));
     if (nextIndex === previewPageIndex) return;
     previewPageIndex = nextIndex;
-    void showPreview(previewPlan.proposalItem, false, true).then(() => {
+    void transitionPreview(() => showPreview(previewPlan.proposalItem, false, true)).then(() => {
       previewDialog.scrollTop = 0;
     }).catch(reportPreviewError);
   };
@@ -2890,7 +2907,7 @@
       renderConversation();
       if (nextProposal) {
         setStatus('提案を適用しました。次の提案を確認しています。');
-        await showPreview(nextProposal);
+        await transitionPreview(() => showPreview(nextProposal));
         renderConversation();
       } else {
         closePreview();
