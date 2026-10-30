@@ -989,7 +989,7 @@
       targetCountFor,
       isOpen: () => true,
       displayId: () => '',
-      decorateSummary: (summary, _content, node) => {
+      decorateSummary: (summary, _content, node, _depth, controls) => {
         if (options.countLabelFor) {
           const badge = summary.querySelector('.count-badge');
           const updateBadge = () => { badge.textContent = options.countLabelFor(node); };
@@ -1002,7 +1002,7 @@
             ? 'is-ai-preview-excluded' : 'is-ai-preview-changed');
         }
         const checkbox = node.type === 'middle' ? null : makeToggle(node.id, node.label);
-        if (checkbox) summary.prepend(checkbox);
+        if (checkbox) controls.append(checkbox);
         appendTypeBadges(summary, indexesFor(node.id));
         if (node.previewDeleted) {
           summary.classList.add('is-ai-preview-deleted');

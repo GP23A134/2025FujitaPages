@@ -67,6 +67,8 @@
     details.dataset.classId = node.id;
     details.className = type === 'top' ? 'tree-top-class' : 'tree-middle-class';
     const summary = document.createElement('summary');
+    const controls = document.createElement('div');
+    controls.className = 'tree-level-controls';
     const content = document.createElement('div');
     content.className = 'tree-level-content';
     const id = document.createElement('span');
@@ -89,7 +91,7 @@
     content.append(id, label, badge);
     summary.append(content);
     details.append(summary);
-    return { details, summary, content, id, label, badge, updateCount };
+    return { details, summary, controls, content, id, label, badge, updateCount };
   }
 
   function appendTreeLevelRows(list, children, targets, renderChild, renderTarget) {
@@ -173,7 +175,7 @@
     };
     const makeTarget = options.renderTarget || makeDefaultTarget;
     const renderNode = (node, depth = 0) => {
-      const { details, summary, content } = createTreeLevel(node, {
+      const { details, summary, controls, content } = createTreeLevel(node, {
         displayId: options.displayId,
         count: countFor(node),
         directCount: node.targets.length
@@ -184,7 +186,8 @@
       details.open = options.isOpen
         ? options.isOpen(node, depth)
         : false;
-      if (options.decorateSummary) options.decorateSummary(summary, content, node, depth);
+      if (options.decorateSummary) options.decorateSummary(summary, content, node, depth, controls);
+      if (controls.childElementCount) details.append(controls);
 
       let childrenRendered = false;
       const renderChildren = () => {
