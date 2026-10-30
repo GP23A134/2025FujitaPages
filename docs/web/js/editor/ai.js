@@ -519,6 +519,16 @@
     if (response.status === 400 && apiMessage) return `依頼を送信できませんでした: ${apiMessage}`;
     return apiMessage || `OpenAI APIへの接続に失敗しました（HTTP ${response.status}）。`;
   };
+  const findInvalidApiKeyCharacter = (value) => {
+    let position = 0;
+    for (const character of value) {
+      if (!/^[\x21-\x7E]$/.test(character)) {
+        return { position: position + 1, codePoint: character.codePointAt(0) };
+      }
+      position += 1;
+    }
+    return null;
+  };
   const operationLabel = (operation) => {
     if (operation.type === 'addClass') return `${operation.classType === 'top' ? '上位' : '中間'}クラス「${operation.label}」を追加`;
     if (operation.type === 'renameClass') return `「${labelFor(operation.classId)}」を「${operation.label}」に改名`;
@@ -1950,8 +1960,10 @@
     if (isSending || isConfirmingSend) return false;
     const key = keyInput.value.trim();
     if (!key) { setStatus('設定欄にOpenAI APIキーを入力してください。', 'error'); keyInput.focus(); return; }
-    if (!/^[\x21-\x7E]+$/.test(key)) {
-      setStatus('APIキーに半角ASCII以外の文字が含まれています。キーを再コピーして入力してください。キーの前後や途中に空白・改行がないか確認してください。', 'error');
+    const invalidKeyCharacter = findInvalidApiKeyCharacter(key);
+    if (invalidKeyCharacter) {
+      const codePoint = `U+${invalidKeyCharacter.codePoint.toString(16).toUpperCase().padStart(4, '0')}`;
+      setStatus(`APIキーに使用できない文字があります（${invalidKeyCharacter.position}文字目、${codePoint}）。空白を含む印字可能ASCII以外は使えません。キー本体は表示していません。`, 'error');
       keyInput.focus();
       return;
     }
