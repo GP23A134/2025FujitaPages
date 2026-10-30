@@ -2084,7 +2084,9 @@
       if (splitTasks) {
         result = { baseDataHash, message: '', proposals: [], questions: [], dataRequests: [] };
         const messagesFromParts = [];
+        const chunkResults = [];
         const splitWarnings = new Set();
+        let splitRepairFailed = false;
         for (let offset = 0; offset < splitTasks.length; offset += 2) {
           const batch = splitTasks.slice(offset, offset + 2);
           setStatus(`AIが変更案を作成中です…（${offset + 1}/${splitTasks.length}）`);
@@ -2096,6 +2098,8 @@
             const index = offset + batchIndex;
             const task = splitTasks[index];
             validatePayload(part.result, baseDataHash);
+            chunkResults[index] = part.result;
+            if (part.repairFailed) splitRepairFailed = true;
             part.result.proposals.forEach((proposal, proposalIndex) => {
               proposal.id = `part${index + 1}_proposal${proposalIndex + 1}`;
             });
@@ -2123,6 +2127,72 @@
         }
         result.message = messagesFromParts.join('\n');
         if (splitWarnings.size) result.message = [result.message, ...splitWarnings].filter(Boolean).join('\n');
+        if (result.dataRequests.length) {
+          // Keep the normal local sharing-confirmation flow when the selected scope is incomplete.
+        } else if (splitRepairFailed) {
+          result.message = [result.message, '分割範囲の一部で回答を作成できなかったため、以下は部分的な結果です。']
+            .filter(Boolean).join('\n');
+        } else {
+          const buildSynthesisInput = (maxTextLength, includeStructure) => JSON.stringify({
+            request: userText,
+            conversationContext: conversation.localContext || undefined,
+            scopeCoverage: 'chunk_synthesis',
+            sourceScopeCoverage: scope.scopeCoverage,
+            coverageChunk: { total: splitTasks.length },
+            classStructure: includeStructure ? {
+              classes: scope.classes.map(({ id, type, label }) => [id, type, label]),
+              relations: scope.relations.map(({ child, parent }) => [child, parent])
+            } : undefined,
+            chunkAssessments: chunkResults.map((part, index) => ({
+              chunk: index + 1,
+              message: String(part?.message || '').slice(0, maxTextLength),
+              questions: (part?.questions || []).slice(0, 3).map((question) => String(question).slice(0, 300)),
+              proposals: (part?.proposals || []).map((proposal) => ({
+                title: String(proposal.title || '').slice(0, 160),
+                summary: String(proposal.summary || '').slice(0, maxTextLength),
+                reason: String(proposal.reason || '').slice(0, maxTextLength),
+                uncertainties: (proposal.uncertainties || []).slice(0, 3).map((item) => String(item).slice(0, 300))
+              }))
+            })),
+            instruction: `全分割範囲の回答を統合し、重複する指摘をまとめ、チャンク間で共通する問題や食い違いを整理してください。classStructureがある場合は全体構造との照合に使ってください。チャンクごとの結果にない事実は推測しないでください。この統合依頼では新しい変更案や確認質問は作らず、分割ごとに作成済みの変更案は別途表示します。${scope.scopeCoverage === 'all_classes' ? '全クラスデータは共有済みなので追加データ要求はしないでください。' : '選択範囲外のクラス情報が不可欠ならdataRequestsで具体的に求めてください。'}`,
+            responsePolicy: scope.scopeCoverage === 'all_classes'
+              ? 'dataRequests、questions、proposalsは空配列にしてください。分割結果だけでは判断できない点は明示してください。'
+              : 'questionsとproposalsは空配列にしてください。追加クラス情報が必要ならdataRequestsだけに記載し、分割結果だけでは判断できない点は明示してください。'
+          });
+          let maxTextLength = 1400;
+          let includeStructure = true;
+          let synthesisInput = buildSynthesisInput(maxTextLength, includeStructure);
+          while (synthesisInput.length > MAX_REQUEST_CHARACTERS && maxTextLength > 180) {
+            maxTextLength = Math.floor(maxTextLength * 0.65);
+            synthesisInput = buildSynthesisInput(maxTextLength, includeStructure);
+          }
+          if (synthesisInput.length > MAX_REQUEST_CHARACTERS) {
+            includeStructure = false;
+            synthesisInput = buildSynthesisInput(maxTextLength, includeStructure);
+          }
+          if (synthesisInput.length <= MAX_REQUEST_CHARACTERS) {
+            setStatus('全分割範囲の評価をまとめています…');
+            try {
+              let synthesis = await sendApiRequest(synthesisInput);
+              if (scope.scopeCoverage === 'all_classes') synthesis = await retryCompleteScopeDataRequest(synthesis);
+              if (synthesis.repairFailed) splitRepairFailed = true;
+              if (synthesis.result.dataRequests.length) {
+                result.dataRequests = synthesis.result.dataRequests;
+                result.questions = [];
+              }
+              const summary = String(synthesis.result.message || '').trim();
+              if (summary) result.message = [summary, ...splitWarnings].filter(Boolean).join('\n');
+              else result.message = [result.message, '全体の統合結果を作成できなかったため、以下は分割ごとの回答です。']
+                .filter(Boolean).join('\n');
+            } catch {
+              result.message = [result.message, '全体の統合処理に失敗したため、以下は分割ごとの回答です。']
+                .filter(Boolean).join('\n');
+            }
+          } else {
+            result.message = [result.message, '統合用の入力が上限を超えたため、以下は分割ごとの回答です。']
+              .filter(Boolean).join('\n');
+          }
+        }
         conversation.responseId = '';
         conversation.initialSnapshotSent = false;
         conversation.previousScope = null;
