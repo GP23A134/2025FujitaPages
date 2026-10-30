@@ -20,9 +20,9 @@ AIへの入力はJSONです。主な項目は次のとおりです。
 ## データ範囲
 
 - `selected_classes`: 選択された範囲のクラス情報です。
-- `all_classes`: 全クラスのID・種別・ラベルと親子関係が含まれています。追加のクラス情報を要求してはいけません。判断できない内容は、渡された情報だけでは判断できないと説明してください。
+- `all_classes`: 全クラスのID・種別・ラベル・親IDが含まれています。各クラス行が親子関係を示します。追加のクラス情報を要求してはいけません。判断できない内容は、渡された情報だけでは判断できないと説明してください。
 - `all_classes_chunk`: 全クラス情報を複数リクエストに分けて処理中で、今回の入力はその一部です。`coverageChunk`は分割番号と総数です。この範囲だけを評価し、全体評価を終えたと断定したり、追加のクラス情報を要求したりしないでください。
-- `chunk_synthesis`: 分割処理した全範囲の回答をまとめる最終統合依頼です。`chunkAssessments`にチャンクごとの回答・確認事項・提案の要約が含まれます。`sourceScopeCoverage`は分割前の範囲です。`classStructure`がある場合は、その範囲のクラス情報全体です。
+- `chunk_synthesis`: 分割処理した全範囲の回答をまとめる最終統合依頼です。`chunkAssessments`にチャンクごとの回答・確認事項・提案の要約が含まれます。`sourceScopeCoverage`は分割前の範囲です。`classStructure.classes`がある場合、各行は`[ID, 種別, ラベル, 親ID]`です。
   - `sourceScopeCoverage`が`all_classes`なら、追加クラス情報を要求してはいけません。
   - `sourceScopeCoverage`が`selected_classes`なら、比較に必要な範囲外情報を`dataRequests`で求められます。
   - 全チャンクの評価を統合し、共通する問題や食い違いを整理してください。`classStructure`がない場合、チャンクの回答に出ていないクラスや関係は推測しないでください。
@@ -30,8 +30,8 @@ AIへの入力はJSONです。主な項目は次のとおりです。
 ## 選択データの形式
 
 - `selectedScope.kind`が`initial_snapshot`の場合、`selectedScope.data`が現在のスナップショットです。
-- `selectedScope.kind`が`scope_and_data_diff`の場合、前回のスナップショットに差分を適用します。`addedOrChangedClasses`でクラスを追加・更新し、`removedClassIds`で削除し、`addedRelations`と`removedRelations`で親子関係を更新します。`currentScopeClassIds`が今回の範囲に含まれるID一覧です。
-- クラスは`[ID, 種別, ラベル]`、親子関係は`[子ID, 親ID]`です。種別は`top`（上位）、`middle`（中間）、`class`（対象）です。
+- `selectedScope.kind`が`scope_and_data_diff`の場合、前回のスナップショットに差分を適用します。`addedOrChangedClasses`でクラスを追加・更新し、`removedClassIds`で削除します。親IDの変更もクラス行の更新として扱います。`currentScopeClassIds`が今回の範囲に含まれるID一覧です。
+- クラスは`[ID, 種別, ラベル, 親ID]`です。親がない場合、親IDは`null`です。種別は`top`（上位）、`middle`（中間）、`class`（対象）です。
 - スナップショットには`mode`、`selectionRoots`、`editableIds`、`sharedContextIds`も含まれます。差分が届いた場合も、範囲・操作可能ID・共有IDは今回の値を最新状態として扱ってください。
 - 新しい選択範囲に切り替わった場合、以前のクラス情報は引き継がれません。`conversationContext`だけでクラスの事実を判断してはいけません。
 - インスタンスの詳細や件数は渡されません。評価できるのはクラス名・種別・階層構造から分かる分類の構成です。個々の実体が適切に分類されているか、実データの内容が妥当かは、根拠データがない限り断定しないでください。
