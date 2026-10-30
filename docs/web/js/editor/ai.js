@@ -1723,13 +1723,13 @@
         const id = resolveProposedId(operation.classId);
         previewArrows.push({ kind, from: operation.classId, to: id, excluded });
       } else if (operation.type === 'moveClass') {
-        const id = resolveProposedId(operation.classId);
-        previewArrows.push({ kind, from: operation.classId, to: id, excluded });
+        const destination = resolveProposedId(operation.destinationId);
+        previewArrows.push({ kind, from: operation.classId, to: destination, excluded });
       } else if (operation.type === 'moveChildren') {
         const destination = resolveProposedId(operation.to);
         for (const id of beforeParents.keys()) {
           if (beforeParents.get(id) === operation.from && afterParents.get(id) === destination) {
-            previewArrows.push({ kind, from: id, to: id, excluded });
+            previewArrows.push({ kind, from: id, to: destination, excluded });
           }
         }
       }
@@ -1918,6 +1918,39 @@
         });
       });
     });
+  };
+  const suppressNoopMoveOperations = (result, scope) => {
+    const originalProposalCount = result.proposals.length;
+    const initiallyHadMoves = result.proposals.some((proposal) => proposal.operations.some((operation) => ['moveClass', 'moveChildren'].includes(operation.type)));
+    result.proposals.forEach((proposal) => {
+      const parentByChild = new Map((scope.relations || []).map(({ child, parent }) => [child, parent]));
+      proposal.operations = proposal.operations.filter((operation) => {
+        if (operation.type === 'addClass') {
+          if (operation.classType === 'middle' && operation.parentId) parentByChild.set(operation.temporaryId, operation.parentId);
+          return true;
+        }
+        if (operation.type === 'moveClass') {
+          const currentParent = parentByChild.get(operation.classId);
+          if (currentParent === operation.destinationId) return false;
+          parentByChild.set(operation.classId, operation.destinationId);
+          return true;
+        }
+        if (operation.type === 'moveChildren') {
+          const children = [...parentByChild]
+            .filter(([, parent]) => parent === operation.from)
+            .map(([child]) => child);
+          if (!children.length || operation.from === operation.to
+            || children.every((child) => parentByChild.get(child) === operation.to)) return false;
+          children.forEach((child) => parentByChild.set(child, operation.to));
+        }
+        return true;
+      });
+    });
+    result.proposals = result.proposals.filter((proposal) => proposal.operations.length || proposal.questions.length);
+    if (initiallyHadMoves && result.proposals.length < originalProposalCount
+      && !result.proposals.some((proposal) => proposal.operations.length)) {
+      result.message = [result.message, '親子関係が変わらない移動案は表示しませんでした。'].filter(Boolean).join('\n\n');
+    }
   };
   const resolveDataRequests = (requests, scope) => {
     const state = editor.getState();
@@ -2507,6 +2540,7 @@
               proposal.id = `part${index + 1}_proposal${proposalIndex + 1}`;
             });
             const discardedOperationCount = validateSplitTaskOperations(part.result, task);
+            suppressNoopMoveOperations(part.result, task.scope);
             if (discardedOperationCount) splitWarnings.add(`${discardedOperationCount}件の範囲外操作を除外しました。表示される変更案を確認してください。`);
             if (part.result.message) messagesFromParts.push(part.result.message);
             result.questions.push(...part.result.questions);
@@ -2607,6 +2641,7 @@
         responseId = response.responseBody.id || '';
         if (!responseId) throw new Error('会話IDを取得できませんでした。新しい相談からやり直してください。');
         validatePayload(result, baseDataHash);
+        suppressNoopMoveOperations(result, scope);
         if (response.repairFailed) completeCoverageRetryFailed = true;
         conversation.responseId = completeCoverageRetryFailed ? '' : responseId;
         conversation.initialSnapshotSent = !completeCoverageRetryFailed;
