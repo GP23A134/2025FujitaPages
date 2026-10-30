@@ -1375,7 +1375,12 @@
     next.hidden = true;
     apply.hidden = proposalItem.status === 'applied';
     document.getElementById('ai-preview-page-position').textContent = '';
-    if (!changes.hidden) document.getElementById('ai-preview-group-label').textContent = 'すべての変更';
+    if (!changes.hidden) {
+      const total = proposalItem.proposal.operations.length;
+      const excluded = proposalItem.excludedOperationIndexes || new Set();
+      const applicable = proposalItem.proposal.operations.reduce((count, _, index) => count + Number(!excluded.has(index)), 0);
+      document.getElementById('ai-preview-group-label').textContent = `変更一覧（適用 ${applicable}/${total}件）`;
+    }
     renderPreviewGroupOverview(proposalItem);
   };
   const previewableProposals = () => currentConversation.items.filter((item) => item.type === 'proposal'
@@ -1653,16 +1658,9 @@
       renderPreviewChangeList(proposalItem, [], 'ai-preview-change-list');
     }
     renderPreviewChangeList(proposalItem, operations.map((_, index) => index), 'ai-preview-final-change-list');
-    const operationCounts = { addClass: 0, renameClass: 0, move: 0, deleteClass: 0 };
-    activeOperations.forEach((operation) => {
-      if (operation.type === 'moveClass' || operation.type === 'moveChildren') operationCounts.move += 1;
-      else if (Object.hasOwn(operationCounts, operation.type)) operationCounts[operation.type] += 1;
-    });
     const impact = document.getElementById('ai-preview-impact');
     impact.classList.remove('is-loading');
-    impact.textContent = isApplied
-      ? `適用済みの履歴プレビュー（適用時点の変更前後・${operations.length}件）`
-      : `適用対象 ${activeOperations.length}/${operations.length}件（追加 ${operationCounts.addClass}・改名 ${operationCounts.renameClass}・移動 ${operationCounts.move}・削除 ${operationCounts.deleteClass}）`;
+    impact.textContent = '';
     document.getElementById('ai-preview-group-include').hidden = isApplied;
     document.getElementById('ai-preview-group-exclude').hidden = isApplied;
     previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), arrows: previewArrows, candidate, expectedFingerprint, expectedBaseHash, readOnly: isApplied };
