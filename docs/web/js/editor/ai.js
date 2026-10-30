@@ -148,6 +148,19 @@
   const previewDialog = document.getElementById('ai-preview-dialog');
   const confirmBeforeSendToggle = document.getElementById('ai-confirm-before-send');
   const sendConfirmDialog = document.getElementById('ai-send-confirm-dialog');
+  const sendConfirmSkipToggle = document.getElementById('ai-send-confirm-skip');
+  const confirmPreferenceKey = 'fujita.ai-confirm-before-send';
+  try {
+    const savedPreference = localStorage.getItem(confirmPreferenceKey);
+    if (savedPreference === 'true' || savedPreference === 'false') {
+      confirmBeforeSendToggle.checked = savedPreference === 'true';
+    }
+  } catch { /* Storage may be unavailable in restricted browsing contexts. */ }
+  const saveConfirmPreference = () => {
+    try { localStorage.setItem(confirmPreferenceKey, String(confirmBeforeSendToggle.checked)); }
+    catch { /* Keep the current-page preference even when persistent storage is unavailable. */ }
+  };
+  confirmBeforeSendToggle.addEventListener('change', saveConfirmPreference);
   const historyButton = document.getElementById('ai-show-history');
   const historyPopover = document.getElementById('ai-history-popover');
   const historyList = document.getElementById('ai-history-list');
@@ -277,15 +290,16 @@
     if (!confirmBeforeSendToggle.checked) return Promise.resolve(true);
     if (pendingSendConfirmation) return Promise.resolve(false);
     const summaryNode = document.getElementById('ai-send-confirm-summary');
-    const scopeSummary = `今回参照するクラス：${scope.classes.length}件（選択中 ${scope.editableIds.length}件・追加共有 ${scope.sharedContextIds?.length || 0}件、親子関係 ${scope.relations.length}件）`;
-    summaryNode.textContent = [summary, scopeSummary].filter(Boolean).join('\n\n');
+    summaryNode.textContent = summary;
     document.getElementById('ai-send-confirm-request').textContent = userText;
+    document.getElementById('ai-send-confirm-classes-summary').textContent =
+      `参照クラス ${scope.classes.length}件（選択中 ${scope.editableIds.length}件・追加共有 ${scope.sharedContextIds?.length || 0}件）`;
     const historyNote = document.getElementById('ai-send-confirm-history-note');
     historyNote.hidden = !conversation.responseId && !conversation.localContext;
     historyNote.textContent = conversation.responseId
-      ? 'この相談の前のやりとりも会話履歴としてOpenAI側に保存されており、今回の依頼と合わせて参照されます。'
+      ? 'この相談の過去の会話も今回の依頼と一緒に参照されます。'
       : conversation.localContext
-        ? '前の依頼や確認事項の要約も今回の依頼と合わせて送信します。以前のクラス情報は含みません。'
+        ? '前の依頼の要約も今回の依頼と一緒に送信されます。'
         : '';
     const body = document.getElementById('ai-send-confirm-classes');
     const typeLabels = { top: '上位', middle: '中間', class: '対象' };
@@ -306,8 +320,10 @@
         return row;
       });
     body.replaceChildren(...rows);
+    sendConfirmSkipToggle.checked = false;
     sendConfirmDialog.returnValue = '';
     sendConfirmDialog.showModal();
+    document.getElementById('ai-send-confirm-approve').focus();
     isConfirmingSend = true;
     return new Promise((resolve) => { pendingSendConfirmation = resolve; });
   };
@@ -316,12 +332,27 @@
     const resolve = pendingSendConfirmation;
     pendingSendConfirmation = null;
     isConfirmingSend = false;
+    if (approved && sendConfirmSkipToggle.checked) {
+      confirmBeforeSendToggle.checked = false;
+      saveConfirmPreference();
+    }
+    sendConfirmSkipToggle.checked = false;
     resolve(approved);
   };
   document.getElementById('ai-send-confirm-approve').addEventListener('click', () => sendConfirmDialog.close('send'));
   document.getElementById('ai-send-confirm-cancel').addEventListener('click', () => sendConfirmDialog.close('cancel'));
   document.getElementById('ai-send-confirm-close').addEventListener('click', () => sendConfirmDialog.close('cancel'));
   sendConfirmDialog.addEventListener('close', () => finishSendConfirmation(sendConfirmDialog.returnValue === 'send'));
+  sendConfirmDialog.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    sendConfirmDialog.close('cancel');
+  });
+  sendConfirmDialog.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.target.closest('button, summary')) return;
+    event.preventDefault();
+    document.getElementById('ai-send-confirm-approve').click();
+  });
 
   const setStatus = (text, kind = '') => {
     status.textContent = text;
@@ -335,9 +366,20 @@
       if (indicator) indicator.textContent = formatThinkingStatus(conversation);
     }
   };
+  const formatElapsedTime = (totalSeconds) => {
+    let remaining = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(remaining / 3600);
+    remaining %= 3600;
+    const minutes = Math.floor(remaining / 60);
+    const seconds = remaining % 60;
+    if (hours) return `${hours}h${minutes ? `${minutes}m` : ''}${seconds ? `${seconds}s` : ''}`;
+    if (minutes) return `${minutes}m${seconds ? `${seconds}s` : ''}`;
+    return `${seconds}s`;
+  };
+  const elapsedSeconds = (conversation) => Math.max(0, Math.floor((Date.now() - conversation.thinkingStartedAt) / 1000));
   const formatThinkingStatus = (conversation) => {
-    const elapsed = Math.max(0, Math.floor((Date.now() - conversation.thinkingStartedAt) / 1000));
-    return `${elapsed}s 作業中${conversation.thinkingProgress ? `（${conversation.thinkingProgress}）` : ''}`;
+    const elapsed = formatElapsedTime(elapsedSeconds(conversation));
+    return `${elapsed} 作業中${conversation.thinkingProgress ? `（${conversation.thinkingProgress}）` : ''}`;
   };
   const appendSettingsLink = () => {
     status.append(document.createTextNode(' '));
@@ -407,7 +449,7 @@
       else if (item.type === 'work-duration') {
         const duration = document.createElement('div');
         duration.className = 'ai-thinking-indicator is-complete';
-        duration.textContent = `${item.seconds}s間作業しました`;
+        duration.textContent = `${formatElapsedTime(item.seconds)}間作業しました`;
         messages.append(duration);
       }
       else if (item.type === 'proposal' || item.type === 'questions') {
@@ -2493,7 +2535,7 @@
         });
       }
       conversation.updatedAt = Date.now();
-      const elapsed = Math.max(0, Math.floor((Date.now() - conversation.thinkingStartedAt) / 1000));
+      const elapsed = elapsedSeconds(conversation);
       conversation.items.push({ type: 'work-duration', seconds: elapsed });
       conversation.isThinking = false;
       conversation.thinkingProgress = '';
@@ -2591,7 +2633,9 @@
     previewArrowToggle.querySelector('.ai-preview-arrow-toggle-state').textContent = visible ? 'ON' : 'OFF';
     const arrowSvg = document.getElementById('ai-preview-direction');
     arrowSvg.hidden = !visible;
+    arrowSvg.setAttribute('aria-hidden', String(!visible));
     if (visible) requestAnimationFrame(() => renderPreviewArrows(previewPlan?.arrows || []));
+    else arrowSvg.replaceChildren();
   });
   window.addEventListener('resize', () => {
     if (!document.getElementById('ai-preview-direction').hidden) renderPreviewArrows(previewPlan?.arrows || []);

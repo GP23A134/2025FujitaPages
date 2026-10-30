@@ -9,7 +9,7 @@
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261028-scroll-perf-v1">
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261028-class-query-sharing-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261029-ai-preview-proposal-split-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261030-ai-preview-actions-v3">
   <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261028-class-query-sharing-v1">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261028-class-query-sharing-v1">
   <script src="web/data/generated/class-data.js" defer></script>
@@ -199,7 +199,7 @@
       <label class="edit-settings-toggle"><input type="checkbox" id="toggle-edit-ids"> クラスIDを表示する</label>
       <label class="edit-settings-toggle"><input type="checkbox" id="toggle-tree-edit-mode"> クラス編集を有効にする</label>
       <label class="edit-settings-toggle"><input type="checkbox" id="ai-confirm-before-send"> AIチャットの送信前に内容を確認する</label>
-      <p class="edit-settings-note">ONにすると、依頼文と共有対象のクラス一覧を確認してから送信します。初期状態はOFFです。</p>
+      <p class="edit-settings-note">ONにすると送信前に内容を確認します。確認画面で「これ以降表示しない」を選ぶと、次回以降はOFFになります。</p>
     </section>
   </dialog>
   <dialog id="target-instance-dialog" class="target-instance-dialog" aria-labelledby="target-instance-title">
@@ -234,24 +234,17 @@
       </details>
     </section>
     <section id="ai-preview-change-page" class="ai-preview-page" hidden>
-      <div class="ai-preview-change-page-heading">
-        <div class="ai-preview-selection-actions">
-          <button type="button" id="ai-preview-group-include">すべて適用</button>
-          <button type="button" id="ai-preview-group-exclude">すべて除外</button>
-        </div>
-      </div>
       <details id="ai-preview-change-list-details" class="ai-preview-change-list-details">
         <summary id="ai-preview-group-title">
           <span id="ai-preview-group-label">すべての変更</span>
           <span id="ai-preview-type-legend" class="ai-preview-type-legend" role="list" aria-label="変更種類ごとの件数"></span>
+          <span class="ai-preview-selection-actions ai-preview-change-actions">
+            <button type="button" id="ai-preview-group-include">すべて適用</button>
+            <button type="button" id="ai-preview-group-exclude">すべて除外</button>
+          </span>
         </summary>
         <ul id="ai-preview-change-list" class="ai-preview-change-list"></ul>
       </details>
-      <div class="ai-preview-tree-controls">
-        <button type="button" id="ai-preview-arrow-toggle" class="ai-preview-arrow-toggle" role="switch" aria-checked="true" aria-label="矢印表示">
-          <span>矢印表示</span><span class="ai-preview-arrow-toggle-state">ON</span><span class="ai-preview-arrow-toggle-track" aria-hidden="true"><span></span></span>
-        </button>
-      </div>
       <div class="ai-preview-columns">
         <svg id="ai-preview-direction" class="ai-preview-direction" aria-hidden="true"></svg>
         <section>
@@ -260,7 +253,12 @@
         </section>
         <div class="ai-preview-arrow-lane" aria-hidden="true"></div>
         <section>
-          <div class="ai-preview-column-header"><h3>変更後</h3></div>
+          <div class="ai-preview-column-header">
+            <h3>変更後</h3>
+            <button type="button" id="ai-preview-arrow-toggle" class="ai-preview-arrow-toggle" role="switch" aria-checked="true" aria-label="矢印表示">
+              <span>矢印表示</span><span class="ai-preview-arrow-toggle-state">ON</span><span class="ai-preview-arrow-toggle-track" aria-hidden="true"><span></span></span>
+            </button>
+          </div>
           <div id="ai-preview-after" class="ai-preview-tree"></div>
         </section>
       </div>
@@ -292,21 +290,22 @@
       <h3>依頼文</h3>
       <pre id="ai-send-confirm-request" class="ai-send-confirm-request"></pre>
     </section>
-    <section class="ai-send-confirm-section">
-      <h3>今回の相談で参照できるクラス</h3>
+    <details id="ai-send-confirm-classes-details" class="ai-send-confirm-classes-details">
+      <summary id="ai-send-confirm-classes-summary">参照クラス</summary>
       <div class="ai-send-confirm-table-wrap">
         <table class="ai-send-confirm-table">
           <thead><tr><th scope="col">共有区分</th><th scope="col">種類</th><th scope="col">クラス名</th><th scope="col">ID</th></tr></thead>
           <tbody id="ai-send-confirm-classes"></tbody>
         </table>
       </div>
-    </section>
+    </details>
     <p id="ai-send-confirm-history-note" class="edit-settings-note" hidden></p>
+    <label class="ai-send-confirm-skip"><input type="checkbox" id="ai-send-confirm-skip"> これ以降、この確認画面を表示しない</label>
     <div class="ai-send-confirm-actions">
       <button type="button" id="ai-send-confirm-cancel">キャンセル</button>
       <button type="button" id="ai-send-confirm-approve" class="search-button">この内容で送信</button>
     </div>
   </dialog>
-  <script src="web/js/editor/ai.js?v=20261030-ai-runtime-guards-v1" defer></script>
+  <script src="web/js/editor/ai.js?v=20261030-ai-send-confirm-v3" defer></script>
 </body>
 </html>
