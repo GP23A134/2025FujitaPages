@@ -71,7 +71,11 @@
   const keyGuidance = document.getElementById('ai-key-guidance');
   const updateKeyGuidance = () => { keyGuidance.hidden = Boolean(keyInput.value.trim()); };
   updateKeyGuidance();
-  keyInput.addEventListener('input', updateKeyGuidance);
+  keyInput.addEventListener('input', () => {
+    updateKeyGuidance();
+    if (status.classList.contains('is-error')
+      && status.textContent.startsWith('APIキーに使用できない文字があります')) setStatus('');
+  });
   document.getElementById('ai-open-settings').addEventListener('click', () => {
     settingsDialog.showModal();
     keyInput.focus();
