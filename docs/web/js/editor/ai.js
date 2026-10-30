@@ -136,7 +136,6 @@
   const messages = document.getElementById('ai-chat-messages');
   const status = document.getElementById('ai-status');
   const sendButton = document.getElementById('ai-send');
-  const promptExamples = document.getElementById('ai-prompt-examples');
   const textInput = document.getElementById('ai-chat-input');
   const resizeChatInput = () => {
     textInput.style.height = 'auto';
@@ -167,6 +166,7 @@
   let classLabelsById = new Map();
   let classTypesById = new Map();
   let temporaryLabelsById = new Map();
+  let sourceDataVersionPromise = null;
 
   const createConversation = (selectedIds = editor.selectedIds) => {
     const conversation = {
@@ -445,8 +445,6 @@
         messages.scrollTo({ top: offset, behavior: 'smooth' });
       } else messages.scrollTop = previousScrollTop;
     } else messages.scrollTop = scrollToBottom ? messages.scrollHeight : previousScrollTop;
-    promptExamples.hidden = currentConversation.items.some((item) => item.type === 'message' && item.role === 'user')
-      || Boolean(currentConversation.isThinking);
     status.textContent = currentConversation.isThinking ? '' : (currentConversation.status || '');
     updateUsageSummary();
     updateHistoryList();
@@ -482,6 +480,7 @@
   };
   const currentDataHash = async () => digest(JSON.stringify({ version: sourceDataVersion, state: stableState() }));
   const verifyLoadedDataVersion = async () => {
+    if (sourceDataVersionPromise) await sourceDataVersionPromise;
     const response = await fetch('data/input/current-class-data-version.txt', { cache: 'no-store' });
     if (!response.ok) throw new Error('クラスデータの版情報を確認できません。');
     const latest = (await response.text()).trim();
@@ -2558,13 +2557,6 @@
     if (!value) return;
     void sendRequest(value);
   });
-  promptExamples.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-ai-prompt]');
-    if (!button) return;
-    textInput.value = button.dataset.aiPrompt;
-    resizeChatInput();
-    textInput.focus();
-  });
   sendButton.addEventListener('click', (event) => {
     if (!isSending) return;
     event.preventDefault();
@@ -2686,11 +2678,12 @@
     messages.replaceChildren();
   });
 
-  fetch('data/input/current-class-data-version.txt', { cache: 'no-store' })
+  sourceDataVersionPromise = fetch('data/input/current-class-data-version.txt', { cache: 'no-store' })
     .then((response) => { if (!response.ok) throw new Error('データ版ファイルを取得できません。'); return response.text(); })
     .then((value) => { sourceDataVersion = value.trim(); if (!sourceDataVersion) throw new Error('データ版が空です。'); })
     .catch(() => {
       setStatus('データ版を確認できません。通信状態を確認してください。AI提案は確認できるまで送信できません', 'error');
       appendSettingsLink();
+      sourceDataVersion = '';
     });
 })();

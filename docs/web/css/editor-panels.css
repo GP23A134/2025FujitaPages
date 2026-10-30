@@ -250,16 +250,6 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-usage-detail { flex: 1 1 auto; color: #64748b; }
 .ai-usage-cost { color: #0f172a; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ai-usage-note { padding-top: 0.25rem; border-top: 1px solid #e2e8f0; color: #64748b; white-space: pre-line; }
-.ai-prompt-examples { flex: 0 0 auto; min-height: 0; }
-.ai-prompt-examples > h3 { margin: 0 0 0.25rem; color: #334155; font-size: 0.78rem; }
-.ai-prompt-howto { margin: 0 0 0.45rem; color: #64748b; font-size: 0.7rem; line-height: 1.45; }
-.ai-prompt-example-list { display: grid; max-height: min(36vh, 17rem); overflow: auto; gap: 0.4rem; }
-.ai-prompt-example { padding: 0.5rem 0.6rem; border: 1px solid #dbe3ec; border-radius: 8px; background: #fff; }
-.ai-prompt-example h4 { margin: 0 0 0.2rem; color: #334155; font-size: 0.72rem; }
-.ai-prompt-example p { margin: 0 0 0.35rem; color: #475569; font-size: 0.7rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
-.ai-prompt-example button { padding: 0.2rem 0.45rem; border: 1px solid #cbd5e1; border-radius: 5px; color: #075985; background: #f8fafc; font: inherit; font-size: 0.68rem; cursor: pointer; }
-.ai-prompt-example button:hover, .ai-prompt-example button:focus-visible { border-color: #7dd3fc; background: #f0f9ff; }
-.ai-prompt-example button:focus-visible { outline: 2px solid #0284c7; outline-offset: 2px; }
 .ai-chat-guidance { padding: 0.25rem 0.1rem; }
 .ai-key-guidance { margin: 0; color: #64748b; font-size: 0.72rem; line-height: 1.45; }
 .ai-settings-inline-link { padding: 0; border: 0; background: none; color: #1d4ed8; font: inherit; text-decoration: underline; cursor: pointer; }
