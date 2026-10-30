@@ -75,8 +75,6 @@
   updateKeyGuidance();
   keyInput.addEventListener('input', () => {
     updateKeyGuidance();
-    if (status.classList.contains('is-error')
-      && status.textContent.startsWith('APIキーに使用できない文字があります')) setStatus('');
   });
   document.getElementById('ai-open-settings').addEventListener('click', () => {
     settingsDialog.showModal();
@@ -621,16 +619,6 @@
     }
     if (response.status === 400 && apiMessage) return `依頼を送信できませんでした: ${apiMessage}`;
     return apiMessage || `OpenAI APIへの接続に失敗しました（HTTP ${response.status}）。`;
-  };
-  const findInvalidApiKeyCharacter = (value) => {
-    let position = 0;
-    for (const character of value) {
-      if (!/^[\x21-\x7E]$/.test(character)) {
-        return { position: position + 1, codePoint: character.codePointAt(0) };
-      }
-      position += 1;
-    }
-    return null;
   };
   const operationLabel = (operation) => {
     if (operation.type === 'addClass') return `${operation.classType === 'top' ? '上位' : '中間'}クラス「${operation.label}」を追加`;
@@ -2222,13 +2210,6 @@
     if (isSending || isConfirmingSend) return false;
     const key = keyInput.value.trim();
     if (!key) { setStatus('設定欄にOpenAI APIキーを入力してください。', 'error'); keyInput.focus(); return; }
-    const invalidKeyCharacter = findInvalidApiKeyCharacter(key);
-    if (invalidKeyCharacter) {
-      const codePoint = `U+${invalidKeyCharacter.codePoint.toString(16).toUpperCase().padStart(4, '0')}`;
-      setStatus(`APIキーに使用できない文字があります（${invalidKeyCharacter.position}文字目、${codePoint}）。空白を含む印字可能ASCII以外は使えません。キー本体は表示していません。`, 'error');
-      keyInput.focus();
-      return;
-    }
     if (!await modelConfigPromise) { setStatus('モデル設定を読み込めないため依頼を送信できません。', 'error'); return; }
     const systemPrompt = await systemPromptPromise;
     if (!systemPrompt) { setStatus('AIプロンプトを読み込めないため依頼を送信できません。', 'error'); return; }
