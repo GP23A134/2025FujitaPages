@@ -2198,7 +2198,50 @@
     const isHierarchySelection = selectedRootClasses.length === selectionRoots.length
       && selectedRootClasses.length > 0
       && selectedRootClasses.every((item) => ['top', 'middle'].includes(item.type));
-    if (!isHierarchySelection) return null;
+    if (!isHierarchySelection) {
+      const selectedTargets = scope.classes.filter((item) => item.type === 'class' && scope.editableIds.includes(item.id));
+      const hierarchyClasses = scope.classes.filter((item) => ['top', 'middle'].includes(item.type));
+      if (!scope.includeAllClasses || !selectedTargets.length || selectedTargets.length !== scope.editableIds.length || !hierarchyClasses.length) return null;
+      const hierarchyIds = new Set(hierarchyClasses.map((item) => item.id));
+      const targetInstruction = 'この分割範囲では選択中の対象クラスを評価し、対象クラスの移動を提案できます。利用者が中間クラスの作成・新設を求めている場合は、入力中の上位・中間クラスを親とするaddClass（classType=middle）を提案し、対象クラスを同じ提案内でその新設クラスへ移動できます。親は入力中の実在する上位・中間クラスIDか、先に追加した中間クラスのtemporaryIdにし、親となる新しいクラスを先に追加してください。既存の上位・中間クラスの改名・移動・削除や、入力にないクラス・関係の推測は禁止します。各チャンク内のクラス名だけで全体に共通する分類を断定せず、チャンクの範囲で根拠を説明してください。';
+      const buildTargetTask = (targets) => {
+        const targetIds = new Set(targets.map((item) => item.id));
+        const includedIds = new Set([...hierarchyIds, ...targetIds]);
+        const taskScope = {
+          mode: 'selected_scope',
+          scopeCoverage: 'all_classes_chunk',
+          selectedIds: scope.selectedIds.filter((id) => targetIds.has(id)),
+          selectionRoots: targets.map((item) => item.id),
+          editableIds: targets.map((item) => item.id),
+          classes: [...hierarchyClasses, ...targets],
+          relations: scope.relations.filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
+          counts: Object.fromEntries([...includedIds].filter((id) => Object.prototype.hasOwnProperty.call(scope.counts || {}, id)).map((id) => [id, scope.counts[id]]))
+        };
+        const input = buildUserContent(userText, taskScope, conversation, {
+          forceSnapshot: true,
+          instruction: targetInstruction
+        });
+        return { kind: 'full_hierarchy_targets', scope: taskScope, input };
+      };
+      const targetTasks = [];
+      let offset = 0;
+      while (offset < selectedTargets.length) {
+        let low = 1; let high = selectedTargets.length - offset; let bestSize = 0; let bestTask = null;
+        while (low <= high) {
+          const size = Math.floor((low + high) / 2);
+          const candidate = buildTargetTask(selectedTargets.slice(offset, offset + size));
+          if (candidate.input.length <= MAX_REQUEST_CHARACTERS) {
+            bestSize = size; bestTask = candidate; low = size + 1;
+          } else high = size - 1;
+        }
+        if (!bestSize || !bestTask) {
+          throw new Error('全上位・中間クラスの情報と対象クラス1件を送信上限内に収められません。対象クラスの選択範囲を小さくするか、全体参照をOFFにしてください。');
+        }
+        targetTasks.push(bestTask);
+        offset += bestSize;
+      }
+      return targetTasks;
+    }
 
     const hierarchyScope = editor.getHierarchyScopedState(scope.selectedIds);
     if (!hierarchyScope) return null;
@@ -2311,6 +2354,7 @@
     const targetInstruction = 'この分割範囲に含まれる対象クラスだけを評価してください。この範囲で許可する操作は対象クラスの移動だけです。上位・中間クラスの追加・改名・移動・削除や、入力にない対象クラスの操作は提案しないでください。移動先は入力にある上位・中間クラスのIDだけを使ってください。この制約は今回の対象クラス分割範囲だけに適用されます。AIシステム全体が上位・中間クラスを再編できない、または新しい中間クラスを作成できないと説明してはいけません。階層の再編が今回必要だが入力に階層クラスがない場合は、今回の範囲に階層情報がないため別途階層クラスの選択が必要だと説明してください。';
     const targetTasks = [];
     const targetUnits = [];
+    const targetOperationInstruction = 'この分割範囲に含まれる対象クラスと対応する上位・中間クラスを評価してください。既存の対象クラスを移動するだけでなく、利用者が求める場合は新しい中間クラスを作成して対象クラスを割り当ててください。新しい中間クラスはaddClass（classType=middle）で追加し、parentIdには入力中の上位・中間クラスID、または先に追加した中間クラスのtemporaryIdを使います。中間クラスを別の新しい中間クラスの下に作る場合は親を先に追加してください。必要な対象クラスは同じ提案内でmoveClassし、destinationIdには入力中の上位・中間クラスIDか同じ提案で追加した中間クラスのtemporaryIdを指定してください。既存の上位・中間クラスの改名・移動・削除は提案しません。入力にない対象クラスや親子関係は推測せず、この分割範囲を超えた全体判断は保留してください。この制約は今回の対象クラス分割範囲だけに適用され、全体として新設が不要と結論するには全チャンクの評価を使ってください。';
     targetClasses.forEach((target) => {
       let parentId = parentByChild.get(target.id);
       let hierarchyTask = null;
@@ -2329,8 +2373,7 @@
     const makeTargetScope = (units) => {
       const targets = units.map((unit) => unit.target);
       const targetIds = new Set(targets.map((item) => item.id));
-      const hierarchyByIdLocal = new Map();
-      units.forEach(({ hierarchyTask }) => hierarchyTask.scope.classes.forEach((item) => hierarchyByIdLocal.set(item.id, item)));
+      const hierarchyByIdLocal = new Map(hierarchyClasses.map((item) => [item.id, item]));
       const classes = [...hierarchyByIdLocal.values(), ...targets];
       const includedIds = new Set(classes.map((item) => item.id));
       return {
@@ -2347,7 +2390,7 @@
       const taskScope = makeTargetScope(units);
       const input = buildUserContent(userText, taskScope, conversation, {
         forceSnapshot: true,
-        instruction: targetInstruction
+        instruction: targetOperationInstruction
       });
       return { kind: 'targets', scope: taskScope, input };
     };
@@ -2475,7 +2518,7 @@
     responsePolicy: '要約から確認できる事実と、要約だけでは判断できない事項を区別してください。クラス情報全体を改めて確認したかのように説明しないでください。'
   });
   const explicitlyRequestsFullReanalysis = (userText) => /(?:全体|全範囲|選択範囲|すべて).{0,12}(?:再分析|再評価|再チェック|再編|見直)|(?:再分析|再評価|再チェック|再編).{0,12}(?:全体|全範囲|選択範囲|すべて)|最初から.{0,8}(?:分析|評価|見直)/.test(userText);
-  const requiresFullClassStructure = (userText) => /(?:中間|上位|対象)?クラス.{0,24}(?:構造|親子|階層|種別|配下|問題|評価|判断|移動|再編|作成|追加|新設)|(?:親子関係|階層構造|クラス種別)/.test(userText);
+  const requiresFullClassStructure = (userText) => /(?:中間|上位|対象)?クラス.{0,24}(?:構造|親子|階層|種別|配下|問題|評価|判断|移動|再編|作成|追加|新設|重複|類似|同名|改名|統合|削除|整理)|(?:クラス)?(?:名|名称|名前).{0,16}(?:重複|類似|同名|統合|整理)|(?:重複|類似|同名).{0,16}(?:クラス|名称|名前)|(?:親子関係|階層構造|クラス種別)/.test(userText);
   const appendSplitFollowupContext = (memory, userText, result) => {
     const latest = createLocalConversationContext(userText, result);
     memory.followupContext = [memory.followupContext, latest].filter(Boolean).join('\n\n').slice(-MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS);
@@ -2527,12 +2570,29 @@
         return Boolean((item && ['top', 'middle'].includes(item.type)) || temporaryIds.has(id));
       };
       const allowed = proposal.operations.filter((operation) => {
-        if (task.kind === 'targets') {
-          const destination = classesById.get(operation.destinationId);
+        if (task.kind === 'full_hierarchy_targets') {
+          if (operation.type === 'addClass') {
+            if (operation.classType !== 'middle' || !operation.temporaryId) return false;
+            const parentType = classesById.get(operation.parentId)?.type || temporaryTypeById.get(operation.parentId);
+            return ['top', 'middle'].includes(parentType);
+          }
+          const destinationType = classesById.get(operation.destinationId)?.type || temporaryTypeById.get(operation.destinationId);
           return operation.type === 'moveClass'
             && editable.has(operation.classId)
             && classesById.get(operation.classId)?.type === 'class'
-            && destination && ['top', 'middle'].includes(destination.type);
+            && ['top', 'middle'].includes(destinationType);
+        }
+        if (task.kind === 'targets') {
+          if (operation.type === 'addClass') {
+            if (operation.classType !== 'middle' || !operation.temporaryId) return false;
+            const parentType = classesById.get(operation.parentId)?.type || temporaryTypeById.get(operation.parentId);
+            return ['top', 'middle'].includes(parentType);
+          }
+          const destinationType = classesById.get(operation.destinationId)?.type || temporaryTypeById.get(operation.destinationId);
+          return operation.type === 'moveClass'
+            && editable.has(operation.classId)
+            && classesById.get(operation.classId)?.type === 'class'
+            && ['top', 'middle'].includes(destinationType);
         }
         const sourceId = operation.classId || operation.from;
         if (['renameClass', 'moveClass', 'moveChildren', 'deleteClass'].includes(operation.type)
@@ -2610,15 +2670,14 @@
       : buildUserContent(userText, scope, conversation);
     let splitTasks = null;
     if (userContent.length > MAX_REQUEST_CHARACTERS) {
-      if (includeAllClasses) {
-        setStatus(`上位・中間クラス情報が送信上限を超えています（約${userContent.length.toLocaleString()}文字）。全体参照をOFFにするか、選択範囲を小さくしてください。`, 'error');
-        return;
-      }
       conversation.localContext = conversation.localContext || summarizeVisibleConversation(conversation);
       try { splitTasks = makeLargeScopePlan(userText, scope, conversation); }
       catch (error) { setStatus(error.message, 'error'); return; }
       if (!splitTasks?.length) {
-        setStatus(`送信データが大きすぎます（約${userContent.length.toLocaleString()}文字）。上位クラスを選択して配下を分割するか、選択範囲を小さくしてください。入力文は保持しています。`, 'error');
+        const guidance = includeAllClasses
+          ? '全上位・中間クラスを参照したまま分割できません。選択範囲を小さくするか、全体参照をOFFにしてください。'
+          : '上位クラスを選択して配下を分割するか、選択範囲を小さくしてください。';
+        setStatus(`送信データが大きすぎます（約${userContent.length.toLocaleString()}文字）。${guidance}入力文は保持しています。`, 'error');
         return;
       }
     }
