@@ -244,8 +244,8 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-chat-composer:focus-within { border-color: #7dd3fc; outline: 3px solid rgba(56, 189, 248, 0.18); }
 .ai-chat-form textarea { width: 100%; min-width: 0; min-height: 2rem; max-height: 10rem; overflow-y: auto; box-sizing: border-box; resize: none; padding: 0.35rem 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 0.86rem; line-height: 1.35; }
 .ai-chat-composer-actions { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.4rem 0.5rem; }
-.ai-chat-composer-submit { display: flex; min-width: 0; flex: 0 0 auto; align-items: center; gap: 0.4rem; white-space: nowrap; }
-.ai-current-model { display: block; max-width: 5.5rem; overflow: hidden; color: #64748b; font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
+.ai-chat-composer-submit { display: flex; min-width: 0; flex: 0 1 auto; align-items: center; gap: 0.4rem; }
+.ai-current-model { display: block; min-width: 0; max-width: 14rem; color: #64748b; font-size: 0.68rem; overflow-wrap: anywhere; }
 .ai-chat-composer .search-button { display: grid; width: 1.8rem; height: 1.8rem; min-height: 1.8rem; place-items: center; padding: 0; border: 0; border-radius: 50%; color: #fff; background: #0369a1; font-size: 1.15rem; line-height: 1; }
 .ai-chat-composer .search-button:hover:not(:disabled) { background: #075985; }
 .ai-chat-composer .search-button:disabled { opacity: 0.5; cursor: not-allowed; }

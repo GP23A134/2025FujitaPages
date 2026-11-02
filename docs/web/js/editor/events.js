@@ -596,7 +596,10 @@ window.classEditorAI = {
       included.add(id);
     });
     // AIに渡すクラス情報は、選択中のIDに限定する。
-    const scopedClasses = all.classes.filter((item) => included.has(item.id));
+    const scopedClasses = all.classes.filter((item) => included.has(item.id)).map((item) => ({
+      ...item,
+      parentId: parentByChild.get(item.id) || null
+    }));
     return {
       selectedIds: [...selectedIds],
       selectionRoots,
@@ -632,7 +635,10 @@ window.classEditorAI = {
 
     // AIに渡す階層情報も選択中の上位・中間クラスだけに限定する。
     const included = new Set(editable);
-    const scopedClasses = all.classes.filter((item) => included.has(item.id) && ['top', 'middle'].includes(item.type));
+    const scopedClasses = all.classes.filter((item) => included.has(item.id) && ['top', 'middle'].includes(item.type)).map((item) => ({
+      ...item,
+      parentId: parentByChild.get(item.id) || null
+    }));
     return {
       mode: 'hierarchy_scope',
       selectedIds: [...selectedIds],

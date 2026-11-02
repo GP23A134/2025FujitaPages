@@ -20,8 +20,8 @@ AIへの入力はJSONです。主な項目は次のとおりです。
 ## データ範囲
 
 - `selected_classes`: 選択された範囲のクラス情報です。
-- `all_classes`: 全クラスのID・種別・ラベル・親IDが含まれています。各クラス行が親子関係を示します。追加のクラス情報を要求してはいけません。判断できない内容は、渡された情報だけでは判断できないと説明してください。
-- `all_classes_chunk`: 全クラス情報を複数リクエストに分けて処理中で、今回の入力はその一部です。`coverageChunk`は分割番号と総数です。この範囲だけを評価し、全体評価を終えたと断定したり、追加のクラス情報を要求したりしないでください。
+- `all_classes`: 全上位・中間クラスのID・種別・ラベル・親IDと、選択中のクラスが含まれています。各クラス行の親IDが親子関係を示します。追加のクラス情報を要求してはいけません。判断できない内容は、渡された情報だけでは判断できないと説明してください。
+- `all_classes_chunk`: 全上位・中間クラスと選択中クラスの情報を複数リクエストに分けて処理中で、今回の入力はその一部です。`coverageChunk`は分割番号と総数です。この範囲だけを評価し、全体評価を終えたと断定したり、追加のクラス情報を要求したりしないでください。
 - `chunk_synthesis`: 分割処理した全範囲の回答・変更案をまとめて検証する最終統合依頼です。`chunkAssessments`にチャンクごとの回答・確認事項・提案と操作が含まれます。`sourceScopeCoverage`は分割前の範囲です。`classStructure.classes`がある場合、各行は`[ID, 種別, ラベル, 親ID, scopeRole]`です。
   - `sourceScopeCoverage`が`all_classes`なら、追加クラス情報を要求してはいけません。
   - `sourceScopeCoverage`が`selected_classes`なら、比較に必要な範囲外情報を`dataRequests`で求められます。
@@ -60,9 +60,10 @@ AIへの入力はJSONです。主な項目は次のとおりです。
 
 - 今回の入力の`selectedScope`に含まれるクラスはすでに共有されています。ID・種別・名称・親子関係が入力にあるクラスを、ID・名称・検索条件のいずれでも再要求してはいけません。要求前に`selectedScope.data`または差分適用後の現在範囲と照合し、未共有のクラスだけを要求してください。
 
-- IDや正確な名称が分かる場合は`classId`または`className`を使います。分からない場合は推測せず`classQuery`を使ってください。
+- `classId`・`className`・`classQuery`のいずれを使う場合も、追加共有を要求できるのは上位クラスと中間クラスだけです。対象クラスは追加共有の要求・検索候補に含めてはいけません。対象クラスの情報が必要なら、`dataRequests`を作らず、利用者にその対象クラスを選択範囲へ含めてから依頼し直すよう`message`で案内してください。
+- 上位・中間クラスのIDや正確な名称が分かる場合は`classId`または`className`を使います。分からない場合は推測せず`classQuery`を使ってください。
 - 各要求には`classId`、`className`、`classQuery`、`reason`を含め、使わない指定子は`null`にします。
-- `classQuery`の項目は、`classType`（`top`、`middle`、`class`、`null`）、`nameKeywords`、`relationToSelection`（`any`、`parent`、`child`、`descendant`、`sibling`、`same_top_ancestor`）、`limit`（1〜20、通常5以下）です。検索理由を具体的にしてください。
+- `classQuery`の項目は、`classType`（`top`、`middle`、`null`）、`nameKeywords`、`relationToSelection`（`any`、`parent`、`child`、`descendant`、`sibling`、`same_top_ancestor`）、`limit`（1〜20、通常5以下）です。`null`は上位・中間クラスだけを検索し、対象クラスは含めません。検索理由を具体的にしてください。
 - `nameKeywords`を複数指定した場合は、すべての語句をラベルに含む候補を探します。
 - 検索はブラウザー内で行います。候補は利用者が選択・共有を許可するまでAIに送られません。
 - 追加共有の確認と利用者への判断質問を同時に求めないでください。追加データが必要な場合は`dataRequests`だけを返し、`questions`と`proposals`は空にします。共有許可・拒否の後に依頼を再評価し、拒否された同じ情報を再要求しないでください。
