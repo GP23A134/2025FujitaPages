@@ -693,8 +693,11 @@ window.classEditorAI = {
         const id = newClassId(operation.classType);
         const label = String(operation.label).trim();
         if (label === '未分類') throw new Error('未分類クラスは新設できません。');
-        if (candidateClasses.some((item) => item.type === operation.classType && item.label.trim() === label)) {
-          throw new Error(`同じ種類の「${label}」が既にあります。`);
+        const existingClass = candidateClasses.find((item) => item.type === operation.classType && item.label.trim() === label);
+        if (existingClass) {
+          if (!availableReference(existingClass.id)) throw new Error(`同じ種類の「${label}」は既にありますが、選択範囲または共有範囲に含まれていません。`);
+          temporaryIds.set(operation.temporaryId, existingClass.id);
+          return;
         }
         if (operation.classType === 'middle' && candidateClasses.some((item) => item.type === 'top' && item.label.trim() === label)) {
           throw new Error(`同名の上位クラス「${label}」があるため、中間クラスとして追加できません。`);
