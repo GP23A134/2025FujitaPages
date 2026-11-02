@@ -738,14 +738,21 @@
   };
   const compactScope = (scope) => {
     const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
+    const roots = new Set(scope.selectionRoots || scope.selectedIds || []);
+    const editable = new Set(scope.editableIds || []);
+    const shared = new Set(scope.sharedContextIds || []);
     return {
       mode: scope.mode || 'selected_scope',
       scopeCoverage: scope.scopeCoverage || 'selected_classes',
-      selectionRoots: [...(scope.selectionRoots || scope.selectedIds || [])],
-      editableIds: [...(scope.editableIds || [])],
-      sharedContextIds: [...(scope.sharedContextIds || [])],
-      // Each row carries its own parent, avoiding a second relation list repeating class IDs.
-      classes: scope.classes.map(({ id, type, label }) => [id, type, label, parentByChild.get(id) || null])
+      // Keep scope roles beside each class so we do not repeat long IDs in separate lists.
+      classes: scope.classes.map(({ id, type, label }) => {
+        let role = '';
+        if (roots.has(id)) role += 'r';
+        if (editable.has(id)) role += 'e';
+        if (shared.has(id)) role += 's';
+        if (!role) role = 'c';
+        return [id, type, label, parentByChild.get(id) || null, role];
+      })
     };
   };
   const diffScope = (before, after) => {
@@ -757,17 +764,13 @@
     const beforeClasses = mapById(previous.classes); const afterClasses = mapById(current.classes);
     const changedClasses = [...afterClasses.values()].filter((item) => JSON.stringify(item) !== JSON.stringify(beforeClasses.get(item[0])));
     const removedClasses = [...beforeClasses.keys()].filter((id) => !afterClasses.has(id));
-    return {
-      kind: 'scope_and_data_diff',
-      mode: current.mode,
-      scopeCoverage: current.scopeCoverage,
-      selectionRoots: current.selectionRoots,
-      editableIds: current.editableIds,
-      sharedContextIds: current.sharedContextIds,
-      addedOrChangedClasses: changedClasses,
-      removedClassIds: removedClasses,
-      currentScopeClassIds: current.classes.map(([id]) => id)
-    };
+    const diff = { kind: 'scope_and_data_diff' };
+    if (changedClasses.length) diff.addedOrChangedClasses = changedClasses;
+    if (removedClasses.length) diff.removedClassIds = removedClasses;
+    // The initial snapshot establishes the mode. Send coverage only when it changes;
+    // selection/editability changes are carried by the per-class role in each diff row.
+    if (previous.scopeCoverage !== current.scopeCoverage) diff.scopeCoverage = current.scopeCoverage;
+    return diff;
   };
   const getPayloadSnapshot = (additionalContextIds = []) => {
     const selectedIds = editor.selectedIds;
@@ -2138,13 +2141,13 @@
     const usePrevious = !options.forceSnapshot && conversation.initialSnapshotSent && conversation.responseId;
     const previousScope = usePrevious ? conversation.previousScope : null;
     const fullClassDataInstruction = activeScope.scopeCoverage === 'all_classes'
-      ? '今回の入力のclassesには各クラスの[ID, 種別, 名称, 親ID]が含まれます。追加のクラス情報をdataRequestsで要求してはいけません。渡されたクラス構造だけで判断し、実データや件数がなく判断できない内容はその限界を説明してください。ユーザーの意図や希望する変更内容を確認する質問は可能です。'
+      ? '今回の入力のclassesには各クラスの[ID, 種別, 名称, 親ID, scopeRole]が含まれます。追加のクラス情報をdataRequestsで要求してはいけません。渡されたクラス構造だけで判断し、実データや件数がなく判断できない内容はその限界を説明してください。ユーザーの意図や希望する変更内容を確認する質問は可能です。'
       : activeScope.scopeCoverage === 'all_classes_chunk'
         ? '全クラスデータを複数リクエストに分けて処理しており、今回の入力はその一部です。追加のクラス情報を要求せず、この分割範囲だけを評価してください。全体を評価し終えたと断定せず、範囲をまたぐ比較が必要な結論は保留してください。'
         : '今回の入力は選択範囲のクラスデータです。範囲外のクラス情報が判断に必要な場合に限り、dataRequestsで必要な情報を求め、利用者の共有許可を待ってください。';
     const instruction = options.instruction || (activeScope.mode === 'hierarchy_scope'
       ? 'これは階層クラスだけの範囲です。対象クラスの個別情報は含まれません。上位・中間クラスの追加・改名・移動・削除だけを提案してください。上位クラスを中間クラスへ移す場合は上位を中間化し、配下の親子関係を保ってください。対象クラスの操作は提案しないでください.'
-      : 'ユーザーの依頼に合わせて評価、説明、確認事項、改善案、変更案を返してください。評価だけを求められた場合は変更案を作らず、変更案を求められた場合は安全に確定できる操作だけを提案してください。selectionRootsは選択の起点、editableIdsは実際に変更できる移動元の正確な一覧、sharedContextIdsは共有済みの参照専用クラスです。変更操作の対象はeditableIds内に限ります。選択範囲外の問題を評価で説明することはできますが、範囲外クラスの変更案は作らず、変更を希望する場合はそのクラスを選択するよう案内してください。');
+      : 'ユーザーの依頼に合わせて評価、説明、確認事項、改善案、変更案を返してください。評価だけを求められた場合は変更案を作らず、変更案を求められた場合は安全に確定できる操作だけを提案してください。各クラス行のscopeRoleはr=選択起点、e=変更可能、s=共有済み参照専用、c=参照コンテキストのみを表し、複数文字は役割の併記です。変更操作の対象はeを含むクラスだけです。選択範囲外の問題を評価で説明することはできますが、範囲外クラスの変更案は作らず、変更を希望する場合はそのクラスを選択するよう案内してください。');
     return JSON.stringify({
       request: userText,
       conversationContext: conversation.localContext || undefined,
@@ -2743,7 +2746,7 @@
             sourceScopeCoverage: scope.scopeCoverage,
             coverageChunk: { total: splitTasks.length },
             classStructure: includeStructure ? {
-              classes: compactScope(scope).classes
+              classes: compactScope(scope).classes.map((row) => row.slice(0, 4))
             } : undefined,
             chunkAssessments: chunkResults.map((part, index) => ({
               chunk: index + 1,
