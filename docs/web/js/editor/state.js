@@ -56,8 +56,7 @@ const syncPinnedHeldPanelBounds = () => {
       removeInlineStyleIfPresent(panel, 'visibility');
       return;
     }
-    const visibleHeaderHeight = Number.parseFloat(getComputedStyle(layout).getPropertyValue('--edit-pane-visible-header-height')) || 0;
-    const availableHeight = Math.max(0, (window.visualViewport?.height || window.innerHeight) - top - 8 - visibleHeaderHeight);
+    const availableHeight = Math.max(0, (window.visualViewport?.height || window.innerHeight) - top - 8);
     const desiredHeight = panel.classList.contains('is-collapsed')
       ? Number.parseFloat(getComputedStyle(panel).getPropertyValue('--held-collapsed-height')) || panel.scrollHeight
       : availableHeight;

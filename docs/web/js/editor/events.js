@@ -2,13 +2,169 @@
 // ============================================================
 // JSON出力と保存
 // ============================================================
+const saveValidationBaseline = {
+  classes: classes.map((item) => ({ id: item.id, type: kind(item.id), label: item.label })),
+  relations: data.classData.relations.map(({ child, parent }) => ({ child, parent }))
+};
+const saveValidationDialog = document.getElementById('edit-validation-dialog');
+const collectSaveValidationIssues = (graph) => {
+  const issues = [];
+  const addIssue = (code, severity, ids, detail, message) => {
+    const classIds = [...new Set(ids.filter(Boolean))].sort();
+    issues.push({
+      code,
+      severity,
+      classIds,
+      key: `${code}:${JSON.stringify(classIds)}:${detail || ''}`,
+      message
+    });
+  };
+  const classesById = new Map();
+  graph.classes.forEach((item) => {
+    if (!item.id) {
+      addIssue('empty-id', 'error', [], '', 'IDが空のクラスがあります。');
+      return;
+    }
+    const entries = classesById.get(item.id) || [];
+    entries.push(item);
+    classesById.set(item.id, entries);
+  });
+  classesById.forEach((items, id) => {
+    if (items.length > 1) addIssue('duplicate-id', 'error', [id], String(items.length), `ID「${id}」のクラスが複数あります。`);
+  });
+  const byId = new Map(graph.classes.filter((item) => item.id).map((item) => [item.id, item]));
+  const parentByChild = new Map(graph.relations.map(({ child, parent }) => [child, parent]));
+  const labelsByType = new Map();
+  graph.classes.forEach((item) => {
+    const label = String(item.label ?? '').trim();
+    if (!label) addIssue('empty-label', 'warning', [item.id], '', `「${item.id || 'IDなし'}」のクラス名が空です。`);
+    if (!label) return;
+    const duplicateScope = item.type === 'class' ? (parentByChild.get(item.id) || '') : '';
+    const key = `${item.type}\u0000${duplicateScope}\u0000${label.toLocaleLowerCase('ja-JP')}`;
+    const entries = labelsByType.get(key) || [];
+    entries.push(item);
+    labelsByType.set(key, entries);
+  });
+  labelsByType.forEach((items) => {
+    if (items.length < 2) return;
+    const ids = items.map((item) => item.id);
+    addIssue('duplicate-label', 'warning', ids, `${items[0].type}\u0000${parentByChild.get(items[0].id) || ''}`,
+      `同じ種類のクラス名「${items[0].label}」が重複しています（${ids.join('、')}）。`);
+  });
+
+  const seenRelations = new Set();
+  const parentsByChild = new Map();
+  graph.relations.forEach(({ child, parent }) => {
+    const relationKey = `${child}\u0000${parent}`;
+    if (seenRelations.has(relationKey)) addIssue('duplicate-relation', 'warning', [child, parent], '', `「${child}」から「${parent}」への親子関係が重複しています。`);
+    seenRelations.add(relationKey);
+    const childClass = byId.get(child);
+    const parentClass = byId.get(parent);
+    if (!childClass || !parentClass) {
+      addIssue('missing-reference', 'error', [child, parent], `${child}\u0000${parent}`, `親子関係「${child} → ${parent}」に存在しないクラスIDがあります。`);
+      return;
+    }
+    const parents = parentsByChild.get(child) || [];
+    parents.push(parent);
+    parentsByChild.set(child, parents);
+    if (!['middle', 'class'].includes(childClass.type) || !['top', 'middle'].includes(parentClass.type)) {
+      addIssue('invalid-type-edge', 'error', [child, parent], `${childClass.type}\u0000${parentClass.type}`,
+        `「${childClass.label}」から「${parentClass.label}」への階層種別が不正です。`);
+    }
+    if (parentClass.label === '未分類' && childClass.type === 'middle') {
+      addIssue('unclassified-middle', 'error', [child, parent], '', '中間クラスを「未分類」の下に置くことはできません。');
+    }
+  });
+  parentsByChild.forEach((parents, child) => {
+    if (new Set(parents).size > 1) addIssue('multiple-parents', 'error', [child, ...parents], '', `「${child}」が複数の親クラスを持っています。`);
+  });
+  graph.classes.filter((item) => ['middle', 'class'].includes(item.type)).forEach((item) => {
+    if (!parentsByChild.has(item.id)) addIssue('missing-parent', 'error', [item.id], item.type, `「${item.label || item.id}」に親クラスがありません。`);
+  });
+  const singleParent = new Map([...parentsByChild]
+    .filter(([, parents]) => new Set(parents).size === 1)
+    .map(([child, parents]) => [child, parents[0]]));
+  const reportedCycles = new Set();
+  graph.classes.forEach((item) => {
+    const path = [];
+    const pathIndex = new Map();
+    let current = item.id;
+    while (singleParent.has(current)) {
+      if (pathIndex.has(current)) {
+        const cycleIds = path.slice(pathIndex.get(current)).sort();
+        const cycleKey = cycleIds.join('\u0000');
+        if (!reportedCycles.has(cycleKey)) {
+          reportedCycles.add(cycleKey);
+          addIssue('cycle', 'error', cycleIds, '', `親子関係が循環しています（${cycleIds.join('、')}）。`);
+        }
+        break;
+      }
+      pathIndex.set(current, path.length);
+      path.push(current);
+      current = singleParent.get(current);
+    }
+  });
+  return issues;
+};
+const showSaveValidation = (issues) => {
+  const baselineKeys = new Set(collectSaveValidationIssues(saveValidationBaseline).map((item) => item.key));
+  const currentIssues = issues.map((issue) => baselineKeys.has(issue.key)
+    ? { ...issue, severity: 'warning', preExisting: true }
+    : issue);
+  const errors = currentIssues.filter((issue) => issue.severity === 'error');
+  const warnings = currentIssues.filter((issue) => issue.severity === 'warning');
+  const summary = document.getElementById('edit-validation-summary');
+  summary.textContent = errors.length
+    ? `編集で新たに発生したエラーが${errors.length}件あります。修正してから出力してください。警告 ${warnings.length}件。`
+    : `出力前に確認したい警告が${warnings.length}件あります。元データから存在する問題も警告として表示しています。`;
+  const list = document.getElementById('edit-validation-issues');
+  const rows = currentIssues.map((issue) => {
+    const row = document.createElement('li');
+    if (issue.severity === 'warning') row.classList.add('is-warning');
+    const text = document.createElement('div');
+    const severity = document.createElement('span');
+    severity.className = 'edit-validation-issue-severity';
+    severity.textContent = issue.preExisting ? '元データから存在する警告' : issue.severity === 'error' ? '要修正' : '警告';
+    const message = document.createElement('span');
+    message.textContent = issue.message;
+    text.append(severity, message);
+    row.append(text);
+    if (issue.classIds.length) {
+      const select = document.createElement('button');
+      select.type = 'button';
+      select.className = 'edit-validation-issue-select';
+      select.textContent = '該当クラスを選択';
+      select.addEventListener('click', () => {
+        window.classEditorAI.setSelectedIds(issue.classIds);
+        saveValidationDialog.close();
+      });
+      row.append(select);
+    }
+    return row;
+  });
+  list.replaceChildren(...rows);
+  const exportButton = document.getElementById('edit-validation-export');
+  exportButton.hidden = errors.length > 0;
+  saveValidationDialog.showModal();
+};
 function downloadJson(name, value) {
   const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], { type: 'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a'); link.href = url; link.download = name; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-function saveEditChanges() {
+function saveEditChanges(skipValidation = false) {
+  if (!skipValidation) {
+    const currentGraph = {
+      classes: classes.map((item) => ({ id: item.id, type: kind(item.id), label: item.label })),
+      relations: data.classData.relations.map(({ child, parent }) => ({ child, parent }))
+    };
+    const issues = collectSaveValidationIssues(currentGraph);
+    if (issues.length) {
+      showSaveValidation(issues);
+      return;
+    }
+  }
   const exportData = {
     classes: classes.map((item) => ({ type: kind(item.id), id: item.id, label: item.label })),
     relations: data.classData.relations.map(({ child, parent }) => ({ child, parent }))
@@ -17,11 +173,17 @@ function saveEditChanges() {
   logEditAction('class-update.jsonをダウンロードしました。data/input/に配置してClassDataUpdateを実行してください。');
   hasUnsavedChanges = false;
 }
+document.getElementById('edit-validation-close').addEventListener('click', () => saveValidationDialog.close());
+document.getElementById('edit-validation-cancel').addEventListener('click', () => saveValidationDialog.close());
+document.getElementById('edit-validation-export').addEventListener('click', () => {
+  saveValidationDialog.close();
+  saveEditChanges(true);
+});
 // ============================================================
 // 編集操作のイベント登録
 // ============================================================
 // 保存と編集履歴
-document.getElementById('save-edit-changes').addEventListener('click', saveEditChanges);
+document.getElementById('save-edit-changes').addEventListener('click', () => saveEditChanges());
 
 const scrollToTopButton = document.getElementById('scroll-to-top');
 const treePaneForScrollButton = document.querySelector('#edit-tree-panel .edit-tree-pane');
@@ -147,15 +309,6 @@ if (treeFilter && heldPanel && 'ResizeObserver' in window) {
   const taskbar = document.querySelector('.edit-taskbar');
   if (taskbar) new ResizeObserver(syncPinnedHeldPanelBounds).observe(taskbar);
   new ResizeObserver(syncPinnedHeldPanelBounds).observe(heldPanel);
-}
-const pageHeader = document.querySelector('.page-header');
-if (pageHeader && editTreeLayout && 'IntersectionObserver' in window) {
-  const headerVisibilitySteps = Array.from({ length: 101 }, (_, index) => index / 100);
-  new IntersectionObserver(([entry]) => {
-    const visibleHeight = entry.isIntersecting ? entry.intersectionRect.height : 0;
-    editTreeLayout.style.setProperty('--edit-pane-visible-header-height', `${visibleHeight}px`);
-    syncPinnedHeldPanelBounds();
-  }, { threshold: headerVisibilitySteps }).observe(pageHeader);
 }
 window.addEventListener('resize', syncPinnedHeldPanelBounds);
 window.visualViewport?.addEventListener('resize', syncPinnedHeldPanelBounds);
