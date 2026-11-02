@@ -203,75 +203,75 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_39",
-        "label": "生活・健康・福祉問題"
+        "label": "生活支援課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_40",
-        "label": "経済・雇用問題"
+        "label": "経済活動課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_41",
-        "label": "教育・人材問題"
+        "label": "教育人材課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_42",
-        "label": "地域・人口問題"
+        "label": "地域形成課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_43",
-        "label": "農林水産問題"
+        "label": "農林水産活動課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_44",
-        "label": "インフラ問題"
+        "label": "社会基盤課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_45",
-        "label": "災害・安全問題"
+        "label": "防災安全課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_46",
-        "label": "行政・制度問題"
+        "label": "行政運営課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_47",
-        "label": "環境問題"
+        "label": "環境保全課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_48",
-        "label": "文化・観光問題"
+        "label": "文化観光課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_49",
-        "label": "社会問題"
+        "label": "地域社会課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_50",
-        "label": "情報問題"
+        "label": "情報共有課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_51",
-        "label": "社会参加問題"
+        "label": "社会参加課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_52",
-        "label": "社会的孤立問題"
+        "label": "社会的孤立課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_53",
-        "label": "サービス利用問題"
+        "label": "サービス利用課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_54",
-        "label": "担い手不足問題"
+        "label": "担い手確保課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_55",
-        "label": "運営体制問題"
+        "label": "運営体制課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_56",
-        "label": "経済的負担問題"
+        "label": "経済的負担課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/t_11",
@@ -527,11 +527,11 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_119",
-        "label": "財政問題"
+        "label": "財政運営課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_120",
-        "label": "行政評価・選定根拠問題"
+        "label": "行政評価課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_121",
@@ -539,7 +539,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_122",
-        "label": "住民の不安・合意形成問題"
+        "label": "住民不安課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_123",
@@ -547,7 +547,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_124",
-        "label": "家庭・家族生活問題"
+        "label": "家庭生活課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_125",
@@ -555,27 +555,27 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_126",
-        "label": "住民意識・合意形成問題"
+        "label": "住民合意形成課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_127",
-        "label": "施設整備・維持運営問題"
+        "label": "施設管理課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_128",
-        "label": "行政手続・デジタル利用問題"
+        "label": "行政手続課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_129",
-        "label": "相談・支援上の課題"
+        "label": "相談支援課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_130",
-        "label": "地域活動・担い手問題"
+        "label": "地域活動課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_131",
-        "label": "事業・サービスの継続問題"
+        "label": "事業継続課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_132",
@@ -583,7 +583,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_133",
-        "label": "地域生活環境問題"
+        "label": "生活環境課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_134",
@@ -591,19 +591,19 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_135",
-        "label": "住民合意・地域対立問題"
+        "label": "住民対立課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_136",
-        "label": "住民合意・協議問題"
+        "label": "住民協議課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_137",
-        "label": "安全保障問題"
+        "label": "安全保障課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_138",
-        "label": "子どもの権利問題"
+        "label": "子どもの権利課題"
       }
     ],
     "relations": [
@@ -57304,7 +57304,7 @@ window.appData = {
       },
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/m_119",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_2",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_40",
         "relation": "subClassOf"
       },
       {
@@ -59364,7 +59364,7 @@ window.appData = {
       },
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/m_124",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_2",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_39",
         "relation": "subClassOf"
       },
       {
@@ -59489,7 +59489,7 @@ window.appData = {
       },
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/m_127",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_2",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_44",
         "relation": "subClassOf"
       },
       {
@@ -59514,7 +59514,7 @@ window.appData = {
       },
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/m_128",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_2",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_46",
         "relation": "subClassOf"
       },
       {
@@ -59534,7 +59534,7 @@ window.appData = {
       },
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/m_129",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_2",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_39",
         "relation": "subClassOf"
       },
       {
@@ -59559,7 +59559,7 @@ window.appData = {
       },
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/m_130",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_2",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_42",
         "relation": "subClassOf"
       },
       {
@@ -59619,7 +59619,7 @@ window.appData = {
       },
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/m_133",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_2",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_47",
         "relation": "subClassOf"
       },
       {
@@ -59639,7 +59639,7 @@ window.appData = {
       },
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/m_135",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_2",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_126",
         "relation": "subClassOf"
       },
       {
@@ -59679,7 +59679,7 @@ window.appData = {
       },
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/m_136",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_2",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_126",
         "relation": "subClassOf"
       },
       {
@@ -60819,12 +60819,12 @@ window.appData = {
       },
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/m_137",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_2",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_45",
         "relation": "subClassOf"
       },
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/m_138",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_2",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_39",
         "relation": "subClassOf"
       },
       {
@@ -61024,75 +61024,75 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_39",
-        "label": "生活・健康・福祉問題"
+        "label": "生活支援課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_40",
-        "label": "経済・雇用問題"
+        "label": "経済活動課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_41",
-        "label": "教育・人材問題"
+        "label": "教育人材課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_42",
-        "label": "地域・人口問題"
+        "label": "地域形成課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_43",
-        "label": "農林水産問題"
+        "label": "農林水産活動課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_44",
-        "label": "インフラ問題"
+        "label": "社会基盤課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_45",
-        "label": "災害・安全問題"
+        "label": "防災安全課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_46",
-        "label": "行政・制度問題"
+        "label": "行政運営課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_47",
-        "label": "環境問題"
+        "label": "環境保全課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_48",
-        "label": "文化・観光問題"
+        "label": "文化観光課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_49",
-        "label": "社会問題"
+        "label": "地域社会課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_50",
-        "label": "情報問題"
+        "label": "情報共有課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_51",
-        "label": "社会参加問題"
+        "label": "社会参加課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_52",
-        "label": "社会的孤立問題"
+        "label": "社会的孤立課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_53",
-        "label": "サービス利用問題"
+        "label": "サービス利用課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_54",
-        "label": "担い手不足問題"
+        "label": "担い手確保課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_55",
-        "label": "運営体制問題"
+        "label": "運営体制課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_56",
-        "label": "経済的負担問題"
+        "label": "経済的負担課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_58",
@@ -61340,11 +61340,11 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_119",
-        "label": "財政問題"
+        "label": "財政運営課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_120",
-        "label": "行政評価・選定根拠問題"
+        "label": "行政評価課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_121",
@@ -61352,7 +61352,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_122",
-        "label": "住民の不安・合意形成問題"
+        "label": "住民不安課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_123",
@@ -61360,7 +61360,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_124",
-        "label": "家庭・家族生活問題"
+        "label": "家庭生活課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_125",
@@ -61368,27 +61368,27 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_126",
-        "label": "住民意識・合意形成問題"
+        "label": "住民合意形成課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_127",
-        "label": "施設整備・維持運営問題"
+        "label": "施設管理課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_128",
-        "label": "行政手続・デジタル利用問題"
+        "label": "行政手続課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_129",
-        "label": "相談・支援上の課題"
+        "label": "相談支援課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_130",
-        "label": "地域活動・担い手問題"
+        "label": "地域活動課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_131",
-        "label": "事業・サービスの継続問題"
+        "label": "事業継続課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_132",
@@ -61396,7 +61396,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_133",
-        "label": "地域生活環境問題"
+        "label": "生活環境課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_134",
@@ -61404,19 +61404,19 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_135",
-        "label": "住民合意・地域対立問題"
+        "label": "住民対立課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_136",
-        "label": "住民合意・協議問題"
+        "label": "住民協議課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_137",
-        "label": "安全保障問題"
+        "label": "安全保障課題"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_138",
-        "label": "子どもの権利問題"
+        "label": "子どもの権利課題"
       }
     ]
   },
