@@ -2064,6 +2064,88 @@
       result.message = [result.message, '親子関係が変わらない移動案は表示しませんでした。'].filter(Boolean).join('\n\n');
     }
   };
+  const normalizeDuplicateClassOperations = (result, availableIds = []) => {
+    const state = editor.getState();
+    const classById = new Map(state.classes.map((item) => [item.id, item]));
+    const available = new Set(availableIds);
+    result.proposals.forEach((proposal) => {
+      const aliases = new Map();
+      const unavailableDuplicateIds = new Set();
+      const additionsByTypeAndLabel = new Map();
+      proposal.operations.forEach((operation) => {
+        if (operation.type !== 'addClass' || !operation.temporaryId || !['top', 'middle'].includes(operation.classType)) return;
+        const label = String(operation.label || '').trim();
+        const key = `${operation.classType}\u0000${label}`;
+        const existing = state.classes.find((item) => item.type === operation.classType
+          && String(item.label || '').trim() === label);
+        if (existing && available.has(existing.id)) aliases.set(operation.temporaryId, existing.id);
+        else if (existing) unavailableDuplicateIds.add(operation.temporaryId);
+        else if (additionsByTypeAndLabel.has(key)) aliases.set(operation.temporaryId, additionsByTypeAndLabel.get(key));
+        else additionsByTypeAndLabel.set(key, operation.temporaryId);
+      });
+      const resolveAlias = (id) => {
+        const seen = new Set();
+        let resolved = id;
+        while (aliases.has(resolved) && !seen.has(resolved)) {
+          seen.add(resolved);
+          resolved = aliases.get(resolved);
+        }
+        return resolved;
+      };
+      if (aliases.size) {
+        proposal.operations = proposal.operations
+          .filter((operation) => !(operation.type === 'addClass' && aliases.has(operation.temporaryId)))
+          .map((operation) => {
+            const normalized = { ...operation };
+            ['parentId', 'classId', 'destinationId', 'from', 'to'].forEach((key) => {
+              if (normalized[key]) normalized[key] = resolveAlias(normalized[key]);
+            });
+            return normalized;
+          });
+        if (proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal) {
+          proposal.uncertainties.push('同じ種類・名称のクラスが既にあるため、新設せず既存クラスを再利用します。');
+        }
+      }
+      if (unavailableDuplicateIds.size) {
+        let addedBlockedId = true;
+        while (addedBlockedId) {
+          addedBlockedId = false;
+          proposal.operations.forEach((operation) => {
+            if (operation.type === 'addClass' && operation.temporaryId && unavailableDuplicateIds.has(operation.parentId)
+              && !unavailableDuplicateIds.has(operation.temporaryId)) {
+              unavailableDuplicateIds.add(operation.temporaryId);
+              addedBlockedId = true;
+            }
+          });
+        }
+        const referencesUnavailableDuplicate = (operation) => ['temporaryId', 'parentId', 'classId', 'destinationId', 'from', 'to']
+          .some((key) => unavailableDuplicateIds.has(operation[key]));
+        proposal.operations = proposal.operations.filter((operation) => !referencesUnavailableDuplicate(operation));
+        if (proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal) {
+          proposal.uncertainties.push('同名クラスは存在しますが選択範囲外のため、そのクラスに依存する操作を除外しました。');
+        }
+      }
+      const duplicateRenameIndexes = new Set();
+      proposal.operations.forEach((operation, index) => {
+        if (operation.type !== 'renameClass') return;
+        const item = classById.get(operation.classId);
+        const label = String(operation.label || '').trim();
+        if (!item || !label) return;
+        const duplicate = state.classes.find((candidate) => available.has(candidate.id)
+          && candidate.id !== item.id && candidate.type === item.type
+          && String(candidate.label || '').trim() === label);
+        const duplicateAddition = proposal.operations.some((candidate) => candidate.type === 'addClass'
+          && candidate.classType === item.type && String(candidate.label || '').trim() === label);
+        if (duplicate || duplicateAddition) duplicateRenameIndexes.add(index);
+      });
+      if (duplicateRenameIndexes.size) {
+        proposal.operations = proposal.operations.filter((_, index) => !duplicateRenameIndexes.has(index));
+        if (proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal) {
+          proposal.uncertainties.push('改名先と同じ種類・名称のクラスが既にあるため、その改名操作を除外しました。');
+        }
+      }
+    });
+  };
   const removeOperationsWithoutEditableScope = (result, scope) => {
     if (scope.editableIds.length) return;
     const removedCount = result.proposals.reduce((count, proposal) => count + proposal.operations.length, 0);
@@ -2830,6 +2912,7 @@
             const index = offset + batchIndex;
             const task = splitTasks[index];
             validatePayload(part.result, baseDataHash);
+            normalizeDuplicateClassOperations(part.result, task.scope.classes.map((item) => item.id));
             const cacheResult = structuredClone(part.result);
             chunkResults[index] = cacheResult;
             nextChunkCache.push({ key: chunkKeys[index], result: cacheResult });
@@ -2940,6 +3023,7 @@
               if (scope.scopeCoverage === 'all_classes') synthesis = await retryCompleteScopeDataRequest(synthesis);
               if (synthesis.repairFailed) splitRepairFailed = true;
               validatePayload(synthesis.result, baseDataHash);
+              normalizeDuplicateClassOperations(synthesis.result, scope.classes.map((item) => item.id));
               if (synthesis.result.dataRequests.length) {
                 result.dataRequests = synthesis.result.dataRequests;
                 result.questions = [];
@@ -3012,6 +3096,7 @@
         responseId = response.responseBody.id || '';
         if (!responseId && !usesSplitMemory) throw new Error('会話IDを取得できませんでした。新しい相談からやり直してください。');
         validatePayload(result, baseDataHash);
+        normalizeDuplicateClassOperations(result, scope.classes.map((item) => item.id));
         removeOperationsWithoutEditableScope(result, scope);
         suppressNoopMoveOperations(result, scope);
         if (usesSplitMemory) {
