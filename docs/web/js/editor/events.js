@@ -542,6 +542,14 @@ treeFilterQueryInput.addEventListener('keydown', (event) => {
 render();
 
 // AI補助にはクラス分類のメタデータだけを渡し、個別インスタンスは公開しない。
+function buildAiTargetContext(all, hierarchyClasses) {
+  const descendantTargetClassCounts = {};
+  hierarchyClasses.forEach((item) => {
+    descendantTargetClassCounts[item.id] = all.counts[item.id] || 0;
+  });
+  return { descendantTargetClassCounts };
+}
+
 window.classEditorAI = {
   get selectedIds() { return [...heldInstances.keys(), ...heldMiddleClasses.keys(), ...heldTopClasses.keys()]; },
   setSelectedIds(ids) {
@@ -606,7 +614,8 @@ window.classEditorAI = {
       editableIds: [...editable],
       classes: scopedClasses,
       relations: all.relations.filter((item) => included.has(item.child) && included.has(item.parent)),
-      counts: Object.fromEntries(scopedClasses.map((item) => [item.id, all.counts[item.id] || 0]))
+      counts: Object.fromEntries(scopedClasses.map((item) => [item.id, all.counts[item.id] || 0])),
+      targetContext: buildAiTargetContext(all, scopedClasses.filter((item) => ['top', 'middle'].includes(item.type)))
     };
   },
   getHierarchyScopedState(selectedIds) {
@@ -646,8 +655,17 @@ window.classEditorAI = {
       editableIds: [...editable],
       classes: scopedClasses,
       relations: all.relations.filter((item) => included.has(item.child) && included.has(item.parent)),
-      counts: Object.fromEntries(scopedClasses.map((item) => [item.id, all.counts[item.id] || 0]))
+      counts: Object.fromEntries(scopedClasses.map((item) => [item.id, all.counts[item.id] || 0])),
+      targetContext: buildAiTargetContext(all, scopedClasses)
     };
+  },
+  getTargetContext(ids) {
+    const all = this.getState();
+    const classByIdLocal = new Map(all.classes.map((item) => [item.id, item]));
+    const hierarchyClasses = [...new Set(ids)]
+      .map((id) => classByIdLocal.get(id))
+      .filter((item) => item && ['top', 'middle'].includes(item.type));
+    return buildAiTargetContext(all, hierarchyClasses);
   },
   applyOperations(operations, expectedFingerprint, editableIds = [], availableIds = editableIds) {
     const current = this.getState();
