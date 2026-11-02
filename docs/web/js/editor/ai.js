@@ -2475,7 +2475,7 @@
     responsePolicy: '要約から確認できる事実と、要約だけでは判断できない事項を区別してください。クラス情報全体を改めて確認したかのように説明しないでください。'
   });
   const explicitlyRequestsFullReanalysis = (userText) => /(?:全体|全範囲|選択範囲|すべて).{0,12}(?:再分析|再評価|再チェック|再編|見直)|(?:再分析|再評価|再チェック|再編).{0,12}(?:全体|全範囲|選択範囲|すべて)|最初から.{0,8}(?:分析|評価|見直)/.test(userText);
-  const requiresFullClassStructure = (userText) => /(?:中間|上位|対象)?クラス.{0,24}(?:構造|親子|階層|種別|配下|問題|評価|判断|移動|再編)|(?:親子関係|階層構造|クラス種別)/.test(userText);
+  const requiresFullClassStructure = (userText) => /(?:中間|上位|対象)?クラス.{0,24}(?:構造|親子|階層|種別|配下|問題|評価|判断|移動|再編|作成|追加|新設)|(?:親子関係|階層構造|クラス種別)/.test(userText);
   const appendSplitFollowupContext = (memory, userText, result) => {
     const latest = createLocalConversationContext(userText, result);
     memory.followupContext = [memory.followupContext, latest].filter(Boolean).join('\n\n').slice(-MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS);
@@ -2782,6 +2782,27 @@
           result.message = [result.message, '分割範囲の一部で回答を作成できなかったため、以下は部分的な結果です。']
             .filter(Boolean).join('\n');
         } else {
+          const allStructureClasses = compactScope(scope).classes;
+          const structureById = new Map(allStructureClasses.map((entry) => [entry[0], entry]));
+          const synthesisStructureIds = new Set(allStructureClasses
+            .filter((entry) => entry[1] === 'top' || entry[1] === 'middle')
+            .map((entry) => entry[0]));
+          chunkResults.forEach((part) => (part?.proposals || []).forEach((proposal) => (proposal.operations || []).forEach((operation) => {
+            ['classId', 'destinationId', 'from', 'to', 'parentId'].forEach((key) => {
+              if (structureById.has(operation[key])) synthesisStructureIds.add(operation[key]);
+            });
+          })));
+          const structureParentById = new Map(allStructureClasses.map((entry) => [entry[0], entry[3]]));
+          [...synthesisStructureIds].forEach((id) => {
+            let parentId = structureParentById.get(id);
+            const seen = new Set();
+            while (parentId && structureById.has(parentId) && !seen.has(parentId)) {
+              seen.add(parentId);
+              synthesisStructureIds.add(parentId);
+              parentId = structureParentById.get(parentId);
+            }
+          });
+          const synthesisStructure = allStructureClasses.filter((entry) => synthesisStructureIds.has(entry[0]));
           const buildSynthesisInput = (maxTextLength, maxProposalsPerChunk, maxOperationsPerProposal, includeStructure) => JSON.stringify({
             request: userText,
             conversationContext: conversation.localContext || undefined,
@@ -2789,7 +2810,8 @@
             sourceScopeCoverage: scope.scopeCoverage,
             coverageChunk: { total: splitTasks.length },
             classStructure: includeStructure ? {
-              classes: compactScope(scope).classes
+              coverage: 'hierarchy_and_operation_references',
+              classes: synthesisStructure
             } : undefined,
             chunkAssessments: chunkResults.map((part, index) => ({
               chunk: index + 1,
@@ -2806,7 +2828,7 @@
                 }))
               }))
             })),
-            instruction: `全分割範囲の回答と操作を統合してください。classStructureがある場合は各クラスのID、種別、名称、親子関係、scopeRoleを使って、操作対象が変更可能か、移動先が実在して種別も有効か、複数チャンクの案が互いに競合しないか確認してください。chunkAssessmentsのoperationsが省略されている場合、その操作を検証済みと扱わないでください。単一チャンクの提案をそのまま繰り返さず、複数チャンクをまたぐ一貫した変更案が必要な場合に限り、操作をまとめた提案を返してください。全体構造と今回の依頼に直接根拠がある場合に限り、新しい操作を加えられます。根拠のないクラスや関係を作らないでください。構造情報が欠けている場合も、定型的な免責説明ではなく、回答に影響する具体的な未確認点だけを短く示してください。質問や追加データ要求は作らないでください。${scope.scopeCoverage === 'all_classes' ? '全上位・中間クラスと選択中クラスの構造情報は共有済みです。' : 'クラス名・種別・親子関係の評価は入力範囲に限ってください。'}`,
+            instruction: `全分割範囲の回答と操作を統合してください。classStructure.coverageがhierarchy_and_operation_referencesの場合、classStructureは上位・中間クラスとチャンク案で参照されたクラスだけを含む部分一覧です。省略された対象クラスが存在しないとは扱わず、各chunkAssessmentsのmessage、summary、reasonに記されたクラス名やテーマを根拠として活用してください。classStructureがある場合は各行のID、種別、名称、親ID、scopeRoleを使い、操作対象が変更可能か、移動先が実在して種別も有効か、複数チャンクの案が競合しないか確認してください。chunkAssessmentsのoperationsが省略されている場合、その操作を検証済みと扱わないでください。単一チャンクの提案をそのまま繰り返さず、複数チャンクをまたぐ一貫した変更案が必要な場合に限り、各チャンクの記述と構造情報に根拠のある操作をまとめて提案してください。根拠のないクラスや関係は作らないでください。回答に影響する具体的な未確認点がある場合だけ短く示し、定型的に全体構造がないと説明しないでください。質問や追加データ要求は作らないでください。${scope.scopeCoverage === 'all_classes' ? '全上位・中間クラスと選択中クラスの構造情報は共有済みです。' : 'クラス名・種別・親子関係の評価は入力範囲に限ってください。'}`,
             responsePolicy: scope.scopeCoverage === 'all_classes'
               ? 'dataRequestsとquestionsは空配列にしてください。全体構造で検証できた提案だけを返してください。'
               : 'dataRequestsとquestionsは空配列にしてください。入力範囲の全体構造で検証できた提案だけを返してください。'
