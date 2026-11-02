@@ -717,6 +717,32 @@
     }
     throw new Error('AIから読み取れるテキストが返りませんでした。もう一度依頼してください。');
   };
+  const normalizeQuestionForDeduplication = (value) => String(value || '')
+    .normalize('NFKC')
+    .toLocaleLowerCase('ja-JP')
+    .replace(/[\s\p{P}\p{S}]/gu, '')
+    .replace(/(?:について)?(?:教えてください|教えて下さい|お聞かせください|でしょうか|ですか|ますか|ください)$/u, '');
+  const questionSimilarity = (left, right) => {
+    const grams = (value) => new Set(value.length < 3 ? [value] : Array.from({ length: value.length - 2 }, (_, index) => value.slice(index, index + 3)));
+    const leftGrams = grams(left);
+    const rightGrams = grams(right);
+    let common = 0;
+    leftGrams.forEach((gram) => { if (rightGrams.has(gram)) common += 1; });
+    return (2 * common) / (leftGrams.size + rightGrams.size || 1);
+  };
+  const deduplicateQuestions = (questions) => {
+    const unique = [];
+    const normalized = [];
+    (questions || []).forEach((question) => {
+      if (typeof question !== 'string' || !question.trim()) return;
+      const key = normalizeQuestionForDeduplication(question);
+      if (normalized.some((existing) => existing === key
+        || (Math.min(existing.length, key.length) >= 10 && questionSimilarity(existing, key) >= 0.88))) return;
+      normalized.push(key);
+      unique.push(question.trim());
+    });
+    return unique;
+  };
   const parseAIResponse = (response) => {
     if (response.status === 'incomplete') {
       const reason = response.incomplete_details?.reason;
@@ -1961,6 +1987,7 @@
     if (!Array.isArray(result.proposals) || !Array.isArray(result.questions) || !Array.isArray(result.dataRequests)) {
       throw new Error('AIの応答に提案または確認事項の一覧がありません。もう一度依頼してください。');
     }
+    result.questions = deduplicateQuestions(result.questions);
     result.dataRequests = result.dataRequests.filter((request) => request && typeof request.reason === 'string'
       && ((typeof request.classId === 'string' && request.classId.trim())
         || (typeof request.className === 'string' && request.className.trim())
@@ -2518,7 +2545,7 @@
     responsePolicy: '要約から確認できる事実と、要約だけでは判断できない事項を区別してください。クラス情報全体を改めて確認したかのように説明しないでください。'
   });
   const explicitlyRequestsFullReanalysis = (userText) => /(?:全体|全範囲|選択範囲|すべて).{0,12}(?:再分析|再評価|再チェック|再編|見直)|(?:再分析|再評価|再チェック|再編).{0,12}(?:全体|全範囲|選択範囲|すべて)|最初から.{0,8}(?:分析|評価|見直)/.test(userText);
-  const requiresFullClassStructure = (userText) => /(?:中間|上位|対象)?クラス.{0,24}(?:構造|親子|階層|種別|配下|問題|評価|判断|移動|再編|作成|追加|新設|重複|類似|同名|改名|統合|削除|整理)|(?:クラス)?(?:名|名称|名前).{0,16}(?:重複|類似|同名|統合|整理)|(?:重複|類似|同名).{0,16}(?:クラス|名称|名前)|(?:親子関係|階層構造|クラス種別)/.test(userText);
+  const requiresFullClassStructure = (userText) => /(?:中間|上位|対象)?クラス.{0,30}(?:構造|親子|階層|種別|配下|問題|評価|判断|移動|再編|作成|追加|新設|重複|類似|同名|改名|統合|削除|整理|名|名称|名前|命名|分類|分野|範囲|見直|調整|変更)|(?:分類|階層).{0,24}(?:範囲|見直|調整|変更|統合|整理|再編)|(?:クラス)?(?:名|名称|名前).{0,16}(?:重複|類似|同名|統合|整理|分野|範囲|見直|調整|変更)|(?:重複|類似|同名).{0,16}(?:クラス|名称|名前)|(?:親子関係|階層構造|クラス種別)/.test(userText);
   const appendSplitFollowupContext = (memory, userText, result) => {
     const latest = createLocalConversationContext(userText, result);
     memory.followupContext = [memory.followupContext, latest].filter(Boolean).join('\n\n').slice(-MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS);
@@ -3048,7 +3075,8 @@
       if (hasShareRequest) {
         conversation.items.push({ type: 'data-requests', ...resolvedDataRequests, responseGroupId, status: 'pending', submitting: false });
       }
-      const queuedQuestions = result.questions.map((question) => ({ text: question, proposalTitle: '', proposalId: '' }));
+      const queuedQuestions = deduplicateQuestions(result.questions).slice(0, AI_OUTPUT_LIMITS.questions)
+        .map((question) => ({ text: question, proposalTitle: '', proposalId: '' }));
       const queuedProposalIds = [];
       (hasShareRequest ? [] : result.proposals).forEach((proposal) => {
         if (proposal.questions.length) {
