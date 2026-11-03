@@ -18,7 +18,7 @@
 /* ツリーと保持中パネルの列幅・高さ */
 .edit-tree-layout {
   --edit-tree-content-height: 100vh;
-  --edit-tree-bottom-space: 1rem;
+  --edit-tree-bottom-space: 75vh;
   --held-panel-width: 30%;
   --tree-panel-heading-font-size: 1rem;
   --edit-pane-gap: 0;
@@ -52,7 +52,7 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selectio
 .edit-tree-pane { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
 @media (min-width: 761px) {
   body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection:not([hidden])) {
-    --edit-tree-bottom-space: 0.5rem;
+    --edit-tree-bottom-space: 75vh;
   }
   body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection:not(.is-collapsed):not([hidden])) .edit-tree-pane {
     padding-bottom: 1rem;

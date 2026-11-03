@@ -212,7 +212,27 @@ scrollToTopButton.addEventListener('click', () => {
 });
 
 // 保持中パネルの表示タブ
+let aiRequestRunning = false;
+const browseLink = document.getElementById('browse-link');
+const setAiRequestRunning = (running) => {
+  aiRequestRunning = running;
+  document.querySelectorAll('.held-panel-mode-tab').forEach((tab) => {
+    tab.disabled = running && tab.dataset.heldPanelView !== 'chat';
+  });
+  if (running) {
+    if (!browseLink.dataset.originalHref) browseLink.dataset.originalHref = browseLink.getAttribute('href') || '';
+    browseLink.removeAttribute('href');
+    browseLink.setAttribute('aria-disabled', 'true');
+  } else {
+    if (browseLink.dataset.originalHref) browseLink.setAttribute('href', browseLink.dataset.originalHref);
+    browseLink.removeAttribute('aria-disabled');
+  }
+};
+window.addEventListener('ai-request-state-change', (event) => {
+  setAiRequestRunning(Boolean(event.detail?.running));
+});
 document.querySelectorAll('.held-panel-mode-tab').forEach((tab) => tab.addEventListener('click', () => {
+  if (aiRequestRunning && tab.dataset.heldPanelView !== 'chat') return;
   if (!heldPanelClosed && heldPanelView === tab.dataset.heldPanelView) {
     heldPanelClosed = true;
   } else {
@@ -867,6 +887,10 @@ window.classEditorAI = {
 // 画面遷移時の未保存確認
 
 document.getElementById('browse-link').addEventListener('click', (event) => {
+  if (aiRequestRunning) {
+    event.preventDefault();
+    return;
+  }
   // 閲覧画面へ移動すると編集途中のメモリ上データは失われるため、
   // 保存されていない変更がある場合だけ確認を求める。
   if (hasUnsavedChanges && !window.confirm('保存していない編集内容があります。保存せずに閲覧画面へ移動しますか？')) {
@@ -874,8 +898,8 @@ document.getElementById('browse-link').addEventListener('click', (event) => {
   }
 });
 window.addEventListener('beforeunload', (event) => {
-  // タブを閉じる、更新するなどの離脱でも同じ確認を表示する。
-  if (!hasUnsavedChanges) return;
+  // タブを閉じる、更新するなどの離脱では未保存データや実行中のAIリクエストを保護する。
+  if (!hasUnsavedChanges && !aiRequestRunning) return;
   event.preventDefault();
   event.returnValue = '';
 });

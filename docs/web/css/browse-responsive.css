@@ -25,7 +25,7 @@ tbody tr:nth-child(even) { background: #f8fafc; }
 tbody tr:hover { background: #eff6ff; }
 
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection:not([hidden])) {
-  --edit-tree-bottom-space: 0;
+  --edit-tree-bottom-space: 75vh;
 }
 
 /* 10. 画面幅に応じたレイアウト調整 */

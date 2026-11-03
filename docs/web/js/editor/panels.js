@@ -107,6 +107,7 @@ function renderInstances() {
   const panel = document.getElementById('held-panel');
   const kindLabel = document.getElementById('held-kind-label');
   const selectionKind = activeSelectionKind();
+  document.body.classList.toggle('is-ai-chat-open', !heldPanelClosed && heldPanelView === 'chat');
   const heldListView = document.getElementById('held-list-view');
   const destinationPicker = document.getElementById('held-destination-picker');
   const aiAssistantPanel = document.getElementById('ai-assistant-panel');

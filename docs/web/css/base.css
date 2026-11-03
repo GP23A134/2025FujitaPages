@@ -49,6 +49,7 @@ body {
 .page-header-actions .search-button { position: static; display: inline-flex; align-items: center; justify-content: center; min-height: 2.65rem; margin: 0; padding: 0.5rem 0.9rem; border-radius: 999px; font: inherit; font-weight: 700; }
 .page-link-button { border: 1px solid #fff; color: #0f3d63; text-decoration: none; background: #fff; }
 .page-link-button:hover { color: #fff; background: #0f3d63; }
+.page-link-button[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 .edit-taskbar,
 #tree-panel .tree-controls {
   position: sticky;

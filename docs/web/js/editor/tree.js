@@ -78,6 +78,11 @@ document.getElementById('edit-tree')?.addEventListener('click', (event) => {
 
 function renderTree() {
   const tree = document.getElementById('edit-tree');
+  const previouslyOpenNodeIds = new Set(
+    [...tree.querySelectorAll('.tree-top-class[open], .tree-middle-class[open]')]
+      .map((details) => details.dataset.classId)
+      .filter(Boolean)
+  );
   targetButtonById.clear();
   middleCheckboxById.clear();
   topCheckboxById.clear();
@@ -427,7 +432,7 @@ function renderTree() {
   window.renderHierarchyTree(tree, model, {
     displayId: displayClassId,
     targetCountFor: (item) => countTargetInstances(item.id),
-    isOpen: (node) => openNodeIds.has(node.id),
+    isOpen: (node) => openNodeIds.has(node.id) || previouslyOpenNodeIds.has(node.id),
     configureDetails: (details, node, depth) => {
       if (node.type === 'middle') details.style.setProperty('--middle-sticky-z', String(14 + depth));
     },

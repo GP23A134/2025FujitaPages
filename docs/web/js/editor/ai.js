@@ -2823,7 +2823,9 @@
     conversation.updatedAt = Date.now();
     refreshConversationTitle(conversation);
     updateUsageSummary();
-    isSending = true; sendButton.disabled = false; document.getElementById('ai-new-consultation').disabled = true;
+    isSending = true;
+    window.dispatchEvent(new CustomEvent('ai-request-state-change', { detail: { running: true } }));
+    sendButton.disabled = false; document.getElementById('ai-new-consultation').disabled = true;
     conversation.isThinking = true;
     conversation.thinkingStartedAt = Date.now();
     conversation.thinkingProgress = splitTasks?.length ? `1/${splitTasks.length}` : '';
@@ -3258,7 +3260,9 @@
       renderConversation();
     } finally {
       window.clearInterval(thinkingTimer);
-      isSending = false; sendButton.disabled = false; document.getElementById('ai-new-consultation').disabled = false; activeRequestController = null;
+      isSending = false;
+      window.dispatchEvent(new CustomEvent('ai-request-state-change', { detail: { running: false } }));
+      sendButton.disabled = false; document.getElementById('ai-new-consultation').disabled = false; activeRequestController = null;
       sendButton.classList.remove('is-cancel');
       sendButton.textContent = '↑';
       sendButton.setAttribute('aria-label', '送信');

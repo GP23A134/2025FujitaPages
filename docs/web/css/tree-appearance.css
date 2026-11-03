@@ -278,6 +278,8 @@
 /* クラス追加ボタンと保持クラスの移動操作 */
 #toggle-tree-edit-mode[aria-pressed="true"] { border-color: #2563eb; color: #1d4ed8; background: #eff6ff; }
 .tree-class-edit-actions { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 0.25rem; margin-left: 0.35rem; }
+body.is-ai-chat-open #edit-tree .tree-class-edit-actions,
+body.is-ai-chat-open #edit-tree .tree-add-button { display: none !important; }
 .tree-class-edit-button { flex: 0 0 auto; padding: 0.15rem 0.4rem; font-size: 0.68rem; line-height: 1.25; }
 .rename-class-button { border: 1px solid #2563eb; border-radius: 999px; padding: 0.15rem 0.4rem; color: #1d4ed8; background: #eff6ff; cursor: pointer; font: inherit; font-size: 0.68rem; font-weight: 700; line-height: 1.25; }
 .rename-class-button:hover { color: #fff; background: #2563eb; }
