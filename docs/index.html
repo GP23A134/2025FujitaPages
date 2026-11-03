@@ -9,13 +9,13 @@
   <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261103-removable-filter-chips-v1">
   <link rel="stylesheet" href="web/css/editor-panels.css?v=20261103-css-reorg-v1">
-  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261103-browse-target-gap-compact-v2">
+  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261103-tree-level-hover-v1">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-aggregation-dashboard-v9">
   <script src="web/data/generated/class-data.js" defer></script>
   <script src="web/data/generated/instance-data.js" defer></script>
   <!-- defer付きクラシックスクリプトをこの順で実行する。各画面ファイルは共有グローバル状態を使う。 -->
   <script src="web/js/shared/tree.js?v=20261103-middle-sticky-gap-zero-v1" defer></script>
-  <script src="web/js/browse/bootstrap.js?v=20261103-browse-target-toggle-v1" defer></script>
+  <script src="web/js/browse/bootstrap.js?v=20261103-open-all-tree-v1" defer></script>
   <script src="web/js/browse/lists.js?v=20261028-tree-gap-v1" defer></script>
   <script src="web/js/browse/aggregation.js?v=20261103-numeric-dashboard-v10" defer></script>
   <script src="web/js/browse/tree.js?v=20261103-keyword-enter-chips-v1" defer></script>
@@ -27,9 +27,6 @@
     <p class="eyebrow">KNOWLEDGE GRAPH VIEWER</p>
     <h1>クラス階層</h1>
     <p class="page-description">上位・中間クラスごとにクラスを検索、参照できます。</p>
-    <div class="page-header-actions">
-      <a class="page-link-button" href="edit.html">編集画面へ</a>
-    </div>
   </header>
 
   <main>
@@ -137,6 +134,7 @@
     <section id="tree-panel" class="tab-panel" role="tabpanel" aria-labelledby="tree-tab">
       <div class="tree-controls">
         <div class="tree-toolbar" role="toolbar" aria-label="ツリー表示操作">
+          <button type="button" data-open-all-tree class="tree-toolbar-button">すべて開く</button>
           <button type="button" class="tree-toolbar-button" data-close-all-tree>すべて閉じる</button>
           <button type="button" id="toggle-browse-ids" class="tree-toolbar-button" aria-pressed="false">クラスID表示: OFF</button>
           <button type="button" id="toggle-browse-targets" class="tree-toolbar-button" aria-pressed="true">対象クラス表示: ON</button>

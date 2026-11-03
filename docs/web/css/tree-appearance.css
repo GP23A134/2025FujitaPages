@@ -36,6 +36,16 @@
   position: sticky; top: var(--middle-sticky-top, 3.35rem); z-index: var(--middle-sticky-z, 15);
   margin-top: 0.35rem; background: #f8fafc; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.1);
 }
+:is(#tree-panel, #edit-tree-panel) .tree-top-class > summary:hover,
+:is(#tree-panel, #edit-tree-panel) .tree-middle-class > summary:hover {
+  filter: brightness(0.96);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.18);
+}
+:is(#tree-panel, #edit-tree-panel) .tree-top-class > summary:focus-visible,
+:is(#tree-panel, #edit-tree-panel) .tree-middle-class > summary:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 1px;
+}
 #tree-panel .tree-top-class > summary,
 #tree-panel .tree-middle-class > summary { padding: 0.25rem 0.55rem; font-size: 0.95rem; }
 #tree-panel .tree .tree-level-content { display: flex; flex-wrap: nowrap; gap: 0.25rem; white-space: nowrap; }
@@ -169,7 +179,6 @@
 
 /* 編集画面固有のツリー寸法とリストの余白 */
 #edit-tree-panel .edit-tree-pane > .tree { flex: 0 0 auto; min-width: 0; min-height: 0; height: auto; max-height: none; overflow: visible; }
-#edit-tree-panel .tree .tree-level-rows { width: calc(100% + 2.15rem); }
 #edit-tree-panel .tree > details > ul,
 #edit-tree-panel .tree > details > ul > li > details > ul { border-left: 0; }
 
@@ -477,7 +486,6 @@ body.browse-hide-target-classes #tree-panel .tree-target-row { display: none !im
   min-height: 0;
   overflow: visible;
 }
-#tree-panel .tree .tree-level-rows { width: calc(100% + 2.15rem); }
 /* 編集モードのリスト寸法を基準にし、閲覧モードの階層ごとの左位置を揃える。 */
 #tree-panel .tree ul {
   margin: 0.25rem 0 0.45rem 1.15rem;

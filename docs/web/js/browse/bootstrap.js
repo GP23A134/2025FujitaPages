@@ -86,6 +86,20 @@ treeElement.addEventListener('click', (event) => {
 document.querySelector('[data-close-all-tree]')?.addEventListener('click', () => {
   treeElement.querySelectorAll('details[open]').forEach((details) => { details.open = false; });
 });
+document.querySelector('[data-open-all-tree]')?.addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    while (true) {
+      const closedDetails = [...treeElement.querySelectorAll('.tree-top-class:not([open]), .tree-middle-class:not([open])')];
+      if (!closedDetails.length) break;
+      closedDetails.forEach((details) => { details.open = true; });
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+  } finally {
+    button.disabled = false;
+  }
+});
 
 const toggleBrowseIds = document.getElementById('toggle-browse-ids');
 if (toggleBrowseIds) {
