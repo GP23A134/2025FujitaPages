@@ -1,4 +1,4 @@
-// 閲覧画面の共通要素とイベントを初期化する。後続ファイルから使う画面要素・状態もここで定義する。
+// 閲覧画面のDOM参照と共通状態を先に初期化し、後続のbrowseスクリプトへ共有する。
 const searchForm = document.getElementById('search-form');
 const searchInput = document.getElementById('search');
 const clearSearchButton = document.getElementById('clear-search');

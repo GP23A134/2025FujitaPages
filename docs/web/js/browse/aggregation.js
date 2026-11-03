@@ -1,4 +1,4 @@
-// データ全体の規模、分布、重複、関係の整合性をID単位で集計する。
+// データ全体の規模・分布・重複・関係整合性をID単位で集計し、閲覧画面の集計欄を描画する。
 const aggregationNumber = (value) => Number(value || 0).toLocaleString('ja-JP');
 const aggregationPercent = (part, whole) => whole ? `${(part / whole * 100).toFixed(1)}%` : '—';
 const aggregationClassLevel = (id) => /\/t_/.test(id) ? '上位' : /\/m_/.test(id) ? '中間' : /\/c_/.test(id) ? '対象' : '不明';

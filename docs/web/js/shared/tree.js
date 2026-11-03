@@ -284,6 +284,7 @@
     };
   }
 
+  // 閲覧・編集の通常スクリプトが共有関数として使えるようwindowへ公開する。
   global.buildTreeModel = buildTreeModel;
   global.treeAncestorIds = treeAncestorIds;
   global.createTreeLevel = createTreeLevel;

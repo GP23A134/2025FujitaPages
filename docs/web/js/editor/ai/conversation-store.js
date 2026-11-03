@@ -32,6 +32,7 @@ export const createConversationStore = ({ conversations, savedConversationsKey, 
               selectedIds: Array.isArray(item.splitMemory.selectedIds) ? item.splitMemory.selectedIds.filter((id) => typeof id === 'string') : [],
               sharedContextIds: Array.isArray(item.splitMemory.sharedContextIds) ? item.splitMemory.sharedContextIds.filter((id) => typeof id === 'string') : [],
               mode: typeof item.splitMemory.mode === 'string' ? item.splitMemory.mode : 'selected_scope',
+              scopeCoverage: item.splitMemory.scopeCoverage === 'all_classes' ? 'all_classes' : 'selected_classes',
               model: typeof item.splitMemory.model === 'string' ? item.splitMemory.model : '',
               chunkCache: Array.isArray(item.splitMemory.chunkCache) ? item.splitMemory.chunkCache
                 .filter((entry) => entry && typeof entry.key === 'string' && entry.result && typeof entry.result === 'object')
@@ -57,6 +58,29 @@ export const createConversationStore = ({ conversations, savedConversationsKey, 
           restoredFromStorage: true
         }));
     } catch { return []; }
+  };
+  const persistSavedConversations = () => {
+    const saved = conversations.filter((conversation) => conversation.saved).map((conversation) => ({
+      id: conversation.id,
+      title: conversation.title,
+      titleIsCustom: Boolean(conversation.titleIsCustom),
+      updatedAt: conversation.updatedAt,
+      selectedIds: conversation.selectedIds,
+      splitMemory: conversation.splitMemory ? {
+        ...conversation.splitMemory,
+        scopeCoverage: conversation.splitMemory.scopeCoverage === 'all_classes' ? 'all_classes' : 'selected_classes',
+        chunkCache: boundSplitChunkCache(conversation.splitMemory.chunkCache || []),
+        summaryText: String(conversation.splitMemory.summaryText || '').slice(0, MAX_CACHED_SPLIT_SUMMARY_CHARACTERS),
+        followupContext: String(conversation.splitMemory.followupContext || '').slice(-MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS)
+      } : null,
+      items: conversation.items
+    }));
+    try {
+      localStorage.setItem(savedConversationsKey, JSON.stringify(saved));
+      return true;
+    } catch {
+      return { message: '相談を保存できませんでした。ブラウザーの保存容量を確認してください。' };
+    }
   };
     return { restoreSavedConversations, persistSavedConversations };
 };

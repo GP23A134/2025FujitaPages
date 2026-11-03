@@ -1,4 +1,4 @@
-// 編集画面の保存、Undo/Redo、各種UIイベントを登録し、初回描画を行う。先行する編集モジュールに依存する。
+// 編集モジュールを読み込んだ後に、保存・Undo/Redo・UIイベントを登録して初回描画を行う。
 // ============================================================
 // JSON出力と保存
 // ============================================================
@@ -578,6 +578,7 @@ function buildAiTargetContext(all, hierarchyClasses) {
   return { descendantTargetClassCounts };
 }
 
+// AIモジュールへ選択範囲とクラス構造だけを渡す画面内API。個別インスタンスは公開しない。
 window.classEditorAI = {
   get selectedIds() { return [...heldInstances.keys(), ...heldMiddleClasses.keys(), ...heldTopClasses.keys()]; },
   setSelectedIds(ids) {

@@ -1,4 +1,4 @@
-// 閲覧画面の初回描画と、タブ・検索・絞り込みの画面イベントをまとめる。前段の閲覧モジュール読み込み後に実行する。
+// 最後に読み込み、閲覧画面の初回描画とタブ・検索・絞り込みのイベントをまとめる。
 function renderSummary(rows) {
   const topCounts = new Map();
   const middleCounts = new Map();
