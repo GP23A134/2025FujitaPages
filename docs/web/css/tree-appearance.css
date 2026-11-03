@@ -288,6 +288,8 @@ body.is-ai-chat-open #edit-tree .delete-class-button { display: none !important;
 .delete-class-button:disabled { opacity: 0.45; cursor: not-allowed; }
 .select-descendants-button { flex: 0 0 auto; padding: 0.15rem 0.4rem; border: 1px solid #0f6a9d; border-radius: 999px; color: #0f6a9d; background: #effaff; cursor: pointer; font: inherit; font-size: 0.68rem; font-weight: 700; line-height: 1.25; }
 .select-descendants-button:hover { color: #fff; background: #0f6a9d; }
+.select-descendants-button.is-selected { border-color: #15803d; color: #fff; background: #16a34a; }
+.select-descendants-button.is-partially-selected { border-color: #d97706; color: #78350f; background: #fef3c7; }
 #edit-tree-panel .tree .tree-add-button {
   box-sizing: border-box;
   width: min(100%, 640px);

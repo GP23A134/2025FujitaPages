@@ -164,6 +164,20 @@ function syncTreeSelectionAppearance() {
   middleCheckboxById.forEach((checkbox, id) => { checkbox.checked = heldMiddleClasses.has(id); });
   topCheckboxById.forEach((checkbox, id) => { checkbox.checked = heldTopClasses.has(id); });
   targetButtonById.forEach((button, id) => button.classList.toggle('is-selected', heldInstances.has(id)));
+  document.querySelectorAll('#edit-tree .select-descendants-button').forEach((button) => {
+    const descendants = [...descendantIds(button.dataset.selectionRootId)];
+    const selectedCount = descendants.filter((id) => {
+      const item = classById.get(id);
+      if (!item) return false;
+      const kind = classKind(item);
+      const selection = kind === 'class' ? heldInstances : kind === 'middle' ? heldMiddleClasses : heldTopClasses;
+      return selection.has(id);
+    }).length;
+    const allSelected = descendants.length > 0 && selectedCount === descendants.length;
+    button.classList.toggle('is-selected', allSelected);
+    button.classList.toggle('is-partially-selected', selectedCount > 0 && !allSelected);
+    button.setAttribute('aria-pressed', allSelected ? 'true' : 'false');
+  });
 }
 
 function applyTreeSelectionRange(control, event, selected) {

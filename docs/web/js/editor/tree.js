@@ -351,6 +351,7 @@ function renderTree() {
       const selectDescendants = document.createElement('button');
       selectDescendants.type = 'button';
       selectDescendants.className = 'select-descendants-button tree-class-edit-button';
+      selectDescendants.dataset.selectionRootId = item.id;
       selectDescendants.textContent = '配下を選択';
       selectDescendants.setAttribute('aria-label', `${item.label}の配下を選択・解除`);
       selectDescendants.title = '配下を選択。すべて選択済みの場合は解除';
@@ -460,7 +461,10 @@ function renderTree() {
       addTopClass
     ),
     afterChildren: () => scheduleTargetConnectorLayout(),
-    afterRender: () => scheduleTargetConnectorLayout()
+    afterRender: () => {
+      syncTreeSelectionAppearance();
+      scheduleTargetConnectorLayout();
+    }
   });
 }
 function scheduleTreeRender() {
