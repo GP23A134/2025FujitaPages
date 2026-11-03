@@ -42,31 +42,27 @@ const syncPinnedHeldPanelBounds = () => {
     const layout = document.querySelector('#edit-tree-panel .edit-tree-layout');
     if (!panel || !layout) return;
     const toolbar = document.querySelector('.edit-taskbar');
-    const toolbarHeight = toolbar?.getBoundingClientRect().height ?? 0;
-    const top = toolbarHeight;
+    const toolbarBottom = toolbar?.getBoundingClientRect().bottom ?? 0;
+    const top = Math.max(0, toolbarBottom);
     const treeFilter = document.getElementById('tree-filter');
     const filterHeight = treeFilter && !treeFilter.hidden ? treeFilter.getBoundingClientRect().height : 0;
-    const filterGap = treeFilter ? Number.parseFloat(getComputedStyle(treeFilter).marginBottom) || 0 : 0;
-    const treeStickyTop = toolbarHeight + (filterHeight ? filterHeight + filterGap : 0);
+    const treeStickyTop = top + filterHeight;
     setInlineStyleIfChanged(layout, '--edit-pane-position-top', `${top}px`);
     setInlineStyleIfChanged(layout, '--edit-top-class-sticky-top', `${treeStickyTop}px`);
-    if (panel.hidden || document.getElementById('edit-tree-panel')?.hidden || window.innerWidth <= 760) {
+    if (panel.hidden || document.getElementById('edit-tree-panel')?.hidden) {
       removeInlineStyleIfPresent(panel, 'height');
       removeInlineStyleIfPresent(panel, 'max-height');
       removeInlineStyleIfPresent(panel, 'visibility');
       return;
     }
-    const availableHeight = Math.max(0, (window.visualViewport?.height || window.innerHeight) - top - 8);
-    const desiredHeight = panel.classList.contains('is-collapsed')
-      ? Number.parseFloat(getComputedStyle(panel).getPropertyValue('--held-collapsed-height')) || panel.scrollHeight
-      : availableHeight;
-    if (panel.classList.contains('is-collapsed')) {
-      setInlineStyleIfChanged(panel, 'height', `${Math.min(availableHeight, desiredHeight)}px`);
-      setInlineStyleIfChanged(panel, 'max-height', `${availableHeight}px`);
-    } else {
+    if (!panel.classList.contains('is-collapsed')) {
       removeInlineStyleIfPresent(panel, 'height');
       removeInlineStyleIfPresent(panel, 'max-height');
+      return;
     }
+    const collapsedHeight = Number.parseFloat(getComputedStyle(panel).getPropertyValue('--held-collapsed-height')) || panel.scrollHeight;
+    setInlineStyleIfChanged(panel, 'height', `${collapsedHeight}px`);
+    removeInlineStyleIfPresent(panel, 'max-height');
   });
 };
 const settingsDialog = document.getElementById('edit-settings-dialog');

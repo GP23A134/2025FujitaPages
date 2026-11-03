@@ -24,14 +24,56 @@ th { position: sticky; top: 0; background: #e0f2fe; color: #0f3d63; }
 tbody tr:nth-child(even) { background: #f8fafc; }
 tbody tr:hover { background: #eff6ff; }
 
+body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection:not([hidden])) {
+  --edit-tree-bottom-space: 0;
+}
+
 /* 10. 画面幅に応じたレイアウト調整 */
 @media (max-width: 760px) {
   .edit-tree-layout { grid-template-columns: 1fr; }
+  .edit-tree-layout:has(.instance-selection:not([hidden])),
+  body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection:not([hidden])) { grid-template-columns: minmax(0, 1fr); }
+  body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .held-panel-spacer { display: none; }
   .edit-tree-layout .tree-filter,
   .edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .tree-filter,
   .edit-tree-layout:has(.instance-selection[hidden]) .tree-filter { width: 100%; }
   .edit-tree-layout .instance-selection,
-  .edit-tree-layout .instance-selection.is-collapsed { position: static; width: auto; }
+  .edit-tree-layout .instance-selection.is-collapsed {
+    position: sticky;
+    top: var(--edit-pane-position-top, 4.5rem);
+    align-self: stretch;
+    grid-row: auto;
+    grid-column: auto;
+    width: 100%;
+    height: var(--edit-pane-available-height, calc(100vh - 5.5rem));
+    max-height: var(--edit-pane-available-height, calc(100vh - 5.5rem));
+    margin: 0;
+  }
+  body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection:not(.is-collapsed),
+  body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection.is-collapsed {
+    position: sticky;
+    top: var(--edit-pane-position-top, 4.5rem);
+    align-self: stretch;
+    grid-row: auto;
+    grid-column: auto;
+    width: 100%;
+    height: var(--edit-pane-available-height, calc(100vh - 5.5rem));
+    max-height: var(--edit-pane-available-height, calc(100vh - 5.5rem));
+    margin: 0;
+  }
+  body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection:not(.is-collapsed) {
+    position: fixed;
+    inset: var(--edit-pane-position-top, 4.5rem) 0 auto;
+    z-index: 60;
+    width: 100vw;
+    height: calc(100vh - var(--edit-pane-position-top, 4.5rem));
+    max-height: none;
+  }
+  @supports (height: 100dvh) {
+    body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection:not(.is-collapsed) {
+      height: calc(100dvh - var(--edit-pane-position-top, 4.5rem));
+    }
+  }
   .held-panel-resize { display: none; }
   .ai-preview-columns { grid-template-columns: minmax(0, 1fr); }
   .ai-preview-proposal { grid-template-columns: minmax(0, 1fr); }

@@ -310,8 +310,16 @@ if (treeFilter && heldPanel && 'ResizeObserver' in window) {
   if (taskbar) new ResizeObserver(syncPinnedHeldPanelBounds).observe(taskbar);
   new ResizeObserver(syncPinnedHeldPanelBounds).observe(heldPanel);
 }
-window.addEventListener('resize', syncPinnedHeldPanelBounds);
-window.visualViewport?.addEventListener('resize', syncPinnedHeldPanelBounds);
+let heldPanelBoundsDebounceTimer = 0;
+const scheduleHeldPanelBoundsUpdate = () => {
+  syncPinnedHeldPanelBounds();
+  window.clearTimeout(heldPanelBoundsDebounceTimer);
+  heldPanelBoundsDebounceTimer = window.setTimeout(syncPinnedHeldPanelBounds, 150);
+};
+window.addEventListener('resize', scheduleHeldPanelBoundsUpdate);
+window.addEventListener('scroll', scheduleHeldPanelBoundsUpdate, { passive: true });
+window.visualViewport?.addEventListener('resize', scheduleHeldPanelBoundsUpdate);
+window.visualViewport?.addEventListener('scroll', scheduleHeldPanelBoundsUpdate, { passive: true });
 if (heldPanel) new MutationObserver(syncPinnedHeldPanelBounds).observe(heldPanel, { attributes: true, attributeFilter: ['class', 'hidden'] });
 syncPinnedHeldPanelBounds();
 treeFilter?.addEventListener('toggle', () => {

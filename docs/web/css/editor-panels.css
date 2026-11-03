@@ -1,5 +1,11 @@
 /* 編集画面の配置、保持中パネル、AI補助、移動先候補のスタイル。 */
 /* 6. 編集画面のツリーと保持中パネルの配置 */
+/* 保存操作・状態表示 */
+.edit-header-save { border: 1px solid #92400e; color: #fff; background: #b45309; }
+.edit-header-save:hover { background: #92400e; }
+.edit-status { margin: 0.75rem 0 0; color: #1e40af; }
+.edit-save-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; padding: 0.75rem 1rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #334155; }
+
 /* 保持中パネルのカード外観 */
 .instance-selection {
   margin-top: 2rem;
@@ -18,7 +24,7 @@
   --edit-pane-gap: 0;
   --edit-pane-top-offset: 0px;
   --edit-pane-search-tree-gap: 0;
-  --edit-pane-available-height: max(0px, calc(100vh - var(--edit-pane-position-top, 4.5rem) - 8px));
+  --edit-pane-available-height: max(0px, calc(100vh - var(--edit-pane-position-top, 4.5rem)));
   --edit-pane-card-padding: 1rem;
   --edit-pane-header-height: 2.8rem;
   --edit-pane-header-padding-block: 0.4rem;
@@ -35,7 +41,7 @@
   padding-bottom: var(--edit-tree-bottom-space);
 }
 @supports (height: 100dvh) {
-  .edit-tree-layout { --edit-pane-available-height: max(0px, calc(100dvh - var(--edit-pane-position-top, 4.5rem) - 8px)); }
+  .edit-tree-layout { --edit-pane-available-height: max(0px, calc(100dvh - var(--edit-pane-position-top, 4.5rem))); }
 }
 .edit-tree-layout:has(.instance-selection:not([hidden])) { grid-template-columns: minmax(0, 1fr) minmax(240px, var(--held-panel-width)); }
 .edit-tree-layout:has(.instance-selection.is-collapsed) { grid-template-columns: minmax(0, 1fr); }
@@ -90,17 +96,22 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .tree-filter {
   z-index: 50;
 }
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection:not(.is-collapsed) {
-  position: sticky;
+  position: fixed;
   top: var(--edit-pane-position-top, 4.5rem);
+  right: 0;
+  bottom: auto;
   z-index: 60;
-  grid-row: 1;
-  grid-column: 2;
-  width: calc(100% + var(--page-side-gutter));
-  height: var(--edit-pane-available-height, calc(100vh - 5.5rem));
-  max-height: var(--edit-pane-available-height, calc(100vh - 5.5rem));
+  width: min(var(--held-panel-width), 100vw);
+  height: calc(100vh - var(--edit-pane-position-top, 4.5rem));
+  max-height: none;
   box-sizing: border-box;
   margin-top: 0;
-  margin-right: calc(0px - var(--page-side-gutter));
+  margin-right: 0;
+}
+@supports (height: 100dvh) {
+  body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection:not(.is-collapsed) {
+    height: calc(100dvh - var(--edit-pane-position-top, 4.5rem));
+  }
 }
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .instance-selection.is-collapsed {
   position: sticky;
@@ -181,7 +192,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .held-panel-toggle { flex: 0 0 auto; min-height: 1.9rem; padding: 0.3rem 0.6rem; border: 1px solid #0e7490; border-radius: 999px; color: #fff; background: linear-gradient(135deg, #0891b2, #0369a1); box-shadow: 0 2px 5px rgba(3, 105, 161, 0.2); cursor: pointer; font: inherit; font-size: 0.76rem; font-weight: 700; white-space: nowrap; transition: filter 140ms ease, box-shadow 140ms ease, transform 140ms ease; }
 .held-panel-toggle:hover { filter: brightness(1.06); box-shadow: 0 4px 9px rgba(3, 105, 161, 0.24); transform: translateY(-1px); }
 .held-panel-toggle:focus-visible { outline: 2px solid #0284c7; outline-offset: 2px; }
-/* 編集画面のAI補助・設定ダイアログ */
+/* 6.1 AI補助・設定ダイアログ */
 .edit-settings-dialog { width: min(520px, calc(100vw - 2rem)); max-height: min(90vh, 760px); overflow: auto; padding: 1rem; border: 1px solid #cbd5e1; border-radius: 12px; color: #1e293b; box-shadow: 0 20px 60px rgba(15, 23, 42, 0.28); }
 .edit-settings-dialog::backdrop { background: rgba(15, 23, 42, 0.48); }
 .edit-settings-dialog .ai-preview-header { margin-bottom: 0.85rem; }
@@ -574,7 +585,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-top: 0.85rem; }
 .ai-preview-actions .ai-preview-note { flex: 1 1 20rem; margin: 0; }
 
-/* 保持したクラスの移動先を選ぶ検索・候補一覧 */
+/* 6.2 保持クラスの移動先候補 */
 .held-destination-picker { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; margin-top: 0.25rem; }
 .held-destination-picker[hidden] { display: none; }
 .held-destination-tabs { display: flex; gap: 0.35rem; margin-bottom: 0.5rem; }
@@ -588,17 +599,23 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .held-destination-recent { flex: 0 0 auto; margin-top: 0.45rem; }
 .held-destination-recent h3 { margin: 0 0 0.25rem; color: #64748b; font-size: 0.72rem; font-weight: 700; }
 .held-destination-recent-list { display: grid; gap: 0.2rem; max-height: 5rem; overflow-y: auto; }
-.held-destination-list { display: flex; flex: 1 1 auto; flex-direction: column; gap: 0.25rem; min-height: 0; overflow-y: auto; padding: 0.3rem; border: 1px solid #d8dee9; border-radius: 8px; background: #fff; }
-.held-destination-option { display: grid; flex: 0 0 3.2rem; grid-template-rows: 1.1rem 0.9rem; align-content: center; gap: 0.1rem; box-sizing: border-box; height: 3.2rem; min-height: 3.2rem; padding: 0.3rem 0.5rem; border: 1px solid transparent; border-radius: 5px; color: #334155; background: transparent; cursor: pointer; font: inherit; font-size: 0.82rem; text-align: left; }
-.held-destination-option-name { min-width: 0; overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.held-destination-option-path { overflow: hidden; color: #64748b; font-size: 0.7rem; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
-.held-destination-option-path[hidden] { display: block; visibility: hidden; }
-.held-destination-option.is-recent { padding-block: 0.3rem; }
-.held-destination-option:hover, .held-destination-option.is-selected { border-color: #7dd3fc; color: #075985; background: #e0f2fe; }
+.held-destination-list { display: flex; flex: 1 1 auto; flex-direction: column; gap: 0.35rem; min-height: 0; overflow-y: auto; padding: 0.5rem; border: 1px solid #d8dee9; border-radius: 10px; background: #f8fafc; }
+.held-destination-option { position: relative; display: grid; flex: 0 0 auto; grid-template-rows: auto auto; align-content: center; gap: 0.2rem; box-sizing: border-box; min-height: 3.4rem; padding: 0.5rem 0.65rem 0.5rem 2.15rem; border: 1px solid #e2e8f0; border-radius: 8px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.84rem; text-align: left; }
+.held-destination-option::before { position: absolute; top: 50%; left: 0.75rem; display: grid; width: 0.9rem; height: 0.9rem; transform: translateY(-50%); place-items: center; border: 1.5px solid #94a3b8; border-radius: 50%; color: #fff; content: ""; }
+.held-destination-option-name { min-width: 0; overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.held-destination-option-path { overflow: hidden; color: #64748b; font-size: 0.72rem; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.held-destination-option.is-recent { min-height: 3.1rem; }
+.held-destination-option:hover { border-color: #7dd3fc; background: #f0f9ff; }
+.held-destination-option.is-selected { border-color: #0284c7; color: #075985; background: #e0f2fe; box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.12); }
+.held-destination-option.is-selected::before { border-color: #0284c7; background: #0284c7; content: "✓"; font-size: 0.62rem; font-weight: 800; }
+.held-destination-option:focus-visible { outline: 3px solid rgba(56, 189, 248, 0.35); outline-offset: 1px; }
+.held-destination-option.is-top-destination { min-height: 2.8rem; grid-template-rows: auto; }
+.held-destination-option.is-top-destination.is-unclassified { border-color: #bae6fd; color: #075985; background: #f0f9ff; }
+.held-destination-option.is-top-destination.is-unclassified.is-selected { border-color: #0284c7; background: #e0f2fe; }
 .held-destination-empty { margin: 0; padding: 0.5rem; color: #64748b; font-size: 0.8rem; }
 #apply-held-destination { width: 100%; height: 2.6rem; min-height: 2.6rem; flex: 0 0 2.6rem; margin: 0.5rem 0 0; }
 #apply-held-destination:disabled { opacity: 0.5; cursor: not-allowed; }
-/* 保持中のクラス一覧と選択状態 */
+/* 6.3 保持中クラスの一覧・選択状態 */
 .instance-selection-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
 .instance-selection-columns > div { min-width: 0; padding: 0.75rem; border: 1px solid #d8dee9; border-radius: 10px; background: #fff; }
 .instance-option { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.5rem; border-bottom: 1px solid #e2e8f0; cursor: pointer; }

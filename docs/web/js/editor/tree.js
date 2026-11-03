@@ -343,6 +343,26 @@ function renderTree() {
       const actions = document.createElement('span');
       actions.className = 'tree-class-edit-actions';
       actions.addEventListener('click', (event) => event.stopPropagation());
+      const selectDescendants = document.createElement('button');
+      selectDescendants.type = 'button';
+      selectDescendants.className = 'select-descendants-button tree-class-edit-button';
+      selectDescendants.textContent = '配下を選択';
+      selectDescendants.setAttribute('aria-label', `${item.label}の配下だけを選択に追加`);
+      selectDescendants.title = '配下だけを追加選択';
+      selectDescendants.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        descendantIds(item.id).forEach((id) => {
+          const descendant = classById.get(id);
+          if (!descendant) return;
+          const kind = classKind(descendant);
+          const selection = kind === 'class' ? heldInstances : kind === 'middle' ? heldMiddleClasses : heldTopClasses;
+          selection.set(id, descendant);
+        });
+        syncTreeSelectionAppearance();
+        syncTargetButtonAvailability();
+        renderInstances();
+      });
       const rename = document.createElement('button');
       rename.type = 'button';
       rename.className = 'rename-class-button tree-class-edit-button';
@@ -364,7 +384,7 @@ function renderTree() {
         event.stopPropagation();
         deleteClass(item);
       });
-      actions.append(rename, remove);
+      actions.append(selectDescendants, rename, remove);
       summary.append(actions);
     }
     if (classKind(item) === 'middle') {

@@ -93,7 +93,7 @@ main {
   padding: 2rem var(--page-side-gutter);
 }
 body[data-mode="browse"] main { padding-top: 0; }
-body[data-mode="edit"] main { margin-bottom: 0; }
+body[data-mode="edit"] main { margin-bottom: 0; padding-bottom: 0; }
 
 /* 2. 閲覧画面の表示切り替え・キーワード検索 */
 .mode-switch { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
@@ -134,8 +134,7 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .contained-class-count-button:hover, .contained-class-count-button:focus-visible { border-color: #38bdf8; background: #e0f2fe; }
 .class-instance-count { color: #334155; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .instance-pagination, .list-pagination { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 0.75rem; margin: 0.75rem 0 0; color: #475569; font-size: 0.88rem; }
-.instance-pagination > div, .list-pagination > div { display: flex; gap: 0.4rem; }
-.instance-pagination > div, .list-pagination > div { grid-column: 2; justify-content: center; }
+.instance-pagination > div, .list-pagination > div { display: flex; grid-column: 2; justify-content: center; gap: 0.4rem; }
 .instance-pagination > span, .list-pagination > span { grid-column: 1; }
 .tree-leaf-class.is-navigation-target { outline: 3px solid #f59e0b; outline-offset: 2px; }
 #tree-panel .tree summary.is-navigation-target .tree-level-content { outline: 3px solid #f59e0b; outline-offset: 2px; border-radius: 5px; }
@@ -308,16 +307,4 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .management-tab { border: 0; border-bottom: 3px solid transparent; padding: 0.55rem 1rem; color: #475569; background: transparent; cursor: pointer; font: inherit; font-weight: 700; }
 .management-tab.is-active { border-bottom-color: #0f6a9d; color: #0f6a9d; }
 .class-management-actions { display: flex; gap: 0.4rem; }
-.rename-class-button { border: 1px solid #2563eb; border-radius: 6px; padding: 0.35rem 0.7rem; color: #1d4ed8; background: #eff6ff; cursor: pointer; font: inherit; font-weight: 700; }
-.rename-class-button:hover { color: #fff; background: #2563eb; }
-.delete-class-button { border: 1px solid #dc2626; border-radius: 6px; padding: 0.35rem 0.7rem; color: #b91c1c; background: #fff; cursor: pointer; font: inherit; font-weight: 700; }
-.delete-class-button:hover:not(:disabled) { color: #fff; background: #dc2626; }
-.delete-class-button:disabled { opacity: 0.45; cursor: not-allowed; }
-#toggle-tree-edit-mode[aria-pressed="true"] { border-color: #2563eb; color: #1d4ed8; background: #eff6ff; }
-.tree-class-edit-actions { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 0.25rem; margin-left: 0.35rem; }
-.tree-class-edit-button { flex: 0 0 auto; padding: 0.15rem 0.4rem; font-size: 0.68rem; line-height: 1.25; }
-.edit-status { margin: 0.75rem 0 0; color: #1e40af; }
-.edit-save-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; padding: 0.75rem 1rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #334155; }
-.edit-header-save { color: #fff; background: #b45309; border: 1px solid #92400e; }
-.edit-header-save:hover { background: #92400e; }
 

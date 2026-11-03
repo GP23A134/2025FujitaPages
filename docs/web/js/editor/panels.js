@@ -292,8 +292,11 @@ function renderInstances() {
     tab.setAttribute('aria-selected', String(selected));
   });
   const destinationClasses = classes
-    .filter((item) => classKind(item) === heldDestinationKind && item.label !== '未分類')
-    .sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'ja'));
+    .filter((item) => classKind(item) === heldDestinationKind && (heldDestinationKind === 'top' || item.label !== '未分類'))
+    .sort((a, b) => {
+      if (heldDestinationKind === 'top' && isUnclassified(a) !== isUnclassified(b)) return isUnclassified(a) ? -1 : 1;
+      return String(a.label || '').localeCompare(String(b.label || ''), 'ja');
+    });
   const parentByChild = new Map();
   data.classData.relations.forEach(({ child, parent }) => {
     if (!parentByChild.has(child)) parentByChild.set(child, parent);
@@ -321,6 +324,8 @@ function renderInstances() {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'held-destination-option';
+    if (heldDestinationKind === 'top') button.classList.add('is-top-destination');
+    if (isUnclassified(destination)) button.classList.add('is-unclassified');
     if (isRecent) button.classList.add('is-recent');
     button.classList.toggle('is-selected', heldDestinationId === destination.id);
     const name = document.createElement('span');
@@ -386,6 +391,10 @@ function moveHeldClassesToTop(topId) {
   const movableTopEntries = [...heldTopClasses.entries()].filter(([, item]) => !isUnclassified(item));
   const unclassifiedEntries = [...heldTopClasses.entries()].filter(([, item]) => isUnclassified(item));
   const hasUnclassifiedSelection = unclassifiedEntries.length > 0;
+  if (isUnclassified(classById.get(topId)) && (heldMiddleClasses.size || movableTopEntries.length)) {
+    logEditAction('未分類の下に中間クラスを置くことはできません。対象クラスだけを選択して移動してください。', 'warn');
+    return true;
+  }
   if (!heldMiddleClasses.size && !movableTopEntries.length && !heldInstances.size) {
     logEditAction('未分類は受け皿のため移動できません。', 'warn');
     return true;
