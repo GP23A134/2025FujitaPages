@@ -6,11 +6,28 @@ import { createRequestPlanner } from './request-planner.js?v=20261103-ai-module-
 import { createResponseHandler } from './response-handler.js?v=20261103-ai-module-system-step6-v1';
 import { createConversationStore } from './conversation-store.js?v=20261103-ai-module-system-step6-v1';
 import { createConversationView } from './conversation-view.js?v=20261103-ai-module-system-step6-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261103-ai-module-system-step6-v1';
+import { createProposalPreview } from './proposal-preview.js?v=20261103-ai-preview-operation-category-fix-v2';
 
 (() => {
   const editor = window.classEditorAI;
   if (!editor) return;
+  const logAiProblem = (stage, error, level = 'error', context = {}) => {
+    if (error?.name === 'AbortError') return;
+    const detail = {
+      name: error?.name || 'Error',
+      message: error?.message || String(error || '原因不明のエラー')
+    };
+    if (error?.stack) detail.stack = error.stack;
+    Object.assign(detail, context);
+    console[level](`[AIチャット] ${stage}`, detail);
+  };
+  window.addEventListener('error', (event) => {
+    if (!event.filename?.includes('/web/js/editor/ai/')) return;
+    logAiProblem(`未処理の実行時エラー (${event.filename}:${event.lineno || 0}:${event.colno || 0})`, event.error || event.message);
+  });
+  window.addEventListener('unhandledrejection', (event) => {
+    logAiProblem('未処理の非同期エラー', event.reason);
+  });
   const createIdCodec = () => createClassIdCodec(editor.getState().classes);
 
   // Context tokenization varies by model and language; cap the serialized user payload conservatively.
@@ -123,6 +140,7 @@ import { createProposalPreview } from './proposal-preview.js?v=20261103-ai-modul
       return trimmedPrompt;
     })
     .catch((error) => {
+      logAiProblem('AIプロンプトの読み込み', error);
       settingsStatus.textContent = `${error.message}。AI補助を利用できません。`;
       settingsStatus.classList.add('is-error');
       return null;
@@ -148,6 +166,7 @@ import { createProposalPreview } from './proposal-preview.js?v=20261103-ai-modul
       return config;
     })
     .catch((error) => {
+      logAiProblem('モデル設定の読み込み', error);
       modelSelect.disabled = true;
       updateCurrentModelLabel();
       settingsStatus.textContent = `${error.message}。AI補助を利用できません。`;
@@ -806,6 +825,7 @@ let proposalPreview = null;
   };
   const reportPreviewError = (error) => {
     const message = error?.message || 'プレビューを作成できませんでした。';
+    logAiProblem('変更案プレビューの作成', error);
     setStatus(message, 'error');
     if (previewDialog.open) {
       const impact = document.getElementById('ai-preview-impact');
@@ -1329,13 +1349,13 @@ let proposalPreview = null;
     const previouslySharedIds = selectionChanged || includeAllClasses || previousScopeIncludedAllClasses
       ? [] : (conversation.previousScope?.sharedContextIds || []);
     let scope;
-    try { scope = getPayloadSnapshot([...previouslySharedIds, ...additionalContextIds], includeAllClasses); } catch (error) { setStatus(error.message, 'error'); return; }
+    try { scope = getPayloadSnapshot([...previouslySharedIds, ...additionalContextIds], includeAllClasses); } catch (error) { logAiProblem('送信範囲の作成', error); setStatus(error.message, 'error'); return; }
     if (!scope) { setStatus('保持欄でクラスを選択するか、「全上位・中間クラスを参照」を有効にしてください。', 'error'); return; }
     try { await verifyLoadedDataVersion(); }
-    catch (error) { setStatus(error.message, 'error'); return; }
+    catch (error) { logAiProblem('データ版の確認', error); setStatus(error.message, 'error'); return; }
     let baseDataHash;
     try { baseDataHash = await currentDataHash(); }
-    catch (error) { setStatus(error.message, 'error'); return; }
+    catch (error) { logAiProblem('データ版ハッシュの計算', error); setStatus(error.message, 'error'); return; }
     const fingerprintBeforeRequest = stateFingerprint();
     const priorAnalysisMemory = conversation.splitMemory;
     if (selectionChanged || scopeModeChanged || includeAllClasses) {
@@ -1364,7 +1384,13 @@ let proposalPreview = null;
     if (userContent.length > MAX_REQUEST_CHARACTERS) {
       conversation.localContext = conversation.localContext || summarizeVisibleConversation(conversation);
       try { splitTasks = requestPlanner.makeLargeScopePlan(userText, scope, conversation); }
-      catch (error) { setStatus(error.message, 'error'); return; }
+      catch (error) { logAiProblem('送信データの分割計画', error); setStatus(error.message, 'error'); return; }
+      if (splitTasks?.length > 1) console.info('[AIチャット] 大規模範囲を分割して処理します', {
+        taskCount: splitTasks.length,
+        classCount: scope.classes.length,
+        editableClassCount: scope.editableIds.length,
+        maxCharactersPerRequest: MAX_REQUEST_CHARACTERS
+      });
       if (!splitTasks?.length) {
         const guidance = includeAllClasses
           ? '全上位・中間クラスを参照したまま分割できません。選択範囲を小さくするか、全体参照をOFFにしてください。'
@@ -1536,6 +1562,7 @@ let proposalPreview = null;
                 try {
                   editor.applyOperations(proposal.operations, fingerprintBeforeRequest, task.scope.editableIds, task.scope.classes.map((item) => item.id));
                 } catch (error) {
+                  logAiProblem(`分割${index + 1}の提案検証`, error, 'warn');
                   proposal.operations = [];
                   proposal.questions.push(`この案は選択範囲全体で適用可能と確認できなかったため、プレビュー対象から外しました。${error.message}`);
                 }
@@ -1620,7 +1647,15 @@ let proposalPreview = null;
             else break;
             synthesisInput = buildSynthesisInput(maxTextLength, maxProposalsPerChunk, maxOperationsPerProposal, includeStructure);
           }
-          if (!includeStructure) splitWarnings.add('クラス構造が統合依頼の入力上限に収まらず、全体構造との照合はできませんでした。');
+          if (!includeStructure) {
+            splitWarnings.add('クラス構造が統合依頼の入力上限に収まらず、全体構造との照合はできませんでした。');
+            logAiProblem('分割結果の統合でクラス構造を省略', new Error('統合入力が上限を超えたため、操作対象と親子関係の構造を含めずに統合しました。'), 'warn', {
+              taskCount: splitTasks.length,
+              retainedStructureClassCount: synthesisStructure.length,
+              synthesisInputCharacters: synthesisInput.length,
+              maximumCharacters: MAX_REQUEST_CHARACTERS
+            });
+          }
           if (synthesisInput.length <= MAX_REQUEST_CHARACTERS) {
             setThinkingStatus(conversation, '結果をまとめています');
             try {
@@ -1655,7 +1690,8 @@ let proposalPreview = null;
                   if (!proposal.operations.length || existingProposalSignatures.has(signature)) return;
                   try {
                     editor.applyOperations(proposal.operations, fingerprintBeforeRequest, scope.editableIds, scope.classes.map((item) => item.id));
-                  } catch {
+                  } catch (error) {
+                    logAiProblem('全体統合案の検証', error, 'warn');
                     rejectedSynthesisProposals += 1;
                     return;
                   }
@@ -1670,12 +1706,21 @@ let proposalPreview = null;
                 if (rejectedSynthesisProposals) {
                   splitWarnings.add(`${rejectedSynthesisProposals}件の全体統合案を、適用可能な範囲と構造を確認できず除外しました。`);
                 }
+                const chunkProposalCount = chunkResults.reduce((sum, part) => sum + (part?.proposals?.length || 0), 0);
+                if (chunkProposalCount && !result.proposals.some((proposal) => proposal.operations.length)) {
+                  logAiProblem('分割案の統合後に変更案がありません', new Error('分割単位では提案がありましたが、統合後に適用可能な提案が残りませんでした。'), 'warn', {
+                    taskCount: splitTasks.length,
+                    chunkProposalCount,
+                    rejectedSynthesisProposalCount: rejectedSynthesisProposals
+                  });
+                }
               }
               const summary = String(synthesis.result.message || '').trim();
               if (summary) result.message = [summary, ...splitWarnings].filter(Boolean).join('\n');
               else result.message = [result.message, '全体の統合結果を作成できなかったため、以下は分割ごとの回答です。']
                 .filter(Boolean).join('\n');
-            } catch {
+            } catch (error) {
+              logAiProblem('分割結果の全体統合', error, 'warn');
               result.message = [result.message, '全体の統合処理に失敗したため、以下は分割ごとの回答です。']
                 .filter(Boolean).join('\n');
             }
@@ -1709,7 +1754,8 @@ let proposalPreview = null;
             if (!proposal.operations.length) return;
             try {
               editor.applyOperations(proposal.operations, fingerprintBeforeRequest, scope.editableIds, scope.classes.map((item) => item.id));
-            } catch {
+            } catch (error) {
+              logAiProblem('分析要約を使った提案の検証', error, 'warn');
               proposal.operations = [];
               proposal.questions.push('前回の要約だけではこの変更を安全に検証できません。元データを含めて「選択範囲全体を再分析して」と依頼してください。');
             }
@@ -1829,6 +1875,7 @@ let proposalPreview = null;
       setStatus(hasShareRequest || result.proposals.length ? '' : '変更案はありません。確認事項への回答や追加依頼を入力できます。');
       requestSucceeded = true;
     } catch (error) {
+      logAiProblem('AIへの依頼処理', error);
       conversation.isThinking = false;
       conversation.thinkingProgress = '';
       conversation.thinkingStartedAt = null;
@@ -1978,7 +2025,7 @@ let proposalPreview = null;
         document.getElementById('ai-apply-proposal').disabled = true;
         setStatus('提案を適用しました。必要なら最新状態について改めて依頼してください。');
       }
-    } catch (error) { setStatus(error.message, 'error'); }
+    } catch (error) { logAiProblem('変更案の適用', error); setStatus(error.message, 'error'); }
   });
   window.aiAssistant = {
     onScopeChange() {
@@ -1998,7 +2045,8 @@ let proposalPreview = null;
   sourceDataVersionPromise = fetch('data/input/current-class-data-version.txt', { cache: 'no-store' })
     .then((response) => { if (!response.ok) throw new Error('データ版ファイルを取得できません。'); return response.text(); })
     .then((value) => { sourceDataVersion = value.trim(); if (!sourceDataVersion) throw new Error('データ版が空です。'); })
-    .catch(() => {
+    .catch((error) => {
+      logAiProblem('クラスデータ版の読み込み', error);
       setStatus('データ版を確認できません。通信状態を確認してください。AI提案は確認できるまで送信できません', 'error');
       appendSettingsLink();
       sourceDataVersion = '';
