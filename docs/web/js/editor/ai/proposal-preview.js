@@ -213,8 +213,8 @@ export const createProposalPreview = ({
     if (!svg || !columns || svg.hidden) return;
     const bounds = svg.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
-    const laneWidth = Math.max(144, arrows.length * 8 + 32);
-    const routingHeight = Math.max(180, arrows.length * 6 + 32);
+    const laneWidth = Math.max(96, arrows.length * 4 + 32);
+    const routingHeight = Math.max(100, arrows.length * 3 + 32);
     if (columns.dataset.previewLaneWidth !== String(laneWidth)
       || columns.dataset.previewRoutingHeight !== String(routingHeight)) {
       columns.dataset.previewLaneWidth = String(laneWidth);
@@ -259,7 +259,11 @@ export const createProposalPreview = ({
       const target = previewNodeRow(after, arrow.to)?.getBoundingClientRect();
       if (!source && !target) return null;
       return { arrow, color, source, target };
-    }).filter(Boolean);
+    }).filter(Boolean).sort((left, right) => {
+      const leftY = left.source?.top ?? left.target?.top ?? 0;
+      const rightY = right.source?.top ?? right.target?.top ?? 0;
+      return leftY - rightY;
+    });
     const assignPorts = (side) => {
       const groups = new Map();
       routes.forEach((route, index) => {
@@ -282,8 +286,9 @@ export const createProposalPreview = ({
     assignPorts('source');
     assignPorts('target');
     routes.forEach(({ arrow, color, source, target }, index) => {
-      const leftTrack = gutterLeft + 8 + index * 4;
-      const rightTrack = gutterRight - 8 - index * 4;
+      const trackInset = Math.min(6 + index * 2, Math.max(6, (gutterRight - gutterLeft) / 2 - 4));
+      const leftTrack = gutterLeft + trackInset;
+      const rightTrack = gutterRight - trackInset;
       const channelY = height * (index + 1) / (routes.length + 1);
       const startX = source ? source.right - bounds.left : leftTrack;
       const endX = target ? target.left - bounds.left : rightTrack;
@@ -332,9 +337,16 @@ export const createProposalPreview = ({
       }));
       const text = document.createElement('span'); text.className = 'ai-preview-change-text'; text.textContent = operationLabel(operation);
       const type = document.createElement('span'); type.className = `ai-preview-type-badge ${operationCategory(operation).className}`;
-      type.textContent = operationCategory(operation).label;
+      const category = operationCategory(operation);
+      type.textContent = category.label;
+      if (['is-add', 'is-delete'].includes(category.className)) {
+        type.classList.add('is-circular-action');
+        type.textContent = category.className === 'is-add' ? '+' : '−';
+        type.setAttribute('aria-label', category.label);
+        type.title = category.label;
+      }
       const status = document.createElement('span'); status.className = 'ai-preview-change-status'; status.textContent = excluded ? '除外' : '適用';
-      row.append(toggle, type, text, status);
+      row.append(type, toggle, text, status);
       return row;
     });
     list.replaceChildren(...rows);
@@ -510,7 +522,7 @@ export const createProposalPreview = ({
       document.getElementById('ai-preview-reason').textContent = proposalItem.proposal.reason || '理由の記載はありません。';
       document.getElementById('ai-preview-uncertainties').textContent = proposalItem.proposal.uncertainties?.length
         ? proposalItem.proposal.uncertainties.join('、') : '特になし';
-      document.getElementById('ai-preview-change-list-details').open = true;
+      document.getElementById('ai-preview-change-list-details').open = false;
       document.getElementById('ai-preview-change-list').replaceChildren();
       document.getElementById('ai-preview-final-change-list').replaceChildren();
       const impact = document.getElementById('ai-preview-impact');
