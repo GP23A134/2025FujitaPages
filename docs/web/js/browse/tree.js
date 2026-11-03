@@ -122,6 +122,16 @@ function renderTree() {
       : (minCount === null || instanceCount(item.id) >= minCount)
         && (maxCount === null || instanceCount(item.id) <= maxCount))));
   const filterActive = query.trim().length > 0 || countFilterActive;
+  const activeConditions = [];
+  if (query.trim()) activeConditions.push(`${filterType?.value === 'instance' ? 'インスタンス' : 'クラス'}検索「${query.trim()}」`);
+  if (countFilterActive) activeConditions.push(countMode === 'exact'
+    ? `インスタンス件数 ${exactCount}件`
+    : `インスタンス件数 ${minCount}〜${maxCount}件`);
+  const activeSummary = document.getElementById('tree-filter-active-summary');
+  if (activeSummary) activeSummary.textContent = activeConditions.length
+    ? `絞り込み中：${activeConditions.join(' ／ ')}` : '絞り込みなし';
+  const clearFiltersButton = document.getElementById('clear-tree-filters');
+  if (clearFiltersButton) clearFiltersButton.disabled = !filterActive;
   const targetIds = filterActive ? new Set(targets.map((item) => item.id)) : null;
   const preserveHierarchy = filterActive;
   const model = window.buildTreeModel(window.appData.classData, targetIds, preserveHierarchy) || [];

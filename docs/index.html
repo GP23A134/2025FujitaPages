@@ -36,20 +36,20 @@
     <div class="tabs" role="tablist" aria-label="表示切替">
       <button type="button" class="tab is-active" id="tree-tab" role="tab" aria-selected="true"
         aria-controls="tree-panel">
-        階層ツリー
+        階層ツリー <span class="tab-description">階層から探す</span>
       </button>
       <button type="button" class="tab" id="list-tab" role="tab" aria-selected="false"
         aria-controls="list-panel">
-        一覧
+        一覧 <span class="tab-description">絞り込み・保存</span>
       </button>
       <button type="button" class="tab" id="aggregation-tab" role="tab" aria-selected="false"
         aria-controls="aggregation-panel">
-        集計
+        集計 <span class="tab-description">件数を見る</span>
       </button>
     </div>
 
     <section id="aggregation-panel" class="tab-panel aggregation-panel" role="tabpanel" aria-labelledby="aggregation-tab" hidden>
-      <p class="aggregation-description">現在のデータをクラス階層に沿って集計しています。各件数は重複を除いた数です。</p>
+      <p class="aggregation-description">各件数はIDで重複を除いています。同じIDが複数の上位クラスに属する場合は、それぞれの集計に含みます。分類なしの件数は全体件数に含み、別に表示します。</p>
       <div id="aggregation-summary" class="aggregation-summary" aria-live="polite"></div>
       <div class="aggregation-controls">
         <label for="aggregation-top-filter">上位クラスで絞り込み
@@ -60,28 +60,28 @@
       <section class="aggregation-section" aria-labelledby="aggregation-top-heading">
         <h2 id="aggregation-top-heading">上位クラス別</h2>
         <div class="aggregation-table-wrap"><table class="aggregation-table">
-          <thead><tr><th>上位クラス</th><th>インスタンス数</th><th>対象クラス数</th><th>件数の目安</th></tr></thead>
+          <thead><tr><th><button type="button" class="table-sort-button" data-aggregation-sort="top:label">上位クラス</button></th><th><button type="button" class="table-sort-button" data-aggregation-sort="top:middleCount">中間クラス数</button></th><th><button type="button" class="table-sort-button" data-aggregation-sort="top:targetCount">対象クラス数</button></th><th><button type="button" class="table-sort-button" data-aggregation-sort="top:instanceCount">インスタンス数</button></th><th>件数の目安</th></tr></thead>
           <tbody id="aggregation-top-rows"></tbody>
         </table></div>
       </section>
       <section class="aggregation-section" aria-labelledby="aggregation-middle-heading">
         <h2 id="aggregation-middle-heading">中間クラス別</h2>
         <div class="aggregation-table-wrap"><table class="aggregation-table">
-          <thead><tr><th>中間クラス</th><th>インスタンス数</th><th>対象クラス数</th><th>件数の目安</th></tr></thead>
+          <thead><tr><th><button type="button" class="table-sort-button" data-aggregation-sort="middle:label">中間クラス</button></th><th><button type="button" class="table-sort-button" data-aggregation-sort="middle:targetCount">対象クラス数</button></th><th><button type="button" class="table-sort-button" data-aggregation-sort="middle:instanceCount">インスタンス数</button></th><th>件数の目安</th></tr></thead>
           <tbody id="aggregation-middle-rows"></tbody>
         </table></div>
       </section>
       <section class="aggregation-section" aria-labelledby="aggregation-target-heading">
         <h2 id="aggregation-target-heading">対象クラス別</h2>
         <div class="aggregation-table-wrap"><table class="aggregation-table">
-          <thead><tr><th>対象クラス</th><th>インスタンス数</th><th>件数の目安</th></tr></thead>
+          <thead><tr><th><button type="button" class="table-sort-button" data-aggregation-sort="target:label">対象クラス</button></th><th><button type="button" class="table-sort-button" data-aggregation-sort="target:instanceCount">インスタンス数</button></th><th>件数の目安</th></tr></thead>
           <tbody id="aggregation-target-rows"></tbody>
         </table></div>
       </section>
       <section class="aggregation-section" aria-labelledby="aggregation-instance-heading">
         <h2 id="aggregation-instance-heading">インスタンス</h2>
         <div class="aggregation-table-wrap"><table class="aggregation-table">
-          <thead><tr><th>インスタンス</th><th>所属クラス（階層）</th></tr></thead>
+          <thead><tr><th><button type="button" class="table-sort-button" data-aggregation-sort="instance:label">インスタンス</button></th><th>所属クラス</th></tr></thead>
           <tbody id="aggregation-instance-rows"></tbody>
         </table></div>
       </section>
@@ -135,29 +135,24 @@
               </label>
             </fieldset>
           </div>
+          <div class="tree-filter-status" aria-live="polite">
+            <span id="tree-filter-active-summary">絞り込みなし</span>
+            <button type="button" id="clear-tree-filters" class="search-button secondary-search-button" disabled>条件をクリア</button>
+          </div>
       </details>
       <div id="tree" class="tree" role="tree"></div>
     </section>
 
     <section id="list-panel" class="tab-panel" role="tabpanel" aria-labelledby="list-tab" hidden>
+      <div class="list-tabs" role="tablist" aria-label="一覧の種類">
+        <button type="button" class="list-tab" id="top-class-tab" role="tab" aria-selected="false" aria-controls="top-class-panel">上位クラス</button>
+        <button type="button" class="list-tab" id="middle-class-tab" role="tab" aria-selected="false" aria-controls="middle-class-panel">中間クラス</button>
+        <button type="button" class="list-tab is-active" id="target-class-tab" role="tab" aria-selected="true" aria-controls="target-class-panel">クラス一覧</button>
+        <button type="button" class="list-tab" id="instance-tab" role="tab" aria-selected="false" aria-controls="instance-panel">インスタンス</button>
+      </div>
       <div class="class-search" role="search">
-        <label class="top-class-list-filter" for="top-class-filter">
-          上位クラス
-          <select id="top-class-filter">
-            <option value="">すべて</option>
-          </select>
-        </label>
-        <label class="middle-class-list-filter" for="middle-class-filter">
-          中間クラス
-          <select id="middle-class-filter">
-            <option value="">すべて</option>
-          </select>
-        </label>
-        <label class="instance-class-list-filter" for="instance-class-filter" hidden>
-          クラス（配下を含む）
-          <select id="instance-class-filter">
-            <option value="">すべて</option>
-          </select>
+        <label for="list-search-element-filter">検索対象
+          <select id="list-search-element-filter"><option value="">すべて</option></select>
         </label>
         <label for="class-text-filter" class="class-search-text">
           一覧内検索
@@ -165,20 +160,13 @@
         </label>
         <div class="list-actions">
           <button type="button" id="clear-list-filters" class="search-button secondary-search-button">条件をクリア</button>
-          <button type="button" id="download-list-tsv" class="search-button">TSV保存</button>
         </div>
+        <p id="list-active-filter-summary" class="list-active-filter-summary" aria-live="polite" hidden></p>
       </div>
-      <div class="list-tabs" role="tablist" aria-label="一覧の種類">
-        <button type="button" class="list-tab" id="top-class-tab" role="tab" aria-selected="false" aria-controls="top-class-panel">上位クラス</button>
-        <button type="button" class="list-tab" id="middle-class-tab" role="tab" aria-selected="false" aria-controls="middle-class-panel">中間クラス</button>
-        <button type="button" class="list-tab is-active" id="target-class-tab" role="tab" aria-selected="true" aria-controls="target-class-panel">クラス一覧</button>
-        <button type="button" class="list-tab" id="instance-tab" role="tab" aria-selected="false" aria-controls="instance-panel">インスタンス</button>
-      </div>
-      <p id="list-active-filter-summary" class="list-active-filter-summary" aria-live="polite"></p>
       <section id="top-class-panel" class="list-subpanel" role="tabpanel" aria-labelledby="top-class-tab" hidden>
-        <div class="list-panel-heading"><h2>上位クラス一覧 <span id="top-class-result-count" class="list-result-count" aria-live="polite"></span></h2><div class="list-sort-slot" id="top-class-sort-slot"></div></div>
+        <div class="list-panel-heading"><h2>上位クラス一覧 <span id="top-class-result-count" class="list-result-count" aria-live="polite"></span></h2><div class="list-page-size-slot" id="top-class-page-size-slot"></div></div>
         <table>
-          <thead><tr><th>クラス（ラベル・ID）</th><th>配下のインスタンス数</th><th>対象クラス数</th></tr></thead>
+          <thead><tr><th><button type="button" class="table-sort-button" data-list-sort-key="label">クラス（ラベル・ID）</button></th><th><button type="button" class="table-sort-button" data-list-sort-key="middle-count">中間クラス数</button></th><th><button type="button" class="table-sort-button" data-list-sort-key="target-count">対象クラス数</button></th><th><button type="button" class="table-sort-button" data-list-sort-key="count">インスタンス数</button></th></tr></thead>
           <tbody id="top-class-rows"></tbody>
         </table>
         <div class="list-pagination" aria-label="上位クラス一覧のページ操作">
@@ -188,9 +176,9 @@
       </section>
 
       <section id="middle-class-panel" class="list-subpanel" role="tabpanel" aria-labelledby="middle-class-tab" hidden>
-        <div class="list-panel-heading"><h2>中間クラス一覧 <span id="middle-class-result-count" class="list-result-count" aria-live="polite"></span></h2><div class="list-sort-slot" id="middle-class-sort-slot"></div></div>
+        <div class="list-panel-heading"><h2>中間クラス一覧 <span id="middle-class-result-count" class="list-result-count" aria-live="polite"></span></h2><div class="list-page-size-slot" id="middle-class-page-size-slot"></div></div>
         <table>
-          <thead><tr><th>クラス（ラベル・ID）</th><th>配下のインスタンス数</th><th>親クラス・対象クラス数</th></tr></thead>
+          <thead><tr><th><button type="button" class="table-sort-button" data-list-sort-key="label">クラス（ラベル・ID）</button></th><th><button type="button" class="table-sort-button" data-list-sort-key="top-class">上位クラス</button></th><th><button type="button" class="table-sort-button" data-list-sort-key="parent">親クラス</button></th><th><button type="button" class="table-sort-button" data-list-sort-key="child-middle">下位中間クラス数</button></th><th><button type="button" class="table-sort-button" data-list-sort-key="target-count">対象クラス数</button></th><th><button type="button" class="table-sort-button" data-list-sort-key="count">インスタンス数</button></th></tr></thead>
           <tbody id="middle-class-rows"></tbody>
         </table>
         <div class="list-pagination" aria-label="中間クラス一覧のページ操作">
@@ -200,14 +188,15 @@
       </section>
 
       <section id="target-class-panel" class="list-subpanel" role="tabpanel" aria-labelledby="target-class-tab">
-        <div class="list-panel-heading"><h2>クラス一覧 <span id="target-class-result-count" class="list-result-count" aria-live="polite"></span></h2><div class="list-sort-slot" id="target-class-sort-slot"><label id="list-sort-control" for="list-sort" class="list-sort-filter">並べ替え<select id="list-sort"></select></label></div></div>
+        <div class="list-panel-heading"><h2>クラス一覧 <span id="target-class-result-count" class="list-result-count" aria-live="polite"></span></h2><div class="list-page-size-slot" id="target-class-page-size-slot"><div id="list-page-tools" class="list-page-tools"><button type="button" id="download-list-tsv" class="search-button secondary-search-button">TSV保存</button><label id="list-page-size-control" for="list-page-size" class="list-page-size-filter">表示件数<select id="list-page-size"><option value="50">50件</option><option value="100" selected>100件</option><option value="200">200件</option><option value="500">500件</option><option value="all">全件</option></select></label></div></div></div>
         <table>
           <thead>
             <tr>
-              <th>クラス（ラベル・ID）</th>
-              <th>階層パス</th>
-              <th>インスタンス数</th>
-              <th>関連クラス（親）</th>
+              <th><button type="button" class="table-sort-button" data-list-sort-key="label">クラス（ラベル・ID）</button></th>
+              <th><button type="button" class="table-sort-button" data-list-sort-key="top-class">上位クラス</button></th>
+              <th><button type="button" class="table-sort-button" data-list-sort-key="middle-class">中間クラス</button></th>
+              <th><button type="button" class="table-sort-button" data-list-sort-key="parent">親クラス</button></th>
+              <th><button type="button" class="table-sort-button" data-list-sort-key="count">インスタンス数</button></th>
             </tr>
           </thead>
           <tbody id="target-class-rows"></tbody>
@@ -219,9 +208,9 @@
       </section>
 
       <section id="instance-panel" class="list-subpanel" role="tabpanel" aria-labelledby="instance-tab" hidden>
-        <div class="list-panel-heading"><h2>インスタンス一覧 <span id="instance-result-count" class="list-result-count" aria-live="polite"></span></h2><div class="list-sort-slot" id="instance-sort-slot"></div></div>
+        <div class="list-panel-heading"><h2>インスタンス一覧 <span id="instance-result-count" class="list-result-count" aria-live="polite"></span></h2><div class="list-page-size-slot" id="instance-page-size-slot"></div></div>
         <table>
-          <thead><tr><th>インスタンス（ラベル・ID）</th><th>所属クラス（階層）</th></tr></thead>
+          <thead><tr><th><button type="button" class="table-sort-button" data-list-sort-cycle="instance">インスタンス（ラベル・ID）</button></th><th><button type="button" class="table-sort-button" data-list-sort-key="top-class">上位クラス</button></th><th><button type="button" class="table-sort-button" data-list-sort-key="middle-class">中間クラス</button></th><th><button type="button" class="table-sort-button" data-list-sort-key="class-count">所属クラス</button></th></tr></thead>
           <tbody id="instance-rows"></tbody>
         </table>
         <div class="instance-pagination" aria-label="インスタンス一覧のページ操作">
@@ -237,10 +226,6 @@
   <dialog id="target-instance-dialog" class="target-instance-dialog" aria-labelledby="target-instance-title">
     <form method="dialog" class="target-instance-dialog-header"><h2 id="target-instance-title"></h2><button type="submit" class="target-instance-dialog-close" aria-label="閉じる">×</button></form>
     <p id="target-instance-count" class="target-instance-count"></p><ul id="target-instance-list" class="target-instance-list"></ul>
-  </dialog>
-  <dialog id="contained-class-dialog" class="target-instance-dialog" aria-labelledby="contained-class-title">
-    <form method="dialog" class="target-instance-dialog-header"><h2 id="contained-class-title"></h2><button type="submit" class="target-instance-dialog-close" aria-label="閉じる">×</button></form>
-    <p id="contained-class-count" class="target-instance-count"></p><ul id="contained-class-list" class="target-instance-list"></ul>
   </dialog>
 </body>
 </html>

@@ -1,8 +1,18 @@
 // クラス階層に沿った集計表を作成し、集計画面の表示切替を設定する。
+const aggregationDefaultSortState = {
+  top: { metric: 'instanceCount', direction: -1 },
+  middle: { metric: 'instanceCount', direction: -1 },
+  target: { metric: 'instanceCount', direction: -1 },
+  instance: { metric: 'label', direction: 1 }
+};
+const aggregationSortState = Object.fromEntries(Object.entries(aggregationDefaultSortState)
+  .map(([key, state]) => [key, { ...state }]));
+const aggregationSortIsDefault = Object.fromEntries(Object.keys(aggregationDefaultSortState).map((key) => [key, true]));
+
 function renderAggregation(data) {
   const panel = document.getElementById('aggregation-panel');
   if (!panel) return;
-  const classes = data.classData?.classes || [];
+  const classes = [...new Map((data.classData?.classes || []).map((item) => [item.id, item])).values()];
   const byId = new Map(classes.map((item) => [item.id, item]));
   const tops = classes.filter((item) => /\/t_/.test(item.id));
   const middles = classes.filter((item) => /\/m_/.test(item.id));
@@ -50,19 +60,33 @@ function renderAggregation(data) {
   });
   const statsFor = (item) => {
     const below = descendants(item.id);
+    const middleCount = new Set([...below].filter((id) => /\/m_/.test(id))).size;
     const targetCount = [...below].filter((id) => /\/c_/.test(id)).length;
+    const directChildren = children.get(item.id) || new Set();
+    const directMiddleCount = [...directChildren].filter((id) => /\/m_/.test(id)).length;
+    const directTargetCount = [...directChildren].filter((id) => /\/c_/.test(id)).length;
     const instanceIds = new Set(instanceIdsByClass.get(item.id) || []);
     below.forEach((id) => (instanceIdsByClass.get(id) || []).forEach((value) => instanceIds.add(value)));
-    return { item, targetCount, instanceCount: instanceIds.size };
+    return { item, middleCount, targetCount, directMiddleCount, directTargetCount, instanceCount: instanceIds.size };
   };
-  const topStats = tops.map(statsFor).sort((a, b) => b.instanceCount - a.instanceCount || a.item.label.localeCompare(b.item.label, 'ja'));
-  const middleStats = middles.map(statsFor).sort((a, b) => b.instanceCount - a.instanceCount || a.item.label.localeCompare(b.item.label, 'ja'));
+  const topStats = tops.map(statsFor);
+  const middleStats = middles.map(statsFor);
+  const topIds = new Set(tops.map((item) => item.id));
+  const hasTopAncestor = (id) => topIds.has(id) || [...topAncestors(id)].some((ancestorId) => topIds.has(ancestorId));
+  const unclassifiedClassCount = classes.filter((item) => !topIds.has(item.id) && !hasTopAncestor(item.id)).length;
+  const instanceIdsWithTopClass = new Set();
+  (data.instanceClassData?.relations || []).forEach(({ instance, class: classId }) => {
+    if (knownInstances.has(instance) && hasTopAncestor(classId)) instanceIdsWithTopClass.add(instance);
+  });
+  const unclassifiedInstanceCount = [...knownInstances].filter((id) => !instanceIdsWithTopClass.has(id)).length;
   const summary = document.getElementById('aggregation-summary');
   const cards = [
     ['インスタンス', knownInstances.size],
     ['対象クラス', targets.length],
     ['中間クラス', middles.length],
-    ['上位クラス', tops.length]
+    ['上位クラス', tops.length],
+    ['分類なしクラス', unclassifiedClassCount],
+    ['分類なしインスタンス', unclassifiedInstanceCount]
   ];
   summary.replaceChildren(...cards.map(([label, count]) => {
     const card = document.createElement('div'); card.className = 'aggregation-card';
@@ -74,27 +98,45 @@ function renderAggregation(data) {
   const selected = filter.value;
   filter.replaceChildren(new Option('すべて', ''), ...tops.map((item) => new Option(item.label || item.id, item.id)));
   filter.value = selected;
-  const drawRows = (targetId, items, max) => {
-    document.getElementById(targetId).replaceChildren(...items.map(({ item, targetCount, instanceCount }) => {
+  const sortStats = (items, tableKey) => {
+    const { metric, direction } = aggregationSortState[tableKey];
+    if (metric === 'label') {
+      return [...items].sort((a, b) => direction * (a.item.label || a.item.id).localeCompare(b.item.label || b.item.id, 'ja'));
+    }
+    return [...items].sort((a, b) => direction * ((a[metric] || 0) - (b[metric] || 0))
+      || (a.item.label || a.item.id).localeCompare(b.item.label || b.item.id, 'ja'));
+  };
+  const drawRows = (targetId, items, max, includeMiddleCount = false, includeTargetCount = true, tableKey = 'middle') => {
+    document.getElementById(targetId).replaceChildren(...sortStats(items, tableKey).map(({ item, middleCount, targetCount, directMiddleCount, directTargetCount, instanceCount }) => {
       const row = document.createElement('tr');
       const name = document.createElement('th'); name.scope = 'row'; name.textContent = item.label || '(ラベルなし)';
       const inst = document.createElement('td'); inst.textContent = `${instanceCount.toLocaleString('ja-JP')}件`;
-      const target = document.createElement('td'); target.textContent = `${targetCount.toLocaleString('ja-JP')}件`;
+      const target = document.createElement('td'); target.textContent = targetCount
+        ? `全件 ${targetCount.toLocaleString('ja-JP')}件 ／ 直下 ${directTargetCount.toLocaleString('ja-JP')}件`
+        : '0件';
+      if (includeMiddleCount) {
+        const middle = document.createElement('td'); middle.textContent = middleCount
+          ? `全件 ${middleCount.toLocaleString('ja-JP')}件 ／ 直下 ${directMiddleCount.toLocaleString('ja-JP')}件`
+          : '0件';
+        row.append(name, middle);
+      } else {
+        row.append(name);
+      }
+      if (includeTargetCount) row.append(target);
       const barCell = document.createElement('td'); barCell.className = 'aggregation-bar-cell';
       const bar = document.createElement('span'); bar.className = 'aggregation-bar';
       bar.style.width = `${max ? Math.max(instanceCount > 0 ? 2 : 0, instanceCount / max * 100) : 0}%`;
       bar.setAttribute('aria-label', `インスタンス ${instanceCount}件`); barCell.append(bar);
-      row.append(name, inst, target, barCell); return row;
+      row.append(inst, barCell); return row;
     }));
   };
-  drawRows('aggregation-top-rows', topStats, Math.max(0, ...topStats.map((stat) => stat.instanceCount)));
+  drawRows('aggregation-top-rows', topStats, Math.max(0, ...topStats.map((stat) => stat.instanceCount)), true, true, 'top');
   const selectedMiddles = selected ? middleStats.filter(({ item }) => topAncestors(item.id).has(selected)) : middleStats;
-  drawRows('aggregation-middle-rows', selectedMiddles, Math.max(0, ...selectedMiddles.map((stat) => stat.instanceCount)));
+  drawRows('aggregation-middle-rows', selectedMiddles, Math.max(0, ...selectedMiddles.map((stat) => stat.instanceCount)), false, true, 'middle');
   const selectedTargets = targets.map(statsFor)
-    .filter(({ item }) => !selected || topAncestors(item.id).has(selected))
-    .sort((a, b) => b.instanceCount - a.instanceCount || a.item.label.localeCompare(b.item.label, 'ja'));
+    .filter(({ item }) => !selected || topAncestors(item.id).has(selected));
   const targetMax = Math.max(0, ...selectedTargets.map((stat) => stat.instanceCount));
-  document.getElementById('aggregation-target-rows').replaceChildren(...selectedTargets.map(({ item, instanceCount }) => {
+  document.getElementById('aggregation-target-rows').replaceChildren(...sortStats(selectedTargets, 'target').map(({ item, instanceCount }) => {
     const row = document.createElement('tr');
     const name = document.createElement('th'); name.scope = 'row'; name.textContent = item.label || '(ラベルなし)';
     const count = document.createElement('td'); count.textContent = `${instanceCount.toLocaleString('ja-JP')}件`;
@@ -111,30 +153,55 @@ function renderAggregation(data) {
     if (!classesByInstance.has(instance)) classesByInstance.set(instance, new Set());
     classesByInstance.get(instance).add(classId);
   });
-  const hierarchyPath = (id, visited = new Set()) => {
-    const info = byId.get(id);
-    if (!info) return [];
-    if (visited.has(id)) return [info.label || id];
-    const nextVisited = new Set(visited); nextVisited.add(id);
-    const parentIds = [...(parents.get(id) || [])];
-    if (!parentIds.length) return [info.label || id];
-    return parentIds.flatMap((parentId) => hierarchyPath(parentId, nextVisited)
-      .map((parentLabel) => `${parentLabel} › ${info.label || id}`));
-  };
   const instanceRows = [...instanceById.values()].filter((instance) => {
     if (!selected) return true;
     return [...(classesByInstance.get(instance.id) || [])]
       .some((classId) => classId === selected || topAncestors(classId).has(selected));
-  }).sort((a, b) => (a.label || a.id).localeCompare(b.label || b.id, 'ja'));
+  }).sort((a, b) => aggregationSortState.instance.direction
+    * (a.label || a.id).localeCompare(b.label || b.id, 'ja'));
   document.getElementById('aggregation-instance-rows').replaceChildren(...instanceRows.map((instance) => {
     const row = document.createElement('tr');
     const name = document.createElement('th'); name.scope = 'row'; name.textContent = instance.label || '(ラベルなし)';
     const pathCell = document.createElement('td');
-    const paths = [...(classesByInstance.get(instance.id) || [])].flatMap((classId) => hierarchyPath(classId));
-    pathCell.textContent = [...new Set(paths)].join(' ／ ') || '分類なし';
+    const instanceClassIds = [...(classesByInstance.get(instance.id) || [])];
+    const assignedClasses = instanceClassIds
+      .map((classId) => byId.get(classId)?.label || byId.get(classId)?.id).filter(Boolean);
+    const belongsToTopClass = instanceClassIds.some((classId) => hasTopAncestor(classId));
+    const directClassLabels = [...new Set(assignedClasses)].join(' ／ ');
+    pathCell.textContent = belongsToTopClass
+      ? directClassLabels || '分類なし'
+      : directClassLabels ? `分類なし（${directClassLabels}）` : '分類なし';
     row.append(name, pathCell); return row;
   }));
+  document.querySelectorAll('[data-aggregation-sort]').forEach((button) => {
+    const [tableKey, metric] = button.dataset.aggregationSort.split(':');
+    const state = aggregationSortState[tableKey];
+    const active = !aggregationSortIsDefault[tableKey] && state.metric === metric;
+    button.setAttribute('aria-pressed', String(active));
+    button.dataset.sortDirection = active ? (state.direction > 0 ? 'ascending' : 'descending') : '';
+    button.closest('th')?.setAttribute('aria-sort', active
+      ? (state.direction > 0 ? 'ascending' : 'descending') : 'none');
+  });
 }
+
+document.querySelectorAll('[data-aggregation-sort]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const [tableKey, metric] = button.dataset.aggregationSort.split(':');
+    const state = aggregationSortState[tableKey];
+    if (!state) return;
+    if (aggregationSortIsDefault[tableKey] || state.metric !== metric) {
+      state.metric = metric;
+      state.direction = -1;
+      aggregationSortIsDefault[tableKey] = false;
+    } else if (state.direction < 0) {
+      state.direction = 1;
+    } else {
+      Object.assign(state, aggregationDefaultSortState[tableKey]);
+      aggregationSortIsDefault[tableKey] = true;
+    }
+    if (window.appData) renderAggregation(window.appData);
+  });
+});
 
 document.querySelectorAll('.mode-button').forEach((button) => {
   button.addEventListener('click', () => {

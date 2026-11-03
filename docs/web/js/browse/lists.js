@@ -1,13 +1,112 @@
 // 閲覧画面のクラス一覧・インスタンス一覧の描画と、一覧内の補助表示を担当する。
-function renderClassListRows(elementId, items, relatedClassesById = null, instanceCountsByClassId = null,
-  onInstanceCountClick = null, onContainedCountClick = null, hierarchyPathsByClassId = null) {
+function groupItemsByLabel(items) {
+  const groups = new Map();
+  items.forEach((item) => {
+    const label = String(item.label ?? '');
+    const key = label ? `label:${label}` : `id:${item.id}`;
+    if (!groups.has(key)) groups.set(key, { id: item.id, label, ids: [], members: [] });
+    const group = groups.get(key);
+    if (!group.ids.includes(item.id)) group.ids.push(item.id);
+    group.members.push(item);
+  });
+  return [...groups.values()];
+}
+
+function getUniqueMemberCount(countsById, item) {
+  const ids = new Set();
+  (item.ids || [item.id]).forEach((id) => (countsById.get(id) || []).forEach((value) => ids.add(value)));
+  return ids.size;
+}
+
+function appendCountActions(cell, total, direct, onTotal, onDirect) {
+  if (Number(total) === 0) {
+    cell.textContent = '0件';
+    return;
+  }
+  [['全件', total, onTotal], ['直下', direct, onDirect]].forEach(([label, value, handler]) => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'class-count-link';
+    button.textContent = `${label} ${Number(value).toLocaleString('ja-JP')}件`;
+    button.setAttribute('aria-label', `${label} ${value}件の一覧を表示`);
+    button.addEventListener('click', handler);
+    cell.append(button);
+  });
+}
+
+function appendSingleCountAction(cell, total, handler) {
+  const button = document.createElement('button');
+  button.type = 'button'; button.className = 'class-count-link';
+  button.textContent = `${Number(total).toLocaleString('ja-JP')}件`;
+  button.setAttribute('aria-label', `一覧を表示 ${total}件`);
+  button.addEventListener('click', handler);
+  cell.append(button);
+}
+
+function appendClassLinks(cell, classes, emptyLabel) {
+  const groups = groupItemsByLabel([...new Map(classes.map((item) => [item.id, item])).values()]);
+  if (!groups.length) { cell.textContent = emptyLabel; return; }
+  groups.forEach((group, index) => {
+    if (index) cell.append(document.createTextNode(' ／ '));
+    const link = document.createElement('button');
+    link.type = 'button'; link.className = 'related-class-link';
+    link.textContent = group.label || '(ラベルなし)';
+    link.title = `ID: ${group.ids.join(' ／ ')}`;
+    link.addEventListener('click', () => showClassInTree(group.ids[0]));
+    cell.append(link);
+  });
+}
+
+function appendEntityIds(container, ids) {
+  container.className = 'list-entity-id';
+  const representative = document.createElement('span');
+  representative.className = 'list-id-representative';
+  representative.textContent = String(ids[0] ?? '');
+  const representativeCopy = createCopyIdButton(ids[0]);
+  if (ids.length < 2) {
+    const row = document.createElement('div');
+    row.className = 'list-id-single-row';
+    row.append(representative, representativeCopy);
+    container.append(row);
+    return;
+  }
+
+  const details = document.createElement('details');
+  details.className = 'list-id-details';
+  const summary = document.createElement('summary');
+  summary.append(representative, representativeCopy);
+  const expandLabel = document.createElement('span');
+  expandLabel.className = 'list-id-expand-label';
+  expandLabel.textContent = `ほか${ids.length - 1}件`;
+  summary.append(expandLabel);
+  const list = document.createElement('div');
+  list.className = 'list-id-detail-list';
+  ids.slice(1).forEach((id) => {
+    const entry = document.createElement('div');
+    entry.className = 'list-id-detail-entry';
+    const value = document.createElement('span');
+    value.textContent = String(id);
+    entry.append(value, createCopyIdButton(id));
+    list.append(entry);
+  });
+  details.append(summary, list);
+  container.append(details);
+}
+
+function renderClassListRows(elementId, items, options = {}) {
   const target = document.getElementById(elementId);
   if (!target) return;
+  const { parentsById = null, middleCountsById = null, targetCountsById = null,
+    topClassesById = null, middleClassesById = null, childMiddleClassesById = null,
+    directMiddleCountsById = null, directTargetCountsById = null, instanceCountsByClassId = null,
+    onChildMiddleClick = null, onMiddleTotalClick = null, onMiddleDirectClick = null,
+    onTargetTotalClick = null, onTargetDirectClick = null, onInstanceClick = null } = options;
   if (!items.length) {
     const row = document.createElement('tr');
     const cell = document.createElement('td');
-    cell.colSpan = 1 + Number(Boolean(hierarchyPathsByClassId))
-      + Number(Boolean(instanceCountsByClassId)) + Number(Boolean(relatedClassesById));
+    cell.colSpan = 1 + Number(Boolean(topClassesById)) + Number(Boolean(middleClassesById))
+      + Number(Boolean(childMiddleClassesById))
+      + Number(Boolean(parentsById)) + Number(Boolean(middleCountsById))
+      + Number(Boolean(targetCountsById)) + Number(Boolean(instanceCountsByClassId));
     cell.className = 'list-empty-cell';
     cell.textContent = '該当する項目はありません。';
     row.append(cell);
@@ -22,104 +121,118 @@ function renderClassListRows(elementId, items, relatedClassesById = null, instan
     label.className = 'list-entity-label';
     label.textContent = item.label || '(ラベルなし)';
     const id = document.createElement('small');
-    id.className = 'list-entity-id';
-    id.textContent = String(item.id);
-    id.append(createCopyIdButton(item.id));
+    appendEntityIds(id, item.ids || [item.id]);
     name.append(label, id);
     row.append(name);
-    if (hierarchyPathsByClassId) {
-      const path = document.createElement('td');
-      path.className = 'class-hierarchy-path';
-      const paths = hierarchyPathsByClassId.get(item.id) || [];
-      if (paths.length) {
-        paths.forEach((hierarchyPath, index) => {
-          if (index) path.append(document.createTextNode(' ／ '));
-          const pathButton = document.createElement('button');
-          pathButton.type = 'button';
-          pathButton.className = 'class-hierarchy-path-button';
-          pathButton.textContent = hierarchyPath;
-          pathButton.title = `${hierarchyPath} をツリーで表示`;
-          pathButton.setAttribute('aria-label', `階層パス「${hierarchyPath}」から ${item.label || item.id} をツリーで表示`);
-          pathButton.addEventListener('click', () => showClassInTree(item.id));
-          path.append(pathButton);
+    if (topClassesById) {
+      const topCell = document.createElement('td');
+      const topClasses = [...new Map((item.ids || [item.id]).flatMap((id) => topClassesById.get(id) || [])
+        .map((topClass) => [topClass.id, topClass])).values()];
+      if (topClasses.length) {
+        groupItemsByLabel(topClasses).forEach((topClass, index) => {
+          if (index) topCell.append(document.createTextNode(' ／ '));
+          const link = document.createElement('button');
+          link.type = 'button'; link.className = 'related-class-link';
+          link.textContent = topClass.label || '(ラベルなし)';
+          link.title = `ID: ${topClass.ids.join(' ／ ')}`;
+          link.addEventListener('click', () => showClassInTree(topClass.ids[0]));
+          topCell.append(link);
+        });
+      } else topCell.textContent = '上位クラスなし';
+      row.append(topCell);
+    }
+    if (middleClassesById) {
+      const middleCell = document.createElement('td');
+      const middleClasses = [...new Map((item.ids || [item.id]).flatMap((id) => middleClassesById.get(id) || [])
+        .map((middleClass) => [middleClass.id, middleClass])).values()];
+      if (middleClasses.length) {
+        groupItemsByLabel(middleClasses).forEach((middleClass, index) => {
+          if (index) middleCell.append(document.createTextNode(' ／ '));
+          const link = document.createElement('button');
+          link.type = 'button'; link.className = 'related-class-link';
+          link.textContent = middleClass.label || '(ラベルなし)';
+          link.title = `ID: ${middleClass.ids.join(' ／ ')}`;
+          link.addEventListener('click', () => showClassInTree(middleClass.ids[0]));
+          middleCell.append(link);
+        });
+      } else middleCell.textContent = '中間クラスなし';
+      row.append(middleCell);
+    }
+    if (parentsById) {
+      const parentCell = document.createElement('td');
+      const parents = [...new Map((item.ids || [item.id]).flatMap((id) => parentsById.get(id) || [])
+        .map((parent) => [parent.id, parent])).values()];
+      if (parents.length) {
+        groupItemsByLabel(parents).forEach((parent, index) => {
+          if (index) parentCell.append(document.createTextNode(' ／ '));
+          const link = document.createElement('button');
+          link.type = 'button';
+          link.className = 'related-class-link';
+          link.textContent = parent.label || '(ラベルなし)';
+          link.title = `ID: ${parent.ids.join(' ／ ')}`;
+          link.setAttribute('aria-label', `${parent.label || 'ラベルなし'} の階層ツリーを表示（${parent.ids.join('、')}）`);
+          link.addEventListener('click', () => showClassInTree(parent.ids[0]));
+          parentCell.append(link);
         });
       } else {
-        path.textContent = '—';
+        parentCell.textContent = '親なし';
       }
-      row.append(path);
+      row.append(parentCell);
+    }
+    if (childMiddleClassesById) {
+      const childMiddleCell = document.createElement('td');
+      const childMiddleClasses = [...new Map((item.ids || [item.id]).flatMap((id) => childMiddleClassesById.get(id) || [])
+        .map((middleClass) => [middleClass.id, middleClass])).values()];
+      if (!childMiddleClasses.length) {
+        childMiddleCell.textContent = '0件';
+      } else if (onChildMiddleClick) {
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'class-count-link';
+        button.textContent = `${childMiddleClasses.length.toLocaleString('ja-JP')}件`;
+        button.setAttribute('aria-label', `下位中間クラス一覧を表示 ${childMiddleClasses.length}件`);
+        button.addEventListener('click', () => onChildMiddleClick(item));
+        childMiddleCell.append(button);
+      } else childMiddleCell.textContent = `${childMiddleClasses.length.toLocaleString('ja-JP')}件`;
+      row.append(childMiddleCell);
+    }
+    if (middleCountsById) {
+      const count = document.createElement('td');
+      count.className = 'class-instance-count';
+      const total = getUniqueMemberCount(middleCountsById, item);
+      const direct = directMiddleCountsById ? getUniqueMemberCount(directMiddleCountsById, item) : total;
+      if (onMiddleTotalClick && onMiddleDirectClick) appendCountActions(count, total, direct,
+        () => onMiddleTotalClick(item), () => onMiddleDirectClick(item));
+      else count.textContent = `${total.toLocaleString('ja-JP')}件（直下${direct.toLocaleString('ja-JP')}件）`;
+      row.append(count);
+    }
+    if (targetCountsById) {
+      const count = document.createElement('td');
+      count.className = 'class-instance-count';
+      const total = getUniqueMemberCount(targetCountsById, item);
+      const direct = directTargetCountsById ? getUniqueMemberCount(directTargetCountsById, item) : total;
+      const hasChildMiddleClasses = childMiddleClassesById
+        && (item.ids || [item.id]).some((id) => (childMiddleClassesById.get(id) || []).length > 0);
+      if (childMiddleClassesById && !hasChildMiddleClasses) {
+        if (!total) count.textContent = '0件';
+        else if (onTargetTotalClick) appendSingleCountAction(count, total, () => onTargetTotalClick(item));
+        else count.textContent = `${total.toLocaleString('ja-JP')}件`;
+      } else if (onTargetTotalClick && onTargetDirectClick) appendCountActions(count, total, direct,
+        () => onTargetTotalClick(item), () => onTargetDirectClick(item));
+      else if (!total) count.textContent = '0件';
+      else count.textContent = `全件 ${total.toLocaleString('ja-JP')}件 ／ 直下 ${direct.toLocaleString('ja-JP')}件`;
+      row.append(count);
     }
     if (instanceCountsByClassId) {
       const count = document.createElement('td');
       count.className = 'class-instance-count';
-      const countButton = document.createElement('button');
-      countButton.type = 'button';
-      countButton.className = 'contained-class-count-button class-instance-count-button';
-      countButton.textContent = `${instanceCountsByClassId.get(item.id)?.size || 0}件`;
-      const scope = item.id.includes('/c_') ? '' : '配下を含む ';
-      countButton.setAttribute('aria-label', `${item.label || item.id} の${scope}インスタンス一覧を表示`);
-      countButton.addEventListener('click', () => onInstanceCountClick?.(item));
-      count.append(countButton);
+      if (onInstanceClick) {
+        const total = getUniqueMemberCount(instanceCountsByClassId, item);
+        appendSingleCountAction(count, total, () => onInstanceClick(item));
+      } else count.textContent = `${getUniqueMemberCount(instanceCountsByClassId, item)}件`;
       row.append(count);
-    }
-    if (relatedClassesById) {
-      const relatedCell = document.createElement('td');
-      const relationship = relatedClassesById.get(item.id) || [];
-      const relatedClasses = Array.isArray(relationship) ? relationship : (relationship.parents || []);
-      if (relatedClasses.length) {
-        relatedClasses.forEach((relatedClass) => {
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'related-class-link';
-          button.textContent = relatedClass.label || relatedClass.id;
-          button.setAttribute('aria-label', `${relatedClass.label || relatedClass.id} の階層ツリーを表示`);
-          button.addEventListener('click', () => showClassInTree(relatedClass.id));
-          relatedCell.append(button);
-        });
-      }
-      if (!Array.isArray(relationship) && Array.isArray(relationship.children)) {
-        const countButton = document.createElement('button');
-        countButton.type = 'button';
-        countButton.className = 'contained-class-count-button';
-        countButton.textContent = `対象クラス ${relationship.children.length}件`;
-        countButton.setAttribute('aria-label', `${item.label} に含まれるクラス ${relationship.children.length}件を表示`);
-        countButton.addEventListener('click', () => onContainedCountClick
-          ? onContainedCountClick(item, relationship.children)
-          : showContainedClasses(item, relationship.children));
-        relatedCell.append(countButton);
-      } else if (!relatedClasses.length) {
-        relatedCell.textContent = '—';
-      }
-      row.append(relatedCell);
     }
     return row;
   }));
-}
-
-function showContainedClasses(middleClass, containedClasses) {
-  const dialog = document.getElementById('contained-class-dialog');
-  const title = document.getElementById('contained-class-title');
-  const count = document.getElementById('contained-class-count');
-  const list = document.getElementById('contained-class-list');
-  if (!dialog || !title || !count || !list) return;
-  title.textContent = `${middleClass.label || middleClass.id} に含まれるクラス`;
-  count.textContent = `${containedClasses.length}件`;
-  list.replaceChildren(...containedClasses.map((classInfo) => {
-    const item = document.createElement('li');
-    const button = document.createElement('button');
-    const id = document.createElement('small');
-    button.type = 'button';
-    button.className = 'related-class-link';
-    button.textContent = classInfo.label || classInfo.id;
-    button.setAttribute('aria-label', `${classInfo.label || classInfo.id} の階層ツリーを表示`);
-    button.addEventListener('click', () => {
-      dialog.close();
-      showClassInTree(classInfo.id);
-    });
-    id.textContent = classInfo.id;
-    item.append(button, id);
-    return item;
-  }));
-  dialog.showModal();
 }
 
 function createCopyIdButton(id) {
@@ -128,7 +241,11 @@ function createCopyIdButton(id) {
   button.className = 'copy-id-button';
   button.textContent = 'コピー';
   button.setAttribute('aria-label', `ID ${id} をコピー`);
-  button.addEventListener('click', () => copyIdentifier(id, button));
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    copyIdentifier(id, button);
+  });
   return button;
 }
 
@@ -156,11 +273,17 @@ async function copyIdentifier(value, button) {
 }
 
 function renderClassLists(data) {
-  const allClasses = data.classData?.classes || [];
-  const tops = data.topClassList?.classes || allClasses.filter((item) => item.id.includes('/t_'));
-  const middles = data.middleClassList?.classes || allClasses.filter((item) => item.id.includes('/m_'));
-  const targets = allClasses.filter((item) => item.id.includes('/c_'));
-  const instances = data.instanceData?.instances || [];
+  const allClasses = [...new Map((data.classData?.classes || []).map((item) => [item.id, item])).values()];
+  const topClasses = [...new Map((data.topClassList?.classes || allClasses.filter((item) => item.id.includes('/t_')))
+    .map((item) => [item.id, item])).values()];
+  const middleClasses = [...new Map((data.middleClassList?.classes || allClasses.filter((item) => item.id.includes('/m_')))
+    .map((item) => [item.id, item])).values()];
+  const targetClasses = allClasses.filter((item) => item.id.includes('/c_'));
+  const allInstances = [...new Map((data.instanceData?.instances || []).map((item) => [item.id, item])).values()];
+  const tops = groupItemsByLabel(topClasses);
+  const middles = groupItemsByLabel(middleClasses);
+  const targets = groupItemsByLabel(targetClasses);
+  const instances = groupItemsByLabel(allInstances);
   const classById = new Map(allClasses.map((item) => [item.id, item]));
   const classesByInstanceId = new Map();
   (data.instanceClassData?.relations || []).forEach((relation) => {
@@ -169,31 +292,24 @@ function renderClassLists(data) {
     if (!classesByInstanceId.has(relation.instance)) classesByInstanceId.set(relation.instance, new Map());
     classesByInstanceId.get(relation.instance).set(classInfo.id, classInfo);
   });
-  renderClassListRows('top-class-rows', tops);
-  renderClassListRows('middle-class-rows', middles);
-
-  const topFilter = document.getElementById('top-class-filter');
-  const middleFilter = document.getElementById('middle-class-filter');
-  const instanceClassFilter = document.getElementById('instance-class-filter');
+  const searchElementFilter = document.getElementById('list-search-element-filter');
   const textFilter = document.getElementById('class-text-filter');
-  const sortSelect = document.getElementById('list-sort');
+  const pageSizeSelect = document.getElementById('list-page-size');
+  const pageTools = document.getElementById('list-page-tools');
   const downloadButton = document.getElementById('download-list-tsv');
-  if (!topFilter || !middleFilter || !instanceClassFilter || !textFilter || !sortSelect || !downloadButton) return;
+  if (!searchElementFilter || !textFilter || !pageSizeSelect || !pageTools || !downloadButton) return;
   let filteredTargets = targets;
   let filteredTops = tops;
   let filteredMiddles = middles;
   let filteredInstances = instances;
   let instanceCurrentPage = 1;
-  const instancePageSize = 100;
-  const classPageSize = 100;
+  let pageSize = Number(pageSizeSelect.value) || 100;
   const classCurrentPages = { top: 1, middle: 1, target: 1 };
 
-  topFilter.replaceChildren(new Option('すべて', ''));
-  middleFilter.replaceChildren(new Option('すべて', ''));
-  instanceClassFilter.replaceChildren(new Option('すべて', ''));
   const parentMap = new Map();
   const childrenMap = new Map();
   (data.classData?.relations || []).forEach((relation) => {
+    if (!classById.has(relation.child) || !classById.has(relation.parent)) return;
     if (!parentMap.has(relation.child)) parentMap.set(relation.child, []);
     parentMap.get(relation.child).push(relation.parent);
     if (!childrenMap.has(relation.parent)) childrenMap.set(relation.parent, []);
@@ -210,20 +326,36 @@ function renderClassLists(data) {
     }
     return result;
   };
-  const hierarchyPathsByClassId = new Map();
-  const hierarchyPathsFor = (id, visited = new Set()) => {
-    if (visited.has(id)) return [classById.get(id)?.label || id];
-    const label = classById.get(id)?.label || id;
-    const parents = [...new Set(parentMap.get(id) || [])].filter((parentId) => classById.has(parentId));
-    if (!parents.length) return [label];
-    const nextVisited = new Set(visited);
-    nextVisited.add(id);
-    return parents.flatMap((parentId) => hierarchyPathsFor(parentId, nextVisited).map((path) => `${path} › ${label}`));
+  const descendants = (id) => {
+    const result = new Set();
+    const pending = [...(childrenMap.get(id) || [])];
+    while (pending.length) {
+      const current = pending.pop();
+      if (result.has(current)) continue;
+      result.add(current);
+      pending.push(...(childrenMap.get(current) || []));
+    }
+    return result;
   };
-  allClasses.forEach((classInfo) => {
-    hierarchyPathsByClassId.set(classInfo.id, [...new Set(hierarchyPathsFor(classInfo.id))]);
-  });
-  const knownInstanceIds = new Set(instances.map((instance) => instance.id));
+  const parentClassesById = new Map(allClasses.map((item) => [item.id,
+    [...new Set(parentMap.get(item.id) || [])].map((id) => classById.get(id)).filter(Boolean)]));
+  const topClassesById = new Map(allClasses.map((item) => [item.id,
+    [...ancestors(item.id)].filter((id) => id.includes('/t_')).map((id) => classById.get(id)).filter(Boolean)]));
+  const middleClassesById = new Map(allClasses.map((item) => [item.id,
+    [...ancestors(item.id)].filter((id) => id.includes('/m_')).map((id) => classById.get(id)).filter(Boolean)]));
+  const childMiddleClassesById = new Map(allClasses.map((item) => [item.id,
+    [...new Set(childrenMap.get(item.id) || [])].filter((id) => id.includes('/m_')).map((id) => classById.get(id)).filter(Boolean)]));
+  const parentClassesForGroup = (item) => [...new Map((item.ids || [item.id])
+    .flatMap((id) => parentClassesById.get(id) || []).map((parent) => [parent.id, parent])).values()];
+  const parentLabelForGroup = (item) => {
+    const parents = parentClassesForGroup(item);
+    const labels = groupItemsByLabel(parents).map((parent) => parent.label || '(ラベルなし)')
+      .sort((a, b) => a.localeCompare(b, 'ja'));
+    return labels.join(' ／ ') || '親なし';
+  };
+  const allClassGroups = groupItemsByLabel(allClasses);
+  const classGroupIdsByOptionId = new Map(allClassGroups.map((group) => [group.id, group.ids]));
+  const knownInstanceIds = new Set(allInstances.map((instance) => instance.id));
   const instanceIdsByClassId = new Map();
   (data.instanceClassData?.relations || []).forEach((relation) => {
     if (!knownInstanceIds.has(relation.instance)) return;
@@ -233,72 +365,60 @@ function renderClassLists(data) {
       instanceIdsByClassId.get(classId).add(relation.instance);
     });
   });
-  const relatedTargets = new Map(targets.map((item) => [item.id,
-    [...new Set(parentMap.get(item.id) || [])].map((id) => classById.get(id)).filter(Boolean)]));
-  const containedTargets = (middleId) => {
-    const found = new Map();
-    const seen = new Set();
-    const pending = [...(childrenMap.get(middleId) || [])];
-    while (pending.length) {
-      const id = pending.pop();
-      if (seen.has(id)) continue;
-      seen.add(id);
-      if (id.includes('/c_')) {
-        const classInfo = classById.get(id);
-        if (classInfo) found.set(id, classInfo);
-      } else {
-        pending.push(...(childrenMap.get(id) || []));
-      }
-    }
-    return [...found.values()].sort((a, b) => (a.label || a.id).localeCompare(b.label || b.id, 'ja'));
-  };
-  const relatedMiddles = new Map(middles.map((item) => [item.id, {
-    parents: [...new Set(parentMap.get(item.id) || [])].map((id) => classById.get(id)).filter(Boolean),
-    children: containedTargets(item.id),
-  }]));
-  const relatedTops = new Map(tops.map((item) => [item.id, {
-    parents: [],
-    children: containedTargets(item.id),
-  }]));
+  const middleIdsByClassId = new Map();
+  const targetIdsByClassId = new Map();
+  const directMiddleIdsByClassId = new Map();
+  const directTargetIdsByClassId = new Map();
+  allClasses.forEach((item) => {
+    const containedIds = descendants(item.id);
+    middleIdsByClassId.set(item.id, new Set([...containedIds].filter((id) => id.includes('/m_'))));
+    targetIdsByClassId.set(item.id, new Set([...containedIds].filter((id) => id.includes('/c_'))));
+    const directIds = childrenMap.get(item.id) || [];
+    directMiddleIdsByClassId.set(item.id, new Set(directIds.filter((id) => id.includes('/m_'))));
+    directTargetIdsByClassId.set(item.id, new Set(directIds.filter((id) => id.includes('/c_'))));
+  });
   const renderInstancePage = () => {
-    const pageCount = Math.max(1, Math.ceil(filteredInstances.length / instancePageSize));
+    const pageCount = Math.max(1, Math.ceil(filteredInstances.length / pageSize));
     instanceCurrentPage = Math.min(instanceCurrentPage, pageCount);
-    const start = (instanceCurrentPage - 1) * instancePageSize;
-    const pageItems = applySort(filteredInstances, 'instance-tab').slice(start, start + instancePageSize);
+    const start = (instanceCurrentPage - 1) * pageSize;
+    const pageItems = applySort(filteredInstances, 'instance-tab').slice(start, start + pageSize);
     const rows = pageItems.map((instance) => {
       const row = document.createElement('tr');
       const name = document.createElement('td');
+      const topClassesCell = document.createElement('td');
+      const middleClassesCell = document.createElement('td');
       const classes = document.createElement('td');
       name.className = 'list-entity-cell';
       const label = document.createElement('span');
       label.className = 'list-entity-label';
       label.textContent = instance.label || '(ラベルなし)';
       const id = document.createElement('small');
-      id.className = 'list-entity-id';
-      id.textContent = String(instance.id);
-      id.append(createCopyIdButton(instance.id));
+      appendEntityIds(id, instance.ids || [instance.id]);
       name.append(label, id);
-      const relatedClasses = [...(classesByInstanceId.get(instance.id)?.values() || [])];
-      if (relatedClasses.length) {
-        relatedClasses.forEach((classInfo) => {
-          const link = document.createElement('button');
-          link.type = 'button';
-          link.className = 'related-class-link';
-          link.textContent = hierarchyPathsByClassId.get(classInfo.id)?.join(' ／ ') || classInfo.label || classInfo.id;
-          link.setAttribute('aria-label', `${classInfo.label || classInfo.id} の階層ツリーを表示`);
-          link.addEventListener('click', () => showClassInTree(classInfo.id));
-          classes.append(link);
+      const relatedClasses = [...new Map((instance.ids || [instance.id])
+        .flatMap((instanceId) => [...(classesByInstanceId.get(instanceId)?.values() || [])])
+        .map((classInfo) => [classInfo.id, classInfo])).values()];
+      const topClasses = new Map();
+      const middleClasses = new Map();
+      relatedClasses.forEach((classInfo) => {
+        const lineage = new Set([classInfo.id, ...ancestors(classInfo.id)]);
+        lineage.forEach((classId) => {
+          const ancestorClass = classById.get(classId);
+          if (!ancestorClass) return;
+          if (classId.includes('/t_')) topClasses.set(classId, ancestorClass);
+          if (classId.includes('/m_')) middleClasses.set(classId, ancestorClass);
         });
-      } else {
-        classes.textContent = '—';
-      }
-      row.append(name, classes);
+      });
+      appendClassLinks(topClassesCell, [...topClasses.values()], '上位クラスなし');
+      appendClassLinks(middleClassesCell, [...middleClasses.values()], '中間クラスなし');
+      appendClassLinks(classes, relatedClasses, '分類なし');
+      row.append(name, topClassesCell, middleClassesCell, classes);
       return row;
     });
     if (!rows.length) {
       const row = document.createElement('tr');
       const cell = document.createElement('td');
-      cell.colSpan = 2;
+      cell.colSpan = 4;
       cell.className = 'list-empty-cell';
       cell.textContent = '該当する項目はありません。';
       row.append(cell);
@@ -307,33 +427,179 @@ function renderClassLists(data) {
     document.getElementById('instance-rows').replaceChildren(...rows);
     const pageInfo = document.getElementById('instance-page-info');
     const first = filteredInstances.length ? start + 1 : 0;
-    const last = Math.min(start + instancePageSize, filteredInstances.length);
+    const last = Math.min(start + pageSize, filteredInstances.length);
     pageInfo.textContent = `${first}–${last}件 / ${filteredInstances.length}件（${instanceCurrentPage} / ${pageCount}ページ）`;
     document.getElementById('instance-page-prev').disabled = instanceCurrentPage <= 1;
     document.getElementById('instance-page-next').disabled = instanceCurrentPage >= pageCount;
   };
-  const addOptions = (select, items) => items.forEach((item) => {
-    const option = document.createElement('option');
-    option.value = item.id;
-    option.textContent = item.label;
-    select.append(option);
-  });
-  addOptions(topFilter, tops);
-  addOptions(middleFilter, middles);
-  addOptions(instanceClassFilter, allClasses);
-  const sortChoices = {
-    'top-class-tab': [['label-asc', 'ラベル順（あ→ん）'], ['label-desc', 'ラベル順（ん→あ）'], ['count-desc', '件数が多い順'], ['count-asc', '件数が少ない順']],
-    'middle-class-tab': [['label-asc', 'ラベル順（あ→ん）'], ['label-desc', 'ラベル順（ん→あ）'], ['count-desc', '件数が多い順'], ['count-asc', '件数が少ない順']],
-    'target-class-tab': [['label-asc', 'ラベル順（あ→ん）'], ['label-desc', 'ラベル順（ん→あ）'], ['count-desc', '件数が多い順'], ['count-asc', '件数が少ない順']],
-    'instance-tab': [['label-asc', 'ラベル順（あ→ん）'], ['label-desc', 'ラベル順（ん→あ）']]
+  const listSortByTab = {
+    'top-class-tab': 'label-asc',
+    'middle-class-tab': 'label-asc',
+    'target-class-tab': 'label-asc',
+    'instance-tab': 'label-asc'
   };
+  const defaultListSortByTab = Object.fromEntries(Object.keys(listSortByTab).map((tabId) => [tabId, 'label-asc']));
+  const listSortIsDefaultByTab = Object.fromEntries(Object.keys(listSortByTab).map((tabId) => [tabId, true]));
+  let instanceHeaderCycleStarted = false;
   const activeListTabId = () => document.querySelector('.list-tab.is-active')?.id || 'target-class-tab';
+  const hierarchyLevelsByTab = {
+    'top-class-tab': [['t', '上位クラス']],
+    'middle-class-tab': [['m', '中間クラス'], ['t', '上位クラス']],
+    'target-class-tab': [['c', '対象クラス'], ['t', '上位クラス'], ['m', '中間クラス']],
+    'instance-tab': [['i', 'インスタンス'], ['t', '上位クラス'], ['m', '中間クラス'], ['c', '対象クラス']]
+  };
+  const listSearchState = {
+    'top-class-tab': { keyword: '', searchElement: 't', pinnedClassId: '', pinnedClassLevel: '', pinnedIncludeDescendants: false },
+    'middle-class-tab': { keyword: '', searchElement: 'm', pinnedClassId: '', pinnedClassLevel: '', pinnedIncludeDescendants: false },
+    'target-class-tab': { keyword: '', searchElement: 'c', pinnedClassId: '', pinnedClassLevel: '', pinnedIncludeDescendants: false },
+    'instance-tab': { keyword: '', searchElement: 'i', pinnedClassId: '', pinnedClassLevel: '', pinnedIncludeDescendants: false }
+  };
+  const levelMatchesClassId = (classId, level) => Boolean(level && classId.includes(`/${level}_`));
+  const refreshSearchElementOptions = (tabId) => {
+    const state = listSearchState[tabId];
+    const levels = hierarchyLevelsByTab[tabId];
+    searchElementFilter.replaceChildren(...levels.map(([value, label]) => new Option(label, value)));
+    if (!levels.some(([value]) => value === state.searchElement)) state.searchElement = levels[0]?.[0] || '';
+    searchElementFilter.value = state.searchElement;
+  };
+  const saveActiveListSearchInputs = () => {
+    const tabId = activeListTabId();
+    const state = listSearchState[tabId];
+    state.keyword = textFilter.value;
+    state.searchElement = searchElementFilter.value;
+  };
+  const loadListSearchInputs = (tabId) => {
+    const state = listSearchState[tabId];
+    textFilter.value = state.keyword;
+    refreshSearchElementOptions(tabId);
+    const elementLabel = (hierarchyLevelsByTab[tabId].find(([level]) => level === state.searchElement) || ['', '要素'])[1];
+    textFilter.placeholder = `${elementLabel}の名前・IDで部分一致検索`;
+  };
+  const classEntitiesForItem = (item, level) => [...new Map((item.ids || [item.id]).flatMap((id) =>
+    [...new Set([id, ...ancestors(id)])].filter((classId) => levelMatchesClassId(classId, level))
+      .map((classId) => classById.get(classId)).filter(Boolean).map((classInfo) => [classInfo.id, classInfo]))).values()];
+  const classEntitiesForInstance = (item, level) => [...new Map((item.ids || [item.id]).flatMap((id) =>
+    [...(classesByInstanceId.get(id)?.values() || [])].flatMap((classInfo) =>
+      [...new Set([classInfo.id, ...ancestors(classInfo.id)])]
+        .filter((classId) => levelMatchesClassId(classId, level))
+        .map((classId) => classById.get(classId)).filter(Boolean).map((classInfoAtLevel) => [classInfoAtLevel.id, classInfoAtLevel])))).values()];
+  const matchesSearchKeyword = (item, state, tabId) => {
+    const keyword = state.keyword.trim().toLocaleLowerCase();
+    if (!keyword) return true;
+    const entities = state.searchElement === 'i' ? [item]
+      : tabId === 'instance-tab' ? classEntitiesForInstance(item, state.searchElement)
+        : classEntitiesForItem(item, state.searchElement);
+    return entities.some((entity) => `${entity.label || ''} ${entity.id}`.toLocaleLowerCase().includes(keyword));
+  };
+  const matchesPinnedClass = (item, state, tabId) => {
+    if (!state.pinnedClassId || !state.pinnedClassLevel) return true;
+    const pinnedIds = new Set((classGroupIdsByOptionId.get(state.pinnedClassId) || [state.pinnedClassId])
+      .filter((id) => levelMatchesClassId(id, state.pinnedClassLevel)));
+    if (tabId === 'instance-tab') {
+      const matchingIds = new Set(pinnedIds);
+      if (state.pinnedIncludeDescendants) pinnedIds.forEach((id) => descendants(id).forEach((descendantId) => matchingIds.add(descendantId)));
+      return (item.ids || [item.id]).some((id) => [...matchingIds].some((classId) => classesByInstanceId.get(id)?.has(classId)));
+    }
+    return (item.ids || [item.id]).some((id) => {
+      if (state.pinnedIncludeDescendants) return pinnedIds.has(id) || [...ancestors(id)].some((ancestorId) => pinnedIds.has(ancestorId));
+      return [...(parentMap.get(id) || [])].some((parentId) => pinnedIds.has(parentId));
+    });
+  };
   const applySort = (items, tabId = activeListTabId()) => {
-    const sort = sortSelect.value || 'label-asc';
+    const sort = listSortByTab[tabId] || 'label-asc';
     const sorted = [...items];
-    if (tabId !== 'instance-tab' && sort.startsWith('count-')) {
-      const direction = sort === 'count-desc' ? -1 : 1;
-      return sorted.sort((a, b) => direction * ((instanceIdsByClassId.get(a.id)?.size || 0) - (instanceIdsByClassId.get(b.id)?.size || 0))
+    const idCountSort = sort.match(/^id-count-(desc|asc)$/);
+    if (tabId === 'instance-tab' && idCountSort) {
+      const direction = idCountSort[1] === 'desc' ? -1 : 1;
+      return sorted.sort((a, b) => direction * (a.ids.length - b.ids.length)
+        || (a.label || a.id).localeCompare(b.label || b.id, 'ja'));
+    }
+    const idSort = sort.match(/^id-(desc|asc)$/);
+    if (tabId === 'instance-tab' && idSort) {
+      const direction = idSort[1] === 'desc' ? -1 : 1;
+      return sorted.sort((a, b) => direction * String(a.ids[0]).localeCompare(String(b.ids[0]))
+        || (a.label || a.id).localeCompare(b.label || b.id, 'ja'));
+    }
+    const classSort = sort.match(/^class-count-(desc|asc)$/);
+    if (tabId === 'instance-tab' && classSort) {
+      const direction = classSort[1] === 'desc' ? -1 : 1;
+      const assignedClasses = (item) => [...new Map((item.ids || [item.id])
+        .flatMap((id) => [...(classesByInstanceId.get(id)?.values() || [])])
+        .map((classInfo) => [classInfo.id, classInfo])).values()];
+      const assignedLabels = (item) => [...new Set(assignedClasses(item).map((classInfo) => classInfo.label || classInfo.id))]
+        .sort((a, b) => a.localeCompare(b, 'ja')).join(' ／ ') || '分類なし';
+      return sorted.sort((a, b) => direction * (assignedClasses(a).length - assignedClasses(b).length)
+        || assignedLabels(a).localeCompare(assignedLabels(b), 'ja')
+        || (a.label || a.id).localeCompare(b.label || b.id, 'ja'));
+    }
+    const instanceHierarchySort = sort.match(/^(top-class|middle-class)-(desc|asc)$/);
+    if (tabId === 'instance-tab' && instanceHierarchySort) {
+      const [, level, order] = instanceHierarchySort;
+      const direction = order === 'desc' ? -1 : 1;
+      const classStats = (item) => {
+        const related = new Map();
+        (item.ids || [item.id]).forEach((id) => (classesByInstanceId.get(id)?.values() || []).forEach((classInfo) => {
+          const lineage = new Set([classInfo.id, ...ancestors(classInfo.id)]);
+          lineage.forEach((classId) => {
+            if (classId.includes(level === 'top-class' ? '/t_' : '/m_')) {
+              const relatedClass = classById.get(classId);
+              if (relatedClass) related.set(classId, relatedClass.label || relatedClass.id);
+            }
+          });
+        }));
+        return {
+          count: related.size,
+          labels: [...related.values()].sort((a, b) => a.localeCompare(b, 'ja')).join(' ／ ')
+        };
+      };
+      return sorted.sort((a, b) => {
+        const aStats = classStats(a);
+        const bStats = classStats(b);
+        return direction * (aStats.count - bStats.count)
+          || direction * aStats.labels.localeCompare(bStats.labels, 'ja')
+          || (a.label || a.id).localeCompare(b.label || b.id, 'ja');
+      });
+    }
+    const countSort = sort.match(/^(middle-count|target-count|count)-(desc|asc)$/);
+    if (tabId !== 'instance-tab' && countSort) {
+      const [, metric, order] = countSort;
+      const counts = metric === 'middle-count' ? middleIdsByClassId
+        : metric === 'target-count' ? targetIdsByClassId : instanceIdsByClassId;
+      const direction = order === 'desc' ? -1 : 1;
+      return sorted.sort((a, b) => direction * (getUniqueMemberCount(counts, a) - getUniqueMemberCount(counts, b))
+        || (a.label || a.id).localeCompare(b.label || b.id, 'ja'));
+    }
+    const parentSort = sort.match(/^parent-(desc|asc)$/);
+    if (tabId !== 'instance-tab' && parentSort) {
+      const direction = parentSort[1] === 'desc' ? -1 : 1;
+      return sorted.sort((a, b) => direction * (parentClassesForGroup(a).length - parentClassesForGroup(b).length)
+        || parentLabelForGroup(a).localeCompare(parentLabelForGroup(b), 'ja')
+        || (a.label || a.id).localeCompare(b.label || b.id, 'ja'));
+    }
+    const classHierarchySort = sort.match(/^(top-class|middle-class)-(desc|asc)$/);
+    if (tabId !== 'instance-tab' && classHierarchySort) {
+      const [, level, order] = classHierarchySort;
+      const direction = order === 'desc' ? -1 : 1;
+      const classesForGroup = (item) => [...new Map((item.ids || [item.id])
+        .flatMap((id) => (level === 'top-class' ? topClassesById : middleClassesById).get(id) || [])
+        .map((classInfo) => [classInfo.id, classInfo])).values()];
+      const labelsForGroup = (item) => groupItemsByLabel(classesForGroup(item))
+        .map((classGroup) => classGroup.label || '(ラベルなし)')
+        .sort((a, b) => a.localeCompare(b, 'ja')).join(' ／ ');
+      return sorted.sort((a, b) => direction * (classesForGroup(a).length - classesForGroup(b).length)
+        || direction * labelsForGroup(a).localeCompare(labelsForGroup(b), 'ja')
+        || (a.label || a.id).localeCompare(b.label || b.id, 'ja'));
+    }
+    const childMiddleSort = sort.match(/^child-middle-(desc|asc)$/);
+    if (tabId === 'middle-class-tab' && childMiddleSort) {
+      const direction = childMiddleSort[1] === 'desc' ? -1 : 1;
+      const childClasses = (item) => [...new Map((item.ids || [item.id])
+        .flatMap((id) => childMiddleClassesById.get(id) || [])
+        .map((classInfo) => [classInfo.id, classInfo])).values()];
+      const childLabels = (item) => groupItemsByLabel(childClasses(item))
+        .map((group) => group.label || '(ラベルなし)').sort((a, b) => a.localeCompare(b, 'ja')).join(' ／ ');
+      return sorted.sort((a, b) => direction * (childClasses(a).length - childClasses(b).length)
+        || direction * childLabels(a).localeCompare(childLabels(b), 'ja')
         || (a.label || a.id).localeCompare(b.label || b.id, 'ja'));
     }
     const direction = sort === 'label-desc' ? -1 : 1;
@@ -341,97 +607,133 @@ function renderClassLists(data) {
   };
   refreshListSortOptions = () => {
     const activeTabId = activeListTabId();
-    const choices = sortChoices[activeTabId] || sortChoices['target-class-tab'];
-    const previous = sortSelect.value;
-    sortSelect.replaceChildren(...choices.map(([value, label]) => new Option(label, value)));
-    sortSelect.value = choices.some(([value]) => value === previous) ? previous : 'label-asc';
     const slotId = ({
-      'top-class-tab': 'top-class-sort-slot',
-      'middle-class-tab': 'middle-class-sort-slot',
-      'target-class-tab': 'target-class-sort-slot',
-      'instance-tab': 'instance-sort-slot'
+      'top-class-tab': 'top-class-page-size-slot',
+      'middle-class-tab': 'middle-class-page-size-slot',
+      'target-class-tab': 'target-class-page-size-slot',
+      'instance-tab': 'instance-page-size-slot'
     })[activeTabId];
-    document.getElementById(slotId)?.append(document.getElementById('list-sort-control'));
+    document.getElementById(slotId)?.append(pageTools);
+    updateListSortIndicators();
+  };
+  const updateListSortIndicators = () => {
+    const activeSort = listSortByTab[activeListTabId()] || 'label-asc';
+    document.querySelectorAll('[data-list-sort-key]').forEach((button) => {
+      const key = button.dataset.listSortKey;
+      const active = !listSortIsDefaultByTab[activeListTabId()] && activeSort.startsWith(`${key}-`);
+      const direction = activeSort.endsWith('-asc') ? 'ascending' : 'descending';
+      button.setAttribute('aria-pressed', String(active));
+      button.dataset.sortDirection = active ? direction : '';
+      button.closest('th')?.setAttribute('aria-sort', active ? direction : 'none');
+    });
+    const instanceHeader = document.querySelector('[data-list-sort-cycle="instance"]');
+    if (instanceHeader) {
+      const instanceSort = listSortByTab['instance-tab'];
+      const mode = instanceSort.startsWith('id-count-') ? '件数'
+        : instanceSort.startsWith('id-') ? 'ID' : 'ラベル';
+      instanceHeader.textContent = instanceHeaderCycleStarted ? `インスタンス（${mode}）` : 'インスタンス（ラベル・ID）';
+      const active = activeListTabId() === 'instance-tab' && !listSortIsDefaultByTab['instance-tab'];
+      const direction = instanceSort.endsWith('-desc') ? 'descending' : 'ascending';
+      instanceHeader.setAttribute('aria-pressed', String(active));
+      instanceHeader.dataset.sortDirection = active ? direction : '';
+      instanceHeader.closest('th')?.setAttribute('aria-sort', active ? direction : 'none');
+    }
   };
   refreshListSortOptions();
   refreshBrowseListFilterSummary = () => {
     const activeTab = activeListTabId();
-    const filters = [];
-    const keyword = textFilter.value.trim();
-    if (keyword) filters.push(`検索: ${keyword}`);
-    if (['middle-class-tab', 'target-class-tab'].includes(activeTab) && topFilter.value) {
-      filters.push(`上位クラス: ${classById.get(topFilter.value)?.label || topFilter.value}`);
+    const state = listSearchState[activeTab];
+    const summary = document.getElementById('list-active-filter-summary');
+    const chips = [];
+    const addChip = (label, filterType, clear) => {
+      const chip = document.createElement('button');
+      chip.type = 'button'; chip.className = 'list-filter-chip';
+      chip.dataset.filterType = filterType;
+      chip.textContent = `${label} ×`;
+      chip.setAttribute('aria-label', `${label} の条件を解除`);
+      chip.addEventListener('click', () => {
+        clear();
+        loadListSearchInputs(activeTab);
+        updateTargets();
+        updateOtherLists();
+        refreshBrowseListFilterSummary();
+      });
+      chips.push(chip);
+    };
+    if (state.keyword.trim()) {
+      const shortLabel = ({ t: '上位', m: '中間', c: '対象', i: '実体' })[state.searchElement] || '検索';
+      addChip(`${shortLabel}: ${state.keyword.trim()}`, state.searchElement, () => { state.keyword = ''; });
     }
-    if (activeTab === 'target-class-tab' && middleFilter.value) {
-      filters.push(`中間クラス: ${classById.get(middleFilter.value)?.label || middleFilter.value}`);
+    if (state.pinnedClassId && state.pinnedClassLevel) {
+      const suffix = state.pinnedIncludeDescendants ? '（配下を含む）' : '';
+      const levelLabel = ({ t: '上位', m: '中間', c: '対象' })[state.pinnedClassLevel] || 'クラス';
+      const classLabel = allClassGroups.find((group) => group.id === state.pinnedClassId)?.label || state.pinnedClassId;
+      addChip(`${levelLabel}: ${classLabel}${suffix}`, state.pinnedClassLevel, () => {
+        state.pinnedClassId = ''; state.pinnedClassLevel = ''; state.pinnedIncludeDescendants = false;
+      });
     }
-    if (activeTab === 'instance-tab' && instanceClassFilter.value) {
-      filters.push(`クラス（配下を含む）: ${classById.get(instanceClassFilter.value)?.label || instanceClassFilter.value}`);
-    }
-    document.getElementById('list-active-filter-summary').textContent = filters.length
-      ? `絞り込み中：${filters.join(' ／ ')}` : '絞り込みなし';
+    summary.replaceChildren(...(chips.length ? [document.createTextNode('絞り込み中：'), ...chips] : []));
+    summary.hidden = chips.length === 0;
+    document.getElementById('clear-list-filters').disabled = chips.length === 0;
   };
+  const groupedResultCount = (items) => `${items.length.toLocaleString('ja-JP')}ラベル（${items.reduce((total, item) => total + item.ids.length, 0).toLocaleString('ja-JP')} ID）`;
   refreshBrowseListFilterSummary();
-  const openInstancesForClass = (classInfo) => {
-    textFilter.value = '';
-    instanceClassFilter.value = classInfo.id;
-    document.getElementById('list-tab')?.click();
-    document.getElementById('instance-tab')?.click();
-  };
-  const openTargetClassesFor = (classInfo) => {
-    textFilter.value = '';
-    topFilter.value = classInfo.id.includes('/t_') ? classInfo.id : '';
-    middleFilter.value = classInfo.id.includes('/m_') ? classInfo.id : '';
-    document.getElementById('list-tab')?.click();
-    document.getElementById('target-class-tab')?.click();
-  };
   const renderClassPage = (kind, items) => {
     const config = {
-      top: { id: 'top-class-tab', rows: 'top-class-rows', info: 'top-class-page-info', prev: 'top-class-page-prev', next: 'top-class-page-next', relations: relatedTops, onContained: openTargetClassesFor },
-      middle: { id: 'middle-class-tab', rows: 'middle-class-rows', info: 'middle-class-page-info', prev: 'middle-class-page-prev', next: 'middle-class-page-next', relations: relatedMiddles, onContained: openTargetClassesFor },
-      target: { id: 'target-class-tab', rows: 'target-class-rows', info: 'target-class-page-info', prev: 'target-class-page-prev', next: 'target-class-page-next', relations: relatedTargets, paths: hierarchyPathsByClassId }
+      top: { id: 'top-class-tab', rows: 'top-class-rows', info: 'top-class-page-info', prev: 'top-class-page-prev', next: 'top-class-page-next', middleCounts: middleIdsByClassId, targetCounts: targetIdsByClassId },
+      middle: { id: 'middle-class-tab', rows: 'middle-class-rows', info: 'middle-class-page-info', prev: 'middle-class-page-prev', next: 'middle-class-page-next', parents: parentClassesById, topClasses: topClassesById, childMiddleClasses: childMiddleClassesById, targetCounts: targetIdsByClassId },
+      target: { id: 'target-class-tab', rows: 'target-class-rows', info: 'target-class-page-info', prev: 'target-class-page-prev', next: 'target-class-page-next', parents: parentClassesById, topClasses: topClassesById, middleClasses: middleClassesById }
     }[kind];
-    const pageCount = Math.max(1, Math.ceil(items.length / classPageSize));
+    const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
     classCurrentPages[kind] = Math.min(classCurrentPages[kind], pageCount);
     const currentPage = classCurrentPages[kind];
-    const start = (currentPage - 1) * classPageSize;
+    const start = (currentPage - 1) * pageSize;
     const sortItems = applySort(items, config.id);
-    const pageItems = sortItems.slice(start, start + classPageSize);
-    renderClassListRows(config.rows, pageItems, config.relations, instanceIdsByClassId,
-      openInstancesForClass, config.onContained || null, config.paths || null);
+    const pageItems = sortItems.slice(start, start + pageSize);
+    renderClassListRows(config.rows, pageItems, {
+      parentsById: config.parents || null,
+      topClassesById: config.topClasses || null,
+      middleClassesById: config.middleClasses || null,
+      childMiddleClassesById: config.childMiddleClasses || null,
+      onChildMiddleClick: kind === 'middle' ? (item) => showChildrenList(item, 'middle-class-tab', false) : null,
+      middleCountsById: config.middleCounts || null,
+      targetCountsById: config.targetCounts || null,
+      instanceCountsByClassId: instanceIdsByClassId,
+      directMiddleCountsById: directMiddleIdsByClassId,
+      directTargetCountsById: directTargetIdsByClassId,
+      onMiddleTotalClick: kind === 'top' ? (item) => showChildrenList(item, 'middle-class-tab', true) : null,
+      onMiddleDirectClick: kind === 'top' ? (item) => showChildrenList(item, 'middle-class-tab', false) : null,
+      onTargetTotalClick: ['top', 'middle'].includes(kind)
+        ? (item) => showChildrenList(item, 'target-class-tab', true) : null,
+      onTargetDirectClick: ['top', 'middle'].includes(kind)
+        ? (item) => showChildrenList(item, 'target-class-tab', false) : null,
+      onInstanceClick: (item) => showInstancesForClass(item),
+    });
     const first = items.length ? start + 1 : 0;
-    const last = Math.min(start + classPageSize, items.length);
+    const last = Math.min(start + pageSize, items.length);
     document.getElementById(config.info).textContent = `${first}–${last}件 / ${items.length.toLocaleString('ja-JP')}件（${currentPage} / ${pageCount}ページ）`;
     document.getElementById(config.prev).disabled = currentPage <= 1;
     document.getElementById(config.next).disabled = currentPage >= pageCount;
   };
   const updateTargets = () => {
-    const topId = topFilter.value;
-    const middleId = middleFilter.value;
-    const text = textFilter.value.trim().toLocaleLowerCase();
-    const filtered = targets.filter((item) => {
-      const parentIds = ancestors(item.id);
-      const matchesTop = !topId || parentIds.has(topId);
-      const matchesMiddle = !middleId || parentIds.has(middleId);
-      const matchesText = !text || `${item.id} ${item.label}`.toLocaleLowerCase().includes(text);
-      return matchesTop && matchesMiddle && matchesText;
-    });
+    const state = listSearchState['target-class-tab'];
+    const filtered = targets.filter((item) => matchesSearchKeyword(item, state, 'target-class-tab')
+      && matchesPinnedClass(item, state, 'target-class-tab'));
     filteredTargets = filtered;
     const targetResultCount = document.getElementById('target-class-result-count');
-    if (targetResultCount) targetResultCount.textContent = `（${filtered.length.toLocaleString('ja-JP')}件）`;
+    if (targetResultCount) targetResultCount.textContent = `（${groupedResultCount(filtered)}）`;
     classCurrentPages.target = 1;
     renderClassPage('target', filtered);
   };
   const updateOtherLists = () => {
-    const text = textFilter.value.trim().toLocaleLowerCase();
-    const filterByText = (items) => !text ? items : items.filter((item) =>
-      `${item.id} ${item.label}`.toLocaleLowerCase().includes(text));
-    const topId = topFilter.value;
-    filteredTops = filterByText(tops);
-    filteredMiddles = filterByText(middles).filter((item) =>
-      !topId || ancestors(item.id).has(topId));
-    document.getElementById('top-class-result-count').textContent = `（${filteredTops.length.toLocaleString('ja-JP')}件）`;
-    document.getElementById('middle-class-result-count').textContent = `（${filteredMiddles.length.toLocaleString('ja-JP')}件）`;
+    const topState = listSearchState['top-class-tab'];
+    const middleState = listSearchState['middle-class-tab'];
+    filteredTops = tops.filter((item) => matchesSearchKeyword(item, topState, 'top-class-tab')
+      && matchesPinnedClass(item, topState, 'top-class-tab'));
+    filteredMiddles = middles.filter((item) => matchesSearchKeyword(item, middleState, 'middle-class-tab')
+      && matchesPinnedClass(item, middleState, 'middle-class-tab'));
+    document.getElementById('top-class-result-count').textContent = `（${groupedResultCount(filteredTops)}）`;
+    document.getElementById('middle-class-result-count').textContent = `（${groupedResultCount(filteredMiddles)}）`;
     classCurrentPages.top = 1;
     classCurrentPages.middle = 1;
     instanceCurrentPage = 1;
@@ -439,14 +741,37 @@ function renderClassLists(data) {
     renderClassPage('middle', filteredMiddles);
     updateInstances();
   };
+  const showChildrenList = (item, tabId, includeDescendants) => {
+    const group = allClassGroups.find((candidate) => candidate.ids.some((id) => (item.ids || [item.id]).includes(id)));
+    document.getElementById('list-tab')?.click();
+    document.getElementById(tabId)?.click();
+    const state = listSearchState[tabId];
+    state.pinnedClassLevel = (item.ids || [item.id]).find((id) => /\/(t|m|c)_/.test(id))?.match(/\/(t|m|c)_/)?.[1] || '';
+    state.pinnedClassId = group?.id || item.id;
+    state.pinnedIncludeDescendants = includeDescendants;
+    loadListSearchInputs(tabId);
+    updateTargets();
+    updateOtherLists();
+    refreshBrowseListFilterSummary();
+  };
+  const showInstancesForClass = (item) => {
+    const group = allClassGroups.find((candidate) => candidate.ids.some((id) => (item.ids || [item.id]).includes(id)));
+    document.getElementById('list-tab')?.click();
+    document.getElementById('instance-tab')?.click();
+    const state = listSearchState['instance-tab'];
+    state.pinnedClassLevel = (item.ids || [item.id]).find((id) => /\/(t|m|c)_/.test(id))?.match(/\/(t|m|c)_/)?.[1] || '';
+    state.pinnedClassId = group?.id || item.id;
+    state.pinnedIncludeDescendants = true;
+    loadListSearchInputs('instance-tab');
+    updateInstances();
+    refreshBrowseListFilterSummary();
+  };
   const updateInstances = () => {
-    const text = textFilter.value.trim().toLocaleLowerCase();
-    const classId = instanceClassFilter.value;
-    filteredInstances = instances.filter((item) =>
-      (!text || `${item.id} ${item.label}`.toLocaleLowerCase().includes(text))
-      && (!classId || instanceIdsByClassId.get(classId)?.has(item.id)));
+    const state = listSearchState['instance-tab'];
+    filteredInstances = instances.filter((item) => matchesSearchKeyword(item, state, 'instance-tab')
+      && matchesPinnedClass(item, state, 'instance-tab'));
     instanceCurrentPage = 1;
-    document.getElementById('instance-result-count').textContent = `（${filteredInstances.length.toLocaleString('ja-JP')}件）`;
+    document.getElementById('instance-result-count').textContent = `（${groupedResultCount(filteredInstances)}）`;
     if (document.getElementById('instance-tab')?.classList.contains('is-active')) renderInstancePage();
   };
   renderInstanceList = updateInstances;
@@ -461,35 +786,45 @@ function renderClassLists(data) {
         : activeListId === 'instance-tab' ? 'instance-list.tsv'
           : 'class-list.tsv';
     const escapeTsv = (value) => String(value ?? '').replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
-    const isInstanceList = activeListId === 'instance-tab';
-    const isRelatedClassList = activeListId === 'middle-class-tab' || activeListId === 'target-class-tab';
-    const isClassList = ['middle-class-tab', 'target-class-tab', 'top-class-tab'].includes(activeListId);
-    const headers = ['ID', 'ラベル'];
-    if (activeListId === 'target-class-tab') headers.push('階層パス');
-    if (isClassList) headers.push(activeListId === 'target-class-tab' ? 'インスタンス数' : '配下のインスタンス数');
-    if (activeListId === 'top-class-tab') headers.push('対象クラス数');
-    if (isInstanceList) headers.push('所属クラス（階層）');
-    else if (isRelatedClassList) headers.push(activeListId === 'middle-class-tab' ? '親クラス・対象クラス数' : '親クラス');
+    const headers = activeListId === 'top-class-tab'
+      ? ['ID', 'ラベル', '配下の中間クラス数', '配下の対象クラス数', '配下のインスタンス数']
+      : activeListId === 'middle-class-tab'
+        ? ['ID', 'ラベル', '上位クラス', '親クラス', '下位中間クラス数', '配下の対象クラス数', '配下のインスタンス数']
+        : activeListId === 'target-class-tab'
+          ? ['ID', 'ラベル', '上位クラス', '中間クラス', '親クラス', 'インスタンス数']
+          : ['ID', 'ラベル', '上位クラス', '中間クラス', '所属クラス'];
     const lines = [headers.join('\t'), ...items.map((item) => {
-      const base = `${escapeTsv(item.id)}\t${escapeTsv(item.label)}${activeListId === 'target-class-tab'
-        ? `\t${escapeTsv((hierarchyPathsByClassId.get(item.id) || []).join(' ／ '))}` : ''}`;
-      const instanceCount = instanceIdsByClassId.get(item.id)?.size || 0;
-      const classBase = `${base}\t${instanceCount}件`;
+      const memberIds = item.ids || [item.id];
+      const base = `${escapeTsv(memberIds.join(' ／ '))}\t${escapeTsv(item.label)}`;
+      const instanceCount = getUniqueMemberCount(instanceIdsByClassId, item);
+      const parents = [...new Map(memberIds.flatMap((id) => parentClassesById.get(id) || [])
+        .map((parent) => [parent.id, parent])).values()];
+      const parentLabels = groupItemsByLabel(parents).map((parent) => parent.label || '(ラベルなし)').join(' ／ ') || '親なし';
+      const topLabels = groupItemsByLabel([...new Map(memberIds.flatMap((id) => topClassesById.get(id) || [])
+        .map((topClass) => [topClass.id, topClass])).values()])
+        .map((topClass) => topClass.label || '(ラベルなし)').join(' ／ ') || '上位クラスなし';
+      const middleLabels = groupItemsByLabel([...new Map(memberIds.flatMap((id) => middleClassesById.get(id) || [])
+        .map((middleClass) => [middleClass.id, middleClass])).values()])
+        .map((middleClass) => middleClass.label || '(ラベルなし)').join(' ／ ') || '中間クラスなし';
+      const childMiddleCount = new Set(memberIds.flatMap((id) => (childMiddleClassesById.get(id) || []).map((middleClass) => middleClass.id))).size;
       if (activeListId === 'top-class-tab') {
-        return `${classBase}\t${relatedTops.get(item.id)?.children.length || 0}件`;
+        return `${base}\t${getUniqueMemberCount(middleIdsByClassId, item)}件\t${getUniqueMemberCount(targetIdsByClassId, item)}件\t${instanceCount}件`;
       }
-      if (isRelatedClassList) {
-        const relatedMap = activeListId === 'middle-class-tab' ? relatedMiddles : relatedTargets;
-        const relationship = relatedMap.get(item.id) || [];
-        const relatedClasses = activeListId === 'middle-class-tab'
-          ? `${relationship.parents.map((classInfo) => classInfo.label || classInfo.id).join(' / ')}${relationship.parents.length ? ' / ' : ''}対象クラス ${relationship.children.length}件`
-          : relationship.map((classInfo) => classInfo.label || classInfo.id).join(' / ');
-        return `${classBase}\t${escapeTsv(relatedClasses)}`;
+      if (activeListId === 'middle-class-tab') {
+        return `${base}\t${escapeTsv(topLabels)}\t${escapeTsv(parentLabels)}\t${childMiddleCount}件\t${getUniqueMemberCount(targetIdsByClassId, item)}件\t${instanceCount}件`;
       }
-      if (!isInstanceList) return classBase;
-      const relatedClasses = [...(classesByInstanceId.get(item.id)?.values() || [])]
-        .map((classInfo) => hierarchyPathsByClassId.get(classInfo.id)?.join(' ／ ') || classInfo.label || classInfo.id).join(' / ');
-      return `${base}\t${escapeTsv(relatedClasses)}`;
+      if (activeListId === 'target-class-tab') return `${base}\t${escapeTsv(topLabels)}\t${escapeTsv(middleLabels)}\t${escapeTsv(parentLabels)}\t${instanceCount}件`;
+      const instanceClasses = [...new Map(memberIds
+        .flatMap((id) => [...(classesByInstanceId.get(id)?.values() || [])])
+        .map((classInfo) => [classInfo.id, classInfo])).values()];
+      const relatedClasses = groupItemsByLabel(instanceClasses)
+        .map((classGroup) => classGroup.label || '(ラベルなし)').join(' ／ ') || '分類なし';
+      const hierarchyLabels = (level) => groupItemsByLabel([...new Map(instanceClasses.flatMap((classInfo) =>
+        [...new Set([classInfo.id, ...ancestors(classInfo.id)])]
+          .filter((id) => id.includes(level === 'top' ? '/t_' : '/m_'))
+          .map((id) => classById.get(id)).filter(Boolean).map((relatedClass) => [relatedClass.id, relatedClass]))).values()])
+        .map((classGroup) => classGroup.label || '(ラベルなし)').join(' ／ ') || `${level === 'top' ? '上位' : '中間'}クラスなし`;
+      return `${base}\t${escapeTsv(hierarchyLabels('top'))}\t${escapeTsv(hierarchyLabels('middle'))}\t${escapeTsv(relatedClasses)}`;
     })];
     const blob = new Blob([`\ufeff${lines.join('\r\n')}\r\n`], { type: 'text/tab-separated-values;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -499,29 +834,83 @@ function renderClassLists(data) {
     link.click();
     URL.revokeObjectURL(url);
   };
-  topFilter.oninput = () => {
+  searchElementFilter.onchange = () => {
+    const state = listSearchState[activeListTabId()];
+    state.searchElement = searchElementFilter.value;
+    const elementLabel = (hierarchyLevelsByTab[activeListTabId()].find(([level]) => level === state.searchElement) || ['', '要素'])[1];
+    textFilter.placeholder = `${elementLabel}の名前・IDで部分一致検索`;
     updateTargets();
     updateOtherLists();
-    refreshBrowseListFilterSummary?.();
-  };
-  middleFilter.oninput = () => {
-    updateTargets();
-    refreshBrowseListFilterSummary?.();
-  };
-  instanceClassFilter.oninput = () => {
-    updateInstances();
     refreshBrowseListFilterSummary?.();
   };
   textFilter.oninput = () => {
+    listSearchState[activeListTabId()].keyword = textFilter.value;
     updateTargets();
     updateOtherLists();
     refreshBrowseListFilterSummary?.();
   };
-  sortSelect.onchange = () => {
+  document.querySelectorAll('.list-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      saveActiveListSearchInputs();
+      loadListSearchInputs(tab.id);
+      updateTargets();
+      updateOtherLists();
+      refreshBrowseListFilterSummary?.();
+    });
+  });
+  const rerenderForActiveSort = () => {
+    updateListSortIndicators();
+    const activeTab = activeListTabId();
+    if (activeTab === 'target-class-tab') updateTargets();
+    else if (activeTab === 'instance-tab') updateInstances();
+    else updateOtherLists();
+  };
+  document.querySelectorAll('[data-list-sort-key]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const activeTab = activeListTabId();
+      const descending = `${button.dataset.listSortKey}-desc`;
+      const ascending = `${button.dataset.listSortKey}-asc`;
+      if (listSortIsDefaultByTab[activeTab] || !listSortByTab[activeTab].startsWith(`${button.dataset.listSortKey}-`)) {
+        listSortByTab[activeTab] = descending;
+        listSortIsDefaultByTab[activeTab] = false;
+      } else if (listSortByTab[activeTab] === descending) {
+        listSortByTab[activeTab] = ascending;
+      } else {
+        listSortByTab[activeTab] = defaultListSortByTab[activeTab];
+        listSortIsDefaultByTab[activeTab] = true;
+        if (activeTab === 'instance-tab') instanceHeaderCycleStarted = false;
+      }
+      rerenderForActiveSort();
+    });
+  });
+  document.querySelector('[data-list-sort-cycle="instance"]')?.addEventListener('click', () => {
+    const instanceSort = listSortByTab['instance-tab'];
+    const currentMode = instanceSort.startsWith('id-count-') ? 'count'
+      : instanceSort.startsWith('id-') ? 'id' : 'label';
+    if (!instanceHeaderCycleStarted) {
+      listSortByTab['instance-tab'] = 'id-count-desc';
+      listSortIsDefaultByTab['instance-tab'] = false;
+      instanceHeaderCycleStarted = true;
+    } else if (currentMode === 'count') {
+      listSortByTab['instance-tab'] = 'label-asc';
+    } else if (currentMode === 'label') {
+      listSortByTab['instance-tab'] = 'id-asc';
+    } else {
+      listSortByTab['instance-tab'] = defaultListSortByTab['instance-tab'];
+      listSortIsDefaultByTab['instance-tab'] = true;
+      instanceHeaderCycleStarted = false;
+    }
+    rerenderForActiveSort();
+  });
+  pageSizeSelect.onchange = () => {
+    pageSize = pageSizeSelect.value === 'all' ? Number.MAX_SAFE_INTEGER : Number(pageSizeSelect.value) || 100;
+    instanceCurrentPage = 1;
+    Object.keys(classCurrentPages).forEach((kind) => { classCurrentPages[kind] = 1; });
     updateTargets();
     updateOtherLists();
   };
   renderTargetClassList = updateTargets;
+  loadListSearchInputs(activeListTabId());
   if (document.getElementById('target-class-panel')?.hidden === false) updateTargets();
   updateOtherLists();
   document.getElementById('instance-page-prev').onclick = () => {
@@ -530,7 +919,7 @@ function renderClassLists(data) {
     renderInstancePage();
   };
   document.getElementById('instance-page-next').onclick = () => {
-    if (instanceCurrentPage * instancePageSize >= filteredInstances.length) return;
+    if (instanceCurrentPage * pageSize >= filteredInstances.length) return;
     instanceCurrentPage += 1;
     renderInstancePage();
   };
@@ -542,16 +931,19 @@ function renderClassLists(data) {
       renderClassPage(kind, classPageItems[kind]());
     };
     document.getElementById(`${prefix}-page-next`).onclick = () => {
-      if (classCurrentPages[kind] * classPageSize >= classPageItems[kind]().length) return;
+      if (classCurrentPages[kind] * pageSize >= classPageItems[kind]().length) return;
       classCurrentPages[kind] += 1;
       renderClassPage(kind, classPageItems[kind]());
     };
   });
   document.getElementById('clear-list-filters').onclick = () => {
-    topFilter.value = '';
-    middleFilter.value = '';
-    instanceClassFilter.value = '';
-    textFilter.value = '';
+    Object.values(listSearchState).forEach((state) => {
+      state.keyword = '';
+      state.pinnedClassId = '';
+      state.pinnedClassLevel = '';
+      state.pinnedIncludeDescendants = false;
+    });
+    loadListSearchInputs(activeListTabId());
     updateTargets();
     updateOtherLists();
     refreshBrowseListFilterSummary?.();

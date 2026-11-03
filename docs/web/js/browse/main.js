@@ -121,15 +121,6 @@ document.querySelectorAll('.list-tab').forEach((tab) => {
     document.querySelectorAll('.list-subpanel').forEach((panel) => {
       panel.hidden = panel.id !== tab.getAttribute('aria-controls');
     });
-    document.querySelectorAll('.top-class-list-filter').forEach((filter) => {
-      filter.hidden = !['target-class-tab', 'middle-class-tab'].includes(tab.id);
-    });
-    document.querySelectorAll('.middle-class-list-filter').forEach((filter) => {
-      filter.hidden = tab.id !== 'target-class-tab';
-    });
-    document.querySelectorAll('.instance-class-list-filter').forEach((filter) => {
-      filter.hidden = tab.id !== 'instance-tab';
-    });
     refreshListSortOptions?.();
     refreshBrowseListFilterSummary?.();
     if (tab.id === 'target-class-tab') renderTargetClassList?.();
@@ -161,6 +152,19 @@ function setTreeFilterMethod(method) {
 }
 document.querySelectorAll('[data-tree-filter-method]').forEach((button) => {
   button.addEventListener('click', () => setTreeFilterMethod(button.dataset.treeFilterMethod));
+});
+document.getElementById('clear-tree-filters')?.addEventListener('click', () => {
+  document.getElementById('tree-filter-query').value = '';
+  document.getElementById('tree-filter-type').value = 'class';
+  document.getElementById('tree-filter-count-mode').value = 'range';
+  document.getElementById('tree-filter-count-range').hidden = false;
+  document.getElementById('tree-filter-count-exact').hidden = true;
+  document.getElementById('tree-filter-count-min').value = '0';
+  document.getElementById('tree-filter-count-max').value = String(Math.max(0, treeExactCountValues.length - 1));
+  treeCountFilterEnabled = false;
+  treeCountRangeTouched = false;
+  treeExactSelectedCount = null;
+  setTreeFilterMethod('keyword');
 });
 document.querySelector('.tree-filter')?.addEventListener('toggle', renderTree);
 const browseTreeFilter = document.querySelector('#tree-panel .tree-filter');
