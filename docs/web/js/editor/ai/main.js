@@ -4,7 +4,7 @@ import { createClassIdCodec } from './id-codec.js?v=20261103-ai-module-system-st
 import { sendOpenAIRequest } from './api-client.js?v=20261103-ai-module-system-step6-v1';
 import { createRequestPlanner } from './request-planner.js?v=20261103-ai-module-system-step6-v1';
 import { createResponseHandler } from './response-handler.js?v=20261103-ai-module-system-step6-v1';
-import { createConversationStore } from './conversation-store.js?v=20261103-ai-module-system-step6-v1';
+import { createConversationStore } from './conversation-store.js?v=20261103-ai-review-fixes-v1';
 import { createConversationView } from './conversation-view.js?v=20261103-ai-module-system-step6-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261103-ai-preview-operation-category-fix-v2';
 
@@ -228,7 +228,8 @@ import { createProposalPreview } from './proposal-preview.js?v=20261103-ai-previ
     savedConversationsKey,
     boundSplitChunkCache,
     MAX_CACHED_SPLIT_SUMMARY_CHARACTERS,
-    MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS
+    MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS,
+    logProblem: logAiProblem
   });
   conversations.push(...conversationStore.restoreSavedConversations());
   const persistSavedConversations = () => conversationStore.persistSavedConversations();
@@ -503,9 +504,13 @@ let proposalPreview = null;
         details.className = 'ai-scope-summary';
         const summary = document.createElement('summary');
         const selectedCount = item.classes.filter((entry) => entry.shareType === '選択中').length;
-        const sharedCount = item.classes.length - selectedCount;
-        summary.textContent = `送信時のクラス情報（選択中 ${selectedCount}件・参照情報 ${sharedCount}件）`;
+        const referenceCount = item.classes.length - selectedCount;
+        summary.textContent = `依頼対象範囲（選択中 ${selectedCount}件・選択外の参照 ${referenceCount}件）`;
         details.append(summary);
+        const note = document.createElement('p');
+        note.className = 'ai-scope-summary-note';
+        note.textContent = '対象範囲の一覧です。実際の送信本文、差分・要約の再利用、分割ごとの内容は表示していません。';
+        details.append(note);
         const list = document.createElement('ul');
         item.classes.forEach((entry) => {
           const row = document.createElement('li');
@@ -1584,16 +1589,19 @@ let proposalPreview = null;
             .filter(Boolean).join('\n');
         } else {
           const allStructureClasses = compactScope(scope).classes;
-          const structureById = new Map(allStructureClasses.map((entry) => [entry[0], entry]));
-          const synthesisStructureIds = new Set(allStructureClasses
-            .filter((entry) => entry[1] === 'top' || entry[1] === 'middle')
-            .map((entry) => entry[0]));
+          // compactScope preserves classes order; keep original IDs for operation lookup
+          // because chunk responses have already been expanded from aliases at this point.
+          const compactStructureById = new Map(scope.classes.map((item, index) => [item.id, allStructureClasses[index]]));
+          const structureById = new Map(scope.classes.map((item) => [item.id, item]));
+          const synthesisStructureIds = new Set(scope.classes
+            .filter((item) => item.type === 'top' || item.type === 'middle')
+            .map((item) => item.id));
           chunkResults.forEach((part) => (part?.proposals || []).forEach((proposal) => (proposal.operations || []).forEach((operation) => {
             ['classId', 'destinationId', 'from', 'to', 'parentId'].forEach((key) => {
               if (structureById.has(operation[key])) synthesisStructureIds.add(operation[key]);
             });
           })));
-          const structureParentById = new Map(allStructureClasses.map((entry) => [entry[0], entry[3]]));
+          const structureParentById = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
           [...synthesisStructureIds].forEach((id) => {
             let parentId = structureParentById.get(id);
             const seen = new Set();
@@ -1603,7 +1611,10 @@ let proposalPreview = null;
               parentId = structureParentById.get(parentId);
             }
           });
-          const synthesisStructure = allStructureClasses.filter((entry) => synthesisStructureIds.has(entry[0]));
+          const synthesisStructure = scope.classes
+            .filter((item) => synthesisStructureIds.has(item.id))
+            .map((item) => compactStructureById.get(item.id))
+            .filter(Boolean);
           const buildSynthesisInput = (maxTextLength, maxProposalsPerChunk, maxOperationsPerProposal, includeStructure) => shortenInputIds(JSON.stringify({
             request: userText,
             conversationContext: conversation.localContext || undefined,
@@ -1643,18 +1654,8 @@ let proposalPreview = null;
             if (maxTextLength > 100) maxTextLength = Math.floor(maxTextLength * 0.6);
             else if (maxProposalsPerChunk > 1) maxProposalsPerChunk = Math.max(1, Math.floor(maxProposalsPerChunk / 2));
             else if (maxOperationsPerProposal > 5) maxOperationsPerProposal = Math.max(5, Math.floor(maxOperationsPerProposal / 2));
-            else if (includeStructure) includeStructure = false;
             else break;
             synthesisInput = buildSynthesisInput(maxTextLength, maxProposalsPerChunk, maxOperationsPerProposal, includeStructure);
-          }
-          if (!includeStructure) {
-            splitWarnings.add('クラス構造が統合依頼の入力上限に収まらず、全体構造との照合はできませんでした。');
-            logAiProblem('分割結果の統合でクラス構造を省略', new Error('統合入力が上限を超えたため、操作対象と親子関係の構造を含めずに統合しました。'), 'warn', {
-              taskCount: splitTasks.length,
-              retainedStructureClassCount: synthesisStructure.length,
-              synthesisInputCharacters: synthesisInput.length,
-              maximumCharacters: MAX_REQUEST_CHARACTERS
-            });
           }
           if (synthesisInput.length <= MAX_REQUEST_CHARACTERS) {
             setThinkingStatus(conversation, '結果をまとめています');
@@ -1725,7 +1726,15 @@ let proposalPreview = null;
                 .filter(Boolean).join('\n');
             }
           } else {
-            result.message = [result.message, '統合用の入力が上限を超えたため、以下は分割ごとの回答です。']
+            const chunkProposalCount = chunkResults.reduce((sum, part) => sum + (part?.proposals?.length || 0), 0);
+            logAiProblem('分割結果を構造情報付きで統合できません', new Error('クラス構造を保持した統合入力が上限を超えました。構造を省いて統合することはせず、分割別の結果を保持します。'), 'warn', {
+              taskCount: splitTasks.length,
+              classStructureCount: synthesisStructure.length,
+              chunkProposalCount,
+              synthesisInputCharacters: synthesisInput.length,
+              maximumCharacters: MAX_REQUEST_CHARACTERS
+            });
+            result.message = [result.message, '全体統合は構造情報を保ったままでは送信上限に収まらなかったため行わず、各分割範囲で検証した結果を個別に表示します。']
               .filter(Boolean).join('\n');
           }
         }

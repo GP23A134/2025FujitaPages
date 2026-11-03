@@ -1,7 +1,7 @@
 // 会話表示用の履歴をブラウザーの保存領域へ保存・復元します。
 // APIキーや送信時だけ必要な一時状態は、このストアへ渡しません。
 export const createConversationStore = ({ conversations, savedConversationsKey, boundSplitChunkCache,
-    MAX_CACHED_SPLIT_SUMMARY_CHARACTERS, MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS }) => {
+    MAX_CACHED_SPLIT_SUMMARY_CHARACTERS, MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS, logProblem = () => {} }) => {
   const archiveDataRequest = (item) => {
     const requested = [
       ...(item.requests || []).map(({ item: requestedClass }) => requestedClass?.label || requestedClass?.id),
@@ -57,7 +57,10 @@ export const createConversationStore = ({ conversations, savedConversationsKey, 
           saved: true,
           restoredFromStorage: true
         }));
-    } catch { return []; }
+    } catch (error) {
+      logProblem('会話履歴の復元', error);
+      return [];
+    }
   };
   const persistSavedConversations = () => {
     const saved = conversations.filter((conversation) => conversation.saved).map((conversation) => ({
@@ -78,7 +81,8 @@ export const createConversationStore = ({ conversations, savedConversationsKey, 
     try {
       localStorage.setItem(savedConversationsKey, JSON.stringify(saved));
       return true;
-    } catch {
+    } catch (error) {
+      logProblem('会話履歴の保存', error);
       return { message: '相談を保存できませんでした。ブラウザーの保存容量を確認してください。' };
     }
   };
