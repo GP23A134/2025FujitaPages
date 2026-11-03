@@ -108,6 +108,13 @@ function renderInstances() {
   const kindLabel = document.getElementById('held-kind-label');
   const selectionKind = activeSelectionKind();
   document.body.classList.toggle('is-ai-chat-open', !heldPanelClosed && heldPanelView === 'chat');
+  const aiChatOpen = !heldPanelClosed && heldPanelView === 'chat';
+  document.querySelectorAll('#edit-tree .tree-add-row').forEach((button) => {
+    button.disabled = aiChatOpen;
+  });
+  document.querySelectorAll('#edit-tree .tree-add-button.move-held-button, #edit-tree .tree-class-edit-button:not(.select-descendants-button)').forEach((button) => {
+    button.disabled = aiChatOpen;
+  });
   const heldListView = document.getElementById('held-list-view');
   const destinationPicker = document.getElementById('held-destination-picker');
   const aiAssistantPanel = document.getElementById('ai-assistant-panel');

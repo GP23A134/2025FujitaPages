@@ -352,17 +352,25 @@ function renderTree() {
       selectDescendants.type = 'button';
       selectDescendants.className = 'select-descendants-button tree-class-edit-button';
       selectDescendants.textContent = '配下を選択';
-      selectDescendants.setAttribute('aria-label', `${item.label}の配下だけを選択に追加`);
-      selectDescendants.title = '配下だけを追加選択';
+      selectDescendants.setAttribute('aria-label', `${item.label}の配下を選択・解除`);
+      selectDescendants.title = '配下を選択。すべて選択済みの場合は解除';
       selectDescendants.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        descendantIds(item.id).forEach((id) => {
-          const descendant = classById.get(id);
-          if (!descendant) return;
+        const descendants = [...descendantIds(item.id)]
+          .map((id) => classById.get(id))
+          .filter(Boolean);
+        const isSelected = (descendant) => {
           const kind = classKind(descendant);
           const selection = kind === 'class' ? heldInstances : kind === 'middle' ? heldMiddleClasses : heldTopClasses;
-          selection.set(id, descendant);
+          return selection.has(descendant.id);
+        };
+        const clearSelection = descendants.length > 0 && descendants.every(isSelected);
+        descendants.forEach((descendant) => {
+          const kind = classKind(descendant);
+          const selection = kind === 'class' ? heldInstances : kind === 'middle' ? heldMiddleClasses : heldTopClasses;
+          if (clearSelection) selection.delete(descendant.id);
+          else selection.set(descendant.id, descendant);
         });
         syncTreeSelectionAppearance();
         syncTargetButtonAvailability();
