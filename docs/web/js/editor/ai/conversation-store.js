@@ -1,0 +1,62 @@
+// 会話表示用の履歴をブラウザーの保存領域へ保存・復元します。
+// APIキーや送信時だけ必要な一時状態は、このストアへ渡しません。
+export const createConversationStore = ({ conversations, savedConversationsKey, boundSplitChunkCache,
+    MAX_CACHED_SPLIT_SUMMARY_CHARACTERS, MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS }) => {
+  const archiveDataRequest = (item) => {
+    const requested = [
+      ...(item.requests || []).map(({ item: requestedClass }) => requestedClass?.label || requestedClass?.id),
+      ...(item.candidateGroups || []).flatMap((group) => (group.candidates || []).map(({ item: candidate }) => candidate?.label || candidate?.id))
+    ].filter(Boolean);
+    return {
+      type: 'message', role: 'assistant',
+      text: `前回の相談では追加クラス情報を要求しました${requested.length ? `（${[...new Set(requested)].join('、')}）` : ''}。履歴から再開したため、この要求は再実行されていません。`
+    };
+  };
+  const restoreSavedConversations = () => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(savedConversationsKey) || '[]');
+      if (!Array.isArray(stored)) return [];
+      return stored.filter((item) => item && typeof item.id === 'string' && Array.isArray(item.items))
+        .map((item) => ({
+          id: item.id,
+          title: typeof item.title === 'string' ? item.title : '保存した相談',
+          titleIsCustom: Boolean(item.titleIsCustom),
+          updatedAt: Number.isFinite(item.updatedAt) ? item.updatedAt : Date.now(),
+          selectedIds: Array.isArray(item.selectedIds) ? item.selectedIds.filter((id) => typeof id === 'string') : [],
+          responseId: '', initialSnapshotSent: false, previousScope: null, localContext: '',
+          splitMemory: item.splitMemory && typeof item.splitMemory === 'object'
+            && typeof item.splitMemory.baseDataHash === 'string'
+            && typeof item.splitMemory.summaryText === 'string'
+            ? {
+              baseDataHash: item.splitMemory.baseDataHash,
+              selectedIds: Array.isArray(item.splitMemory.selectedIds) ? item.splitMemory.selectedIds.filter((id) => typeof id === 'string') : [],
+              sharedContextIds: Array.isArray(item.splitMemory.sharedContextIds) ? item.splitMemory.sharedContextIds.filter((id) => typeof id === 'string') : [],
+              mode: typeof item.splitMemory.mode === 'string' ? item.splitMemory.mode : 'selected_scope',
+              model: typeof item.splitMemory.model === 'string' ? item.splitMemory.model : '',
+              chunkCache: Array.isArray(item.splitMemory.chunkCache) ? item.splitMemory.chunkCache
+                .filter((entry) => entry && typeof entry.key === 'string' && entry.result && typeof entry.result === 'object')
+                .map((entry) => ({ key: entry.key, result: entry.result }))
+                .reduce((bounded, entry) => boundSplitChunkCache([...bounded, entry]), []) : [],
+              summaryText: item.splitMemory.summaryText.slice(0, MAX_CACHED_SPLIT_SUMMARY_CHARACTERS),
+              followupContext: typeof item.splitMemory.followupContext === 'string'
+                ? item.splitMemory.followupContext.slice(-MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS) : ''
+            } : null,
+          items: item.items.flatMap((entry) => {
+            if (!entry || typeof entry !== 'object') return [];
+            if (entry.type === 'data-requests') return [archiveDataRequest(entry)];
+            if (entry.type === 'proposal') return [{ ...entry, status: 'invalid' }];
+            if (entry.type === 'questions') return [{ ...entry, submitting: false }];
+            if (entry.type === 'message' && ['user', 'assistant'].includes(entry.role)) return [entry];
+            if (entry.type === 'work-duration' && Number.isFinite(entry.seconds)) return [entry];
+            if (entry.type === 'scope-summary' && Array.isArray(entry.classes)) return [entry];
+            return [];
+          }),
+          status: '',
+          usage: { requests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, costKnown: true },
+          saved: true,
+          restoredFromStorage: true
+        }));
+    } catch { return []; }
+  };
+    return { restoreSavedConversations, persistSavedConversations };
+};
