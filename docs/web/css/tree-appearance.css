@@ -279,12 +279,12 @@
 #toggle-tree-edit-mode[aria-pressed="true"] { border-color: #2563eb; color: #1d4ed8; background: #eff6ff; }
 .tree-class-edit-actions { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 0.25rem; margin-left: 0.35rem; }
 .tree-class-edit-button { flex: 0 0 auto; padding: 0.15rem 0.4rem; font-size: 0.68rem; line-height: 1.25; }
-.rename-class-button { border: 1px solid #2563eb; border-radius: 999px; padding: 0.35rem 0.7rem; color: #1d4ed8; background: #eff6ff; cursor: pointer; font: inherit; font-weight: 700; }
+.rename-class-button { border: 1px solid #2563eb; border-radius: 999px; padding: 0.15rem 0.4rem; color: #1d4ed8; background: #eff6ff; cursor: pointer; font: inherit; font-size: 0.68rem; font-weight: 700; line-height: 1.25; }
 .rename-class-button:hover { color: #fff; background: #2563eb; }
-.delete-class-button { border: 1px solid #dc2626; border-radius: 999px; padding: 0.35rem 0.7rem; color: #b91c1c; background: #fff; cursor: pointer; font: inherit; font-weight: 700; }
+.delete-class-button { border: 1px solid #dc2626; border-radius: 999px; padding: 0.15rem 0.4rem; color: #b91c1c; background: #fff; cursor: pointer; font: inherit; font-size: 0.68rem; font-weight: 700; line-height: 1.25; }
 .delete-class-button:hover:not(:disabled) { color: #fff; background: #dc2626; }
 .delete-class-button:disabled { opacity: 0.45; cursor: not-allowed; }
-.select-descendants-button { flex: 0 0 auto; padding: 0.15rem 0.45rem; border: 1px solid #0f6a9d; border-radius: 999px; color: #0f6a9d; background: #effaff; cursor: pointer; font: inherit; font-size: 0.68rem; line-height: 1.25; }
+.select-descendants-button { flex: 0 0 auto; padding: 0.15rem 0.4rem; border: 1px solid #0f6a9d; border-radius: 999px; color: #0f6a9d; background: #effaff; cursor: pointer; font: inherit; font-size: 0.68rem; font-weight: 700; line-height: 1.25; }
 .select-descendants-button:hover { color: #fff; background: #0f6a9d; }
 #edit-tree-panel .tree .tree-add-button {
   box-sizing: border-box;
