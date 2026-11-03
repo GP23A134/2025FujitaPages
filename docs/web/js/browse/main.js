@@ -68,10 +68,6 @@ function refresh(data) {
   renderAggregation(data);
 }
 
-document.getElementById('aggregation-top-filter')?.addEventListener('change', () => {
-  if (window.appData) renderAggregation(window.appData);
-});
-
 function applySearch() {
   if (!searchInput) return;
   const query = searchInput.value.trim().toLocaleLowerCase();
