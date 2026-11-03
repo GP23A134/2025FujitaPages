@@ -21,6 +21,13 @@ export const createProposalPreview = ({
   let previewPlan = null;
   let previewPageIndex = 0;
   let previewGroups = [];
+  const operationCategory = (operation) => {
+    if (operation?.type === 'addClass') return { label: '追加', className: 'is-add' };
+    if (operation?.type === 'renameClass') return { label: '改名', className: 'is-rename' };
+    if (operation?.type === 'moveClass' || operation?.type === 'moveChildren') return { label: '移動', className: 'is-move' };
+    if (operation?.type === 'deleteClass') return { label: '削除', className: 'is-delete' };
+    return { label: 'その他', className: 'is-other' };
+  };
   const countHierarchyTargets = (state) => {
     const classesById = new Map(state.classes.map((item) => [item.id, item]));
     const children = new Map();
