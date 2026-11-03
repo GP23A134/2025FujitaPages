@@ -544,7 +544,25 @@ function renderTreeFilterKeywords() {
   const query = treeFilterQueryInput?.value.trim() || '';
   const terms = [...treeFilterKeywords, ...(query ? [query] : [])];
   const kind = document.getElementById('tree-filter-type')?.value === 'instance' ? 'instance' : 'class';
-  container.hidden = terms.length === 0;
+  const countMode = document.getElementById('tree-filter-count-mode')?.value || 'range';
+  const countActive = treeCountFilterEnabled && (countMode === 'exact'
+    ? treeExactSelectedCount !== null
+    : treeCountRangeTouched);
+  const countChipLabel = countActive
+    ? countMode === 'exact'
+      ? `インスタンス件数：${treeExactSelectedCount}件`
+      : (() => {
+        const minInput = document.getElementById('tree-filter-count-min');
+        const maxInput = document.getElementById('tree-filter-count-max');
+        const minIndex = Math.min(Number(minInput.value), Number(maxInput.value));
+        const maxIndex = Math.max(Number(minInput.value), Number(maxInput.value));
+        return `インスタンス件数：${treeExactCountValues[minIndex] ?? 0}〜${treeExactCountValues[maxIndex] ?? treeExactCountValues.at(-1)}件`;
+      })()
+    : '';
+  const hasConditions = terms.length > 0 || countActive;
+  container.hidden = !hasConditions;
+  const status = container.closest('.tree-filter-status');
+  if (status) status.hidden = !hasConditions;
   const chips = terms.map((term, index) => {
     const chip = document.createElement('button');
     chip.type = 'button';
@@ -560,7 +578,25 @@ function renderTreeFilterKeywords() {
     });
     return chip;
   });
-  container.replaceChildren(...(terms.length ? [document.createTextNode('絞り込み中：'), ...chips] : []));
+  const children = hasConditions ? [document.createTextNode('絞り込み中：'), ...chips] : [];
+  if (countActive) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'tree-filter-active-chip tree-filter-active-chip-count';
+    chip.textContent = `${countChipLabel} ×`;
+    chip.setAttribute('aria-label', 'インスタンス件数の条件を解除');
+    chip.addEventListener('click', () => {
+      treeCountFilterEnabled = false;
+      treeCountRangeTouched = false;
+      treeExactSelectedCount = null;
+      document.getElementById('tree-filter-count-mode').value = 'range';
+      document.getElementById('tree-filter-count-range').hidden = false;
+      document.getElementById('tree-filter-count-exact').hidden = true;
+      renderTree();
+    });
+    children.push(chip);
+  }
+  container.replaceChildren(...children);
 }
 const treeFilterQueryInput = document.getElementById('tree-filter-query');
 treeFilterQueryInput.addEventListener('keydown', (event) => {

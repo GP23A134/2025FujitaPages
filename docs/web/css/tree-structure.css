@@ -76,6 +76,7 @@
 .tree-filter-body { display: flex; flex-wrap: wrap; align-items: end; gap: 0.7rem; padding: 0.75rem 0.85rem; }
 .tree-filter-status { display: flex; flex: 1 0 100%; align-items: center; justify-content: space-between; gap: 0.75rem; color: #475569; font-size: 0.85rem; }
 .tree-filter-status #tree-filter-active-summary { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+#tree-filter-keyword-chips { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
 #tree-filter-keyword-chips[hidden] { display: none; }
 .tree-filter-active-chip { display: inline-flex; max-width: 100%; align-items: center; padding: 0.1rem 0.55rem; border: 1px solid #93c5fd; border-radius: 999px; color: #1e40af; background: #eff6ff; cursor: pointer; font: inherit; overflow-wrap: anywhere; }
 .tree-filter-active-chip:hover, .tree-filter-active-chip:focus-visible { filter: brightness(0.96); outline: 2px solid rgba(59, 130, 246, 0.25); outline-offset: 1px; }

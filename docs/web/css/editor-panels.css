@@ -62,6 +62,7 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selectio
 body[data-mode="edit"] .edit-taskbar { margin-bottom: 0; }
 body[data-mode="edit"] main { padding-top: 0; }
 body[data-mode="edit"] #edit-tree-panel .tree-filter { margin-top: 0; }
+body[data-mode="edit"] #tree-filter-keyword-chips { flex: 1 0 100%; font-size: 0.85rem; }
 body[data-mode="edit"] #edit-tree-panel .edit-tree-pane > .tree-filter {
   width: calc(100% + var(--page-side-gutter));
   margin-left: calc(0px - var(--page-side-gutter));
