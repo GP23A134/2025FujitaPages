@@ -134,8 +134,11 @@ function renderTree() {
   const countFilterActive = treeCountFilterEnabled && (countMode === 'exact'
     ? exactCount !== null
     : treeCountRangeTouched);
-  const activeQuery = [...treeFilterKeywords, ...filterQuery.trim().split(/\s+/).filter(Boolean)];
+  const activeQuery = [...treeFilterKeywords, ...(filterQuery.trim() ? [filterQuery.trim()] : [])];
   const filterActive = activeQuery.length > 0 || countFilterActive;
+  const clearFiltersButton = document.getElementById('clear-tree-filters');
+  if (clearFiltersButton) clearFiltersButton.disabled = !filterActive;
+  renderTreeFilterKeywords();
   const preserveHierarchy = filterActive;
   const effectiveSearchType = activeQuery.length ? filterType : 'class';
   const { targets: matchedTargets } = findTargetClasses(effectiveSearchType, activeQuery);

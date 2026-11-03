@@ -7,19 +7,19 @@
   <link rel="icon" type="image/svg+xml" href="web/favicon.svg">
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
-  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261103-css-reorg-v1">
+  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261103-removable-filter-chips-v1">
   <link rel="stylesheet" href="web/css/editor-panels.css?v=20261103-css-reorg-v1">
-  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261103-css-reorg-v1">
+  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261103-browse-target-gap-compact-v2">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-aggregation-dashboard-v9">
   <script src="web/data/generated/class-data.js" defer></script>
   <script src="web/data/generated/instance-data.js" defer></script>
   <!-- defer付きクラシックスクリプトをこの順で実行する。各画面ファイルは共有グローバル状態を使う。 -->
-  <script src="web/js/shared/tree.js?v=20261028-tree-gap-v1" defer></script>
-  <script src="web/js/browse/bootstrap.js?v=20261028-scroll-perf-v1" defer></script>
+  <script src="web/js/shared/tree.js?v=20261103-middle-sticky-gap-zero-v1" defer></script>
+  <script src="web/js/browse/bootstrap.js?v=20261103-browse-target-toggle-v1" defer></script>
   <script src="web/js/browse/lists.js?v=20261028-tree-gap-v1" defer></script>
   <script src="web/js/browse/aggregation.js?v=20261103-numeric-dashboard-v10" defer></script>
-  <script src="web/js/browse/tree.js?v=20261028-tree-gap-v1" defer></script>
-  <script src="web/js/browse/main.js?v=20261028-tree-gap-v1" defer></script>
+  <script src="web/js/browse/tree.js?v=20261103-keyword-enter-chips-v1" defer></script>
+  <script src="web/js/browse/main.js?v=20261103-keyword-enter-chips-v1" defer></script>
 </head>
 <body data-mode="browse">
   <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>
@@ -139,6 +139,7 @@
         <div class="tree-toolbar" role="toolbar" aria-label="ツリー表示操作">
           <button type="button" class="tree-toolbar-button" data-close-all-tree>すべて閉じる</button>
           <button type="button" id="toggle-browse-ids" class="tree-toolbar-button" aria-pressed="false">クラスID表示: OFF</button>
+          <button type="button" id="toggle-browse-targets" class="tree-toolbar-button" aria-pressed="true">対象クラス表示: ON</button>
           <button type="button" id="toggle-browse-tree-filter-open" class="tree-toolbar-button" hidden>検索欄を表示</button>
         </div>
       </div>
@@ -151,7 +152,7 @@
             </div>
             <div class="tree-filter-search-controls">
               <label for="tree-filter-type">検索対象
-                <select id="tree-filter-type">
+                <select id="tree-filter-type" aria-label="検索対象">
                   <option value="class">クラス</option>
                   <option value="instance">インスタンス</option>
                 </select>
@@ -180,10 +181,10 @@
                 <span class="tree-filter-exact-slider-row"><span id="tree-filter-count-exact-min">0件</span><span class="tree-filter-exact-slider-wrap"><input id="tree-filter-count-exact-input" class="tree-filter-exact-slider" type="range" min="0" max="0" step="1" value="0" aria-label="指定件数"><output id="tree-filter-count-exact-bubble" class="tree-filter-range-bubble tree-filter-exact-bubble" aria-hidden="true"></output></span><span id="tree-filter-count-exact-max">0件</span></span>
               </label>
             </fieldset>
+              <button type="button" id="clear-tree-filters" class="search-button secondary-search-button" disabled>条件をクリア</button>
           </div>
           <div class="tree-filter-status" aria-live="polite">
-            <span id="tree-filter-active-summary">絞り込みなし</span>
-            <button type="button" id="clear-tree-filters" class="search-button secondary-search-button" disabled>条件をクリア</button>
+            <span id="tree-filter-active-summary" hidden></span>
           </div>
       </details>
       <div id="tree" class="tree" role="tree"></div>

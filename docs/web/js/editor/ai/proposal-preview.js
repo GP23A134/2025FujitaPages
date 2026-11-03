@@ -510,6 +510,7 @@ export const createProposalPreview = ({
     }
     const operations = proposalItem.proposal.operations;
     const isApplied = proposalItem.status === 'applied' && Boolean(proposalItem.appliedPreviewSnapshot);
+    let previewBaseHash = fastUpdate ? previewPlan?.expectedBaseHash : '';
     if (!operations.length) throw new Error('変更操作が残っていません。この提案は適用する内容がありません。');
     proposalItem.excludedOperationIndexes ||= new Set();
     if (!fastUpdate) {
@@ -532,8 +533,12 @@ export const createProposalPreview = ({
       document.getElementById('ai-preview-after').replaceChildren();
       if (!previewDialog.open) previewDialog.showModal();
       await new Promise((resolve) => requestAnimationFrame(resolve));
-      await verifyLoadedDataVersion();
-      if (!isApplied && proposalItem.status !== 'stale' && proposalItem.baseDataHash !== await currentDataHash()) {
+      const [, currentHash] = await Promise.all([
+        verifyLoadedDataVersion(),
+        isApplied ? Promise.resolve('') : currentDataHash()
+      ]);
+      if (!isApplied) previewBaseHash = currentHash;
+      if (!isApplied && proposalItem.status !== 'stale' && proposalItem.baseDataHash !== currentHash) {
         throw new Error('提案作成後にデータが変更されています。最新状態で依頼し直してください。');
       }
     }
@@ -544,9 +549,9 @@ export const createProposalPreview = ({
     const activeOperations = operations.filter((_, index) => !proposalItem.excludedOperationIndexes.has(index));
     const proposedCandidate = isApplied ? proposalItem.appliedPreviewSnapshot.after
       : editor.applyOperations(operations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds);
-    const candidate = isApplied ? proposedCandidate
+    const candidate = isApplied || activeOperations.length === operations.length ? proposedCandidate
       : editor.applyOperations(activeOperations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds);
-    const expectedBaseHash = isApplied ? '' : fastUpdate ? previewPlan.expectedBaseHash : await currentDataHash();
+    const expectedBaseHash = isApplied ? '' : previewBaseHash;
     if (proposalItem.status === 'stale') {
       proposalItem.baseDataHash = expectedBaseHash;
       proposalItem.status = 'previewed';

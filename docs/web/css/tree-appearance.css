@@ -169,6 +169,7 @@
 
 /* 編集画面固有のツリー寸法とリストの余白 */
 #edit-tree-panel .edit-tree-pane > .tree { flex: 0 0 auto; min-width: 0; min-height: 0; height: auto; max-height: none; overflow: visible; }
+#edit-tree-panel .tree .tree-level-rows { width: calc(100% + 2.15rem); }
 #edit-tree-panel .tree > details > ul,
 #edit-tree-panel .tree > details > ul > li > details > ul { border-left: 0; }
 
@@ -254,9 +255,11 @@
   padding-left: 0;
   border-left: 0;
 }
-#edit-tree-panel .tree .tree-child-middle-list { display: grid; row-gap: var(--tree-target-row-gap); }
+#edit-tree-panel .tree .tree-child-middle-list { display: grid; row-gap: 0.1rem; }
 #edit-tree-panel .tree .tree-child-middle-list > li { margin: 0; }
-#edit-tree-panel .tree li:has(> .tree-middle-class) { margin-left: 0; padding: 0.2rem 0; background: #f8fafc; }
+#edit-tree-panel .tree li:has(> .tree-middle-class) { margin-left: 0; padding: 0.05rem 0; background: #f8fafc; }
+#edit-tree-panel .tree .tree-target-list { row-gap: 0.1rem; }
+#edit-tree-panel .tree .tree-target-list > li { margin-block: 0.075rem; }
 #edit-tree-panel .tree li:has(> .tree-middle-class)::before { display: none; }
 #edit-tree-panel .tree .tree-middle-class { width: auto; max-width: 100%; margin-block: 0; }
 #edit-tree-panel .tree .tree-middle-class > summary,
@@ -463,15 +466,18 @@ body.is-ai-chat-open #edit-tree .delete-class-button { display: none !important;
 .move-held-button:hover, .move-held-button:focus-visible { border-color: #9a3412; background: #ea580c; box-shadow: 0 0 0 2px #fed7aa; }
 .move-held-button[hidden] { display: none; }
 body[data-mode="browse"] .tree-add-button { display: none; }
+body.browse-hide-target-classes #tree-panel .tree-target-row { display: none !important; }
 
 /* 閲覧画面だけの差分: 見出し幅、ID表示、階層色 */
-#tree-panel { display: block; height: auto; max-height: none; overflow: visible; margin-inline: -1rem; }
+#tree-panel { display: block; height: auto; max-height: none; overflow-x: clip; overflow-y: visible; margin-inline: -1rem; }
 #tree-panel .tree {
+  padding-inline: 0;
   height: auto;
   max-height: none;
   min-height: 0;
   overflow: visible;
 }
+#tree-panel .tree .tree-level-rows { width: calc(100% + 2.15rem); }
 /* 編集モードのリスト寸法を基準にし、閲覧モードの階層ごとの左位置を揃える。 */
 #tree-panel .tree ul {
   margin: 0.25rem 0 0.45rem 1.15rem;
@@ -482,14 +488,14 @@ body[data-mode="browse"] .tree-add-button { display: none; }
 #tree-panel .tree-filter { position: sticky; top: var(--browse-controls-sticky-top, 0px); z-index: 90; margin-bottom: 0; }
 #tree-panel .tree-top-class > summary { top: var(--browse-tree-heading-sticky-top, 0px); }
 #tree-panel .tree-middle-class > summary { top: calc(var(--browse-tree-heading-sticky-top, 0px) + var(--middle-sticky-top, 3.35rem)); }
-#tree-panel .tree details { margin-block: 0.1rem; }
-#tree-panel .tree > details > .tree-level-rows,
-#tree-panel .tree .tree-middle-class > .tree-level-rows { margin-block: 0.1rem; }
-#tree-panel .tree > .tree-top-class { margin-block: 0.2rem; margin-top: 0; }
-#tree-panel .tree > .tree-top-class > .tree-level-rows { margin: 0.25rem 0 0.4rem 1.15rem; }
-#tree-panel .tree .tree-middle-class > summary { margin-top: 0; }
+#tree-panel .tree details { margin: 0.45rem 0; }
+#tree-panel .tree > .tree-top-class { margin-top: 0; }
+#tree-panel .tree > .tree-top-class > .tree-level-rows { margin: 0.25rem 0 0.45rem 1.15rem; }
+#tree-panel .tree .tree-middle-class { margin-block: 0; }
 #tree-panel .tree .tree-child-middle-list { row-gap: 0.1rem; }
 #tree-panel .tree .tree-child-middle-list > li { padding-block: 0.05rem; }
+#tree-panel .tree .tree-target-list { row-gap: 0.1rem; }
+#tree-panel .tree .tree-target-list > li { margin-block: 0.075rem; }
 #tree-panel .tree .tree-level-content { display: grid; grid-template-columns: fit-content(100%) max-content; width: 100%; min-width: 0; max-width: 100%; justify-content: start; white-space: normal; overflow-wrap: anywhere; }
 #tree-panel .tree .tree-level-label { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 #tree-panel .tree .count-badge { margin-left: 0.25rem; }

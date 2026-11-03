@@ -53,6 +53,7 @@ let treeCountRangeTouched = false;
 let treeCountFilterEnabled = false;
 let treeExactCountValues = [0];
 let treeExactSelectedCount = null;
+let treeCommittedKeywords = [];
 let treeRenderFrame = 0;
 let treeSearchDebounceTimer = 0;
 const treeRangeSliderGroup = document.querySelector('.tree-filter-range-sliders');
@@ -63,6 +64,9 @@ function renderTree() {
   const filterCount = document.getElementById('tree-filter-count');
   const filterPanelOpen = document.querySelector('.tree-filter')?.open === true;
   const query = filterPanelOpen ? (filterInput?.value || '') : '';
+  const searchTerms = filterPanelOpen
+    ? [...treeCommittedKeywords, ...(query.trim() ? [query.trim()] : [])]
+    : [];
   const instanceCountByClassId = new Map();
   const knownInstanceIds = new Set((window.appData.instanceData?.instances || []).map((instance) => instance.id));
   (window.appData.instanceClassData?.relations || []).forEach((relation) => {
@@ -114,22 +118,64 @@ function renderTree() {
   const countFilterActive = filterPanelOpen && treeCountFilterEnabled && (countMode === 'exact'
     ? exactCount !== null
     : treeCountRangeTouched);
-  const effectiveSearchType = query.trim() ? (filterType?.value || 'class') : 'class';
-  const { targets: matchedTargets } = window.findTargetMatches(window.appData, effectiveSearchType, query);
+  const effectiveSearchType = searchTerms.length ? (filterType?.value || 'class') : 'class';
+  const { targets: matchedTargets } = window.findTargetMatches(window.appData, effectiveSearchType, searchTerms, 'AND');
   const targets = matchedTargets.filter((item) =>
     (!countFilterActive || (countMode === 'exact'
       ? instanceCount(item.id) === exactCount
       : (minCount === null || instanceCount(item.id) >= minCount)
         && (maxCount === null || instanceCount(item.id) <= maxCount))));
-  const filterActive = query.trim().length > 0 || countFilterActive;
+  const filterActive = searchTerms.length > 0 || countFilterActive;
   const activeConditions = [];
-  if (query.trim()) activeConditions.push(`${filterType?.value === 'instance' ? 'インスタンス' : 'クラス'}検索「${query.trim()}」`);
+  if (searchTerms.length) activeConditions.push(`${filterType?.value === 'instance' ? 'インスタンス' : 'クラス'}検索 ${searchTerms.length}語`);
   if (countFilterActive) activeConditions.push(countMode === 'exact'
     ? `インスタンス件数 ${exactCount}件`
     : `インスタンス件数 ${minCount}〜${maxCount}件`);
   const activeSummary = document.getElementById('tree-filter-active-summary');
-  if (activeSummary) activeSummary.textContent = activeConditions.length
-    ? `絞り込み中：${activeConditions.join(' ／ ')}` : '絞り込みなし';
+  if (activeSummary) {
+    activeSummary.replaceChildren();
+    activeSummary.hidden = activeConditions.length === 0;
+    if (activeConditions.length) {
+      activeSummary.append(document.createTextNode('絞り込み中：'));
+      if (searchTerms.length) {
+        const kind = filterType?.value === 'instance' ? 'instance' : 'class';
+        searchTerms.forEach((term, index) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'tree-filter-active-chip';
+        chip.dataset.searchKind = kind;
+        chip.textContent = `${kind === 'instance' ? 'インスタンス' : 'クラス'}：${term} ×`;
+        chip.setAttribute('aria-label', `${kind === 'instance' ? 'インスタンス' : 'クラス'}検索「${term}」を解除`);
+        chip.addEventListener('click', () => {
+          if (index < treeCommittedKeywords.length) treeCommittedKeywords.splice(index, 1);
+          else filterInput.value = '';
+          renderTree();
+          filterInput.focus();
+        });
+        activeSummary.append(chip);
+        });
+      }
+      if (countFilterActive) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'tree-filter-active-chip tree-filter-active-chip-count';
+        chip.textContent = countMode === 'exact'
+          ? `インスタンス件数：${exactCount}件 ×`
+          : `インスタンス件数：${minCount}〜${maxCount}件 ×`;
+        chip.setAttribute('aria-label', 'インスタンス件数の条件を解除');
+        chip.addEventListener('click', () => {
+          treeCountFilterEnabled = false;
+          treeCountRangeTouched = false;
+          treeExactSelectedCount = null;
+          document.getElementById('tree-filter-count-mode').value = 'range';
+          document.getElementById('tree-filter-count-range').hidden = false;
+          document.getElementById('tree-filter-count-exact').hidden = true;
+          renderTree();
+        });
+        activeSummary.append(chip);
+      }
+    }
+  }
   const clearFiltersButton = document.getElementById('clear-tree-filters');
   if (clearFiltersButton) clearFiltersButton.disabled = !filterActive;
   const targetIds = filterActive ? new Set(targets.map((item) => item.id)) : null;
@@ -181,6 +227,7 @@ async function showClassInTree(classId) {
   const filterType = document.getElementById('tree-filter-type');
   if (filterPanel) filterPanel.open = true;
   if (queryInput) queryInput.value = '';
+  treeCommittedKeywords = [];
   if (filterType) filterType.value = 'class';
   treeCountFilterEnabled = false;
   treeCountRangeTouched = false;

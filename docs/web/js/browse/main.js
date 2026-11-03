@@ -135,6 +135,19 @@ document.getElementById('tree-filter-query')?.addEventListener('input', () => {
   window.clearTimeout(treeSearchDebounceTimer);
   treeSearchDebounceTimer = window.setTimeout(scheduleTreeRender, 140);
 });
+document.getElementById('tree-filter-query')?.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  const queryInput = event.currentTarget;
+  const term = queryInput.value.trim();
+  if (!term) return;
+  if (!treeCommittedKeywords.some((keyword) => keyword.toLocaleLowerCase() === term.toLocaleLowerCase())) {
+    treeCommittedKeywords.push(term);
+  }
+  window.clearTimeout(treeSearchDebounceTimer);
+  queryInput.value = '';
+  renderTree();
+});
 function setTreeFilterMethod(method) {
   if (method === 'count') treeCountFilterEnabled = true;
   document.querySelector('.tree-filter-search-controls').hidden = method !== 'keyword';
@@ -151,6 +164,7 @@ document.querySelectorAll('[data-tree-filter-method]').forEach((button) => {
 });
 document.getElementById('clear-tree-filters')?.addEventListener('click', () => {
   document.getElementById('tree-filter-query').value = '';
+  treeCommittedKeywords = [];
   document.getElementById('tree-filter-type').value = 'class';
   document.getElementById('tree-filter-count-mode').value = 'range';
   document.getElementById('tree-filter-count-range').hidden = false;

@@ -690,6 +690,7 @@ let proposalPreview = null;
   const compactScope = (scope) => {
     const idCodec = createIdCodec();
     const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
+    const scopeClassIds = new Set(scope.classes.map(({ id }) => id));
     const roots = new Set(scope.selectionRoots || scope.selectedIds || []);
     const editable = new Set(scope.editableIds || []);
     const shared = new Set(scope.sharedContextIds || []);
@@ -697,13 +698,15 @@ let proposalPreview = null;
       mode: scope.mode || 'selected_scope',
       scopeCoverage: scope.scopeCoverage || 'selected_classes',
       // Keep scope roles beside each class so we do not repeat long IDs in separate lists.
-      classes: scope.classes.map(({ id, type, label, parentId }) => {
+      classes: scope.classes.map(({ id, type, label, parentId, parentLabel }) => {
         let role = '';
         if (roots.has(id)) role += 'r';
         if (editable.has(id)) role += 'e';
         if (shared.has(id)) role += 's';
         if (!role) role = 'c';
-        return [idCodec.alias(id), type, label, idCodec.alias(parentId ?? parentByChild.get(id)) || null, role];
+        const resolvedParentId = parentId ?? parentByChild.get(id);
+        const resolvedParentLabel = resolvedParentId && !scopeClassIds.has(resolvedParentId) ? parentLabel || null : null;
+        return [idCodec.alias(id), type, label, idCodec.alias(resolvedParentId) || null, role, resolvedParentLabel];
       }),
       targetContext: scope.targetContext || { descendantTargetClassCounts: {} }
     };
@@ -740,6 +743,12 @@ let proposalPreview = null;
     const scope = editor.getScopedState(selectedIds);
     const selected = new Set(scope.editableIds);
     const state = editor.getState();
+    const classById = new Map(state.classes.map((item) => [item.id, item]));
+    const parentByChild = new Map(state.relations.map(({ child, parent }) => [child, parent]));
+    scope.classes = scope.classes.map((item) => ({
+      ...item,
+      parentLabel: item.parentId ? classById.get(item.parentId)?.label || null : null
+    }));
     const knownIds = new Set(state.classes.map((item) => item.id));
     if (!selectedIds.length && !includeAllClasses) return null;
     const hierarchyIds = state.classes.filter((item) => ['top', 'middle'].includes(item.type)).map((item) => item.id);
@@ -749,9 +758,13 @@ let proposalPreview = null;
     const included = includeAllClasses
       ? new Set([...hierarchyIds, ...selected])
       : new Set([...selected, ...sharedContextIds]);
-    const targetContext = editor.getTargetContext(
-      state.classes.filter((item) => included.has(item.id) && ['top', 'middle'].includes(item.type)).map((item) => item.id)
-    );
+    const includedHierarchyIds = state.classes
+      .filter((item) => included.has(item.id) && ['top', 'middle'].includes(item.type))
+      .map((item) => item.id);
+    const selectedTargetParentIds = scope.classes
+      .filter((item) => item.type === 'class' && selected.has(item.id) && item.parentId)
+      .map((item) => item.parentId);
+    const targetContext = editor.getTargetContext([...includedHierarchyIds, ...selectedTargetParentIds]);
     const scopeCoverage = includeAllClasses ? 'all_classes'
       : state.classes.every((item) => included.has(item.id)) ? 'all_classes' : 'selected_classes';
     if (!sharedContextIds.length && !includeAllClasses) return { ...scope, scopeCoverage, includeAllClasses, targetContext };
@@ -761,10 +774,14 @@ let proposalPreview = null;
       includeAllClasses,
       targetContext,
       sharedContextIds,
-      classes: state.classes.filter((item) => included.has(item.id)).map((item) => ({
-        ...item,
-        parentId: state.relations.find((relation) => relation.child === item.id)?.parent || null
-      })),
+      classes: state.classes.filter((item) => included.has(item.id)).map((item) => {
+        const parentId = parentByChild.get(item.id) || null;
+        return {
+          ...item,
+          parentId,
+          parentLabel: classById.get(parentId)?.label || null
+        };
+      }),
       relations: state.relations.filter((item) => included.has(item.child) && included.has(item.parent)),
       counts: includeAllClasses || sharedContextIds.length
         ? Object.fromEntries(state.classes.filter((item) => included.has(item.id)).map((item) => [item.id, state.counts[item.id] || 0]))
@@ -1298,6 +1315,7 @@ let proposalPreview = null;
   }));
   const explicitlyRequestsFullReanalysis = (userText) => /(?:全体|全範囲|選択範囲|すべて).{0,12}(?:再分析|再評価|再チェック|再編|見直)|(?:再分析|再評価|再チェック|再編).{0,12}(?:全体|全範囲|選択範囲|すべて)|最初から.{0,8}(?:分析|評価|見直)/.test(userText);
   const requiresFullClassStructure = (userText) => /(?:中間|上位|対象)?クラス.{0,30}(?:構造|親子|階層|種別|配下|問題|評価|判断|移動|再編|作成|追加|新設|重複|類似|同名|改名|統合|削除|整理|名|名称|名前|命名|分類|分野|範囲|見直|調整|変更|件数|何件|何個|いくつ|一覧|全件|すべて|全部|具体例)|(?:分類|階層).{0,24}(?:範囲|見直|調整|変更|統合|整理|再編|件数|何件|いくつ|一覧|すべて|全部)|(?:クラス)?(?:名|名称|名前).{0,16}(?:重複|類似|同名|統合|整理|分野|範囲|見直|調整|変更)|(?:重複|類似|同名).{0,16}(?:クラス|名称|名前)|(?:親子関係|階層構造|クラス種別)/.test(userText);
+  const requestsClassificationOptimization = (userText) => /(?:最適|最も適切|最善).{0,20}(?:所属|分類|階層|クラス)|(?:分類|階層|所属).{0,24}(?:最適化|再編|再構成|組み替え|見直し|見直す|整理)|(?:できる限り|できるだけ|可能な限り).{0,16}(?:移動案|再分類|所属)/.test(userText);
   const appendAnalysisFollowupContext = (memory, userText, result) => {
     const latest = createLocalConversationContext(userText, result);
     memory.followupContext = [memory.followupContext, latest].filter(Boolean).join('\n\n').slice(-MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS);
@@ -1348,7 +1366,8 @@ let proposalPreview = null;
     const currentSelectedIds = [...editor.selectedIds].sort();
     const previousSelectedIds = [...(conversation.selectedIds || [])].sort();
     const selectionChanged = JSON.stringify(currentSelectedIds) !== JSON.stringify(previousSelectedIds);
-    const includeAllClasses = isFullGraphScopeEnabled();
+    const wantsClassificationOptimization = requestsClassificationOptimization(userText);
+    const includeAllClasses = isFullGraphScopeEnabled() || wantsClassificationOptimization;
     const previousScopeIncludedAllClasses = Boolean(conversation.previousScope?.includeAllClasses);
     const scopeModeChanged = previousScopeIncludedAllClasses !== includeAllClasses;
     const previouslySharedIds = selectionChanged || includeAllClasses || previousScopeIncludedAllClasses
@@ -1356,6 +1375,12 @@ let proposalPreview = null;
     let scope;
     try { scope = getPayloadSnapshot([...previouslySharedIds, ...additionalContextIds], includeAllClasses); } catch (error) { logAiProblem('送信範囲の作成', error); setStatus(error.message, 'error'); return; }
     if (!scope) { setStatus('保持欄でクラスを選択するか、「全上位・中間クラスを参照」を有効にしてください。', 'error'); return; }
+    if (wantsClassificationOptimization) {
+      const hierarchyIds = scope.classes.filter((item) => ['top', 'middle'].includes(item.type)).map((item) => item.id);
+      scope.editableIds = [...new Set([...scope.editableIds, ...hierarchyIds])];
+      scope.sharedContextIds = (scope.sharedContextIds || []).filter((id) => !hierarchyIds.includes(id));
+      scope.allowHierarchyEdits = true;
+    }
     try { await verifyLoadedDataVersion(); }
     catch (error) { logAiProblem('データ版の確認', error); setStatus(error.message, 'error'); return; }
     let baseDataHash;
@@ -1376,7 +1401,7 @@ let proposalPreview = null;
     const automaticStructureReanalysis = Boolean(memoryScopeMatches
       && requiresFullClassStructure(userText)
       && !explicitFullReanalysis);
-    const forceFullReanalysis = explicitFullReanalysis || automaticStructureReanalysis;
+    const forceFullReanalysis = explicitFullReanalysis || automaticStructureReanalysis || wantsClassificationOptimization;
     const canReuseAnalysisMemory = !forceFullReanalysis && memoryScopeMatches;
     if (priorAnalysisMemory && !canReuseAnalysisMemory && !forceFullReanalysis) conversation.splitMemory = null;
     const fullScopeContent = requestPlanner.buildUserContent(userText, scope, conversation);
@@ -1386,7 +1411,13 @@ let proposalPreview = null;
     const usesAnalysisMemory = Boolean(analysisMemoryContent && analysisMemoryContent.length < fullScopeContent.length);
     const userContent = usesAnalysisMemory ? analysisMemoryContent : fullScopeContent;
     let splitTasks = null;
-    if (userContent.length > MAX_REQUEST_CHARACTERS) {
+    const editableScopeIdSet = new Set(scope.editableIds);
+    const optimizationTargetCount = scope.classes.filter((item) => item.type === 'class' && editableScopeIdSet.has(item.id)).length;
+    const optimizationHierarchyCount = scope.classes.filter((item) => ['top', 'middle'].includes(item.type)
+      && editableScopeIdSet.has(item.id)).length;
+    const needsOptimizationCoverageSplit = wantsClassificationOptimization
+      && (optimizationTargetCount > 20 || (!optimizationTargetCount && optimizationHierarchyCount > 20));
+    if (userContent.length > MAX_REQUEST_CHARACTERS || needsOptimizationCoverageSplit) {
       conversation.localContext = conversation.localContext || summarizeVisibleConversation(conversation);
       try { splitTasks = requestPlanner.makeLargeScopePlan(userText, scope, conversation); }
       catch (error) { logAiProblem('送信データの分割計画', error); setStatus(error.message, 'error'); return; }
@@ -1820,6 +1851,33 @@ let proposalPreview = null;
       const hasShareRequest = resolvedDataRequests.requests.length > 0
         || resolvedDataRequests.candidateGroups.length > 0
         || resolvedDataRequests.unresolved.length > 0;
+      if (wantsClassificationOptimization) {
+        const targetClassIds = new Set(scope.classes
+          .filter((item) => item.type === 'class' && editableScopeIdSet.has(item.id))
+          .map((item) => item.id));
+        if (targetClassIds.size) {
+          const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
+          const targetsByAncestor = new Map();
+          targetClassIds.forEach((targetId) => {
+            let currentId = targetId;
+            const seen = new Set();
+            while (currentId && !seen.has(currentId)) {
+              seen.add(currentId);
+              if (!targetsByAncestor.has(currentId)) targetsByAncestor.set(currentId, new Set());
+              targetsByAncestor.get(currentId).add(targetId);
+              currentId = parentByChild.get(currentId);
+            }
+          });
+          const affectedTargetIds = new Set();
+          result.proposals.forEach((proposal) => proposal.operations.forEach((operation) => {
+            if (operation.type !== 'moveClass' && operation.type !== 'moveChildren') return;
+            (targetsByAncestor.get(operation.classId || operation.from) || []).forEach((id) => affectedTargetIds.add(id));
+          }));
+          result.message = [result.message,
+            `分類最適化の対象は${targetClassIds.size}件で、移動案に含まれる対象クラスは${affectedTargetIds.size}件です。`]
+            .filter(Boolean).join('\n\n');
+        }
+      }
       if (result.message && !hasShareRequest) conversation.items.push({ type: 'message', role: 'assistant', text: result.message, responseGroupId });
       if (hasShareRequest) {
         conversation.items.push({ type: 'data-requests', ...resolvedDataRequests, responseGroupId, status: 'pending', submitting: false });
@@ -1860,6 +1918,7 @@ let proposalPreview = null;
       const elapsed = elapsedSeconds(conversation);
       const pendingMessageIndex = conversation.items.indexOf(pendingUserMessage);
       const editableScopeIds = new Set(scope.editableIds);
+      const selectedScopeIds = new Set(scope.selectedIds || []);
       const sharedScopeIds = new Set(scope.sharedContextIds || []);
       const typeLabels = { top: '上位', middle: '中間', class: '対象' };
       const scopeSummary = {
@@ -1870,8 +1929,9 @@ let proposalPreview = null;
           label: item.label,
           parentId: item.parentId || null,
           typeLabel: typeLabels[item.type] || item.type,
-          shareType: editableScopeIds.has(item.id) ? '選択中'
-            : sharedScopeIds.has(item.id) ? '追加共有・参照のみ' : '範囲内の参照情報'
+          shareType: selectedScopeIds.has(item.id) ? '選択中'
+            : editableScopeIds.has(item.id) ? '分類最適化の変更候補'
+              : sharedScopeIds.has(item.id) ? '追加共有・参照のみ' : '範囲内の参照情報'
         }))
       };
       conversation.items.splice(pendingMessageIndex + 1, 0,

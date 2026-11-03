@@ -57,6 +57,17 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
     const initiallyHadMoves = result.proposals.some((proposal) => proposal.operations.some((operation) => ['moveClass', 'moveChildren'].includes(operation.type)));
     result.proposals.forEach((proposal) => {
       const parentByChild = new Map((scope.relations || []).map(({ child, parent }) => [child, parent]));
+      const createsCycle = (sourceId, destinationId) => {
+        let currentId = destinationId;
+        const seen = new Set();
+        while (currentId && !seen.has(currentId)) {
+          if (currentId === sourceId) return true;
+          seen.add(currentId);
+          currentId = parentByChild.get(currentId);
+        }
+        return false;
+      };
+      let removedMoveCount = 0;
       proposal.operations = proposal.operations.filter((operation) => {
         if (operation.type === 'addClass') {
           if (operation.classType === 'middle' && operation.parentId) parentByChild.set(operation.temporaryId, operation.parentId);
@@ -64,7 +75,10 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
         }
         if (operation.type === 'moveClass') {
           const currentParent = parentByChild.get(operation.classId);
-          if (currentParent === operation.destinationId) return false;
+          if (currentParent === operation.destinationId || createsCycle(operation.classId, operation.destinationId)) {
+            removedMoveCount += 1;
+            return false;
+          }
           parentByChild.set(operation.classId, operation.destinationId);
           return true;
         }
@@ -72,12 +86,18 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
           const children = [...parentByChild]
             .filter(([, parent]) => parent === operation.from)
             .map(([child]) => child);
-          if (!children.length || operation.from === operation.to
-            || children.every((child) => parentByChild.get(child) === operation.to)) return false;
+          if (!children.length || operation.from === operation.to || createsCycle(operation.from, operation.to)
+            || children.every((child) => parentByChild.get(child) === operation.to)) {
+            removedMoveCount += 1;
+            return false;
+          }
           children.forEach((child) => parentByChild.set(child, operation.to));
         }
         return true;
       });
+      if (removedMoveCount && proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal) {
+        proposal.uncertainties.push('親子関係が変わらない移動、または循環を作る移動先は除外しました。');
+      }
     });
     result.proposals = result.proposals.filter((proposal) => proposal.operations.length || proposal.questions.length);
     if (initiallyHadMoves && result.proposals.length < originalProposalCount
@@ -316,6 +336,28 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
       };
       const allowed = proposal.operations.filter((operation) => {
         if (task.kind === 'full_hierarchy_targets') {
+          if (task.scope.allowHierarchyEdits) {
+            if (operation.type === 'addClass') {
+              if (!['top', 'middle'].includes(operation.classType) || !operation.temporaryId) return false;
+              if (operation.classType === 'top') return !operation.parentId;
+              const parentType = classesById.get(operation.parentId)?.type || temporaryTypeById.get(operation.parentId);
+              return ['top', 'middle'].includes(parentType);
+            }
+            if (operation.type === 'renameClass') {
+              const source = classesById.get(operation.classId);
+              return editable.has(operation.classId) && ['top', 'middle'].includes(source?.type)
+                && typeof operation.label === 'string' && operation.label.trim().length > 0;
+            }
+            if (operation.type === 'moveClass') {
+              const sourceType = classesById.get(operation.classId)?.type;
+              const destinationType = classesById.get(operation.destinationId)?.type
+                || temporaryTypeById.get(operation.destinationId);
+              if (!editable.has(operation.classId) || !['top', 'middle', 'class'].includes(sourceType)
+                || !['top', 'middle'].includes(destinationType)) return false;
+              return sourceType !== 'top' || destinationType === 'middle';
+            }
+            return false;
+          }
           if (operation.type === 'addClass') {
             if (operation.classType !== 'middle' || !operation.temporaryId) return false;
             const parentType = classesById.get(operation.parentId)?.type || temporaryTypeById.get(operation.parentId);

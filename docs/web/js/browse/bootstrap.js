@@ -95,4 +95,12 @@ if (toggleBrowseIds) {
     toggleBrowseIds.textContent = `クラスID表示: ${visible ? 'ON' : 'OFF'}`;
   });
 }
+const toggleBrowseTargets = document.getElementById('toggle-browse-targets');
+if (toggleBrowseTargets) {
+  toggleBrowseTargets.addEventListener('click', () => {
+    const visible = !document.body.classList.toggle('browse-hide-target-classes');
+    toggleBrowseTargets.setAttribute('aria-pressed', visible ? 'true' : 'false');
+    toggleBrowseTargets.textContent = `対象クラス表示: ${visible ? 'ON' : 'OFF'}`;
+  });
+}
 

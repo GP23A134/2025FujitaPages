@@ -32,11 +32,16 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
       && selectedRootClasses.length > 0
       && selectedRootClasses.every((item) => ['top', 'middle'].includes(item.type));
     if (!isHierarchySelection) {
-      const selectedTargets = scope.classes.filter((item) => item.type === 'class' && scope.editableIds.includes(item.id));
+      const editableIdSet = new Set(scope.editableIds);
+      const classTypeById = new Map(scope.classes.map((item) => [item.id, item.type]));
+      const selectedTargets = scope.classes.filter((item) => item.type === 'class' && editableIdSet.has(item.id));
       const hierarchyClasses = scope.classes.filter((item) => ['top', 'middle'].includes(item.type));
-      if (!scope.includeAllClasses || !selectedTargets.length || selectedTargets.length !== scope.editableIds.length || !hierarchyClasses.length) return null;
+      const editableTargetIds = scope.editableIds.filter((id) => classTypeById.get(id) === 'class');
+      if (!scope.includeAllClasses || !selectedTargets.length || selectedTargets.length !== editableTargetIds.length || !hierarchyClasses.length) return null;
       const hierarchyIds = new Set(hierarchyClasses.map((item) => item.id));
-      const targetInstruction = 'この分割範囲では選択中の対象クラスを評価し、対象クラスの移動を提案できます。利用者が中間クラスの作成・新設を求めている場合は、入力中の上位・中間クラスを親とするaddClass（classType=middle）を提案し、対象クラスを同じ提案内でその新設クラスへ移動できます。親は入力中の実在する上位・中間クラスIDか、先に追加した中間クラスのtemporaryIdにし、親となる新しいクラスを先に追加してください。既存の上位・中間クラスの改名・移動・削除や、入力にないクラス・関係の推測は禁止します。各チャンク内のクラス名だけで全体に共通する分類を断定せず、チャンクの範囲で根拠を説明してください。';
+      const targetInstruction = scope.allowHierarchyEdits
+        ? 'この分割範囲では選択中の対象クラスを一件ずつ評価し、根拠のある移動案を漏れなく提案してください。既存の上位・中間クラスを優先し、適切な所属先がなければ中間・上位クラスの新設、既存上位クラスの中間クラス化、選択対象に関係する中間クラスの移動を提案できます。上位クラスの新設はparentId=nullにし、移動先として使う新設クラスを先に追加してください。新設クラスと対象クラスの移動は同じ提案にまとめます。選択対象と無関係な階層変更、削除、根拠のないクラスや関係の推測は禁止します。全体の整合性は最終統合で確認されるため、このチャンクで扱う対象との関連を説明してください。'
+        : 'この分割範囲では選択中の対象クラスを評価し、対象クラスの移動を提案できます。利用者が中間クラスの作成・新設を求めている場合は、入力中の上位・中間クラスを親とするaddClass（classType=middle）を提案し、対象クラスを同じ提案内でその新設クラスへ移動できます。親は入力中の実在する上位・中間クラスIDか、先に追加した中間クラスのtemporaryIdにし、親となる新しいクラスを先に追加してください。既存の上位・中間クラスの改名・移動・削除や、入力にないクラス・関係の推測は禁止します。各チャンク内のクラス名だけで全体に共通する分類を断定せず、チャンクの範囲で根拠を説明してください。';
       const buildTargetTask = (targets) => {
         const targetIds = new Set(targets.map((item) => item.id));
         const includedIds = new Set([...hierarchyIds, ...targetIds]);
@@ -45,10 +50,14 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
           scopeCoverage: 'all_classes_chunk',
           selectedIds: scope.selectedIds.filter((id) => targetIds.has(id)),
           selectionRoots: targets.map((item) => item.id),
-          editableIds: targets.map((item) => item.id),
+          editableIds: scope.allowHierarchyEdits
+            ? [...new Set([...hierarchyClasses.map((item) => item.id), ...targets.map((item) => item.id)])]
+            : targets.map((item) => item.id),
           classes: [...hierarchyClasses, ...targets],
           relations: scope.relations.filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
-          counts: Object.fromEntries([...includedIds].filter((id) => Object.prototype.hasOwnProperty.call(scope.counts || {}, id)).map((id) => [id, scope.counts[id]]))
+          counts: Object.fromEntries([...includedIds].filter((id) => Object.prototype.hasOwnProperty.call(scope.counts || {}, id)).map((id) => [id, scope.counts[id]])),
+          targetContext: scope.targetContext || { descendantTargetClassCounts: {} },
+          allowHierarchyEdits: Boolean(scope.allowHierarchyEdits)
         };
         const input = buildUserContent(userText, taskScope, conversation, {
           forceSnapshot: true,
@@ -59,7 +68,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
       const targetTasks = [];
       let offset = 0;
       while (offset < selectedTargets.length) {
-        let low = 1; let high = selectedTargets.length - offset; let bestSize = 0; let bestTask = null;
+        let low = 1; let high = Math.min(selectedTargets.length - offset, scope.allowHierarchyEdits ? 20 : selectedTargets.length - offset); let bestSize = 0; let bestTask = null;
         while (low <= high) {
           const size = Math.floor((low + high) / 2);
           const candidate = buildTargetTask(selectedTargets.slice(offset, offset + size));
@@ -76,9 +85,18 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
       return targetTasks;
     }
 
-    const hierarchyScope = editor.getHierarchyScopedState(scope.selectedIds);
+    const hierarchyScope = scope.allowHierarchyEdits
+      ? {
+        ...scope,
+        mode: 'hierarchy_scope',
+        editableIds: scope.classes.filter((item) => ['top', 'middle'].includes(item.type)).map((item) => item.id),
+        allowHierarchyEdits: true
+      }
+      : editor.getHierarchyScopedState(scope.selectedIds);
     if (!hierarchyScope) return null;
-    const hierarchyInstruction = 'この分割範囲では上位・中間クラスの追加・改名・移動・削除を提案できます。対象クラスの個別IDや全件情報は含まれません。targetContextに対象クラス数がある場合は読み取り専用の参考として使えますが、対象クラスの変更案は作らず、入力にない情報を推測しないでください。この制約は今回の階層分割範囲だけに適用し、AIシステム全体が対象クラスの移動しかできないなどと説明してはいけません。selectionRootsの上位クラスは中間クラスへ移動できます。その場合は上位を中間化し、配下の親子関係を保って移動してください。';
+    const hierarchyInstruction = scope.allowHierarchyEdits
+      ? 'この分割範囲では上位・中間クラスの追加・改名・移動を提案できます。削除は利用者が明示した場合だけにしてください。対象クラスの個別IDや全件情報は含まれないため、対象クラスの操作は提案しないでください。targetContextの対象クラス数は規模を示す参考情報です。入力にない情報を推測しないでください。selectionRootsの上位クラスは必要なら中間クラスへ移動できます。その場合は上位を中間化し、配下の親子関係を保って移動してください。'
+      : 'この分割範囲では上位・中間クラスの追加・改名・移動・削除を提案できます。対象クラスの個別IDや全件情報は含まれません。targetContextに対象クラス数がある場合は読み取り専用の参考として使えますが、対象クラスの変更案は作らず、入力にない情報を推測しないでください。この制約は今回の階層分割範囲だけに適用し、AIシステム全体が対象クラスの移動しかできないなどと説明してはいけません。selectionRootsの上位クラスは中間クラスへ移動できます。その場合は上位を中間化し、配下の親子関係を保って移動してください。';
     const hierarchyClasses = scope.classes.filter((item) => ['top', 'middle'].includes(item.type));
     const hierarchyChunkLimit = MAX_REQUEST_CHARACTERS;
     const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
@@ -108,17 +126,20 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
           parentId = parentByChild.get(parentId);
         }
       });
+      const classIdsForTask = scope.allowHierarchyEdits
+        ? new Set(hierarchyClasses.map((item) => item.id)) : includedIds;
       const taskScope = {
         mode: 'hierarchy_scope',
-        selectedIds: scope.selectedIds.filter((id) => includedIds.has(id)),
-        selectionRoots: (scope.selectionRoots || scope.selectedIds).filter((id) => includedIds.has(id)),
+        selectedIds: scope.selectedIds.filter((id) => classIdsForTask.has(id)),
+        selectionRoots: (scope.selectionRoots || scope.selectedIds).filter((id) => classIdsForTask.has(id)),
         editableIds: [...editableIds],
-        classes: hierarchyClasses.filter((item) => includedIds.has(item.id)),
-        relations: scope.relations.filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
+        classes: hierarchyClasses.filter((item) => classIdsForTask.has(item.id)),
+        relations: scope.relations.filter(({ child, parent }) => classIdsForTask.has(child) && classIdsForTask.has(parent)),
         counts: {},
         targetContext: {
-          descendantTargetClassCounts: Object.fromEntries(Object.entries(scope.targetContext?.descendantTargetClassCounts || {}).filter(([id]) => includedIds.has(id)))
-        }
+          descendantTargetClassCounts: Object.fromEntries(Object.entries(scope.targetContext?.descendantTargetClassCounts || {}).filter(([id]) => classIdsForTask.has(id)))
+        },
+        allowHierarchyEdits: Boolean(scope.allowHierarchyEdits)
       };
       return buildHierarchyTask(taskScope);
     };
@@ -134,7 +155,8 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
       const subtreeIds = collectRemainingSubtree(rootId);
       if (!subtreeIds.size) return;
       const candidate = makeHierarchyTask([...subtreeIds]);
-      if (candidate.input.length <= hierarchyChunkLimit) {
+      if (candidate.input.length <= hierarchyChunkLimit
+        && (!hierarchyScope.allowHierarchyEdits || subtreeIds.size <= 20)) {
         hierarchyTasks.push(candidate);
         subtreeIds.forEach((id) => remainingHierarchyIds.delete(id));
         return;

@@ -433,9 +433,11 @@ document.getElementById('clear-filtered-targets-selection').addEventListener('cl
 // ツリーの検索・件数フィルター
 document.getElementById('tree-filter-type').addEventListener('change', () => {
   document.getElementById('tree-filter-query').placeholder = '名前・IDで検索';
+  renderTreeFilterKeywords();
   renderTree();
 });
 document.getElementById('tree-filter-query').addEventListener('input', () => {
+  renderTreeFilterKeywords();
   window.clearTimeout(treeSearchDebounceTimer);
   treeSearchDebounceTimer = window.setTimeout(scheduleTreeRender, 140);
 });
@@ -535,22 +537,30 @@ document.getElementById('tree-filter-count-mode').addEventListener('change', (ev
   renderTree();
 });
 
-// ツリー検索はEnterごとに検索語を追加し、複数語のいずれかに一致するクラスを表示する。
+// ツリー検索はEnterごとに語句を確定し、すべてに一致するクラスを表示する。
 function renderTreeFilterKeywords() {
   const container = document.getElementById('tree-filter-keyword-chips');
-  container.replaceChildren(...treeFilterKeywords.map((term, index) => {
+  if (!container) return;
+  const query = treeFilterQueryInput?.value.trim() || '';
+  const terms = [...treeFilterKeywords, ...(query ? [query] : [])];
+  const kind = document.getElementById('tree-filter-type')?.value === 'instance' ? 'instance' : 'class';
+  container.hidden = terms.length === 0;
+  const chips = terms.map((term, index) => {
     const chip = document.createElement('button');
     chip.type = 'button';
-    chip.className = 'search-hierarchy-selected-button';
-    chip.textContent = term;
-    chip.setAttribute('aria-label', '検索ワード「' + term + '」を解除');
+    chip.className = 'tree-filter-active-chip';
+    chip.dataset.searchKind = kind;
+    chip.textContent = `${kind === 'instance' ? 'インスタンス' : 'クラス'}：${term} ×`;
+    chip.setAttribute('aria-label', `${kind === 'instance' ? 'インスタンス' : 'クラス'}検索「${term}」を解除`);
     chip.addEventListener('click', () => {
-      treeFilterKeywords.splice(index, 1);
+      if (index < treeFilterKeywords.length) treeFilterKeywords.splice(index, 1);
+      else treeFilterQueryInput.value = '';
       renderTreeFilterKeywords();
       renderTree();
     });
     return chip;
-  }));
+  });
+  container.replaceChildren(...(terms.length ? [document.createTextNode('絞り込み中：'), ...chips] : []));
 }
 const treeFilterQueryInput = document.getElementById('tree-filter-query');
 treeFilterQueryInput.addEventListener('keydown', (event) => {
@@ -560,9 +570,21 @@ treeFilterQueryInput.addEventListener('keydown', (event) => {
   if (term && !treeFilterKeywords.some((existing) => existing.toLocaleLowerCase() === term.toLocaleLowerCase())) {
     treeFilterKeywords.push(term);
   }
+  window.clearTimeout(treeSearchDebounceTimer);
   treeFilterQueryInput.value = '';
   renderTreeFilterKeywords();
   renderTree();
+});
+document.getElementById('clear-tree-filters')?.addEventListener('click', () => {
+  treeFilterKeywords.splice(0);
+  treeFilterQueryInput.value = '';
+  treeCountFilterEnabled = false;
+  treeCountRangeTouched = false;
+  treeExactSelectedCount = null;
+  document.getElementById('tree-filter-count-mode').value = 'range';
+  document.getElementById('tree-filter-count-range').hidden = false;
+  document.getElementById('tree-filter-count-exact').hidden = true;
+  setTreeFilterMethod('keyword');
 });
 
 // 保存と初期描画
@@ -635,7 +657,8 @@ window.classEditorAI = {
     // AIに渡すクラス情報は、選択中のIDに限定する。
     const scopedClasses = all.classes.filter((item) => included.has(item.id)).map((item) => ({
       ...item,
-      parentId: parentByChild.get(item.id) || null
+      parentId: parentByChild.get(item.id) || null,
+      parentLabel: classByIdLocal.get(parentByChild.get(item.id))?.label || null
     }));
     return {
       selectedIds: [...selectedIds],
@@ -675,7 +698,8 @@ window.classEditorAI = {
     const included = new Set(editable);
     const scopedClasses = all.classes.filter((item) => included.has(item.id) && ['top', 'middle'].includes(item.type)).map((item) => ({
       ...item,
-      parentId: parentByChild.get(item.id) || null
+      parentId: parentByChild.get(item.id) || null,
+      parentLabel: classByIdLocal.get(parentByChild.get(item.id))?.label || null
     }));
     return {
       mode: 'hierarchy_scope',

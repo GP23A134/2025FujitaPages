@@ -132,7 +132,7 @@
   // 閲覧・編集のどちらも同じツリー構造を使うため、この計算も共有する。
   function updateTreeStickyOffsets(panel) {
     if (!panel) return;
-    const stickyGap = panel.closest('#edit-tree-panel') ? 0 : 6;
+    const stickyGap = 0;
     const summaries = [...panel.querySelectorAll('.tree-top-class > summary, .tree-middle-class > summary')];
     const heights = new Map(summaries.map((summary) => [summary, summary.getBoundingClientRect().height]));
     [...panel.querySelectorAll('.tree-middle-class')].forEach((details) => {

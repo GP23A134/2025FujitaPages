@@ -17,6 +17,7 @@
 }
 /* ツリーと保持中パネルの列幅・高さ */
 .edit-tree-layout {
+  container-type: inline-size;
   --edit-tree-content-height: 100vh;
   --edit-tree-bottom-space: 75vh;
   --held-panel-width: 30%;
@@ -66,11 +67,14 @@ body[data-mode="edit"] #edit-tree-panel .edit-tree-pane > .tree-filter {
   margin-left: calc(0px - var(--page-side-gutter));
   box-sizing: border-box;
 }
-.edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .tree-filter { width: calc(100% - var(--held-panel-width) - 1rem + var(--page-side-gutter)); box-sizing: border-box; }
-.edit-tree-layout:has(.instance-selection[hidden]) .tree-filter { width: calc(100% + var(--page-side-gutter)); box-sizing: border-box; }
-body[data-mode="edit"] #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .tree-filter { width: calc(100% - var(--held-panel-width) - 1rem + var(--page-side-gutter)); }
-body[data-mode="edit"] #edit-tree-panel .edit-tree-layout:has(.instance-selection[hidden]) .tree-filter { width: calc(100% + var(--page-side-gutter)); }
-body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .tree-filter { width: calc(100% - var(--held-panel-width) - 1rem + var(--page-side-gutter)); }
+/* 保持欄が重なって畳まれているときはその左端まで、非表示ならツールバー右端まで検索欄を広げる。 */
+.edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .tree-filter { width: calc(100% - var(--held-panel-width) + var(--page-side-gutter)); box-sizing: border-box; }
+.edit-tree-layout:has(.instance-selection[hidden]) .tree-filter { width: calc(100cqw + var(--page-side-gutter) + var(--page-side-gutter)); box-sizing: border-box; }
+body[data-mode="edit"] #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .tree-filter { width: calc(100% - var(--held-panel-width) + var(--page-side-gutter)); }
+body[data-mode="edit"] #edit-tree-panel .edit-tree-layout:has(.instance-selection[hidden]) .tree-filter { width: calc(100cqw + var(--page-side-gutter) + var(--page-side-gutter)); }
+body[data-mode="edit"] #edit-tree-panel .edit-tree-pane > .tree { width: calc(100cqw + var(--page-side-gutter)); }
+body[data-mode="edit"] #edit-tree-panel .edit-tree-layout:has(.instance-selection.is-collapsed:not([hidden])) .edit-tree-pane > .tree { width: calc(100% - var(--held-panel-width)); }
+body[data-mode="edit"] #edit-tree-panel .edit-tree-layout:has(.instance-selection:not([hidden]):not(.is-collapsed)) .edit-tree-pane > .tree { width: 100%; }
 .edit-tree-layout .instance-selection {
   display: flex;
   flex-direction: column;

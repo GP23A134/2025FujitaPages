@@ -75,8 +75,14 @@
 /* 絞り込み条件の入力欄、キーワード、件数方式の切り替え */
 .tree-filter-body { display: flex; flex-wrap: wrap; align-items: end; gap: 0.7rem; padding: 0.75rem 0.85rem; }
 .tree-filter-status { display: flex; flex: 1 0 100%; align-items: center; justify-content: space-between; gap: 0.75rem; color: #475569; font-size: 0.85rem; }
-.tree-filter-status #clear-tree-filters { padding: 0.3rem 0.65rem; font-size: 0.8rem; }
-.tree-filter-status #clear-tree-filters:disabled { opacity: 0.5; cursor: not-allowed; }
+.tree-filter-status #tree-filter-active-summary { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+#tree-filter-keyword-chips[hidden] { display: none; }
+.tree-filter-active-chip { display: inline-flex; max-width: 100%; align-items: center; padding: 0.1rem 0.55rem; border: 1px solid #93c5fd; border-radius: 999px; color: #1e40af; background: #eff6ff; cursor: pointer; font: inherit; overflow-wrap: anywhere; }
+.tree-filter-active-chip:hover, .tree-filter-active-chip:focus-visible { filter: brightness(0.96); outline: 2px solid rgba(59, 130, 246, 0.25); outline-offset: 1px; }
+.tree-filter-active-chip[data-search-kind="instance"] { border-color: #fdba74; color: #9a3412; background: #fff7ed; }
+.tree-filter-active-chip-count { border-color: #cbd5e1; color: #475569; background: #f8fafc; }
+.tree-filter-body > #clear-tree-filters { align-self: end; min-height: 2.7rem; padding: 0.3rem 0.65rem; font-size: 0.8rem; }
+.tree-filter-body > #clear-tree-filters:disabled { opacity: 0.5; cursor: not-allowed; }
 .tree-filter-search-controls { display: contents; }
 .tree-filter label { display: flex; min-width: 0; flex-direction: column; gap: 0.3rem; color: #475569; font-size: 0.78rem; font-weight: 700; }
 .tree-filter select, .tree-filter input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 2.7rem; padding: 0.5rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font: inherit; font-weight: 400; }

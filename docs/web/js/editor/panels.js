@@ -2,7 +2,7 @@
 // ツリーと保持中パネルの描画
 // ============================================================
 function findTargetClasses(searchType, query) {
-  return window.findTargetMatches(data, searchType, query, 'OR');
+  return window.findTargetMatches(data, searchType, query, 'AND');
 }
 function renameClass(item) {
   const nextLabel = window.prompt('新しいクラス名を入力してください。', item.label);
