@@ -478,7 +478,10 @@ body[data-mode="browse"] .tree-add-button { display: none; }
 body.browse-hide-target-classes #tree-panel .tree-target-row { display: none !important; }
 
 /* 閲覧画面だけの差分: 見出し幅、ID表示、階層色 */
-#tree-panel { display: block; height: auto; max-height: none; overflow-x: clip; overflow-y: visible; margin-inline: -1rem; }
+#tree-panel { display: block; height: auto; max-height: none; overflow-x: clip; overflow-y: visible; margin-inline: -1rem; padding-bottom: 90vh; }
+@supports (height: 100dvh) {
+  #tree-panel { padding-bottom: 62dvh; }
+}
 #tree-panel .tree {
   padding-inline: 0;
   height: auto;
