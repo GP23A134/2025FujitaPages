@@ -6,7 +6,7 @@ import { createRequestPlanner } from './request-planner.js?v=20261103-ai-module-
 import { createResponseHandler } from './response-handler.js?v=20261103-ai-module-system-step6-v1';
 import { createConversationStore } from './conversation-store.js?v=20261103-ai-review-fixes-v1';
 import { createConversationView } from './conversation-view.js?v=20261103-ai-module-system-step6-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261103-ai-preview-operation-category-fix-v2';
+import { createProposalPreview } from './proposal-preview.js?v=20261104-preview-arrow-two-turns-v1';
 
 (() => {
   const editor = window.classEditorAI;
@@ -451,7 +451,7 @@ let proposalPreview = null;
   const elapsedSeconds = (conversation) => Math.max(0, Math.floor((Date.now() - conversation.thinkingStartedAt) / 1000));
   const formatThinkingStatus = (conversation) => {
     const elapsed = formatElapsedTime(elapsedSeconds(conversation));
-    return `${elapsed} 作業中${conversation.thinkingProgress ? `（${conversation.thinkingProgress}）` : ''}`;
+    return `回答・変更案を作成中…（${elapsed}${conversation.thinkingProgress ? `・${conversation.thinkingProgress}` : ''}）`;
   };
   const appendSettingsLink = () => {
     status.append(document.createTextNode(' '));
@@ -1357,6 +1357,7 @@ let proposalPreview = null;
   });
   const sendRequest = async (userText, additionalContextIds = []) => {
     if (isSending || isConfirmingSend) return false;
+    setStatus('依頼内容を準備しています…', 'loading');
     const key = keyInput.value.trim();
     if (!key) { setStatus('設定欄にOpenAI APIキーを入力してください。', 'error'); keyInput.focus(); return; }
     if (!await modelConfigPromise) { setStatus('モデル設定を読み込めないため依頼を送信できません。', 'error'); return; }

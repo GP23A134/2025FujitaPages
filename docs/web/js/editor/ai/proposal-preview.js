@@ -213,7 +213,7 @@ export const createProposalPreview = ({
     if (!svg || !columns || svg.hidden) return;
     const bounds = svg.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
-    const laneWidth = Math.max(96, arrows.length * 4 + 32);
+    const laneWidth = Math.max(120, arrows.length * 3 + 24);
     const routingHeight = Math.max(100, arrows.length * 3 + 32);
     if (columns.dataset.previewLaneWidth !== String(laneWidth)
       || columns.dataset.previewRoutingHeight !== String(routingHeight)) {
@@ -264,6 +264,8 @@ export const createProposalPreview = ({
       const rightY = right.source?.top ?? right.target?.top ?? 0;
       return leftY - rightY;
     });
+    const trackGap = 3;
+    const trackBankInset = Math.max(0, (gutterRight - gutterLeft - routes.length * trackGap) / 2);
     const assignPorts = (side) => {
       const groups = new Map();
       routes.forEach((route, index) => {
@@ -286,24 +288,22 @@ export const createProposalPreview = ({
     assignPorts('source');
     assignPorts('target');
     routes.forEach(({ arrow, color, source, target }, index) => {
-      const trackInset = Math.min(6 + index * 2, Math.max(6, (gutterRight - gutterLeft) / 2 - 4));
-      const leftTrack = gutterLeft + trackInset;
-      const rightTrack = gutterRight - trackInset;
+      const laneX = gutterLeft + trackBankInset + (index + 0.5) * trackGap;
       const channelY = height * (index + 1) / (routes.length + 1);
-      const startX = source ? source.right - bounds.left : leftTrack;
-      const endX = target ? target.left - bounds.left : rightTrack;
+      const startX = source ? source.right - bounds.left : laneX;
+      const endX = target ? target.left - bounds.left : laneX;
       const startY = routes[index].startY ?? (target ? target.top + target.height / 2 - bounds.top : channelY);
       const endY = routes[index].endY ?? (source ? source.top + source.height / 2 - bounds.top : channelY);
       const path = document.createElementNS(namespace, 'path');
       const commands = [];
-      if (source) commands.push(`M ${startX} ${startY} H ${leftTrack} V ${channelY}`);
-      else commands.push(`M ${leftTrack} ${channelY}`);
-      commands.push(`H ${rightTrack}`);
+      if (source) commands.push(`M ${startX} ${startY} H ${laneX}`);
+      else commands.push(`M ${laneX} ${channelY}`);
       if (target) commands.push(`V ${endY} H ${endX}`);
+      else commands.push(`V ${channelY}`);
       path.setAttribute('d', commands.join(' '));
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke', color);
-      path.setAttribute('stroke-width', '2.5');
+      path.setAttribute('stroke-width', '1.5');
       path.setAttribute('stroke-linejoin', 'round');
       path.setAttribute('marker-end', `url(#ai-preview-arrowhead-${arrow.kind})`);
       if (arrow.excluded) path.setAttribute('stroke-dasharray', '4 3');
