@@ -152,6 +152,77 @@ function aggregationNormalizedLabelGroups(records) {
   }).sort((a, b) => a.normalized.localeCompare(b.normalized, 'ja'));
 }
 
+function aggregationEditDistanceAtMostOne(leftValue, rightValue) {
+  const left = [...leftValue];
+  const right = [...rightValue];
+  if (Math.abs(left.length - right.length) > 1) return false;
+  let leftIndex = 0;
+  let rightIndex = 0;
+  let edits = 0;
+  while (leftIndex < left.length && rightIndex < right.length) {
+    if (left[leftIndex] === right[rightIndex]) {
+      leftIndex += 1;
+      rightIndex += 1;
+      continue;
+    }
+    edits += 1;
+    if (edits > 1) return false;
+    if (left.length === right.length) {
+      leftIndex += 1;
+      rightIndex += 1;
+    } else if (left.length > right.length) leftIndex += 1;
+    else rightIndex += 1;
+  }
+  if (leftIndex < left.length || rightIndex < right.length) edits += 1;
+  return edits <= 1;
+}
+
+function aggregationNearLabelGroups(records) {
+  const labelsByNormalized = new Map();
+  records.forEach(({ id, label }) => {
+    const exact = String(label || '').trim();
+    if (!id || !exact) return;
+    const normalized = exact.normalize('NFKC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('ja');
+    if (!labelsByNormalized.has(normalized)) labelsByNormalized.set(normalized, new Map());
+    if (!labelsByNormalized.get(normalized).has(id)) labelsByNormalized.get(normalized).set(id, new Set());
+    labelsByNormalized.get(normalized).get(id).add(exact);
+  });
+  const keys = [...labelsByNormalized.keys()].filter((key) => [...key].length >= 5);
+  const signatures = new Map();
+  keys.forEach((key) => {
+    const characters = [...key];
+    new Set([key, ...characters.map((_, index) => characters.filter((character, i) => i !== index).join(''))]).forEach((signature) => {
+      if (!signatures.has(signature)) signatures.set(signature, []);
+      signatures.get(signature).push(key);
+    });
+  });
+  const candidatePairs = new Set();
+  signatures.forEach((matches) => {
+    for (let leftIndex = 0; leftIndex < matches.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < matches.length; rightIndex += 1) {
+        const left = matches[leftIndex];
+        const right = matches[rightIndex];
+        if (left === right || !aggregationEditDistanceAtMostOne(left, right)) continue;
+        candidatePairs.add(left < right ? `${left}\u0000${right}` : `${right}\u0000${left}`);
+      }
+    }
+  });
+  return [...candidatePairs].flatMap((pair) => {
+    const [left, right] = pair.split('\u0000');
+    const leftIds = labelsByNormalized.get(left);
+    const rightIds = labelsByNormalized.get(right);
+    const allIds = new Set([...leftIds.keys(), ...rightIds.keys()]);
+    if (allIds.size < 2) return [];
+    const leftLabel = [...leftIds.values()][0].values().next().value || left;
+    const rightLabel = [...rightIds.values()][0].values().next().value || right;
+    const entries = [
+      ...[...leftIds.entries()].flatMap(([id, labels]) => [...labels].map((variantLabel) => ({ id, type: 'インスタンス', variantLabel }))),
+      ...[...rightIds.entries()].flatMap(([id, labels]) => [...labels].map((variantLabel) => ({ id, type: 'インスタンス', variantLabel })))
+    ];
+    return [{ title: `${leftLabel} ↔ ${rightLabel}`, entries }];
+  }).sort((a, b) => b.entries.length - a.entries.length || a.title.localeCompare(b.title, 'ja'));
+}
+
 function aggregationCountBuckets(values, exactLimit = 5) {
   const buckets = Array.from({ length: exactLimit + 1 }, (_, count) => ({ label: String(count), value: 0 }));
   values.forEach((count) => { buckets[Math.min(count, exactLimit)].value += 1; });
@@ -201,6 +272,7 @@ function renderAggregationDetailLists(targetId, sections, classContextForId) {
     details.id = `aggregation-detail-${section.key}`;
     details.className = 'aggregation-group-details';
     details.dataset.title = section.title;
+    details.dataset.entryCount = aggregationNumber(section.groups.reduce((sum, group) => sum + group.entries.length, 0));
     const save = document.createElement('button');
     save.type = 'button';
     save.className = 'aggregation-export-button';
@@ -493,6 +565,8 @@ function renderAggregation(data) {
   const instanceLabels = aggregationLabelStats(rawInstances);
   const classNormalizedLabelGroups = aggregationNormalizedLabelGroups(classes);
   const instanceNormalizedLabelGroups = aggregationNormalizedLabelGroups(instances);
+  const nearInstanceLabelGroups = aggregationNearLabelGroups(rawInstances);
+  const nearInstanceLabelEntryCount = nearInstanceLabelGroups.reduce((sum, group) => sum + group.entries.length, 0);
   const classMultiLabelIds = aggregationIdsWithMultipleLabels(rawClasses);
   const instanceMultiLabelIds = aggregationIdsWithMultipleLabels(rawInstances);
   const unlabeledClasses = classes.filter((item) => !String(item.label || '').trim());
@@ -555,7 +629,9 @@ function renderAggregation(data) {
   });
   const summaryCards = [
     ['クラス数', classes.length, '上位・中間・対象クラスの合計'],
-    ['インスタンス数', instances.length, '重複を除いたID数']
+    ['クラスラベル数', classLabels.uniqueLabels, '空欄を除き、同じ表記を1件として集計'],
+    ['インスタンスID数', instances.length, '重複を除いたID数'],
+    ['インスタンスラベル数', instanceLabels.uniqueLabels, '空欄を除き、同じ表記を1件として集計']
   ];
   const renderCards = (targetId, cards, { compact = false } = {}) => {
     const target = document.getElementById(targetId);
@@ -589,7 +665,8 @@ function renderAggregation(data) {
           const save = details.querySelector('.aggregation-export-button');
           const noResults = details.querySelector('.aggregation-detail-no-results');
           const groups = details.querySelector('.aggregation-group-list');
-          document.getElementById('aggregation-detail-dialog-title').textContent = details.dataset.title || '詳細';
+          const title = details.dataset.title || '詳細';
+          document.getElementById('aggregation-detail-dialog-title').textContent = `${title}（${details.dataset.entryCount || '0'}件）`;
           aggregationDetailDialog.dataset.activeListHost = details.id;
           aggregationDetailDialogToolbar.replaceChildren(search, aggregationDetailOpenAllButton, aggregationDetailCloseAllButton, save);
           aggregationDetailDialogContent.replaceChildren(noResults, groups);
@@ -634,14 +711,15 @@ function renderAggregation(data) {
   renderAggregationBars('aggregation-depth-chart', [...targetCountsByDepth.entries()]
     .sort(([a], [b]) => a - b).map(([depth, count]) => ({ label: `${depth}階層`, value: count })));
   const labelIdCards = [
-    ['同一階層内の重複ラベル（件数）', classDuplicateLabelGroupsByLevel.sameLevel, '同じ階層の異なるクラスIDで一致', true, 'duplicate-class-labels-same'],
-    ['階層をまたぐ重複ラベル（件数）', classDuplicateLabelGroupsByLevel.crossLevel, '上位・中間・対象をまたいで一致', true, 'duplicate-class-labels-cross'],
+    ['同一階層内の重複ラベル', classDuplicateLabelGroupsByLevel.sameLevel, '同じ階層の異なるクラスIDで一致', true, 'duplicate-class-labels-same'],
+    ['階層をまたぐ重複ラベル', classDuplicateLabelGroupsByLevel.crossLevel, '上位・中間・対象をまたいで一致', true, 'duplicate-class-labels-cross'],
     ['複数ラベルを持つクラスID', classMultiLabelIds.length, '同一IDに異なるラベルがある', true, 'multiple-class-labels'],
-    [`同じラベルを持つインスタンスID群（${aggregationNumber(instanceLabels.duplicateLabels)}件）`, instanceLabels.duplicateLabels, `${aggregationNumber(instanceLabels.idsWithDuplicateLabel)} IDが該当`, true, 'duplicate-instance-labels'],
+    ['同じラベルを持つインスタンスID群', instanceLabels.duplicateLabels, `${aggregationNumber(instanceLabels.idsWithDuplicateLabel)} IDが該当`, true, 'duplicate-instance-labels'],
     ['複数ラベルを持つインスタンスID', instanceMultiLabelIds.length, '同一IDに異なるラベルがある', true, 'multiple-instance-labels'],
-    ['表記揺れの可能性があるクラスラベル（件数）', classNormalizedLabelGroups.length, '空白・全半角・大文字小文字を正規化して一致', true, 'normalized-class-labels'],
-    ['表記揺れの可能性があるインスタンスラベル（件数）', instanceNormalizedLabelGroups.length, '空白・全半角・大文字小文字を正規化して一致', true, 'normalized-instance-labels'],
-    ['クラスとインスタンスで共有するラベル（件数）', sharedLabels, '完全一致するラベル文字列', false, 'shared-labels'],
+    ['表記揺れの可能性があるクラスラベル', classNormalizedLabelGroups.length, '空白・全半角・大文字小文字を正規化して一致', true, 'normalized-class-labels'],
+    ['表記揺れの可能性があるインスタンスラベル', instanceNormalizedLabelGroups.length, '空白・全半角・大文字小文字を正規化して一致', true, 'normalized-instance-labels'],
+    ['表記が近いインスタンスラベル（要確認）', nearInstanceLabelEntryCount, `${aggregationNumber(nearInstanceLabelGroups.length)}組の候補。5文字以上で1文字だけ異なる`, true, 'near-instance-labels'],
+    ['クラスとインスタンスで共有するラベル', sharedLabels, '完全一致するラベル文字列', false, 'shared-labels'],
     ['クラスIDとインスタンスIDで重複するID', crossTypeIdCollisions.length, '別種類のデータ間でID文字列が一致', true, 'cross-type-id-collisions'],
     ['ラベルなしのクラスID', unlabeledClasses.length, '空欄または未設定', true, 'unlabeled-classes'],
     ['ラベルなしのインスタンスID', unlabeledInstances.length, '空欄または未設定', true, 'unlabeled-instances'],
@@ -679,6 +757,7 @@ function renderAggregation(data) {
           .map((id) => ({ id, type: 'インスタンス', variantLabel })));
       return { title: `表記グループ：${normalized}`, entries };
     }) },
+    { key: 'near-instance-labels', title: '表記が近いインスタンスラベル（要確認）', groups: nearInstanceLabelGroups },
     { key: 'shared-labels', title: 'クラスとインスタンスで共有するラベル', groups: [...classIdsByLabel.keys()].sort((a, b) => a.localeCompare(b, 'ja')).map((label) => ({
       title: label,
       entries: [
