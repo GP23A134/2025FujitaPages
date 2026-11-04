@@ -3,10 +3,10 @@
 import { createClassIdCodec } from './id-codec.js?v=20261103-ai-module-system-step6-v1';
 import { sendOpenAIRequest } from './api-client.js?v=20261103-ai-module-system-step6-v1';
 import { createRequestPlanner } from './request-planner.js?v=20261103-ai-module-system-step6-v1';
-import { createResponseHandler } from './response-handler.js?v=20261103-ai-module-system-step6-v1';
+import { createResponseHandler } from './response-handler.js?v=20261104-noop-move-validation-v1';
 import { createConversationStore } from './conversation-store.js?v=20261103-ai-review-fixes-v1';
 import { createConversationView } from './conversation-view.js?v=20261103-ai-module-system-step6-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261104-preview-arrow-two-turns-v1';
+import { createProposalPreview } from './proposal-preview.js?v=20261104-preview-hover-highlight-v2';
 
 (() => {
   const editor = window.classEditorAI;
@@ -239,6 +239,10 @@ let proposalPreview = null;
   let sourceDataVersion = '';
   let isSending = false;
   let isConfirmingSend = false;
+  let isPreparingRequest = false;
+  let activePreparationIndicator = null;
+  let activePreparationTimer = null;
+  let activePreparationLabel = '依頼内容を準備しています';
   let pendingSendConfirmation = null;
   let activeRequestController = null;
   let classLabelsById = new Map();
@@ -260,6 +264,7 @@ let proposalPreview = null;
       splitMemory: null,
       items: [],
       status: '',
+      workflowStatus: '',
       usage: { requests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, costKnown: true },
       saved: false,
       restoredFromStorage: false
@@ -427,16 +432,16 @@ let proposalPreview = null;
   });
 
   const setStatus = (text, kind = '') => {
+    if (kind !== 'loading' && activePreparationTimer !== null) {
+      window.clearInterval(activePreparationTimer);
+      activePreparationTimer = null;
+      activePreparationIndicator?.remove();
+      activePreparationIndicator = null;
+      isPreparingRequest = false;
+    }
     status.textContent = text;
     status.className = `ai-status${kind ? ` is-${kind}` : ''}`;
     if (currentConversation) currentConversation.status = text;
-  };
-  const setThinkingStatus = (conversation, text) => {
-    conversation.thinkingProgress = text;
-    if (currentConversation === conversation) {
-      const indicator = messages.querySelector('.ai-thinking-indicator:not(.is-complete)');
-      if (indicator) indicator.textContent = formatThinkingStatus(conversation);
-    }
   };
   const formatElapsedTime = (totalSeconds) => {
     let remaining = Math.max(0, Math.floor(totalSeconds));
@@ -451,7 +456,15 @@ let proposalPreview = null;
   const elapsedSeconds = (conversation) => Math.max(0, Math.floor((Date.now() - conversation.thinkingStartedAt) / 1000));
   const formatThinkingStatus = (conversation) => {
     const elapsed = formatElapsedTime(elapsedSeconds(conversation));
-    return `回答・変更案を作成中…（${elapsed}${conversation.thinkingProgress ? `・${conversation.thinkingProgress}` : ''}）`;
+    return `${conversation.thinkingStage || '回答・変更案を作成中'}…（${elapsed}${conversation.thinkingProgress ? `・${conversation.thinkingProgress}` : ''}）`;
+  };
+  const setThinkingStage = (conversation, stage, progress = conversation.thinkingProgress || '') => {
+    conversation.thinkingStage = stage;
+    conversation.thinkingProgress = progress;
+    if (currentConversation === conversation) {
+      const indicator = messages.querySelector('.ai-thinking-indicator:not(.is-complete)');
+      if (indicator) indicator.textContent = formatThinkingStatus(conversation);
+    }
   };
   const appendSettingsLink = () => {
     status.append(document.createTextNode(' '));
@@ -551,6 +564,13 @@ let proposalPreview = null;
       indicator.setAttribute('role', 'status');
       indicator.setAttribute('aria-live', 'polite');
       indicator.textContent = formatThinkingStatus(currentConversation);
+      messages.append(indicator);
+    } else if (currentConversation.workflowStatus) {
+      const indicator = document.createElement('div');
+      indicator.className = 'ai-thinking-indicator is-complete ai-workflow-status';
+      indicator.setAttribute('role', 'status');
+      indicator.setAttribute('aria-live', 'polite');
+      indicator.textContent = currentConversation.workflowStatus;
       messages.append(indicator);
     }
     if (scrollToResponseGroupId) {
@@ -1356,14 +1376,37 @@ let proposalPreview = null;
     deduplicateQuestions
   });
   const sendRequest = async (userText, additionalContextIds = []) => {
-    if (isSending || isConfirmingSend) return false;
-    setStatus('依頼内容を準備しています…', 'loading');
+    if (isSending || isConfirmingSend || isPreparingRequest) return false;
+    const requestStartedAt = Date.now();
+    isPreparingRequest = true;
+    currentConversation.workflowStatus = '';
+    messages.querySelector('.ai-workflow-status')?.remove();
+    activePreparationLabel = userText.startsWith('確認事項への回答です')
+      ? '追加情報の回答を準備しています' : '依頼内容を準備しています';
+    const preparationIndicator = document.createElement('div');
+    preparationIndicator.className = 'ai-thinking-indicator';
+    preparationIndicator.setAttribute('role', 'status');
+    preparationIndicator.setAttribute('aria-live', 'polite');
+    preparationIndicator.textContent = '依頼内容を準備しています…（0s）';
+    messages.append(preparationIndicator);
+    messages.scrollTop = messages.scrollHeight;
+    activePreparationIndicator = preparationIndicator;
+    // 進行状況はチャット内にまとめ、欄外のステータスには重ねて表示しない。
+    status.textContent = '';
+    status.className = 'ai-status';
+    if (currentConversation) currentConversation.status = '';
+    activePreparationTimer = window.setInterval(() => {
+      const elapsed = formatElapsedTime((Date.now() - requestStartedAt) / 1000);
+      const message = `${activePreparationLabel}…（${elapsed}）`;
+      if (activePreparationIndicator === preparationIndicator) preparationIndicator.textContent = message;
+    }, 1000);
     const key = keyInput.value.trim();
     if (!key) { setStatus('設定欄にOpenAI APIキーを入力してください。', 'error'); keyInput.focus(); return; }
     if (!await modelConfigPromise) { setStatus('モデル設定を読み込めないため依頼を送信できません。', 'error'); return; }
     const systemPrompt = await systemPromptPromise;
     if (!systemPrompt) { setStatus('AIプロンプトを読み込めないため依頼を送信できません。', 'error'); return; }
     const conversation = currentConversation;
+    conversation.workflowStatus = '';
     const currentSelectedIds = [...editor.selectedIds].sort();
     const previousSelectedIds = [...(conversation.selectedIds || [])].sort();
     const selectionChanged = JSON.stringify(currentSelectedIds) !== JSON.stringify(previousSelectedIds);
@@ -1446,13 +1489,18 @@ let proposalPreview = null;
       : MAX_OUTPUT_TOKENS;
     const preflightNote = [estimateRequestCost(requestInputs, systemPrompt, outputTokenBudget), longConversationNote].filter(Boolean).join('\n\n');
     updateUsageSummary();
+    activePreparationLabel = '送信内容の確認待ち';
+    preparationIndicator.textContent = `${activePreparationLabel}…（${formatElapsedTime((Date.now() - requestStartedAt) / 1000)}）`;
     const sendApproved = await confirmSendBeforeRequest(userText, scope, preflightNote, conversation, usesAnalysisMemory,
       scope.scopeCoverage === 'all_classes' && !usesAnalysisMemory);
     if (!sendApproved) {
       updateUsageSummary();
+      conversation.workflowStatus = `送信をキャンセルしました（所要時間 ${formatElapsedTime((Date.now() - requestStartedAt) / 1000)}）`;
       setStatus('送信をキャンセルしました。入力内容は保持されています。');
+      renderConversation();
       return false;
     }
+    setStatus('');
     textInput.value = '';
     resizeChatInput();
     conversation.selectedIds = [...editor.selectedIds];
@@ -1465,8 +1513,10 @@ let proposalPreview = null;
     window.dispatchEvent(new CustomEvent('ai-request-state-change', { detail: { running: true } }));
     sendButton.disabled = false; document.getElementById('ai-new-consultation').disabled = true;
     conversation.isThinking = true;
-    conversation.thinkingStartedAt = Date.now();
+    conversation.workflowStatus = '';
+    conversation.thinkingStartedAt = requestStartedAt;
     conversation.thinkingProgress = splitTasks?.length ? `1/${splitTasks.length}` : '';
+    conversation.thinkingStage = 'AIに送信中';
     renderConversation({ scrollToBottom: true });
     const thinkingTimer = window.setInterval(() => {
       const indicator = messages.querySelector('.ai-thinking-indicator:not(.is-complete)');
@@ -1482,7 +1532,8 @@ let proposalPreview = null;
       activeRequestController = new AbortController();
       // 範囲別指示をデータJSONから分離して共通プロンプトの後ろへ置き、
       // 同じ処理モードの依頼でプロンプト先頭を揃えてキャッシュを使いやすくします。
-      const sendApiRequest = async (input, previousResponseId = '', maxOutputTokens = MAX_OUTPUT_TOKENS) => {
+      const sendApiRequest = async (input, previousResponseId = '', maxOutputTokens = MAX_OUTPUT_TOKENS,
+        stage = userText.startsWith('確認事項への回答です') ? '追加情報の回答を送信中' : '回答・変更案を作成中') => {
         const requestPayload = JSON.parse(input);
         const requestPolicies = ['instruction', 'proposalPolicy', 'responsePolicy']
           .map((key) => typeof requestPayload[key] === 'string' ? requestPayload[key].trim() : '')
@@ -1502,12 +1553,15 @@ let proposalPreview = null;
           store: true
         };
         if (previousResponseId) body.previous_response_id = previousResponseId;
+        setThinkingStage(conversation, stage);
         const responseBody = await sendOpenAIRequest({
           apiKey: key,
           body,
           signal: activeRequestController.signal
         });
         recordUsage(responseBody);
+        setThinkingStage(conversation, '結果を処理中');
+        await new Promise((resolve) => requestAnimationFrame(resolve));
         const result = parseAIResponse(responseBody);
         const restoreId = createIdCodec().restore;
         result.dataRequests.forEach((request) => { if (request.classId) request.classId = restoreId(request.classId); });
@@ -1563,7 +1617,8 @@ let proposalPreview = null;
         let splitRepairFailed = false;
         for (let offset = 0; offset < splitTasks.length; offset += 2) {
           const batch = splitTasks.slice(offset, offset + 2);
-          setThinkingStatus(conversation, `${offset + 1}/${splitTasks.length}${cachedChunkCount ? `（再利用 ${cachedChunkCount}件）` : ''}`);
+          const chunkProgress = `${offset + 1}-${Math.min(offset + batch.length, splitTasks.length)}/${splitTasks.length}件を処理中${cachedChunkCount ? `（再利用 ${cachedChunkCount}件）` : ''}`;
+          setThinkingStage(conversation, '分割処理中', chunkProgress);
           const parts = await Promise.all(batch.map(async (task, batchIndex) => {
             const index = offset + batchIndex;
             const key = chunkKeys[index];
@@ -1573,7 +1628,7 @@ let proposalPreview = null;
               responseBody: null,
               fromCache: true
             };
-            const response = await sendApiRequest(task.input, '', CHUNK_OUTPUT_TOKENS);
+            const response = await sendApiRequest(task.input, '', CHUNK_OUTPUT_TOKENS, '分割処理中');
             return { ...(await retryCompleteScopeDataRequest(response, task.scope.scopeCoverage === 'all_classes_chunk')), fromCache: false };
           }));
           parts.forEach((part, batchIndex) => {
@@ -1610,6 +1665,7 @@ let proposalPreview = null;
             proposalAvailableScopes.set(proposal.id, task.scope.classes.map((item) => item.id));
             });
           });
+          setThinkingStage(conversation, '分割処理中', `${Math.min(offset + batch.length, splitTasks.length)}/${splitTasks.length}件完了`);
           if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
         }
         result.message = messagesFromParts.join('\n');
@@ -1690,9 +1746,9 @@ let proposalPreview = null;
             synthesisInput = buildSynthesisInput(maxTextLength, maxProposalsPerChunk, maxOperationsPerProposal, includeStructure);
           }
           if (synthesisInput.length <= MAX_REQUEST_CHARACTERS) {
-            setThinkingStatus(conversation, '結果をまとめています');
+            setThinkingStage(conversation, '結果を統合中', '');
             try {
-              let synthesis = await sendApiRequest(synthesisInput, '', SYNTHESIS_OUTPUT_TOKENS);
+              let synthesis = await sendApiRequest(synthesisInput, '', SYNTHESIS_OUTPUT_TOKENS, '結果を統合中');
               if (scope.scopeCoverage === 'all_classes') synthesis = await retryCompleteScopeDataRequest(synthesis);
               if (synthesis.repairFailed) splitRepairFailed = true;
               responseHandler.validatePayload(synthesis.result, baseDataHash);
@@ -1939,7 +1995,13 @@ let proposalPreview = null;
         scopeSummary,
         { type: 'work-duration', seconds: elapsed });
       conversation.isThinking = false;
+      conversation.workflowStatus = hasShareRequest || queuedQuestions.length
+        ? `追加情報の回答待ち（所要時間 ${formatElapsedTime(elapsed)}）`
+        : result.proposals.length
+          ? `変更案の確認待ち（所要時間 ${formatElapsedTime(elapsed)}）`
+          : `完了（所要時間 ${formatElapsedTime(elapsed)}）`;
       conversation.thinkingProgress = '';
+      conversation.thinkingStage = '';
       conversation.thinkingStartedAt = null;
       renderConversation({ scrollToResponseGroupId: responseGroupId });
       setStatus(hasShareRequest || result.proposals.length ? '' : '変更案はありません。確認事項への回答や追加依頼を入力できます。');
@@ -1947,7 +2009,11 @@ let proposalPreview = null;
     } catch (error) {
       logAiProblem('AIへの依頼処理', error);
       conversation.isThinking = false;
+      conversation.workflowStatus = error.name === 'AbortError'
+        ? `中止（所要時間 ${formatElapsedTime(elapsedSeconds(conversation))}）`
+        : `エラー（所要時間 ${formatElapsedTime(elapsedSeconds(conversation))}）`;
       conversation.thinkingProgress = '';
+      conversation.thinkingStage = '';
       conversation.thinkingStartedAt = null;
       if (error.name === 'AbortError') {
         const pendingIndex = conversation.items.indexOf(pendingUserMessage);
@@ -2082,9 +2148,24 @@ let proposalPreview = null;
     });
   });
   document.getElementById('ai-apply-proposal').addEventListener('click', async () => {
+    const applyConversation = currentConversation;
+    const applyStartedAt = Date.now();
+    const previousWorkflowStatus = applyConversation.workflowStatus;
+    let applySucceeded = false;
+    applyConversation.isThinking = true;
+    applyConversation.thinkingStartedAt = applyStartedAt;
+    applyConversation.thinkingStage = '変更を適用中';
+    applyConversation.thinkingProgress = '';
+    applyConversation.workflowStatus = '';
+    renderConversation();
+    const applyTimer = window.setInterval(() => {
+      const indicator = messages.querySelector('.ai-thinking-indicator:not(.is-complete)');
+      if (indicator && currentConversation === applyConversation) indicator.textContent = formatThinkingStatus(applyConversation);
+    }, 1000);
     try {
       const applied = await proposalPreview.applyCurrentProposal();
       if (!applied) return;
+      applySucceeded = true;
       renderConversation();
       if (applied.nextProposal) {
         setStatus('提案を適用しました。次の提案を確認しています。');
@@ -2096,6 +2177,16 @@ let proposalPreview = null;
         setStatus('提案を適用しました。必要なら最新状態について改めて依頼してください。');
       }
     } catch (error) { logAiProblem('変更案の適用', error); setStatus(error.message, 'error'); }
+    finally {
+      window.clearInterval(applyTimer);
+      applyConversation.isThinking = false;
+      applyConversation.thinkingStage = '';
+      applyConversation.thinkingStartedAt = null;
+      applyConversation.workflowStatus = applySucceeded
+        ? `変更の適用を完了しました（所要時間 ${formatElapsedTime((Date.now() - applyStartedAt) / 1000)}）`
+        : previousWorkflowStatus;
+      renderConversation();
+    }
   });
   window.aiAssistant = {
     onScopeChange() {

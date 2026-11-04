@@ -306,11 +306,46 @@ export const createProposalPreview = ({
       path.setAttribute('stroke-width', '1.5');
       path.setAttribute('stroke-linejoin', 'round');
       path.setAttribute('marker-end', `url(#ai-preview-arrowhead-${arrow.kind})`);
+      path.dataset.operationIndex = String(arrow.operationIndex);
       if (arrow.excluded) path.setAttribute('stroke-dasharray', '4 3');
       if (arrow.excluded) path.setAttribute('opacity', '0.45');
       svg.append(path);
     });
   };
+  const clearPreviewHover = () => {
+    document.querySelectorAll('#ai-preview-before .is-ai-preview-hover-related, #ai-preview-after .is-ai-preview-hover-related')
+      .forEach((node) => node.classList.remove('is-ai-preview-hover-related'));
+    document.querySelectorAll('#ai-preview-direction .is-ai-preview-arrow-hovered')
+      .forEach((path) => path.classList.remove('is-ai-preview-arrow-hovered'));
+  };
+  const highlightPreviewTarget = (target) => {
+    clearPreviewHover();
+    if (!target) return;
+    const matchingArrows = (previewPlan?.arrows || []).filter((arrow) => arrow.to === target.dataset.classId);
+    if (!matchingArrows.length) return;
+    target.classList.add('is-ai-preview-hover-related');
+    const sourceHost = document.getElementById('ai-preview-before');
+    const arrowSvg = document.getElementById('ai-preview-direction');
+    matchingArrows.forEach((arrow) => {
+      const source = previewNodeRow(sourceHost, arrow.from);
+      source?.classList.add('is-ai-preview-hover-related');
+      arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
+        .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
+    });
+  };
+  const afterTree = document.getElementById('ai-preview-after');
+  afterTree.addEventListener('pointerover', (event) => {
+    const target = event.target.closest('.ai-preview-class[data-class-id]');
+    if (!target || !afterTree.contains(target)) return;
+    if (event.relatedTarget instanceof Node && target.contains(event.relatedTarget)) return;
+    highlightPreviewTarget(target);
+  });
+  afterTree.addEventListener('pointerout', (event) => {
+    const target = event.target.closest('.ai-preview-class[data-class-id]');
+    if (!target || !afterTree.contains(target)) return;
+    if (event.relatedTarget instanceof Node && target.contains(event.relatedTarget)) return;
+    clearPreviewHover();
+  });
   const updatePreviewSelection = (proposalItem, update) => {
     const previous = new Set(proposalItem.excludedOperationIndexes);
     update();
@@ -613,21 +648,21 @@ export const createProposalPreview = ({
       const excluded = proposalItem.excludedOperationIndexes.has(index);
       if (operation.type === 'addClass') {
         const added = addedClassForReference(operation.temporaryId);
-        if (added) previewArrows.push({ kind, from: '', to: added.id, excluded });
+        if (added) previewArrows.push({ kind, from: '', to: added.id, excluded, operationIndex: index });
       } else if (operation.type === 'deleteClass') {
-        previewArrows.push({ kind, from: operation.classId, to: '', excluded });
+        previewArrows.push({ kind, from: operation.classId, to: '', excluded, operationIndex: index });
       } else if (operation.type === 'renameClass') {
         const id = resolveProposedId(operation.classId);
-        previewArrows.push({ kind, from: operation.classId, to: id, excluded });
+        previewArrows.push({ kind, from: operation.classId, to: id, excluded, operationIndex: index });
       } else if (operation.type === 'moveClass') {
         const targetClass = resolveProposedId(operation.classId);
-        previewArrows.push({ kind, from: operation.classId, to: targetClass, excluded });
+        previewArrows.push({ kind, from: operation.classId, to: targetClass, excluded, operationIndex: index });
       } else if (operation.type === 'moveChildren') {
         const source = resolveProposedId(operation.from);
         for (const id of beforeParents.keys()) {
           if (beforeParents.get(id) === source && afterParents.get(id) === resolveProposedId(operation.to)) {
             const targetClass = resolveProposedId(id);
-            previewArrows.push({ kind, from: id, to: targetClass, excluded });
+            previewArrows.push({ kind, from: id, to: targetClass, excluded, operationIndex: index });
           }
         }
       }

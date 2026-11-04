@@ -498,6 +498,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-direction[hidden] { display: none !important; }
 .ai-preview-direction path { pointer-events: stroke; cursor: pointer; transition: stroke-width 120ms ease, opacity 120ms ease, filter 120ms ease; }
 .ai-preview-direction path:hover { stroke-width: 3.5px; opacity: 1; filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.35)); }
+.ai-preview-direction path.is-ai-preview-arrow-hovered { stroke-width: 3.5px; opacity: 1; filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.35)); }
 @media (max-width: 760px) {
   .ai-preview-change-actions { flex-basis: 100%; justify-content: flex-end; }
   .ai-preview-columns { grid-template-columns: minmax(0, 1fr); }
@@ -583,6 +584,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .is-ai-preview-changed:not(.tree-leaf-class) { outline: 2px solid #f59e0b; outline-offset: 1px; }
 #ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-changed { outline: none; }
 #ai-preview-dialog .tree .is-ai-preview-excluded { opacity: 0.5; outline: 1px dashed #64748b; outline-offset: 1px; }
+#ai-preview-dialog .tree .is-ai-preview-hover-related { outline: 3px solid #f59e0b !important; outline-offset: 2px; filter: brightness(0.96); box-shadow: 0 3px 10px rgba(15, 23, 42, 0.24); }
 #ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-changed:hover,
 #ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-changed:hover,
 #ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-excluded:hover,

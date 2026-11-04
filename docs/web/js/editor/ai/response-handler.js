@@ -55,8 +55,11 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
   const suppressNoopMoveOperations = (result, scope) => {
     const originalProposalCount = result.proposals.length;
     const initiallyHadMoves = result.proposals.some((proposal) => proposal.operations.some((operation) => ['moveClass', 'moveChildren'].includes(operation.type)));
+    // 選択範囲に親クラスが含まれない場合も、実データを使って現在の親を判定する。
+    const currentRelations = editor.getState()?.relations || scope.relations || [];
+    const currentParentByChild = new Map(currentRelations.map(({ child, parent }) => [child, parent]));
     result.proposals.forEach((proposal) => {
-      const parentByChild = new Map((scope.relations || []).map(({ child, parent }) => [child, parent]));
+      const parentByChild = new Map(currentParentByChild);
       const createsCycle = (sourceId, destinationId) => {
         let currentId = destinationId;
         const seen = new Set();
