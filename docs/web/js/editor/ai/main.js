@@ -184,10 +184,12 @@ import { createProposalPreview } from './proposal-preview.js?v=20261104-preview-
   const promptExamplesList = document.getElementById('ai-prompt-examples-list');
   const promptExamplesById = new Map();
   const defaultPromptExamples = [
-    { id: 'membership', title: '所属を見直す', prompt: '選択クラスの所属を見直し、必要な移動案と理由を示してください。' },
-    { id: 'direct-targets', title: '直下クラスを整理', prompt: '上位クラス直下を確認し、適切な中間クラスへの移動案を示してください。' },
-    { id: 'hierarchy', title: '階層をチェック', prompt: '上位・中間クラスの名称や親子関係を確認し、問題があれば整理案を示してください。' },
-    { id: 'summary', title: '階層を要約', prompt: '選択範囲の階層構造を簡潔に説明してください。' }
+    { id: 'membership', title: '所属を見直す', prompt: '選択中の対象クラスについて、現在の所属が内容に合っているか確認してください。移動が必要なものだけ、移動先と理由を提案してください。' },
+    { id: 'uncategorized', title: '未分類を整理', prompt: '未分類（t_0）直下の対象クラスを確認し、既存の上位・中間クラスに明確に分類できるものがあれば移動案を示してください。判断できないものはそのままにしてください。' },
+    { id: 'direct-targets', title: '直下クラスを整理', prompt: '選択した上位クラス直下の対象クラスを確認し、適切な既存中間クラスがあれば移動案を示してください。' },
+    { id: 'middle-classes', title: '中間クラスを整理', prompt: '選択範囲の中間クラスを確認し、意味の重複や不自然な親子関係があれば、根拠を添えて整理案を示してください。' },
+    { id: 'new-middle-class', title: '新しい中間クラスを検討', prompt: '既存の中間クラスでは分類しにくい対象のまとまりがあれば、新しい中間クラスの名称と対象を提案してください。追加と移動は一つの案にまとめてください。' },
+    { id: 'summary', title: '階層を要約', prompt: '選択範囲の上位・中間・対象クラスの構成と特徴を簡潔に説明してください。変更案は不要です。' }
   ];
   const renderPromptExamples = (examples) => {
     promptExamplesById.clear();
