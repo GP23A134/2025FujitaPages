@@ -612,6 +612,14 @@ window.appData = {
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_140",
         "label": "設備整備・管理"
+      },
+      {
+        "id": "https://kozaki-lab.jp/REFV-KG/class/m_141",
+        "label": "バイオマス発電"
+      },
+      {
+        "id": "https://kozaki-lab.jp/REFV-KG/class/m_142",
+        "label": "水素"
       }
     ],
     "relations": [
@@ -1007,11 +1015,6 @@ window.appData = {
       },
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/c_1751",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_1",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_1809",
         "parent": "https://kozaki-lab.jp/REFV-KG/class/t_1",
         "relation": "subClassOf"
       },
@@ -4126,11 +4129,6 @@ window.appData = {
         "relation": "subClassOf"
       },
       {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_6204",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_1",
-        "relation": "subClassOf"
-      },
-      {
         "child": "https://kozaki-lab.jp/REFV-KG/class/c_6295",
         "parent": "https://kozaki-lab.jp/REFV-KG/class/t_1",
         "relation": "subClassOf"
@@ -4418,16 +4416,6 @@ window.appData = {
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/c_8984",
         "parent": "https://kozaki-lab.jp/REFV-KG/class/m_1",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_9059",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_1",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_9061",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_1",
         "relation": "subClassOf"
       },
       {
@@ -16346,31 +16334,6 @@ window.appData = {
         "relation": "subClassOf"
       },
       {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_9001",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_1",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_6109",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_1",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_3660",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_1",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_3662",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_1",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_524",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_1",
-        "relation": "subClassOf"
-      },
-      {
         "child": "https://kozaki-lab.jp/REFV-KG/class/c_493",
         "parent": "https://kozaki-lab.jp/REFV-KG/class/t_6",
         "relation": "subClassOf"
@@ -18381,18 +18344,8 @@ window.appData = {
         "relation": "subClassOf"
       },
       {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_682",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_8",
-        "relation": "subClassOf"
-      },
-      {
         "child": "https://kozaki-lab.jp/REFV-KG/class/c_1006",
         "parent": "https://kozaki-lab.jp/REFV-KG/class/m_24",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_1023",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_8",
         "relation": "subClassOf"
       },
       {
@@ -18428,16 +18381,6 @@ window.appData = {
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/c_1503",
         "parent": "https://kozaki-lab.jp/REFV-KG/class/m_34",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_1774",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_8",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_1886",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_8",
         "relation": "subClassOf"
       },
       {
@@ -19036,11 +18979,6 @@ window.appData = {
         "relation": "subClassOf"
       },
       {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_1022",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_8",
-        "relation": "subClassOf"
-      },
-      {
         "child": "https://kozaki-lab.jp/REFV-KG/class/c_10683",
         "parent": "https://kozaki-lab.jp/REFV-KG/class/m_34",
         "relation": "subClassOf"
@@ -19228,11 +19166,6 @@ window.appData = {
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/c_2418",
         "parent": "https://kozaki-lab.jp/REFV-KG/class/m_36",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_2499",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_8",
         "relation": "subClassOf"
       },
       {
@@ -28146,11 +28079,6 @@ window.appData = {
         "relation": "subClassOf"
       },
       {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_6429",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_8",
-        "relation": "subClassOf"
-      },
-      {
         "child": "https://kozaki-lab.jp/REFV-KG/class/c_9683",
         "parent": "https://kozaki-lab.jp/REFV-KG/class/t_6",
         "relation": "subClassOf"
@@ -28538,11 +28466,6 @@ window.appData = {
       {
         "child": "https://kozaki-lab.jp/REFV-KG/class/c_8101",
         "parent": "https://kozaki-lab.jp/REFV-KG/class/t_7",
-        "relation": "subClassOf"
-      },
-      {
-        "child": "https://kozaki-lab.jp/REFV-KG/class/c_1977",
-        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_8",
         "relation": "subClassOf"
       },
       {
@@ -60879,6 +60802,101 @@ window.appData = {
         "child": "https://kozaki-lab.jp/REFV-KG/class/c_3616",
         "parent": "https://kozaki-lab.jp/REFV-KG/class/t_8",
         "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/m_141",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_8",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_3662",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_141",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_9061",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_141",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_524",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_141",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_3660",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_141",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_1809",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_141",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_9059",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_141",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_6109",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_141",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_6204",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_141",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_9001",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_141",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_1977",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_93",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_6429",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_93",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/m_142",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_8",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_2499",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_142",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_1886",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_142",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_1023",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_142",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_682",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_142",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_1022",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/m_142",
+        "relation": "subClassOf"
+      },
+      {
+        "child": "https://kozaki-lab.jp/REFV-KG/class/c_1774",
+        "parent": "https://kozaki-lab.jp/REFV-KG/class/t_0",
+        "relation": "subClassOf"
       }
     ]
   },
@@ -61443,6 +61461,14 @@ window.appData = {
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_140",
         "label": "設備整備・管理"
+      },
+      {
+        "id": "https://kozaki-lab.jp/REFV-KG/class/m_141",
+        "label": "バイオマス発電"
+      },
+      {
+        "id": "https://kozaki-lab.jp/REFV-KG/class/m_142",
+        "label": "水素"
       }
     ]
   },

@@ -26,6 +26,15 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
   };
   // 全体参照が上限を超える場合、階層範囲と対象クラス範囲を分割して漏れなく計画します。
   const makeLargeScopePlan = (userText, scope, conversation) => {
+    const upperClassBatchCount = 10;
+    const upperClassBatchIndex = (id) => {
+      let hash = 2166136261;
+      for (const character of String(id || '')) {
+        hash ^= character.codePointAt(0);
+        hash = Math.imul(hash, 16777619);
+      }
+      return (hash >>> 0) % upperClassBatchCount;
+    };
     const selectionRoots = scope.selectionRoots || scope.selectedIds;
     const selectedRootClasses = selectionRoots.map((id) => scope.classes.find((item) => item.id === id)).filter(Boolean);
     const isHierarchySelection = selectedRootClasses.length === selectionRoots.length
@@ -108,6 +117,11 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
           offset += bestSize;
         }
       }
+      targetTasks.forEach((task, index) => {
+        task.kind = 'upper_class_unit';
+        task.unitId = `upper_unit_${index + 1}`;
+        task.instruction = targetInstruction;
+      });
       return targetTasks;
     }
 
@@ -215,8 +229,6 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
 
     // Pack small hierarchy branches together so they do not each require a separate API call.
     const packedHierarchyTasks = [];
-    let pendingHierarchyScope = null;
-    const upperClassesIn = (taskScope) => new Set(taskScope.classes.map((item) => topAncestorFor(item.id)));
     const mergeHierarchyScopes = (left, right) => {
       const classesById = new Map([...left.classes, ...right.classes].map((item) => [item.id, item]));
       const relationByKey = new Map([...left.relations, ...right.relations]
@@ -231,18 +243,27 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         counts: {}
       };
     };
+    const hierarchyTasksByBucket = new Map();
     hierarchyTasks.forEach((task) => {
-      const candidateScope = pendingHierarchyScope ? mergeHierarchyScopes(pendingHierarchyScope, task.scope) : task.scope;
-      const candidateTask = buildHierarchyTask(candidateScope);
-      const candidateUpperClasses = upperClassesIn(candidateScope);
-      if (pendingHierarchyScope && (candidateTask.input.length > hierarchyChunkLimit || candidateUpperClasses.size > 1)) {
-        packedHierarchyTasks.push(buildHierarchyTask(pendingHierarchyScope));
-        pendingHierarchyScope = task.scope;
-      } else {
-        pendingHierarchyScope = candidateScope;
-      }
+      const rootId = task.scope.editableIds[0] || task.scope.classes[0]?.id || '';
+      const bucket = upperClassBatchIndex(topAncestorFor(rootId));
+      if (!hierarchyTasksByBucket.has(bucket)) hierarchyTasksByBucket.set(bucket, []);
+      hierarchyTasksByBucket.get(bucket).push(task);
     });
-    if (pendingHierarchyScope) packedHierarchyTasks.push(buildHierarchyTask(pendingHierarchyScope));
+    for (const [, bucketTasks] of [...hierarchyTasksByBucket].sort(([left], [right]) => left - right)) {
+      let pendingHierarchyScope = null;
+      for (const task of bucketTasks) {
+        const candidateScope = pendingHierarchyScope ? mergeHierarchyScopes(pendingHierarchyScope, task.scope) : task.scope;
+        const candidateTask = buildHierarchyTask(candidateScope);
+        if (pendingHierarchyScope && candidateTask.input.length > hierarchyChunkLimit) {
+          packedHierarchyTasks.push(buildHierarchyTask(pendingHierarchyScope));
+          pendingHierarchyScope = task.scope;
+        } else {
+          pendingHierarchyScope = candidateScope;
+        }
+      }
+      if (pendingHierarchyScope) packedHierarchyTasks.push(buildHierarchyTask(pendingHierarchyScope));
+    }
     hierarchyTasks.splice(0, hierarchyTasks.length, ...packedHierarchyTasks);
 
     const targetClasses = scope.classes.filter((item) => item.type === 'class' && scope.editableIds.includes(item.id));
@@ -339,5 +360,65 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     }
     return tasks;
   };
-    return { buildUserContent, makeLargeScopePlan };
+    const packAnalysisUnits = (units, userText, conversation) => {
+      const mergeScopes = (left, right) => {
+        const classesById = new Map([...left.classes, ...right.classes].map((item) => [item.id, item]));
+        const relationsByKey = new Map([...left.relations, ...right.relations]
+          .map((item) => [`${item.child}\u0000${item.parent}`, item]));
+        return {
+          mode: left.mode,
+          scopeCoverage: 'all_classes_chunk',
+          selectedIds: [...new Set([...left.selectedIds, ...right.selectedIds])],
+          selectionRoots: [...new Set([...(left.selectionRoots || []), ...(right.selectionRoots || [])])],
+          editableIds: [...new Set([...left.editableIds, ...right.editableIds])],
+          classes: [...classesById.values()],
+          relations: [...relationsByKey.values()],
+          counts: { ...(left.counts || {}), ...(right.counts || {}) },
+          sharedContextIds: [...new Set([...(left.sharedContextIds || []), ...(right.sharedContextIds || [])])],
+          targetContext: {
+            descendantTargetClassCounts: {
+              ...(left.targetContext?.descendantTargetClassCounts || {}),
+              ...(right.targetContext?.descendantTargetClassCounts || {})
+            }
+          },
+          allowHierarchyEdits: Boolean(left.allowHierarchyEdits || right.allowHierarchyEdits)
+        };
+      };
+      const makeBatch = (batchUnits) => {
+        let scope = batchUnits[0].scope;
+        batchUnits.slice(1).forEach((unit) => { scope = mergeScopes(scope, unit.scope); });
+        const payload = JSON.parse(buildUserContent(userText, scope, conversation, {
+          forceSnapshot: true,
+          instruction: batchUnits[0].instruction
+        }));
+        payload.analysisGroups = batchUnits.map((unit) => ({
+          key: unit.unitId,
+          topClassId: unit.topClassId || null,
+          editableIds: unit.scope.editableIds
+        }));
+        payload.instruction = `${payload.instruction} analysisGroupsごとに独立して評価し、応答でも各keyごとのmessage・proposals・questionsを返してください。別グループのクラスを同じ提案に混ぜないでください。`;
+        const input = shortenInputIds(JSON.stringify(payload));
+        return { kind: 'upper_class_batch', units: batchUnits, scope, input };
+      };
+      const batches = [];
+      let pending = [];
+      units.forEach((unit) => {
+        const candidate = makeBatch([...pending, unit]);
+        const editableIds = new Set(candidate.scope.editableIds);
+        const editableTargetCount = candidate.scope.classes.filter((item) => item.type === 'class' && editableIds.has(item.id)).length;
+        const exceedsGroupLimit = candidate.units.length > 4;
+        const exceedsOperationLimit = candidate.scope.allowHierarchyEdits && editableTargetCount > 20;
+        if (pending.length && (candidate.input.length > MAX_REQUEST_CHARACTERS || exceedsGroupLimit || exceedsOperationLimit)) {
+          batches.push(makeBatch(pending));
+          pending = [unit];
+        } else if (candidate.input.length <= MAX_REQUEST_CHARACTERS && !exceedsGroupLimit && !exceedsOperationLimit) {
+          pending = [...pending, unit];
+        } else {
+          throw new Error('上位クラスの分析単位を送信上限内にまとめられません。対象範囲を小さくしてください。');
+        }
+      });
+      if (pending.length) batches.push(makeBatch(pending));
+      return batches;
+    };
+    return { buildUserContent, makeLargeScopePlan, packAnalysisUnits };
 };
