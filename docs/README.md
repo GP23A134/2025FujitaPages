@@ -40,13 +40,13 @@ Javaツールのコンパイル、実行コマンド、クエリモードは[Jav
 
 ### 実行とデータ
 
-- [Javaツールとクエリ](java/README.md)
-- [データフォルダー全体](data/README.md)
-- [クラス分類の更新入力](data/input/README.md)
-- [SPARQLクエリ結果](data/query-results/README.md)
-- [階層クエリ結果](data/query-results/hierarchy/README.md)
-- [統合データ](data/integrated/README.md)
-- [生成TSV](data/output/README.md)
+- [Javaツールとクエリ](java/)
+- [データフォルダー全体](data/)
+- [クラス分類の更新入力](data/input/)
+- [SPARQLクエリ結果](data/query-results/)
+- [階層クエリ結果](data/query-results/hierarchy/)
+- [統合データ](data/integrated/)
+- [生成TSV](data/output/)
 
 ### Web画面とコード
 
