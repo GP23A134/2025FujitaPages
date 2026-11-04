@@ -177,8 +177,9 @@ function renderTree() {
     });
     return button;
   };
-  const addTreeRow = (label, handler) => {
+  const addTreeRow = (label, handler, rowClass = '') => {
     const row = document.createElement('li');
+    if (rowClass) row.classList.add(rowClass);
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'tree-add-button tree-add-row';
@@ -461,7 +462,8 @@ function renderTree() {
     renderTarget,
     renderRootExtra: () => addTreeRow(
       heldMiddleClasses.size ? `選択した中間クラスを上位化（${heldMiddleClasses.size}件）` : '上位クラスを追加',
-      addTopClass
+      addTopClass,
+      'tree-root-add-row'
     ),
     afterChildren: () => scheduleTargetConnectorLayout(),
     afterRender: () => {

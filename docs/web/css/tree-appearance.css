@@ -150,7 +150,7 @@
 }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-middle-class > summary::after {
   /* 固定追従する中間クラス見出しに横線を付け、スクロール時のずれを防ぐ。 */
-  content: ""; position: absolute; top: 50%; left: -1.2rem; width: 1.2rem;
+  content: ""; position: absolute; top: 50%; left: -1.1rem; width: 1.1rem;
   transform: translateY(-50%); border-top: 2px solid var(--tree-level-color, #7dd3fd);
   pointer-events: none;
 }
@@ -222,6 +222,11 @@
   /* 編集ツリーの行間隔。接続点は共通設定の50%を使う。 */
   margin: 0.35rem 0;
 }
+
+/* 最上位の追加行は階層項目ではないため、リスト点と接続線を表示しない。 */
+#edit-tree-panel .tree > .tree-root-add-row { list-style: none; }
+#edit-tree-panel .tree > .tree-root-add-row::marker { content: none; }
+#edit-tree-panel .tree > .tree-root-add-row::before { content: none; display: none; }
 
 #edit-tree-panel .tree li::before {
   /* 通常の編集ツリー行の横線。topは縦線との接点、left/widthは横位置と長さ。 */
