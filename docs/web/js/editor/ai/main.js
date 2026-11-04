@@ -181,53 +181,49 @@ import { createProposalPreview } from './proposal-preview.js?v=20261104-preview-
   const status = document.getElementById('ai-status');
   const sendButton = document.getElementById('ai-send');
   const textInput = document.getElementById('ai-chat-input');
-  const promptExamplesToggle = document.getElementById('ai-prompt-examples-toggle');
   const promptExamplesList = document.getElementById('ai-prompt-examples-list');
-  const promptExamplesToggleLabel = promptExamplesToggle.firstChild;
-  const promptExamplesToggleIcon = promptExamplesToggle.querySelector('span');
   const promptExamplesById = new Map();
-  fetch('web/data/config/ai-prompt-examples.json', { cache: 'no-store' })
+  const defaultPromptExamples = [
+    { id: 'membership', title: '所属を見直す', prompt: '選択クラスの所属を見直し、必要な移動案と理由を示してください。' },
+    { id: 'direct-targets', title: '直下クラスを整理', prompt: '上位クラス直下を確認し、適切な中間クラスへの移動案を示してください。' },
+    { id: 'hierarchy', title: '階層をチェック', prompt: '上位・中間クラスの名称や親子関係を確認し、問題があれば整理案を示してください。' },
+    { id: 'summary', title: '階層を要約', prompt: '選択範囲の階層構造を簡潔に説明してください。' }
+  ];
+  const renderPromptExamples = (examples) => {
+    promptExamplesById.clear();
+    const fragment = document.createDocumentFragment();
+    examples.forEach((example) => {
+      if (!example || typeof example.id !== 'string' || typeof example.title !== 'string'
+        || typeof example.prompt !== 'string' || !example.id.trim() || !example.title.trim() || !example.prompt.trim()) return;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ai-prompt-example';
+      button.dataset.promptExample = example.id;
+      button.textContent = example.title;
+      promptExamplesById.set(example.id, example.prompt);
+      fragment.append(button);
+    });
+    promptExamplesList.replaceChildren(fragment);
+  };
+  renderPromptExamples(defaultPromptExamples);
+  fetch(new URL('../../../data/config/ai-prompt-examples.json', import.meta.url), { cache: 'no-store' })
     .then((response) => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.json();
     })
     .then((examples) => {
       if (!Array.isArray(examples)) throw new Error('Invalid prompt examples format');
-      const fragment = document.createDocumentFragment();
-      examples.forEach((example) => {
-        if (!example || typeof example.id !== 'string' || typeof example.title !== 'string'
-          || typeof example.prompt !== 'string' || !example.id.trim() || !example.title.trim() || !example.prompt.trim()) return;
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'ai-prompt-example';
-        button.dataset.promptExample = example.id;
-        button.textContent = example.title;
-        promptExamplesById.set(example.id, example.prompt);
-        fragment.append(button);
-      });
-      promptExamplesList.replaceChildren(fragment);
+      renderPromptExamples(examples);
     })
     .catch((error) => {
       console.warn('[AIチャット] プロンプト例を読み込めませんでした', error);
-      promptExamplesList.textContent = 'プロンプト例を読み込めませんでした。';
     });
-  promptExamplesToggle.addEventListener('click', () => {
-    const expanded = promptExamplesToggle.getAttribute('aria-expanded') !== 'true';
-    promptExamplesToggle.setAttribute('aria-expanded', String(expanded));
-    promptExamplesToggleLabel.textContent = expanded ? 'プロンプト例を閉じる ' : 'プロンプト例を表示 ';
-    promptExamplesToggleIcon.textContent = expanded ? '⌃' : '⌄';
-    promptExamplesList.hidden = !expanded;
-  });
   promptExamplesList.addEventListener('click', (event) => {
     const button = event.target.closest('[data-prompt-example]');
     const prompt = promptExamplesById.get(button?.dataset.promptExample);
     if (!prompt) return;
     textInput.value = prompt;
     textInput.dispatchEvent(new Event('input', { bubbles: true }));
-    promptExamplesList.hidden = true;
-    promptExamplesToggle.setAttribute('aria-expanded', 'false');
-    promptExamplesToggleLabel.textContent = 'プロンプト例を表示 ';
-    promptExamplesToggleIcon.textContent = '⌄';
     textInput.focus();
   });
   const isFullGraphScopeEnabled = () => fullGraphScopeToggle.getAttribute('aria-checked') === 'true';

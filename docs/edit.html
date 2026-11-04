@@ -9,7 +9,7 @@
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261103-edit-search-parity-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261104-prompt-examples-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261104-prompt-examples-always-visible-v1">
   <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261104-root-add-row-no-marker-v1">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-held-panel-fixed-v2">
   <script src="web/data/generated/class-data.js" defer></script>
@@ -163,8 +163,6 @@
             <p id="ai-key-guidance" class="ai-key-guidance" hidden>AIチャットを使うにはAPIキーが必要です。<button type="button" id="ai-open-settings" class="ai-settings-inline-link">設定</button>から入力してください。</p>
             <form id="ai-chat-form" class="ai-chat-form">
               <div class="ai-prompt-examples">
-                <button type="button" id="ai-prompt-examples-toggle" class="ai-prompt-examples-toggle" aria-expanded="true" aria-controls="ai-prompt-examples-list">プロンプト例を閉じる <span aria-hidden="true">⌃</span></button>
-                <p class="ai-prompt-examples-note">クリックすると依頼文がチャット欄に入力されます</p>
                 <div id="ai-prompt-examples-list" class="ai-prompt-examples-list"></div>
               </div>
               <label class="sr-only" for="ai-chat-input">AIへの依頼</label>
@@ -330,6 +328,6 @@
       <button type="button" id="edit-validation-export" class="search-button" hidden>警告を確認して出力</button>
     </div>
   </dialog>
-  <script type="module" src="web/js/editor/ai/main.js?v=20261104-prompt-examples-json-v1"></script>
+  <script type="module" src="web/js/editor/ai/main.js?v=20261104-prompt-examples-always-visible-v1"></script>
 </body>
 </html>
