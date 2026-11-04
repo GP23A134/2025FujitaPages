@@ -16,7 +16,7 @@
   <!-- defer付きクラシックスクリプトをこの順で実行する。各画面ファイルは共有グローバル状態を使う。 -->
   <script src="web/js/shared/tree.js?v=20261103-middle-sticky-gap-zero-v1" defer></script>
   <script src="web/js/browse/bootstrap.js?v=20261103-open-all-tree-v1" defer></script>
-  <script src="web/js/browse/lists.js?v=20261028-tree-gap-v1" defer></script>
+  <script src="web/js/browse/lists.js?v=20261104-initial-top-class-v1" defer></script>
   <script src="web/js/browse/aggregation.js?v=20261104-aggregation-preview-v35" defer></script>
   <script src="web/js/browse/tree.js?v=20261103-keyword-enter-chips-v1" defer></script>
   <script src="web/js/browse/main.js?v=20261103-keyword-enter-chips-v1" defer></script>
@@ -27,13 +27,16 @@
     <p class="eyebrow">KNOWLEDGE GRAPH VIEWER</p>
     <h1>クラス階層</h1>
     <p class="page-description">上位・中間クラスごとにクラスを検索、参照できます。</p>
+    <div class="page-header-actions">
+      <a class="page-link-button" href="edit.html">編集画面へ</a>
+    </div>
   </header>
 
   <main>
     <div class="tabs" role="tablist" aria-label="表示切替">
       <button type="button" class="tab is-active" id="tree-tab" role="tab" aria-selected="true"
         aria-controls="tree-panel">
-        階層ツリー <span class="tab-description">階層から探す</span>
+        階層 <span class="tab-description">階層から探す</span>
       </button>
       <button type="button" class="tab" id="list-tab" role="tab" aria-selected="false"
         aria-controls="list-panel">
@@ -201,9 +204,9 @@
 
     <section id="list-panel" class="tab-panel" role="tabpanel" aria-labelledby="list-tab" hidden>
       <div class="list-tabs" role="tablist" aria-label="一覧の種類">
-        <button type="button" class="list-tab" id="top-class-tab" role="tab" aria-selected="false" aria-controls="top-class-panel">上位クラス</button>
+        <button type="button" class="list-tab is-active" id="top-class-tab" role="tab" aria-selected="true" aria-controls="top-class-panel">上位クラス</button>
         <button type="button" class="list-tab" id="middle-class-tab" role="tab" aria-selected="false" aria-controls="middle-class-panel">中間クラス</button>
-        <button type="button" class="list-tab is-active" id="target-class-tab" role="tab" aria-selected="true" aria-controls="target-class-panel">クラス一覧</button>
+        <button type="button" class="list-tab" id="target-class-tab" role="tab" aria-selected="false" aria-controls="target-class-panel">対象クラス</button>
         <button type="button" class="list-tab" id="instance-tab" role="tab" aria-selected="false" aria-controls="instance-panel">インスタンス</button>
       </div>
       <div class="class-search" role="search">
@@ -219,7 +222,7 @@
         </div>
         <p id="list-active-filter-summary" class="list-active-filter-summary" aria-live="polite" hidden></p>
       </div>
-      <section id="top-class-panel" class="list-subpanel" role="tabpanel" aria-labelledby="top-class-tab" hidden>
+      <section id="top-class-panel" class="list-subpanel" role="tabpanel" aria-labelledby="top-class-tab">
         <div class="list-panel-heading"><h2>上位クラス一覧 <span id="top-class-result-count" class="list-result-count" aria-live="polite"></span></h2><div class="list-page-size-slot" id="top-class-page-size-slot"></div></div>
         <table>
           <thead><tr><th><button type="button" class="table-sort-button" data-list-sort-key="label">クラス（ラベル・ID）</button></th><th><button type="button" class="table-sort-button" data-list-sort-key="middle-count">中間クラス数</button></th><th><button type="button" class="table-sort-button" data-list-sort-key="target-count">対象クラス数</button></th><th><button type="button" class="table-sort-button" data-list-sort-key="count">インスタンス数</button></th></tr></thead>
@@ -243,8 +246,8 @@
         </div>
       </section>
 
-      <section id="target-class-panel" class="list-subpanel" role="tabpanel" aria-labelledby="target-class-tab">
-        <div class="list-panel-heading"><h2>クラス一覧 <span id="target-class-result-count" class="list-result-count" aria-live="polite"></span></h2><div class="list-page-size-slot" id="target-class-page-size-slot"><div id="list-page-tools" class="list-page-tools"><button type="button" id="download-list-tsv" class="search-button secondary-search-button">TSV保存</button><label id="list-page-size-control" for="list-page-size" class="list-page-size-filter">表示件数<select id="list-page-size"><option value="50">50件</option><option value="100" selected>100件</option><option value="200">200件</option><option value="500">500件</option><option value="all">全件</option></select></label></div></div></div>
+      <section id="target-class-panel" class="list-subpanel" role="tabpanel" aria-labelledby="target-class-tab" hidden>
+        <div class="list-panel-heading"><h2>対象クラス一覧 <span id="target-class-result-count" class="list-result-count" aria-live="polite"></span></h2><div class="list-page-size-slot" id="target-class-page-size-slot"><div id="list-page-tools" class="list-page-tools"><button type="button" id="download-list-tsv" class="search-button secondary-search-button">TSV保存</button><label id="list-page-size-control" for="list-page-size" class="list-page-size-filter">表示件数<select id="list-page-size"><option value="50">50件</option><option value="100" selected>100件</option><option value="200">200件</option><option value="500">500件</option><option value="all">全件</option></select></label></div></div></div>
         <table>
           <thead>
             <tr>
@@ -257,7 +260,7 @@
           </thead>
           <tbody id="target-class-rows"></tbody>
         </table>
-        <div class="list-pagination" aria-label="クラス一覧のページ操作">
+        <div class="list-pagination" aria-label="対象クラス一覧のページ操作">
           <span id="target-class-page-info" aria-live="polite"></span>
           <div><button type="button" id="target-class-page-prev" class="search-button secondary-search-button">前へ</button><button type="button" id="target-class-page-next" class="search-button secondary-search-button">次へ</button></div>
         </div>

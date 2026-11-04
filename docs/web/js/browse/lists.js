@@ -441,7 +441,7 @@ function renderClassLists(data) {
   const defaultListSortByTab = Object.fromEntries(Object.keys(listSortByTab).map((tabId) => [tabId, 'label-asc']));
   const listSortIsDefaultByTab = Object.fromEntries(Object.keys(listSortByTab).map((tabId) => [tabId, true]));
   let instanceHeaderCycleStarted = false;
-  const activeListTabId = () => document.querySelector('.list-tab.is-active')?.id || 'target-class-tab';
+  const activeListTabId = () => document.querySelector('.list-tab.is-active')?.id || 'top-class-tab';
   const hierarchyLevelsByTab = {
     'top-class-tab': [['t', '上位クラス']],
     'middle-class-tab': [['m', '中間クラス'], ['t', '上位クラス']],
