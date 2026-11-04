@@ -1,6 +1,6 @@
 # Webアプリ
 
-`index.html`と`edit.html`が読み込むブラウザー用のファイルを置いています。画面とJavaScriptの構成は[JavaScript README](js/README.md)、スタイルの役割と読み込み順は[CSS README](css/README.md)、データの配置と生成方法は[Web用データREADME](data/README.md)を参照してください。
+`index.html`と`edit.html`が読み込むブラウザー用のファイルを置いています。画面とJavaScriptの構成は[JavaScript README](js/)、スタイルの役割と読み込み順は[CSS README](css/)、データの配置と生成方法は[Web用データREADME](data/)を参照してください。
 
 ## フォルダーとファイル
 
@@ -14,6 +14,6 @@
 
 ## 画面データ
 
-閲覧・編集画面は`data/generated/`のJavaScriptをHTMLから読み込みます。統合データを更新した後は、プロジェクトルートから`WebDataBuild`を実行して表示データを再生成します。手順は[JavaツールREADME](../java/README.md)を参照してください。
+閲覧・編集画面は`data/generated/`のJavaScriptをHTMLから読み込みます。統合データを更新した後は、プロジェクトルートから`WebDataBuild`を実行して表示データを再生成します。手順は[JavaツールREADME](../java/い。
 
 `data/config/`の内容はブラウザーに配信されます。APIキーなどの秘密情報は置かず、APIキーは編集画面で利用者が入力してください。

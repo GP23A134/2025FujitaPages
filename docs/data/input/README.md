@@ -114,7 +114,7 @@ Copy-Item -LiteralPath data\input\history\class-data-before-update-YYYYMMDD-HHmm
 java -cp "bin;lib/*" ClassDataUpdate
 ```
 
-コンパイル手順やmacOS/Linuxでの実行方法は[`java/README.md`](../../java/README.md)を参照してください。
+コンパイル手順やmacOS/Linuxでの実行方法は[`java/`](../../java/)を参照してください。
 
 ## 出力
 

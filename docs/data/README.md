@@ -6,10 +6,10 @@
 
 | フォルダ | 内容 |
 |---|---|
-| `input/` | クラス分類を更新するJSONと入力手順。更新履歴のJSONはローカル保管のみで、Gitには含めません。詳細は[`input/README.md`](input/README.md)を参照してください。 |
-| `query-results/` | `QueryRun`がSPARQLクエリから取得したJSON。`base/`にはインスタンスとクラスの関係、`hierarchy/`にはクラス階層情報を保存します。詳細は[`query-results/README.md`](query-results/README.md)を参照してください。 |
-| `integrated/` | `DataIntegrate`と`ClassDataUpdate`が生成する統合JSON。ファイル一覧は[`integrated/README.md`](integrated/README.md)を参照してください。 |
-| `output/` | 上位クラスと中間クラスの一覧TSV。`DataIntegrate`または`ClassDataUpdate`が生成します。TSVはGit管理対象です。形式は[`output/README.md`](output/README.md)を参照してください。 |
+| `input/` | クラス分類を更新するJSONと入力手順。更新履歴のJSONはローカル保管のみで、Gitには含めません。詳細は[`input/`](input/)を参照してください。 |
+| `query-results/` | `QueryRun`がSPARQLクエリから取得したJSON。`base/`にはインスタンスとクラスの関係、`hierarchy/`にはクラス階層情報を保存します。詳細は[`query-results/`](query-results/)を参照してください。 |
+| `integrated/` | `DataIntegrate`と`ClassDataUpdate`が生成する統合JSON。ファイル一覧は[`integrated/`](integrated/)を参照してください。 |
+| `output/` | 上位クラスと中間クラスの一覧TSV。`DataIntegrate`または`ClassDataUpdate`が生成します。TSVはGit管理対象です。形式は[`output/`](output/)を参照してください。 |
 
 Webページ用のCSS・JavaScript・設定・生成データは、[`../web/`](../web/)にまとめています。`WebDataBuild`の出力先は`../web/data/generated/`です。
 
@@ -21,4 +21,4 @@ Webページ用のCSS・JavaScript・設定・生成データは、[`../web/`](.
 4. `DataIntegrate`または`ClassDataUpdate`が上位・中間クラス一覧TSVを`output/`に生成します。
 5. `java/WebDataBuild.java`が統合JSONから`../web/data/generated/`のJavaScriptを生成します。
 
-各プログラムの実行方法は[`java/README.md`](../java/README.md)を参照してください。
+各プログラムの実行方法は[`java/`](../java/)を参照してください。

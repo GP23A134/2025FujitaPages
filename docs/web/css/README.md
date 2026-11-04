@@ -16,4 +16,4 @@ HTML側の読み込み順は[閲覧画面](../../index.html)と[編集画面](..
 
 CSSを変更したときは、両方のHTMLにある`web/css/`の参照先とキャッシュ更新用`?v=`を確認してください。
 
-画面全体の構成は[Web README](../README.md)、各画面のスクリプトは[JavaScript README](../js/README.md)を参照してください。
+画面全体の構成は[Web README](../プトは[JavaScript README](../js/)を参照してください。

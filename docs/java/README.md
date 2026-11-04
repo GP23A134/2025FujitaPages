@@ -1,6 +1,6 @@
 # Javaツール
 
-`java/`には、SPARQLデータの取得、取得結果の統合、クラス分類の更新、Web表示データの生成に使うJavaソースとクエリを置いています。プロジェクト全体の概要は[ルートREADME](../README.md)を参照してください。コンパイル結果はローカルの`bin/`に出力されます。
+`java/`には、SPARQLデータの取得、取得結果の統合、クラス分類の更新、Web表示データの生成に使うJavaソースとクエリを置いています。プロジェクト全体の概要は[ルートREADME](../)を参照してください。コンパイル結果はローカルの`bin/`に出力されます。
 
 ## プログラム
 
@@ -53,4 +53,4 @@ java -cp "bin:lib/*" ClassDataUpdate
 java -cp "bin:lib/*" WebDataBuild
 ```
 
-JSON形式、差分更新ルール、履歴からの復元は[データ更新README](../data/input/README.md)を参照してください。
+JSON形式、差分更新ルール、履歴からの復元は[データ更新README](../data/input/)を参照してください。

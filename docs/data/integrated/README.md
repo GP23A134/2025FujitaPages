@@ -10,4 +10,4 @@
 | `target-class-data.json` | クラス一覧 |
 
 Web表示用データは`class-data.json`から`WebDataBuild`が生成します。確認用TSVは`DataIntegrate`または`ClassDataUpdate`が[`../output/`](../output/)に出力します。
-実行順は[データフォルダー全体のREADME](../README.md)、各Javaプログラムの説明は[JavaツールのREADME](../../java/README.md)を参照してください。
+実行順は[データフォルダー全体のREADME](../)、各Javaプログラムの説明は[JavaツールのREADME](../../java/)を参照してください。

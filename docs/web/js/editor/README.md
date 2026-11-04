@@ -14,4 +14,4 @@
 
 ## 読み込み順
 
-`edit.html`は`shared/tree.js`の後に`state.js`、`panels.js`、`tree.js`、`events.js`を読み込みます。AIは`ai/main.js`をES moduleの入口として読み込みます。詳しくは[AIモジュールのREADME](ai/README.md)を参照してください。
+`edit.html`は`shared/tree.js`の後に`state.js`、`panels.js`、`tree.js`、`events.js`を読み込みます。AIは`ai/main.js`をES moduleの入口として読み込みます。詳しくは[AIモジュールのREADME](ai/)を参照してください。

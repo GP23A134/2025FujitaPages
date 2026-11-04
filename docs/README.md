@@ -15,9 +15,9 @@
 2. `DataIntegrate`で取得結果を統合し、`data/integrated/`と`data/output/`を更新します。
 3. `WebDataBuild`で`web/data/generated/`の表示用JavaScriptを更新します。
 
-クラス分類だけを更新するときは、全件JSONまたはAIが作成した差分JSONを`data/input/class-update.json`に置き、`ClassDataUpdate`を実行してから`WebDataBuild`を実行します。入力形式、差分の版確認、履歴からの復元手順は[クラス分類更新のREADME](data/input/README.md)を参照してください。
+クラス分類だけを更新するときは、全件JSONまたはAIが作成した差分JSONを`data/input/class-update.json`に置き、`ClassDataUpdate`を実行してから`WebDataBuild`を実行します。入力形式、差分の版確認、履歴からの復元手順は[クラス分類更新のREADME](data/input/)を参照してください。
 
-Javaツールのコンパイル、実行コマンド、クエリモードは[JavaツールのREADME](java/README.md)にまとめています。
+Javaツールのコンパイル、実行コマンド、クエリモードは[JavaツールのREADME](java/)にまとめています。
 
 ## プロジェクト構成
 
@@ -50,11 +50,11 @@ Javaツールのコンパイル、実行コマンド、クエリモードは[Jav
 
 ### Web画面とコード
 
-- [Webアプリ全体](web/README.md)
-- [CSS構成と読み込み順](web/css/README.md)
-- [Web用データ](web/data/README.md)
-- [JavaScript全体](web/js/README.md)
-- [共有ツリー処理](web/js/shared/README.md)
-- [閲覧画面](web/js/browse/README.md)
-- [編集画面](web/js/editor/README.md)
-- [AIチャット](web/js/editor/ai/README.md)
+- [Webアプリ全体](web/)
+- [CSS構成と読み込み順](web/css/)
+- [Web用データ](web/data/)
+- [JavaScript全体](web/js/)
+- [共有ツリー処理](web/js/shared/)
+- [閲覧画面](web/js/browse/)
+- [編集画面](web/js/editor/)
+- [AIチャット](web/js/editor/ai/)
