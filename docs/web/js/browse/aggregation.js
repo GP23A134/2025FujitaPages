@@ -2,7 +2,35 @@
 const aggregationNumber = (value) => Number(value || 0).toLocaleString('ja-JP');
 const aggregationPercent = (part, whole) => whole ? `${(part / whole * 100).toFixed(1)}%` : '—';
 const aggregationClassLevel = (id) => /\/t_/.test(id) ? '上位' : /\/m_/.test(id) ? '中間' : /\/c_/.test(id) ? '対象' : '不明';
-let aggregationHideZeroIntegrity = false;
+let aggregationHideZeroIntegrity = true;
+let aggregationHideZeroLabelId = true;
+const aggregationDetailDialog = document.getElementById('aggregation-detail-dialog');
+const aggregationDetailDialogToolbar = document.getElementById('aggregation-detail-dialog-toolbar');
+const aggregationDetailDialogContent = document.getElementById('aggregation-detail-dialog-content');
+const aggregationDetailOpenAllButton = document.getElementById('aggregation-detail-open-all');
+const aggregationDetailCloseAllButton = document.getElementById('aggregation-detail-close-all');
+aggregationDetailOpenAllButton?.addEventListener('click', () => {
+  aggregationDetailDialogContent.querySelectorAll('.aggregation-duplicate-group').forEach((group) => { group.open = true; });
+});
+aggregationDetailCloseAllButton?.addEventListener('click', () => {
+  aggregationDetailDialogContent.querySelectorAll('.aggregation-duplicate-group').forEach((group) => { group.open = false; });
+});
+aggregationDetailDialog?.addEventListener('click', (event) => {
+  if (event.target !== aggregationDetailDialog) return;
+  const rect = aggregationDetailDialog.getBoundingClientRect();
+  if (event.clientX < rect.left || event.clientX > rect.right
+    || event.clientY < rect.top || event.clientY > rect.bottom) aggregationDetailDialog.close();
+});
+aggregationDetailDialog?.addEventListener('close', () => {
+  const host = document.getElementById(aggregationDetailDialog.dataset.activeListHost || '');
+  const returnToHost = [...aggregationDetailDialogToolbar.children]
+    .filter((item) => item !== aggregationDetailOpenAllButton && item !== aggregationDetailCloseAllButton);
+  if (host) host.append(...returnToHost, ...aggregationDetailDialogContent.children);
+  aggregationDetailDialogToolbar.replaceChildren();
+  aggregationDetailDialogContent.replaceChildren();
+  delete aggregationDetailDialog.dataset.activeListHost;
+  document.querySelectorAll('.aggregation-detail-button').forEach((button) => button.setAttribute('aria-expanded', 'false'));
+});
 
 function renderAggregationBars(targetId, rows) {
   const target = document.getElementById(targetId);
@@ -21,29 +49,6 @@ function renderAggregationBars(targetId, rows) {
   }));
 }
 
-function renderAggregationLevelComparison(levels, classInstances, descendantInstances) {
-  const body = document.getElementById('aggregation-level-comparison');
-  body.replaceChildren(...levels.map(({ label, classes }) => {
-    const directCounts = classes.map(({ id }) => classInstances.get(id)?.size || 0);
-    const descendantCounts = classes.map(({ id }) => descendantInstances.get(id)?.size || 0);
-    const directStats = aggregationDistribution(directCounts);
-    const row = document.createElement('tr');
-    const name = document.createElement('th'); name.scope = 'row'; name.textContent = label;
-    const cells = [
-      classes.length,
-      directCounts.reduce((sum, count) => sum + count, 0),
-      descendantCounts.reduce((sum, count) => sum + count, 0),
-      directCounts.filter((count) => count === 0).length,
-      aggregationNumber(directStats.median)
-    ];
-    row.append(name, ...cells.map((value) => {
-      const cell = document.createElement('td'); cell.textContent = typeof value === 'number' ? aggregationNumber(value) : value;
-      return cell;
-    }));
-    return row;
-  }));
-}
-
 function aggregationUniqueById(records) {
   return [...new Map(records.filter((item) => item?.id).map((item) => [item.id, item])).values()];
 }
@@ -56,6 +61,28 @@ function aggregationDuplicateIdStats(records) {
     ids: duplicateIds.length,
     extraRecords: duplicateIds.reduce((sum, [, count]) => sum + count - 1, 0),
     groups: duplicateIds.map(([id, count]) => ({ id, count })).sort((a, b) => a.id.localeCompare(b.id, 'ja'))
+  };
+}
+
+function aggregationDuplicateIdStatsAcrossSources(sources) {
+  const counts = new Map();
+  sources.forEach((records) => {
+    const countsInSource = new Map();
+    records.forEach((item) => { if (item?.id) countsInSource.set(item.id, (countsInSource.get(item.id) || 0) + 1); });
+    countsInSource.forEach((count, id) => {
+      const current = counts.get(id) || { records: 0, sources: 0 };
+      current.records += count;
+      current.sources += 1;
+      counts.set(id, current);
+    });
+  });
+  const duplicateIds = [...counts.entries()]
+    .filter(([, { records, sources: sourceCount }]) => records > sourceCount);
+  return {
+    ids: duplicateIds.length,
+    extraRecords: duplicateIds.reduce((sum, [, { records, sources: sourceCount }]) => sum + records - sourceCount, 0),
+    groups: duplicateIds.map(([id, { records, sources: sourceCount }]) => ({ id, count: records - sourceCount + 1 }))
+      .sort((a, b) => a.id.localeCompare(b.id, 'ja'))
   };
 }
 
@@ -170,12 +197,10 @@ function aggregationFindCycles(ids, parents) {
 function renderAggregationDetailLists(targetId, sections, classContextForId) {
   const target = document.getElementById(targetId);
   target.replaceChildren(...sections.filter((section) => section.groups.length).map((section) => {
-    const details = document.createElement('details');
+    const details = document.createElement('div');
     details.id = `aggregation-detail-${section.key}`;
     details.className = 'aggregation-group-details';
-    details.open = false;
-    const summary = document.createElement('summary');
-    summary.textContent = `${section.title}（${aggregationNumber(section.groups.length)}件）`;
+    details.dataset.title = section.title;
     const save = document.createElement('button');
     save.type = 'button';
     save.className = 'aggregation-export-button';
@@ -185,9 +210,9 @@ function renderAggregationDetailLists(targetId, sections, classContextForId) {
       event.preventDefault();
       event.stopPropagation();
       const rows = [['項目', 'ラベル', '種別', 'ID', '上位クラス', '中間クラス', '補足']];
-      section.groups.forEach(({ title, entries }) => entries.forEach(({ id, type = '', note = '' }) => {
+      section.groups.forEach(({ title, entries }) => entries.forEach(({ id, type = '', note = '', variantLabel = '' }) => {
         const context = type !== 'インスタンス' && type !== '未登録' ? classContextForId(id) : { upperLabels: [], middleLabels: [] };
-        rows.push([section.title, title, type, id, context.upperLabels.join(' ／ '), context.middleLabels.join(' ／ '), note]);
+        rows.push([section.title, title, type, id, context.upperLabels.join(' ／ '), context.middleLabels.join(' ／ '), variantLabel ? `実際の表記: ${variantLabel}` : note]);
       }));
       const tsv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join('\t')).join('\r\n');
       const blob = new Blob([`\ufeff${tsv}\r\n`], { type: 'text/tab-separated-values;charset=utf-8' });
@@ -204,13 +229,25 @@ function renderAggregationDetailLists(targetId, sections, classContextForId) {
     search.placeholder = 'この一覧を検索（ラベル・ID）';
     search.setAttribute('aria-label', `${section.title}を検索`);
     const groups = document.createElement('div'); groups.className = 'aggregation-group-list';
-    section.groups.forEach(({ title, entries }) => {
-      const group = document.createElement('section'); group.className = 'aggregation-duplicate-group';
-      const heading = document.createElement('h3'); heading.textContent = title;
+    const orderedGroups = [...section.groups].sort((a, b) => b.entries.length - a.entries.length
+      || a.title.localeCompare(b.title, 'ja'));
+    orderedGroups.forEach(({ title, entries }) => {
+      const group = document.createElement('details'); group.className = 'aggregation-duplicate-group';
+      const summary = document.createElement('summary'); summary.className = 'aggregation-duplicate-summary';
+      const heading = document.createElement('span'); heading.className = 'aggregation-duplicate-title'; heading.textContent = title;
       const count = document.createElement('span'); count.className = 'aggregation-duplicate-count';
-      count.textContent = `${aggregationNumber(entries.length)} ID`;
+      count.textContent = `（${aggregationNumber(entries.length)}件）`;
+      summary.append(heading, count);
       const list = document.createElement('ul'); list.className = 'aggregation-duplicate-ids';
-      entries.forEach(({ id, type = '', note = '' }) => {
+      let previousVariantLabel = '';
+      entries.forEach(({ id, type = '', note = '', variantLabel = '' }) => {
+        if (variantLabel && variantLabel !== previousVariantLabel) {
+          const variantHeading = document.createElement('li');
+          variantHeading.className = 'aggregation-label-variant-heading';
+          variantHeading.textContent = variantLabel;
+          list.append(variantHeading);
+          previousVariantLabel = variantLabel;
+        }
         const row = document.createElement('li');
         if (type) {
           const kind = document.createElement('span'); kind.className = 'aggregation-id-kind'; kind.textContent = type;
@@ -218,12 +255,6 @@ function renderAggregationDetailLists(targetId, sections, classContextForId) {
           row.append(kind);
         }
         const value = document.createElement('code'); value.textContent = id; row.append(value);
-        if (type !== 'インスタンス' && type !== '未登録') {
-          const context = classContextForId(id);
-          const path = document.createElement('small'); path.className = 'aggregation-id-context';
-          path.textContent = `上位クラス: ${context.upperLabels.join(' ／ ') || 'なし'}　中間クラス: ${context.middleLabels.join(' ／ ') || 'なし'}`;
-          row.append(path);
-        }
         if (note) {
           const annotation = document.createElement('small'); annotation.className = 'aggregation-id-note';
           annotation.textContent = note; row.append(annotation);
@@ -249,7 +280,7 @@ function renderAggregationDetailLists(targetId, sections, classContextForId) {
         });
         row.append(copy); list.append(row);
       });
-      group.append(heading, count, list); groups.append(group);
+      group.append(summary, list); groups.append(group);
     });
     const noResults = document.createElement('p');
     noResults.className = 'aggregation-detail-no-results';
@@ -265,7 +296,7 @@ function renderAggregationDetailLists(targetId, sections, classContextForId) {
       });
       noResults.hidden = visible > 0;
     });
-    details.append(summary, save, search, noResults, groups);
+    details.append(save, search, noResults, groups);
     return details;
   }));
 }
@@ -273,7 +304,7 @@ function renderAggregationDetailLists(targetId, sections, classContextForId) {
 function renderAggregation(data) {
   const panel = document.getElementById('aggregation-panel');
   if (!panel) return;
-  const rawClasses = data.classData?.classes || [];
+  const rawClasses = [...(data.classData?.classes || []), ...(data.targetClassData?.classes || [])];
   const rawInstances = data.instanceData?.instances || [];
   const missingClassIds = rawClasses.filter((item) => !item?.id).length;
   const missingInstanceIds = rawInstances.filter((item) => !item?.id).length;
@@ -349,11 +380,11 @@ function renderAggregation(data) {
     depthMemo.set(id, depth);
     return depth;
   };
-  const depths = classes.map(({ id }) => classDepth(id));
-  const maxDepth = Math.max(0, ...depths);
   const topClasses = classes.filter(({ id }) => /\/t_/.test(id));
   const middleClasses = classes.filter(({ id }) => /\/m_/.test(id));
   const targetClasses = classes.filter(({ id }) => /\/c_/.test(id));
+  const targetDepths = targetClasses.map(({ id }) => classDepth(id));
+  const maxTargetDepth = Math.max(0, ...targetDepths);
   const roots = classes.filter(({ id }) => parents.get(id).size === 0).length;
   const leaves = classes.filter(({ id }) => children.get(id).size === 0).length;
   const multipleParents = classes.filter(({ id }) => parents.get(id).size > 1).length;
@@ -361,6 +392,23 @@ function renderAggregation(data) {
   const maxChildrenClass = classes.find(({ id }) => children.get(id).size === maxChildren && maxChildren > 0);
   const topWithMiddle = topClasses.filter(({ id }) => [...children.get(id)].some((child) => /\/m_/.test(child))).length;
   const middleWithTarget = middleClasses.filter(({ id }) => [...children.get(id)].some((child) => /\/c_/.test(child))).length;
+  const countTargetDescendants = (id) => {
+    const visited = new Set([id]);
+    const pending = [...(children.get(id) || [])];
+    let count = 0;
+    while (pending.length) {
+      const child = pending.pop();
+      if (visited.has(child)) continue;
+      visited.add(child);
+      if (/\/c_/.test(child)) count += 1;
+      pending.push(...(children.get(child) || []));
+    }
+    return count;
+  };
+  const middleTargetCounts = middleClasses.map((middle) => ({ class: middle, count: countTargetDescendants(middle.id) }))
+    .sort((a, b) => b.count - a.count || (a.class.label || a.class.id).localeCompare(b.class.label || b.class.id, 'ja'));
+  const minMiddleTargetCount = middleTargetCounts.length ? middleTargetCounts[middleTargetCounts.length - 1].count : 0;
+  const middleWithFewestTargets = middleTargetCounts.filter(({ count }) => count === minMiddleTargetCount);
 
   const rawMemberships = data.instanceClassData?.relations || [];
   const classInstances = new Map(classes.map(({ id }) => [id, new Set()]));
@@ -436,7 +484,10 @@ function renderAggregation(data) {
   const targetWithLabels = targetClasses.filter(({ id }) => directLabelsByClass.get(id).size > 0).length;
   const maxDirectLabelCount = Math.max(0, ...directLabelCounts);
   const maxDirectLabelClass = classes.find(({ id }) => directLabelsByClass.get(id).size === maxDirectLabelCount && maxDirectLabelCount > 0);
-  const classDuplicates = aggregationDuplicateIdStats(rawClasses);
+  const classDuplicates = aggregationDuplicateIdStatsAcrossSources([
+    data.classData?.classes || [],
+    data.targetClassData?.classes || []
+  ]);
   const instanceDuplicates = aggregationDuplicateIdStats(rawInstances);
   const classLabels = aggregationLabelStats(rawClasses);
   const instanceLabels = aggregationLabelStats(rawInstances);
@@ -502,14 +553,9 @@ function renderAggregation(data) {
     const key = JSON.stringify([instance, classId]);
     duplicateMembershipGroups.set(key, { instance, classId, count: (duplicateMembershipGroups.get(key)?.count || 0) + 1 });
   });
-  const levelShare = (count) => `全クラスの ${aggregationPercent(count, classes.length)}`;
-
   const summaryCards = [
-    ['クラスID', classes.length, `元データ ${aggregationNumber(rawClasses.length)}行`],
-    ['インスタンスID', instances.length, `元データ ${aggregationNumber(rawInstances.length)}行`],
-    ['親子関係', classEdges.size, '重複を除いた関係数'],
-    ['所属関係', membershipEdges.size, '重複を除いたインスタンス・クラス組'],
-    ['最深階層', maxDepth, cycleClassIds.size ? '最長経路。循環関係を除外' : '最長の親子経路（クラス数）']
+    ['クラス数', classes.length, '上位・中間・対象クラスの合計'],
+    ['インスタンス数', instances.length, '重複を除いたID数']
   ];
   const renderCards = (targetId, cards, { compact = false } = {}) => {
     const target = document.getElementById(targetId);
@@ -517,12 +563,13 @@ function renderAggregation(data) {
     target.replaceChildren(...cards.map(([label, value, note, warning = false, detailKey = '']) => {
       const card = document.createElement('article');
       card.className = `aggregation-card${warning && value > 0 ? ' is-warning' : ''}`;
-      if (targetId === 'aggregation-integrity') {
+      if (targetId === 'aggregation-integrity' || targetId === 'aggregation-label-id') {
         card.dataset.metricValue = String(Number(value) || 0);
-        card.hidden = aggregationHideZeroIntegrity && Number(value) === 0;
+        card.hidden = (targetId === 'aggregation-integrity' ? aggregationHideZeroIntegrity : aggregationHideZeroLabelId) && Number(value) === 0;
       }
       const title = document.createElement('span'); title.className = 'aggregation-card-label'; title.textContent = label;
       const number = document.createElement('strong'); number.className = 'aggregation-card-value';
+      if (typeof value !== 'number') number.classList.add('aggregation-card-value-text');
       number.textContent = typeof value === 'number' ? aggregationNumber(value) : String(value);
       const detail = document.createElement('small'); detail.className = 'aggregation-card-note'; detail.textContent = note;
       card.append(title, number, detail);
@@ -530,17 +577,28 @@ function renderAggregation(data) {
         const openDetails = document.createElement('button');
         openDetails.type = 'button';
         openDetails.className = 'aggregation-detail-button';
-        openDetails.textContent = '該当一覧を見る';
-        openDetails.setAttribute('aria-controls', `aggregation-detail-${detailKey}`);
+        openDetails.textContent = '詳細を見る';
+        openDetails.setAttribute('aria-controls', 'aggregation-detail-dialog');
+        openDetails.setAttribute('aria-haspopup', 'dialog');
         openDetails.setAttribute('aria-expanded', 'false');
         openDetails.disabled = value === 0;
         openDetails.addEventListener('click', () => {
           const details = document.getElementById(`aggregation-detail-${detailKey}`);
-          if (!details) return;
-          details.open = true;
+          if (!details || !aggregationDetailDialog || !aggregationDetailDialogContent) return;
+          const search = details.querySelector('.aggregation-detail-search');
+          const save = details.querySelector('.aggregation-export-button');
+          const noResults = details.querySelector('.aggregation-detail-no-results');
+          const groups = details.querySelector('.aggregation-group-list');
+          document.getElementById('aggregation-detail-dialog-title').textContent = details.dataset.title || '詳細';
+          aggregationDetailDialog.dataset.activeListHost = details.id;
+          aggregationDetailDialogToolbar.replaceChildren(search, aggregationDetailOpenAllButton, aggregationDetailCloseAllButton, save);
+          aggregationDetailDialogContent.replaceChildren(noResults, groups);
+          search.value = '';
+          search.dispatchEvent(new Event('input'));
+          groups.querySelectorAll('.aggregation-duplicate-group').forEach((group) => { group.open = true; });
+          aggregationDetailDialog.showModal();
           openDetails.setAttribute('aria-expanded', 'true');
-          details.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          details.querySelector('summary')?.focus({ preventScroll: true });
+          search.focus({ preventScroll: true });
         });
         card.append(openDetails);
       }
@@ -549,52 +607,57 @@ function renderAggregation(data) {
   };
   renderCards('aggregation-summary', summaryCards);
   renderCards('aggregation-structure', [
-    ['上位クラス', topClasses.length, levelShare(topClasses.length)],
-    ['中間クラス', middleClasses.length, levelShare(middleClasses.length)],
-    ['対象クラス', targetClasses.length, levelShare(targetClasses.length)],
-    ['親を持たないクラス', roots, '親子関係の起点'],
-    ['子を持たないクラス', leaves, '末端にあるクラス'],
-    ['複数の親を持つクラス', multipleParents, '親IDが2つ以上'],
-    ['最多の直接子クラス数', maxChildren, maxChildrenClass?.label || maxChildrenClass?.id || '該当なし'],
-    ['上位クラスに接続しないクラス', classesWithoutTop.length, '上位クラスまで親をたどれない'],
-    ['独立した階層群', connectedComponentCount, '親子関係でつながるまとまり'],
-    ['親子関係のない孤立クラス', isolatedClasses, '親も子も持たない'],
+    ['上位クラス数', topClasses.length, `全クラスの${aggregationPercent(topClasses.length, classes.length)}`],
+    ['中間クラス数', middleClasses.length, `全クラスの${aggregationPercent(middleClasses.length, classes.length)}`],
+    ['対象クラス数', targetClasses.length, `全クラスの${aggregationPercent(targetClasses.length, classes.length)}。`],
+    ['対象クラスの最深階層', maxTargetDepth, cycleClassIds.size ? '親クラスを含む経路上のクラス数。循環関係を除外' : '親クラスから対象クラスまでのクラス数']
+  ]);
+  renderCards('aggregation-structure-secondary', [
     ['中間クラスを持つ上位クラス', topWithMiddle, `${aggregationPercent(topWithMiddle, topClasses.length)} の上位クラス`],
-    ['対象クラスを持つ中間クラス', middleWithTarget, `${aggregationPercent(middleWithTarget, middleClasses.length)} の中間クラス`]
+    ['中間クラスがない上位クラス', topClasses.length - topWithMiddle, '直接の中間クラスがない'],
+    ['対象クラスを持つ中間クラス', middleWithTarget, `${aggregationPercent(middleWithTarget, middleClasses.length)} の中間クラス`],
+    ['対象クラスがない中間クラス', middleClasses.length - middleWithTarget, '直接の対象クラスがない'],
+    ['上位クラスにつながらないクラス', classesWithoutTop.length, '上位クラスまで親をたどれない'],
+    ['親子関係から孤立したクラス', isolatedClasses, '親も子も持たない'],
+    ['複数の親を持つクラス', multipleParents, '親クラスIDが2つ以上'],
+    ['対象クラスが最多の中間クラス', middleTargetCounts[0]?.class.label || middleTargetCounts[0]?.class.id || '該当なし', middleTargetCounts.length ? `配下に${aggregationNumber(middleTargetCounts[0].count)}件の対象クラス` : '中間クラスなし'],
+    ['対象クラスが最少の中間クラス', middleWithFewestTargets.length ? middleWithFewestTargets.map(({ class: item }) => item.label || item.id).join('・') : '該当なし', middleWithFewestTargets.length ? `各配下に${aggregationNumber(minMiddleTargetCount)}件（${aggregationNumber(middleWithFewestTargets.length)}クラス）` : '中間クラスなし'],
+    ['直接の子クラスが最多のクラス', maxChildrenClass?.label || maxChildrenClass?.id || '該当なし', maxChildrenClass ? `${aggregationNumber(maxChildren)}件の直接の子クラス` : '子クラスなし']
   ]);
-  renderAggregationBars('aggregation-level-chart', [
-    { label: '上位クラス', value: topClasses.length, note: aggregationPercent(topClasses.length, classes.length) },
-    { label: '中間クラス', value: middleClasses.length, note: aggregationPercent(middleClasses.length, classes.length) },
-    { label: '対象クラス', value: targetClasses.length, note: aggregationPercent(targetClasses.length, classes.length) },
-  ]);
-  const depthsByValue = new Map();
-  depths.forEach((depth) => depthsByValue.set(depth, (depthsByValue.get(depth) || 0) + 1));
-  renderAggregationBars('aggregation-depth-chart', [...depthsByValue.entries()]
-    .sort(([a], [b]) => a - b).map(([depth, value]) => ({ label: `${depth}階層`, value })));
-  renderAggregationBars('aggregation-children-chart', aggregationCountBuckets(classes.map(({ id }) => children.get(id).size)));
-  renderAggregationLevelComparison([
-    { label: '上位', classes: topClasses },
-    { label: '中間', classes: middleClasses },
-    { label: '対象', classes: targetClasses },
-  ], classInstances, instancesIncludingDescendants);
-  renderCards('aggregation-label-id', [
-    ['同一階層内の重複ラベル', classDuplicateLabelGroupsByLevel.sameLevel, '同じ階層の異なるクラスIDで一致', true, 'duplicate-class-labels-same'],
-    ['階層をまたぐ重複ラベル', classDuplicateLabelGroupsByLevel.crossLevel, '上位・中間・対象をまたいで一致', true, 'duplicate-class-labels-cross'],
+  const targetCountsByTopClass = topClasses.map((topClass) => ({
+    label: topClass.label || topClass.id,
+    value: countTargetDescendants(topClass.id)
+  })).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, 'ja'));
+  renderAggregationBars('aggregation-hierarchy-coverage-chart', targetCountsByTopClass);
+  const targetCountsByDepth = new Map(Array.from({ length: maxTargetDepth }, (_, index) => [index + 1, 0]));
+  targetDepths.forEach((depth) => targetCountsByDepth.set(depth, (targetCountsByDepth.get(depth) || 0) + 1));
+  renderAggregationBars('aggregation-depth-chart', [...targetCountsByDepth.entries()]
+    .sort(([a], [b]) => a - b).map(([depth, count]) => ({ label: `${depth}階層`, value: count })));
+  const labelIdCards = [
+    ['同一階層内の重複ラベル（件数）', classDuplicateLabelGroupsByLevel.sameLevel, '同じ階層の異なるクラスIDで一致', true, 'duplicate-class-labels-same'],
+    ['階層をまたぐ重複ラベル（件数）', classDuplicateLabelGroupsByLevel.crossLevel, '上位・中間・対象をまたいで一致', true, 'duplicate-class-labels-cross'],
     ['複数ラベルを持つクラスID', classMultiLabelIds.length, '同一IDに異なるラベルがある', true, 'multiple-class-labels'],
-    ['同じラベルを持つインスタンスID群', instanceLabels.duplicateLabels, `${aggregationNumber(instanceLabels.idsWithDuplicateLabel)} IDが該当`, true, 'duplicate-instance-labels'],
+    [`同じラベルを持つインスタンスID群（${aggregationNumber(instanceLabels.duplicateLabels)}件）`, instanceLabels.duplicateLabels, `${aggregationNumber(instanceLabels.idsWithDuplicateLabel)} IDが該当`, true, 'duplicate-instance-labels'],
     ['複数ラベルを持つインスタンスID', instanceMultiLabelIds.length, '同一IDに異なるラベルがある', true, 'multiple-instance-labels'],
-    ['表記揺れの可能性があるクラスラベル', classNormalizedLabelGroups.length, '空白・全半角・大文字小文字を正規化して一致', true, 'normalized-class-labels'],
-    ['表記揺れの可能性があるインスタンスラベル', instanceNormalizedLabelGroups.length, '空白・全半角・大文字小文字を正規化して一致', true, 'normalized-instance-labels'],
-    ['クラスとインスタンスで共有するラベル', sharedLabels, '完全一致するラベル文字列', false, 'shared-labels'],
+    ['表記揺れの可能性があるクラスラベル（件数）', classNormalizedLabelGroups.length, '空白・全半角・大文字小文字を正規化して一致', true, 'normalized-class-labels'],
+    ['表記揺れの可能性があるインスタンスラベル（件数）', instanceNormalizedLabelGroups.length, '空白・全半角・大文字小文字を正規化して一致', true, 'normalized-instance-labels'],
+    ['クラスとインスタンスで共有するラベル（件数）', sharedLabels, '完全一致するラベル文字列', false, 'shared-labels'],
     ['クラスIDとインスタンスIDで重複するID', crossTypeIdCollisions.length, '別種類のデータ間でID文字列が一致', true, 'cross-type-id-collisions'],
     ['ラベルなしのクラスID', unlabeledClasses.length, '空欄または未設定', true, 'unlabeled-classes'],
     ['ラベルなしのインスタンスID', unlabeledInstances.length, '空欄または未設定', true, 'unlabeled-instances'],
     ['クラスの重複ID', classDuplicates.ids, `${aggregationNumber(classDuplicates.extraRecords)}件の余分なレコード`, true, 'duplicate-class-ids'],
     ['インスタンスの重複ID', instanceDuplicates.ids, `${aggregationNumber(instanceDuplicates.extraRecords)}件の余分なレコード`, true, 'duplicate-instance-ids']
-  ]);
+  ];
+  renderCards('aggregation-label-id', labelIdCards.sort((a, b) => Number(b[1]) - Number(a[1])));
+  const labelIdCardsRendered = [...document.querySelectorAll('#aggregation-label-id .aggregation-card')];
+  const visibleLabelIdIssues = labelIdCardsRendered.some((card) => Number(card.dataset.metricValue) > 0);
+  const labelIdToggle = document.getElementById('aggregation-toggle-zero-label-id');
+  labelIdToggle.setAttribute('aria-pressed', String(aggregationHideZeroLabelId));
+  labelIdToggle.textContent = aggregationHideZeroLabelId ? '0件も表示' : '0件を隠す';
+  document.getElementById('aggregation-zero-label-id-note').hidden = !aggregationHideZeroLabelId || visibleLabelIdIssues;
   const idEntries = (items, type, noteFor = () => '') => items.map((item) => ({ id: item.id, type: type === 'クラス' ? aggregationClassLevel(item.id) : type, note: noteFor(item) }));
   const classDuplicateDetails = (kind) => classDuplicateGroupsByKind(kind).map(({ label, ids }) => ({
-    title: `${label}（${new Set(ids.map(aggregationClassLevel)).size > 1 ? '階層をまたぐ' : '同一階層内'}）`,
+    title: label,
     entries: ids.map((id) => ({ id, type: aggregationClassLevel(id) }))
   }));
   const labelDetailSections = [
@@ -604,7 +667,18 @@ function renderAggregation(data) {
     { key: 'duplicate-instance-labels', title: '同じラベルを持つインスタンスID群', groups: instanceLabels.duplicateGroups.map(({ label, ids }) => ({ title: label, entries: ids.map((id) => ({ id, type: 'インスタンス' })) })) },
     { key: 'multiple-instance-labels', title: '複数ラベルを持つインスタンスID', groups: instanceMultiLabelIds.map(({ id, labels }) => ({ title: labels.join(' ／ '), entries: [{ id, type: 'インスタンス' }] })) },
     { key: 'normalized-class-labels', title: '表記揺れの可能性があるクラスラベル', groups: classNormalizedLabelGroups.map(({ normalized, ids }) => ({ title: normalized, entries: ids.map(({ id, labels }) => ({ id, type: aggregationClassLevel(id), note: `元のラベル: ${labels.join(' ／ ')}` })) })) },
-    { key: 'normalized-instance-labels', title: '表記揺れの可能性があるインスタンスラベル', groups: instanceNormalizedLabelGroups.map(({ normalized, ids }) => ({ title: normalized, entries: ids.map(({ id, labels }) => ({ id, type: 'インスタンス', note: `元のラベル: ${labels.join(' ／ ')}` })) })) },
+    { key: 'normalized-instance-labels', title: '表記揺れの可能性があるインスタンスラベル', groups: instanceNormalizedLabelGroups.map(({ normalized, ids }) => {
+      const idsByExactLabel = new Map();
+      ids.forEach(({ id, labels }) => labels.forEach((label) => {
+        if (!idsByExactLabel.has(label)) idsByExactLabel.set(label, new Set());
+        idsByExactLabel.get(label).add(id);
+      }));
+      const entries = [...idsByExactLabel.entries()]
+        .sort(([a], [b]) => a.localeCompare(b, 'ja'))
+        .flatMap(([variantLabel, variantIds]) => [...variantIds].sort((a, b) => a.localeCompare(b, 'ja'))
+          .map((id) => ({ id, type: 'インスタンス', variantLabel })));
+      return { title: `表記グループ：${normalized}`, entries };
+    }) },
     { key: 'shared-labels', title: 'クラスとインスタンスで共有するラベル', groups: [...classIdsByLabel.keys()].sort((a, b) => a.localeCompare(b, 'ja')).map((label) => ({
       title: label,
       entries: [
@@ -619,12 +693,14 @@ function renderAggregation(data) {
     { key: 'duplicate-instance-ids', title: 'インスタンスの重複ID', groups: instanceDuplicates.groups.map(({ id, count }) => ({ title: `${aggregationNumber(count)}レコード`, entries: [{ id, type: 'インスタンス' }] })) }
   ];
   renderAggregationDetailLists('aggregation-label-id-details', labelDetailSections, classContextForId);
-  renderCards('aggregation-membership', [
+  renderCards('aggregation-membership-primary', [
     ['1クラスあたりの直接所属ID数', classInstanceDistribution.average.toFixed(1), `中央値 ${aggregationNumber(classInstanceDistribution.median)} ／ 90%点 ${aggregationNumber(classInstanceDistribution.p90)} ／ 最多 ${aggregationNumber(classInstanceDistribution.max)}`],
     ['1クラスあたりの配下込みID数', subtreeInstanceDistribution.average.toFixed(1), `中央値 ${aggregationNumber(subtreeInstanceDistribution.median)} ／ 90%点 ${aggregationNumber(subtreeInstanceDistribution.p90)} ／ 最多 ${aggregationNumber(subtreeInstanceDistribution.max)}`],
+    ['所属IDがある対象クラス', targetWithInstances, `${aggregationPercent(targetWithInstances, targetClasses.length)} の対象クラス`]
+  ]);
+  renderCards('aggregation-membership-secondary', [
     ['所属IDがないクラス', classInstanceCounts.filter((count) => count === 0).length, '直接所属するインスタンスが0件'],
     ['配下を含めても所属IDがないクラス', subtreeInstanceCounts.filter((count) => count === 0).length, '下位クラスにもインスタンスがない'],
-    ['所属IDがある対象クラス', targetWithInstances, `${aggregationPercent(targetWithInstances, targetClasses.length)} の対象クラス`],
     ['1インスタンスあたりの所属クラス数', instanceClassDistribution.average.toFixed(1), `中央値 ${aggregationNumber(instanceClassDistribution.median)} ／ 90%点 ${aggregationNumber(instanceClassDistribution.p90)} ／ 最多 ${aggregationNumber(instanceClassDistribution.max)}`],
     ['複数クラスに所属するインスタンス', instanceClassCounts.filter((count) => count > 1).length, '所属クラスIDが2つ以上'],
     ['クラス未所属のインスタンス', instancesWithoutClass, '所属クラスIDが0件'],
@@ -634,12 +710,14 @@ function renderAggregation(data) {
   renderAggregationBars('aggregation-class-instance-chart', aggregationCountBuckets(classInstanceCounts, 4));
   renderAggregationBars('aggregation-subtree-instance-chart', aggregationCountBuckets(subtreeInstanceCounts, 4));
   renderAggregationBars('aggregation-instance-class-chart', aggregationCountBuckets(instanceClassCounts, 4));
-  renderCards('aggregation-label-membership', [
+  renderCards('aggregation-label-membership-primary', [
     ['1クラスあたりの直接所属ラベル数', directLabelDistribution.average.toFixed(1), `中央値 ${aggregationNumber(directLabelDistribution.median)} ／ 90%点 ${aggregationNumber(directLabelDistribution.p90)} ／ 最多 ${aggregationNumber(directLabelDistribution.max)}`],
     ['1クラスあたりの配下込みラベル数', subtreeLabelDistribution.average.toFixed(1), `中央値 ${aggregationNumber(subtreeLabelDistribution.median)} ／ 90%点 ${aggregationNumber(subtreeLabelDistribution.p90)} ／ 最多 ${aggregationNumber(subtreeLabelDistribution.max)}`],
+    ['所属ラベルがある対象クラス', targetWithLabels, `${aggregationPercent(targetWithLabels, targetClasses.length)} の対象クラス`]
+  ]);
+  renderCards('aggregation-label-membership-secondary', [
     ['直接所属ラベルがないクラス', directLabelCounts.filter((count) => count === 0).length, 'ラベルありインスタンスの所属が0件'],
     ['配下を含めても所属ラベルがないクラス', subtreeLabelCounts.filter((count) => count === 0).length, '下位クラスにもラベルありインスタンスがない'],
-    ['所属ラベルがある対象クラス', targetWithLabels, `${aggregationPercent(targetWithLabels, targetClasses.length)} の対象クラス`],
     ['1ラベルあたりの所属クラス数', labelClassDistribution.average.toFixed(1), `中央値 ${aggregationNumber(labelClassDistribution.median)} ／ 90%点 ${aggregationNumber(labelClassDistribution.p90)} ／ 最多 ${aggregationNumber(labelClassDistribution.max)}`],
     ['複数クラスに所属するラベル', labelsInMultipleClasses, '同じラベルのインスタンスが複数クラスに所属'],
     ['クラス未所属のラベル', labelsWithoutClass, 'ラベルに該当するIDがクラスに所属していない'],
@@ -697,6 +775,9 @@ function renderAggregation(data) {
   renderAggregationDetailLists('aggregation-integrity-details', integrityDetails, classContextForId);
   const integrityCards = [...document.querySelectorAll('#aggregation-integrity .aggregation-card')];
   const visibleIssues = integrityCards.some((card) => Number(card.dataset.metricValue) > 0);
+  const integrityToggle = document.getElementById('aggregation-toggle-zero-issues');
+  integrityToggle.setAttribute('aria-pressed', String(aggregationHideZeroIntegrity));
+  integrityToggle.textContent = aggregationHideZeroIntegrity ? '0件も表示' : '0件を隠す';
   document.getElementById('aggregation-zero-issues-note').hidden = !aggregationHideZeroIntegrity || visibleIssues;
 }
 
@@ -709,4 +790,15 @@ document.getElementById('aggregation-toggle-zero-issues')?.addEventListener('cli
   cards.forEach((card) => { card.hidden = aggregationHideZeroIntegrity && Number(card.dataset.metricValue) === 0; });
   const visibleIssueCount = cards.filter((card) => Number(card.dataset.metricValue) > 0).length;
   document.getElementById('aggregation-zero-issues-note').hidden = !aggregationHideZeroIntegrity || visibleIssueCount > 0;
+});
+
+document.getElementById('aggregation-toggle-zero-label-id')?.addEventListener('click', (event) => {
+  aggregationHideZeroLabelId = !aggregationHideZeroLabelId;
+  const button = event.currentTarget;
+  button.setAttribute('aria-pressed', String(aggregationHideZeroLabelId));
+  button.textContent = aggregationHideZeroLabelId ? '0件も表示' : '0件を隠す';
+  const cards = [...document.querySelectorAll('#aggregation-label-id .aggregation-card')];
+  cards.forEach((card) => { card.hidden = aggregationHideZeroLabelId && Number(card.dataset.metricValue) === 0; });
+  const visibleIssueCount = cards.filter((card) => Number(card.dataset.metricValue) > 0).length;
+  document.getElementById('aggregation-zero-label-id-note').hidden = !aggregationHideZeroLabelId || visibleIssueCount > 0;
 });

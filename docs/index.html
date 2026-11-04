@@ -10,14 +10,14 @@
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261103-removable-filter-chips-v1">
   <link rel="stylesheet" href="web/css/editor-panels.css?v=20261103-css-reorg-v1">
   <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261103-browse-scroll-range-90-v1">
-  <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-aggregation-dashboard-v9">
+  <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261104-aggregation-preview-v17">
   <script src="web/data/generated/class-data.js" defer></script>
   <script src="web/data/generated/instance-data.js" defer></script>
   <!-- defer付きクラシックスクリプトをこの順で実行する。各画面ファイルは共有グローバル状態を使う。 -->
   <script src="web/js/shared/tree.js?v=20261103-middle-sticky-gap-zero-v1" defer></script>
   <script src="web/js/browse/bootstrap.js?v=20261103-open-all-tree-v1" defer></script>
   <script src="web/js/browse/lists.js?v=20261028-tree-gap-v1" defer></script>
-  <script src="web/js/browse/aggregation.js?v=20261103-numeric-dashboard-v10" defer></script>
+  <script src="web/js/browse/aggregation.js?v=20261104-aggregation-preview-v35" defer></script>
   <script src="web/js/browse/tree.js?v=20261103-keyword-enter-chips-v1" defer></script>
   <script src="web/js/browse/main.js?v=20261103-keyword-enter-chips-v1" defer></script>
 </head>
@@ -46,89 +46,100 @@
     </div>
 
     <section id="aggregation-panel" class="tab-panel aggregation-panel" role="tabpanel" aria-labelledby="aggregation-tab" hidden>
-      <p class="aggregation-description">全体の規模、階層の深さ、ラベルとIDの重複、所属件数の偏り、関係データの状態を数値で確認できます。件数はID単位で数えます。</p>
       <div id="aggregation-summary" class="aggregation-summary" aria-live="polite"></div>
       <section class="aggregation-section" aria-labelledby="aggregation-structure-heading">
-        <h2 id="aggregation-structure-heading">階層構造</h2>
+        <h2 id="aggregation-structure-heading">クラス階層の全体像</h2>
+        <p class="aggregation-section-note">クラス数の内訳と、対象クラスの階層分布をまとめています。グラフでは上位クラスごとの件数と深さごとの件数を確認できます。</p>
         <div id="aggregation-structure" class="aggregation-metrics" aria-live="polite"></div>
-        <figure class="aggregation-chart">
-          <figcaption>階層ごとのクラスID数</figcaption>
-          <div id="aggregation-level-chart" class="aggregation-bar-chart" role="list" aria-label="階層ごとのクラスID数"></div>
-        </figure>
         <div class="aggregation-chart-pair">
           <figure class="aggregation-chart">
-            <figcaption>クラスごとの階層深度</figcaption>
-            <div id="aggregation-depth-chart" class="aggregation-bar-chart" role="list" aria-label="階層深度ごとのクラスID数"></div>
+            <figcaption>上位クラスごとの対象クラス数</figcaption>
+            <p class="aggregation-section-note">配下にある対象クラスを数えます。複数の上位クラスにつながる対象クラスは、それぞれで数えます。</p>
+            <div id="aggregation-hierarchy-coverage-chart" class="aggregation-bar-chart" role="list" aria-label="上位クラスごとの配下の対象クラス数"></div>
           </figure>
           <figure class="aggregation-chart">
-            <figcaption>直接の子クラス数</figcaption>
-            <div id="aggregation-children-chart" class="aggregation-bar-chart" role="list" aria-label="直接の子クラス数の分布"></div>
+            <figcaption>対象クラスの深さ別件数</figcaption>
+            <div id="aggregation-depth-chart" class="aggregation-bar-chart" role="list" aria-label="親クラスを含む深さごとの対象クラス数"></div>
           </figure>
         </div>
+        <details class="aggregation-hierarchy-details">
+          <summary>そのほかの階層情報</summary>
+          <div id="aggregation-structure-secondary" class="aggregation-metrics" aria-live="polite"></div>
+        </details>
       </section>
-      <section class="aggregation-section" aria-labelledby="aggregation-level-comparison-heading">
-        <h2 id="aggregation-level-comparison-heading">階層別の比較</h2>
-        <p class="aggregation-section-note">直接欄は所属関係数、配下欄はクラスごとに重複を除いた数の合計です。同じIDが複数クラスに属する場合、クラスごとに数えます。</p>
-        <div class="aggregation-table-wrap">
-          <table class="aggregation-comparison-table">
-            <thead><tr><th>階層</th><th>クラスID数</th><th>直接所属ID数</th><th>配下を含むID数</th><th>直接所属0件</th><th>直接件数の中央値</th></tr></thead>
-            <tbody id="aggregation-level-comparison"></tbody>
-          </table>
+      <section class="aggregation-section" aria-labelledby="aggregation-membership-heading">
+        <h2 id="aggregation-membership-heading">インスタンスの所属状況</h2>
+        <p class="aggregation-section-note">ID単位はラベルのないインスタンスも含みます。ラベル単位は同じ所属内の同一ラベルを1件とし、ラベルのないインスタンスは含みません。</p>
+        <div class="aggregation-membership-grid">
+          <section class="aggregation-membership-unit" aria-labelledby="aggregation-membership-id-heading">
+            <h3 id="aggregation-membership-id-heading">ID単位</h3>
+            <div class="aggregation-membership-unit-content">
+            <div class="aggregation-membership-primary" id="aggregation-membership-primary" aria-live="polite"></div>
+            <div class="aggregation-chart-pair">
+              <figure class="aggregation-chart">
+                <figcaption>クラスごとの直接所属ID数</figcaption>
+                <div id="aggregation-class-instance-chart" class="aggregation-bar-chart" role="list" aria-label="クラスあたりの所属インスタンスID数の分布"></div>
+              </figure>
+              <figure class="aggregation-chart">
+                <figcaption>クラスごとの配下込みID数</figcaption>
+                <div id="aggregation-subtree-instance-chart" class="aggregation-bar-chart" role="list" aria-label="クラスあたりの配下込みインスタンスID数の分布"></div>
+              </figure>
+              <figure class="aggregation-chart">
+                <figcaption>インスタンスごとの所属クラス数</figcaption>
+                <div id="aggregation-instance-class-chart" class="aggregation-bar-chart" role="list" aria-label="インスタンスあたりの所属クラス数の分布"></div>
+              </figure>
+            </div>
+            </div>
+          </section>
+          <section class="aggregation-membership-unit" aria-labelledby="aggregation-membership-label-heading">
+            <h3 id="aggregation-membership-label-heading">ラベル単位</h3>
+            <div class="aggregation-membership-unit-content">
+            <div class="aggregation-membership-primary" id="aggregation-label-membership-primary" aria-live="polite"></div>
+            <div class="aggregation-chart-pair">
+              <figure class="aggregation-chart">
+                <figcaption>クラスごとの直接所属ラベル数</figcaption>
+                <div id="aggregation-class-label-chart" class="aggregation-bar-chart" role="list" aria-label="クラスあたりの直接所属ラベル数の分布"></div>
+              </figure>
+              <figure class="aggregation-chart">
+                <figcaption>クラスごとの配下込みラベル数</figcaption>
+                <div id="aggregation-subtree-label-chart" class="aggregation-bar-chart" role="list" aria-label="クラスあたりの配下込みラベル数の分布"></div>
+              </figure>
+              <figure class="aggregation-chart">
+                <figcaption>ラベルごとの所属クラス数</figcaption>
+                <div id="aggregation-label-class-chart" class="aggregation-bar-chart" role="list" aria-label="ラベルあたりの所属クラス数の分布"></div>
+              </figure>
+            </div>
+            </div>
+          </section>
+          <details class="aggregation-membership-details">
+            <summary>補足指標</summary>
+            <div class="aggregation-membership-secondary-grid">
+              <section><h4>ID単位</h4><div id="aggregation-membership-secondary" class="aggregation-metrics" aria-live="polite"></div></section>
+              <section><h4>ラベル単位</h4><div id="aggregation-label-membership-secondary" class="aggregation-metrics" aria-live="polite"></div></section>
+            </div>
+          </details>
         </div>
       </section>
       <section class="aggregation-section" aria-labelledby="aggregation-label-id-heading">
         <h2 id="aggregation-label-id-heading">ラベルとID</h2>
+        <p class="aggregation-section-note">ラベルやIDの重複、表記揺れ、未設定をまとめています。カードから該当する一覧を確認できます。</p>
+        <div class="aggregation-integrity-toolbar">
+          <button type="button" id="aggregation-toggle-zero-label-id" class="aggregation-export-button" aria-pressed="true">0件も表示</button>
+        </div>
         <div id="aggregation-label-id" class="aggregation-metrics" aria-live="polite"></div>
+        <p id="aggregation-zero-label-id-note" class="aggregation-section-note" hidden>0件を除くと表示する項目はありません。</p>
         <div id="aggregation-label-id-details" class="aggregation-detail-lists"></div>
       </section>
-      <section class="aggregation-section" aria-labelledby="aggregation-membership-heading">
-        <h2 id="aggregation-membership-heading">所属とID件数</h2>
-        <p class="aggregation-section-note">直接所属はそのクラスに結び付いたID、配下込みは下位クラスのIDを重複なく含めた数です。</p>
-        <div id="aggregation-membership" class="aggregation-metrics" aria-live="polite"></div>
-        <div class="aggregation-chart-pair">
-          <figure class="aggregation-chart">
-            <figcaption>クラスあたりの直接所属インスタンスID数</figcaption>
-            <div id="aggregation-class-instance-chart" class="aggregation-bar-chart" role="list" aria-label="クラスあたりの所属インスタンスID数の分布"></div>
-          </figure>
-          <figure class="aggregation-chart">
-            <figcaption>クラスあたりの配下込みインスタンスID数</figcaption>
-            <div id="aggregation-subtree-instance-chart" class="aggregation-bar-chart" role="list" aria-label="クラスあたりの配下込みインスタンスID数の分布"></div>
-          </figure>
-          <figure class="aggregation-chart">
-            <figcaption>インスタンスあたりの所属クラス数</figcaption>
-            <div id="aggregation-instance-class-chart" class="aggregation-bar-chart" role="list" aria-label="インスタンスあたりの所属クラス数の分布"></div>
-          </figure>
-        </div>
-      </section>
-      <section class="aggregation-section" aria-labelledby="aggregation-label-membership-heading">
-        <h2 id="aggregation-label-membership-heading">所属とラベル件数</h2>
-        <p class="aggregation-section-note">IDの代わりにラベルを単位に数えます。同じラベルのインスタンスが複数IDにあっても、同じクラス内では1件です。ラベルなしは件数に含めません。</p>
-        <div id="aggregation-label-membership" class="aggregation-metrics" aria-live="polite"></div>
-        <div class="aggregation-chart-pair">
-          <figure class="aggregation-chart">
-            <figcaption>クラスあたりの直接所属ラベル数</figcaption>
-            <div id="aggregation-class-label-chart" class="aggregation-bar-chart" role="list" aria-label="クラスあたりの直接所属ラベル数の分布"></div>
-          </figure>
-          <figure class="aggregation-chart">
-            <figcaption>クラスあたりの配下込みラベル数</figcaption>
-            <div id="aggregation-subtree-label-chart" class="aggregation-bar-chart" role="list" aria-label="クラスあたりの配下込みラベル数の分布"></div>
-          </figure>
-          <figure class="aggregation-chart">
-            <figcaption>ラベルあたりの所属クラス数</figcaption>
-            <div id="aggregation-label-class-chart" class="aggregation-bar-chart" role="list" aria-label="ラベルあたりの所属クラス数の分布"></div>
-          </figure>
-        </div>
-      </section>
-      <section class="aggregation-section" aria-labelledby="aggregation-integrity-heading">
-        <h2 id="aggregation-integrity-heading">関係データの確認</h2>
+      <details class="aggregation-diagnostics">
+          <summary id="aggregation-integrity-heading">データの整合性</summary>
+        <p class="aggregation-section-note">問題のある関係をカードから開くと、該当IDを確認できます。</p>
         <div class="aggregation-integrity-toolbar">
-          <p class="aggregation-section-note">問題のある関係をカードから開くと、該当IDを確認できます。</p>
-          <button type="button" id="aggregation-toggle-zero-issues" class="aggregation-export-button" aria-pressed="false">0件を隠す</button>
+          <button type="button" id="aggregation-toggle-zero-issues" class="aggregation-export-button" aria-pressed="true">0件も表示</button>
         </div>
         <div id="aggregation-integrity" class="aggregation-metrics" aria-live="polite"></div>
         <p id="aggregation-zero-issues-note" class="aggregation-section-note" hidden>0件を除くと表示する項目はありません。</p>
         <div id="aggregation-integrity-details" class="aggregation-detail-lists"></div>
-      </section>
+      </details>
     </section>
 
     <section id="tree-panel" class="tab-panel" role="tabpanel" aria-labelledby="tree-tab">
@@ -271,6 +282,14 @@
   <dialog id="target-instance-dialog" class="target-instance-dialog" aria-labelledby="target-instance-title">
     <form method="dialog" class="target-instance-dialog-header"><h2 id="target-instance-title"></h2><button type="submit" class="target-instance-dialog-close" aria-label="閉じる">×</button></form>
     <p id="target-instance-count" class="target-instance-count"></p><ul id="target-instance-list" class="target-instance-list"></ul>
+  </dialog>
+  <dialog id="aggregation-detail-dialog" class="aggregation-detail-dialog" aria-labelledby="aggregation-detail-dialog-title">
+    <form method="dialog" class="aggregation-detail-dialog-header"><h2 id="aggregation-detail-dialog-title">詳細</h2><button type="submit" class="target-instance-dialog-close" aria-label="閉じる">×</button></form>
+    <div id="aggregation-detail-dialog-toolbar" class="aggregation-detail-dialog-toolbar">
+      <button type="button" id="aggregation-detail-open-all" class="aggregation-export-button">すべて開く</button>
+      <button type="button" id="aggregation-detail-close-all" class="aggregation-export-button">すべて閉じる</button>
+    </div>
+    <div id="aggregation-detail-dialog-content" class="aggregation-detail-dialog-content"></div>
   </dialog>
 </body>
 </html>
