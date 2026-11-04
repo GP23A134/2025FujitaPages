@@ -1,8 +1,8 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createClassIdCodec } from './id-codec.js?v=20261103-ai-module-system-step6-v1';
+import { createClassIdCodec } from './id-codec.js?v=20261104-send-data-review-fixes-v1';
 import { sendOpenAIRequest } from './api-client.js?v=20261103-ai-module-system-step6-v1';
-import { createRequestPlanner } from './request-planner.js?v=20261104-upper-class-batches-v1';
+import { createRequestPlanner } from './request-planner.js?v=20261104-send-data-review-fixes-v1';
 import { createResponseHandler } from './response-handler.js?v=20261104-no-extra-data-requests-v1';
 import { createConversationStore } from './conversation-store.js?v=20261103-ai-review-fixes-v1';
 import { createConversationView } from './conversation-view.js?v=20261104-readable-ai-replies-v1';
@@ -1274,20 +1274,8 @@ let proposalPreview = null;
     renderConversation,
     setStatus
   });
-  const createLocalConversationContext = (userText, result) => {
-    const lines = [`利用者の依頼: ${userText}`];
-    if (result.message) lines.push(`回答: ${result.message}`);
-    result.questions.forEach((question) => lines.push(`確認事項: ${question}`));
-    result.dataRequests.forEach((request) => {
-      const requested = request.classQuery ? `検索条件 ${JSON.stringify(request.classQuery)}` : (request.className || request.classId);
-      lines.push(`追加情報要求: ${requested}。理由: ${request.reason}`);
-    });
-    result.proposals.forEach((proposal) => {
-      lines.push(`変更案「${proposal.title}」: ${proposal.summary}。理由: ${proposal.reason}`);
-      proposal.operations.forEach((operation) => lines.push(`操作: ${JSON.stringify(operation)}`));
-    });
-    return `${lines[0].slice(0, 500)}\n${lines.slice(1).join('\n').slice(-5500)}`;
-  };
+  const createLocalConversationContext = (userText) =>
+    `利用者の依頼・方針: ${String(userText || '').slice(0, 500)}`;
   // 全体分析または分割分析の要点を保存し、同じデータへの追加相談で一覧の再送を避けます。
   const buildAnalysisMemory = (scope, tasks, chunkResults, result, baseDataHash, chunkCache = []) => {
     const selectedIds = [...(scope.selectedIds || [])].sort();
@@ -1356,17 +1344,31 @@ let proposalPreview = null;
     && JSON.stringify(memory.selectedIds) === JSON.stringify([...(scope.selectedIds || [])].sort())
     && JSON.stringify(memory.sharedContextIds) === JSON.stringify([...(scope.sharedContextIds || [])].sort()));
   // 依頼・指示・モデル・データ・対象範囲が完全一致するときだけチャンク結果を再利用します。
-  const splitTaskCacheKey = async (task, userText, systemPrompt) => digest(JSON.stringify({
+  const splitTaskCacheKey = async (task, userText, systemPrompt, conversation) => digest(JSON.stringify({
     sourceDataVersion,
     model: modelSelect.value,
     systemPrompt: `${systemPrompt}\n${compactResponseInstructions}\n${compactGroupedResponseInstructions}`,
     responseSchema,
     groupedResponseSchema,
     request: userText.trim(),
+    conversationContext: conversation.localContext || '',
     kind: task.kind,
-    editableIds: [...task.scope.editableIds].sort(),
-    classes: task.scope.classes.map(({ id, type, label }) => [id, type, label]).sort((a, b) => a[0].localeCompare(b[0])),
-    relations: task.scope.relations.map(({ child, parent }) => [child, parent]).sort((a, b) => `${a[0]}:${a[1]}`.localeCompare(`${b[0]}:${b[1]}`))
+    instruction: JSON.parse(task.input || '{}').instruction || task.instruction || '',
+    scope: {
+      mode: task.scope.mode,
+      scopeCoverage: task.scope.scopeCoverage,
+      selectedIds: [...(task.scope.selectedIds || [])].sort(),
+      selectionRoots: [...(task.scope.selectionRoots || [])].sort(),
+      editableIds: [...(task.scope.editableIds || [])].sort(),
+      sharedContextIds: [...(task.scope.sharedContextIds || [])].sort(),
+      allowHierarchyEdits: Boolean(task.scope.allowHierarchyEdits),
+      classes: task.scope.classes.map(({ id, type, label, parentId, parentLabel }) => [id, type, label, parentId || null, parentLabel || null])
+        .sort((a, b) => a[0].localeCompare(b[0])),
+      relations: task.scope.relations.map(({ child, parent }) => [child, parent])
+        .sort((a, b) => `${a[0]}:${a[1]}`.localeCompare(`${b[0]}:${b[1]}`)),
+      counts: task.scope.counts || {},
+      targetContext: task.scope.targetContext || null
+    }
   }));
   const buildAnalysisMemoryFollowup = (userText, memory) => shortenInputIds(JSON.stringify({
     request: userText,
@@ -1380,17 +1382,18 @@ let proposalPreview = null;
   const explicitlyRequestsFullReanalysis = (userText) => /(?:全体|全範囲|選択範囲|すべて).{0,12}(?:再分析|再評価|再チェック|再編|見直)|(?:再分析|再評価|再チェック|再編).{0,12}(?:全体|全範囲|選択範囲|すべて)|最初から.{0,8}(?:分析|評価|見直)/.test(userText);
   const requiresFullClassStructure = (userText) => /(?:中間|上位|対象)?クラス.{0,30}(?:構造|親子|階層|種別|配下|問題|評価|判断|移動|再編|作成|追加|新設|重複|類似|同名|改名|統合|削除|整理|名|名称|名前|命名|分類|分野|範囲|見直|調整|変更|件数|何件|何個|いくつ|一覧|全件|すべて|全部|具体例)|(?:分類|階層).{0,24}(?:範囲|見直|調整|変更|統合|整理|再編|件数|何件|いくつ|一覧|すべて|全部)|(?:クラス)?(?:名|名称|名前).{0,16}(?:重複|類似|同名|統合|整理|分野|範囲|見直|調整|変更)|(?:重複|類似|同名).{0,16}(?:クラス|名称|名前)|(?:親子関係|階層構造|クラス種別)/.test(userText);
   const requestsClassificationOptimization = (userText) => /(?:最適|最も適切|最善).{0,20}(?:所属|分類|階層|クラス)|(?:分類|階層|所属).{0,24}(?:最適化|再編|再構成|組み替え|見直し|見直す|整理)|(?:できる限り|できるだけ|可能な限り).{0,16}(?:移動案|再分類|所属)/.test(userText);
-  const appendAnalysisFollowupContext = (memory, userText, result) => {
-    const latest = createLocalConversationContext(userText, result);
+  const appendAnalysisFollowupContext = (memory, userText) => {
+    const latest = createLocalConversationContext(userText);
     memory.followupContext = [memory.followupContext, latest].filter(Boolean).join('\n\n').slice(-MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS);
   };
   const summarizeVisibleConversation = (conversation) => {
     const lines = [];
     conversation.items.forEach((item) => {
-      if (item.type === 'message') lines.push(`${item.role === 'user' ? '利用者' : 'AI'}: ${item.text}`);
-      if (item.type === 'proposal') {
-        lines.push(`AI変更案「${item.proposal.title}」: ${item.proposal.summary}。理由: ${item.proposal.reason}`);
-        item.proposal.operations.forEach((operation) => lines.push(`操作: ${JSON.stringify(operation)}`));
+      if (item.type === 'message' && item.role === 'user') lines.push(`利用者の依頼・確認済み方針: ${item.text}`);
+      if (item.type === 'questions') {
+        item.questions.forEach((question) => {
+          if (question.answer?.trim()) lines.push(`利用者が回答した希望・方針: ${question.answer.trim()}`);
+        });
       }
     });
     return lines.join('\n').slice(-6000);
@@ -1535,7 +1538,7 @@ let proposalPreview = null;
     const cachedChunkEntries = splitTasks && canReuseSplitChunks ? priorAnalysisMemory.chunkCache || [] : [];
     const chunkCacheByKey = new Map(cachedChunkEntries.map((entry) => [entry.key, entry.result]));
     const splitChunkKeys = splitTasks
-      ? await Promise.all(splitTasks.map((task) => splitTaskCacheKey(task, userText, systemPrompt)))
+      ? await Promise.all(splitTasks.map((task) => splitTaskCacheKey(task, userText, systemPrompt, conversation)))
       : [];
     const cachedChunkCount = splitChunkKeys.reduce((count, key) => count + (chunkCacheByKey.has(key) ? 1 : 0), 0);
     const unsentSplitTasks = splitTasks
@@ -1792,7 +1795,10 @@ let proposalPreview = null;
           // because chunk responses have already been expanded from aliases at this point.
           const compactStructureById = new Map(scope.classes.map((item, index) => [item.id, allStructureClasses[index]]));
           const structureById = new Map(scope.classes.map((item) => [item.id, item]));
-          const synthesisStructureIds = new Set();
+          // Carry the available hierarchy into synthesis even when a chunk proposed no operation.
+          const synthesisStructureIds = new Set(scope.classes
+            .filter((item) => ['top', 'middle'].includes(item.type))
+            .map((item) => item.id));
           chunkResults.forEach((part) => (part?.proposals || []).forEach((proposal) => (proposal.operations || []).forEach((operation) => {
             ['classId', 'destinationId', 'from', 'to', 'parentId'].forEach((key) => {
               if (structureById.has(operation[key])) synthesisStructureIds.add(operation[key]);
@@ -1812,6 +1818,12 @@ let proposalPreview = null;
             .filter((item) => synthesisStructureIds.has(item.id))
             .map((item) => compactStructureById.get(item.id))
             .filter(Boolean);
+          const editableTargetParentRows = scope.classes
+            .filter((item) => item.type === 'class' && scope.editableIds.includes(item.id) && item.parentId)
+            .map((item) => ({ classId: item.id, classLabel: item.label, parentId: item.parentId, parentLabel: item.parentLabel || null }));
+          const targetParentFacts = editableTargetParentRows.length <= 100
+            ? editableTargetParentRows
+            : editableTargetParentRows.filter((item) => userText.includes(item.classLabel) || userText.includes(item.classId)).slice(0, 100);
           const buildSynthesisInput = (maxTextLength, maxProposalsPerChunk, maxOperationsPerProposal, includeStructure) => shortenInputIds(JSON.stringify({
             request: userText,
             conversationContext: conversation.localContext || undefined,
@@ -1819,9 +1831,10 @@ let proposalPreview = null;
             sourceScopeCoverage: scope.scopeCoverage,
             coverageChunk: { total: splitTasks.length },
             classStructure: includeStructure ? {
-              coverage: 'hierarchy_and_operation_references',
+              coverage: scope.scopeCoverage === 'all_classes' ? 'complete_hierarchy' : 'available_hierarchy_and_operation_references',
               classes: synthesisStructure
             } : undefined,
+            targetParentFacts,
             chunkAssessments: chunkResults.map((part, index) => ({
               chunk: index + 1,
               message: String(part?.message || '').slice(0, maxTextLength),
@@ -1837,7 +1850,7 @@ let proposalPreview = null;
                 }))
               }))
             })),
-            instruction: `全分割範囲の回答と操作を統合してください。classStructure.coverageがhierarchy_and_operation_referencesの場合、classStructureはチャンク案で参照されたクラスとその親だけを含む部分一覧です。省略された対象クラスや階層クラスが存在しないとは扱わず、各chunkAssessmentsのmessage、summary、reasonに記されたクラス名やテーマを根拠として活用してください。classStructureがある場合は各行のID、種別、名称、親ID、scopeRoleを使い、操作対象が変更可能か、移動先が実在して種別も有効か、複数チャンクの案が競合しないか確認してください。chunkAssessmentsのoperationsが省略されている場合、その操作を検証済みと扱わないでください。単一チャンクの提案をそのまま繰り返さず、複数チャンクをまたぐ一貫した変更案が必要な場合に限り、各チャンクの記述と構造情報に根拠のある操作をまとめて提案してください。根拠のないクラスや関係は作らないでください。回答に影響する具体的な未確認点がある場合だけ短く示し、定型的に全体構造がないと説明しないでください。質問や追加データ要求は作らないでください。${scope.scopeCoverage === 'all_classes' ? '全範囲の分割評価を受け取っています。チャンク評価と参照構造から確認できる提案だけを返してください。' : 'クラス名・種別・親子関係の評価は入力範囲に限ってください。'}`,
+            instruction: `全分割範囲の回答と操作を統合してください。classStructure.coverageがcomplete_hierarchyなら全上位・中間クラスを含みます。階層情報が未共有・確認不能とは説明せず、意味的に適切な移動先が見つからない場合はその判断根拠を示してください。available_hierarchy_and_operation_referencesの場合だけ、classStructureを利用可能な階層と提案で参照されたクラスの一部として扱い、省略された対象クラスや階層クラスが存在しないとは扱わないでください。targetParentFactsにある対象クラスのID・名称・親ID・親ラベルは入力で確認済みの事実です。親ラベルを確認できないとは説明せず、親クラスの種別や代替移動先が不足している場合はその点だけを説明してください。各行のID、種別、名称、親ID、scopeRoleを使い、操作対象が変更可能か、移動先が実在して種別も有効か、複数チャンクの案が競合しないか確認してください。chunkAssessmentsのoperationsが省略されている場合、その操作を検証済みと扱わないでください。単一チャンクの提案をそのまま繰り返さず、複数チャンクをまたぐ一貫した変更案が必要な場合に限り、各チャンクの記述と構造情報に根拠のある操作をまとめて提案してください。根拠のないクラスや関係は作らないでください。回答に影響する具体的な未確認点だけを示し、質問や追加データ要求は作らないでください。${scope.scopeCoverage === 'all_classes' ? '全範囲の分割評価を受け取っています。チャンク評価と参照構造から確認できる提案だけを返してください。' : 'クラス名・種別・親子関係の評価は入力範囲に限ってください。'}`,
             responsePolicy: scope.scopeCoverage === 'all_classes'
               ? 'dataRequestsとquestionsは空配列にしてください。全体構造で検証できた提案だけを返してください。'
               : 'dataRequestsとquestionsは空配列にしてください。入力範囲の全体構造で検証できた提案だけを返してください。'
@@ -1941,7 +1954,7 @@ let proposalPreview = null;
         conversation.responseId = '';
         conversation.initialSnapshotSent = false;
         conversation.previousScope = null;
-        conversation.localContext = createLocalConversationContext(userText, result);
+        conversation.localContext = createLocalConversationContext(userText);
         if (cachedChunkCount) {
           result.message = [`分割結果のうち${cachedChunkCount}件は、入力データと依頼内容が一致した保存済み評価を再利用しました。変更のあった範囲のみ再評価しています。`, result.message].filter(Boolean).join('\n\n');
         }
@@ -1980,14 +1993,14 @@ let proposalPreview = null;
           conversation.responseId = '';
           conversation.initialSnapshotSent = false;
           conversation.previousScope = null;
-          appendAnalysisFollowupContext(conversation.splitMemory, userText, result);
+          appendAnalysisFollowupContext(conversation.splitMemory, userText);
         }
         if (response.repairFailed) completeCoverageRetryFailed = true;
         if (!usesAnalysisMemory) {
           conversation.responseId = completeCoverageRetryFailed ? '' : responseId;
           conversation.initialSnapshotSent = !completeCoverageRetryFailed;
           conversation.previousScope = completeCoverageRetryFailed ? null : scope;
-          conversation.localContext = completeCoverageRetryFailed ? createLocalConversationContext(userText, result) : '';
+          conversation.localContext = completeCoverageRetryFailed ? createLocalConversationContext(userText) : '';
         }
         if (!usesAnalysisMemory && scope.scopeCoverage === 'all_classes') {
           conversation.splitMemory = result.dataRequests.length || completeCoverageRetryFailed

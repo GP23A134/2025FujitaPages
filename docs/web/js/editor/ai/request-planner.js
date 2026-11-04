@@ -71,6 +71,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
           scopeCoverage: 'all_classes_chunk',
           selectedIds: scope.selectedIds.filter((id) => targetIds.has(id)),
           selectionRoots: targets.map((item) => item.id),
+          sharedContextIds: (scope.sharedContextIds || []).filter((id) => hierarchyIds.has(id)),
           editableIds: scope.allowHierarchyEdits
             ? [...new Set([...groupHierarchy.map((item) => item.id), ...targets.map((item) => item.id)])]
             : targets.map((item) => item.id),
@@ -406,7 +407,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         const candidate = makeBatch([...pending, unit]);
         const editableIds = new Set(candidate.scope.editableIds);
         const editableTargetCount = candidate.scope.classes.filter((item) => item.type === 'class' && editableIds.has(item.id)).length;
-        const exceedsGroupLimit = candidate.units.length > 4;
+        const exceedsGroupLimit = candidate.units.length > 20;
         const exceedsOperationLimit = candidate.scope.allowHierarchyEdits && editableTargetCount > 20;
         if (pending.length && (candidate.input.length > MAX_REQUEST_CHARACTERS || exceedsGroupLimit || exceedsOperationLimit)) {
           batches.push(makeBatch(pending));

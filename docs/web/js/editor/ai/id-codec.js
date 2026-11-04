@@ -12,7 +12,9 @@ export const createClassIdCodec = (classes) => {
 
     classes.forEach((item) => {
       const type = Object.hasOwn(prefixes, item.type) ? item.type : 'class';
-      const alias = `${prefixes[type]}_${++counts[type]}`;
+      // t_0 is the stable ID for the uncategorized top class, not a positional alias.
+      const isUncategorizedTop = type === 'top' && /(?:^|\/)t_0$/.test(item.id);
+      const alias = isUncategorizedTop ? 't_0' : `${prefixes[type]}_${++counts[type]}`;
       idToAlias.set(item.id, alias);
       aliasToId.set(alias, item.id);
       if (/^https?:\/\//i.test(item.id)) {
