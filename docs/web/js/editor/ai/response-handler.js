@@ -1,34 +1,16 @@
-// AI応答を内部形式で検証し、操作の安全性確認や追加データ要求の解決を行います。
+// AI応答を内部形式で検証し、操作の安全性を確認します。
 // モデルの出力は検証が完了するまで編集データへ適用しません。
 export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQuestions }) => {
   const validatePayload = (result, expectedHash) => {
     if (!result || typeof result !== 'object' || Array.isArray(result)) {
       throw new Error('AIの応答がJSONオブジェクトではありません。提案は適用できません。');
     }
-    if (!Array.isArray(result.proposals) || !Array.isArray(result.questions) || !Array.isArray(result.dataRequests)) {
+    if (!Array.isArray(result.proposals) || !Array.isArray(result.questions)) {
       throw new Error('AIの応答に提案または確認事項の一覧がありません。もう一度依頼してください。');
     }
     result.questions = deduplicateQuestions(result.questions);
-    result.dataRequests = result.dataRequests.filter((request) => request && typeof request.reason === 'string'
-      && ((typeof request.classId === 'string' && request.classId.trim())
-        || (typeof request.className === 'string' && request.className.trim())
-        || (request.classQuery && typeof request.classQuery === 'object')))
-      .map((request) => {
-        const query = request.classQuery && typeof request.classQuery === 'object' ? request.classQuery : null;
-        return {
-          classId: typeof request.classId === 'string' ? request.classId.trim() : '',
-          className: typeof request.className === 'string' ? request.className.trim() : '',
-          classQuery: query ? {
-            classType: ['top', 'middle'].includes(query.classType) ? query.classType : '',
-            nameKeywords: Array.isArray(query.nameKeywords)
-              ? query.nameKeywords.filter((keyword) => typeof keyword === 'string' && keyword.trim()).slice(0, 5).map((keyword) => keyword.trim()) : [],
-            relationToSelection: ['any', 'parent', 'child', 'descendant', 'sibling', 'same_top_ancestor'].includes(query.relationToSelection)
-              ? query.relationToSelection : 'any',
-            limit: Math.max(1, Math.min(20, Number.isInteger(query.limit) ? query.limit : 5))
-          } : null,
-          reason: request.reason.trim()
-        };
-      });
+    // Old cached split responses may still contain this property. Ignore it.
+    result.dataRequests = [];
     // The browser owns the data fingerprint; asking the model to echo it can
     // produce harmless character errors that incorrectly invalidate a proposal.
     result.baseDataHash = expectedHash;

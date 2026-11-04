@@ -9,7 +9,7 @@ export const createConversationStore = ({ conversations, savedConversationsKey, 
     ].filter(Boolean);
     return {
       type: 'message', role: 'assistant',
-      text: `前回の相談では追加クラス情報を要求しました${requested.length ? `（${[...new Set(requested)].join('、')}）` : ''}。履歴から再開したため、この要求は再実行されていません。`
+      text: `前回の相談では追加クラス情報の共有を求めていました${requested.length ? `（${[...new Set(requested)].join('、')}）` : ''}。追加共有の仕組みは現在利用できません。必要なクラスを含む範囲を選択して、改めて依頼してください。`
     };
   };
   const restoreSavedConversations = () => {

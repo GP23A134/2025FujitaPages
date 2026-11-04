@@ -6,10 +6,10 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     const usePrevious = !options.forceSnapshot && conversation.initialSnapshotSent && conversation.responseId;
     const previousScope = usePrevious ? conversation.previousScope : null;
     const scopeInstruction = activeScope.scopeCoverage === 'all_classes'
-      ? '全体構造が入力されています。追加クラス情報を要求しないでください。'
+      ? '全体構造が入力されています。'
       : activeScope.scopeCoverage === 'all_classes_chunk'
-        ? '全体構造を分割処理中です。今回の範囲だけを評価し、全体評価を終えたと断定せず、追加クラス情報を要求しないでください。'
-        : '入力範囲外のクラス情報を推測せず、必要なら追加の上位・中間クラスだけをdataRequestsで求めてください。';
+        ? '全体構造を分割処理中です。今回の範囲だけを評価し、全体評価を終えたと断定しないでください。'
+        : '入力範囲外のクラス情報を推測しません。結論に必要な情報が範囲外なら、不足している階層・クラス情報を回答文で説明し、その範囲を選択して再依頼するよう案内してください。追加共有の候補検索は行いません。';
     const instruction = options.instruction || (activeScope.mode === 'hierarchy_scope'
       ? '階層クラスだけの範囲です。上位・中間クラスの追加・改名・移動・削除を提案できますが、対象クラスの操作は禁止です。上位を中間へ移す場合は配下の親子関係を保ってください。'
       : '今回の依頼に合わせて、selectedScope内の情報を評価・説明し、安全に確定できる提案を返してください。');
@@ -38,12 +38,24 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
       const hierarchyClasses = scope.classes.filter((item) => ['top', 'middle'].includes(item.type));
       const editableTargetIds = scope.editableIds.filter((id) => classTypeById.get(id) === 'class');
       if (!scope.includeAllClasses || !selectedTargets.length || selectedTargets.length !== editableTargetIds.length || !hierarchyClasses.length) return null;
-      const hierarchyIds = new Set(hierarchyClasses.map((item) => item.id));
+      const hierarchyById = new Map(hierarchyClasses.map((item) => [item.id, item]));
+      const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
+      const topAncestorFor = (id) => {
+        let currentId = id;
+        const seen = new Set();
+        while (currentId && !seen.has(currentId)) {
+          seen.add(currentId);
+          if (hierarchyById.get(currentId)?.type === 'top') return currentId;
+          currentId = parentByChild.get(currentId);
+        }
+        return '';
+      };
       const targetInstruction = scope.allowHierarchyEdits
-        ? 'この分割範囲では選択中の対象クラスを一件ずつ評価し、根拠のある移動案を漏れなく提案してください。既存の上位・中間クラスを優先し、適切な所属先がなければ中間・上位クラスの新設、既存上位クラスの中間クラス化、選択対象に関係する中間クラスの移動を提案できます。上位クラスの新設はparentId=nullにし、移動先として使う新設クラスを先に追加してください。新設クラスと対象クラスの移動は同じ提案にまとめます。選択対象と無関係な階層変更、削除、根拠のないクラスや関係の推測は禁止します。全体の整合性は最終統合で確認されるため、このチャンクで扱う対象との関連を説明してください。'
-        : 'この分割範囲では選択中の対象クラスを評価し、対象クラスの移動を提案できます。利用者が中間クラスの作成・新設を求めている場合は、入力中の上位・中間クラスを親とするaddClass（classType=middle）を提案し、対象クラスを同じ提案内でその新設クラスへ移動できます。親は入力中の実在する上位・中間クラスIDか、先に追加した中間クラスのtemporaryIdにし、親となる新しいクラスを先に追加してください。既存の上位・中間クラスの改名・移動・削除や、入力にないクラス・関係の推測は禁止します。各チャンク内のクラス名だけで全体に共通する分類を断定せず、チャンクの範囲で根拠を説明してください。';
-      const buildTargetTask = (targets) => {
+        ? 'この分割範囲に含まれる上位クラス配下の対象クラスを評価してください。既存の階層を優先し、必要な追加・改名・移動はこの上位クラスの範囲に限って提案します。新しいクラスと対象クラスの移動は同じ提案にまとめ、対象との関連を説明してください。無関係な階層変更、削除、入力にないクラスや関係の推測は禁止します。'
+        : 'この分割範囲に含まれる上位クラス配下の対象クラスを評価し、必要な移動を提案してください。利用者が新設を求めた場合は、この範囲に含まれる上位・中間クラスの下へ中間クラスを追加できます。新設クラスと対象クラスの移動は同じ提案にまとめます。入力にないクラスや関係の推測、範囲外のクラス操作は禁止します。別の上位クラスをまたぐ判断は最終統合に委ねてください。';
+      const buildTargetTask = (targets, groupHierarchy, topClassId) => {
         const targetIds = new Set(targets.map((item) => item.id));
+        const hierarchyIds = new Set(groupHierarchy.map((item) => item.id));
         const includedIds = new Set([...hierarchyIds, ...targetIds]);
         const taskScope = {
           mode: 'selected_scope',
@@ -51,36 +63,50 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
           selectedIds: scope.selectedIds.filter((id) => targetIds.has(id)),
           selectionRoots: targets.map((item) => item.id),
           editableIds: scope.allowHierarchyEdits
-            ? [...new Set([...hierarchyClasses.map((item) => item.id), ...targets.map((item) => item.id)])]
+            ? [...new Set([...groupHierarchy.map((item) => item.id), ...targets.map((item) => item.id)])]
             : targets.map((item) => item.id),
-          classes: [...hierarchyClasses, ...targets],
+          classes: [...groupHierarchy, ...targets],
           relations: scope.relations.filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
           counts: Object.fromEntries([...includedIds].filter((id) => Object.prototype.hasOwnProperty.call(scope.counts || {}, id)).map((id) => [id, scope.counts[id]])),
-          targetContext: scope.targetContext || { descendantTargetClassCounts: {} },
+          targetContext: {
+            descendantTargetClassCounts: Object.fromEntries(Object.entries(scope.targetContext?.descendantTargetClassCounts || {})
+              .filter(([id]) => includedIds.has(id)))
+          },
           allowHierarchyEdits: Boolean(scope.allowHierarchyEdits)
         };
         const input = buildUserContent(userText, taskScope, conversation, {
           forceSnapshot: true,
           instruction: targetInstruction
         });
-        return { kind: 'full_hierarchy_targets', scope: taskScope, input };
+        return { kind: 'upper_class_targets', topClassId, scope: taskScope, input };
       };
       const targetTasks = [];
-      let offset = 0;
-      while (offset < selectedTargets.length) {
-        let low = 1; let high = Math.min(selectedTargets.length - offset, scope.allowHierarchyEdits ? 20 : selectedTargets.length - offset); let bestSize = 0; let bestTask = null;
-        while (low <= high) {
-          const size = Math.floor((low + high) / 2);
-          const candidate = buildTargetTask(selectedTargets.slice(offset, offset + size));
-          if (candidate.input.length <= MAX_REQUEST_CHARACTERS) {
-            bestSize = size; bestTask = candidate; low = size + 1;
-          } else high = size - 1;
+      const targetsByTopClass = new Map();
+      selectedTargets.forEach((target) => {
+        const topId = topAncestorFor(target.id);
+        if (!targetsByTopClass.has(topId)) targetsByTopClass.set(topId, []);
+        targetsByTopClass.get(topId).push(target);
+      });
+      for (const [topClassId, targets] of targetsByTopClass) {
+        const groupHierarchy = topClassId
+          ? hierarchyClasses.filter((item) => topAncestorFor(item.id) === topClassId)
+          : [];
+        let offset = 0;
+        while (offset < targets.length) {
+          let low = 1; let high = Math.min(targets.length - offset, scope.allowHierarchyEdits ? 20 : targets.length - offset); let bestSize = 0; let bestTask = null;
+          while (low <= high) {
+            const size = Math.floor((low + high) / 2);
+            const candidate = buildTargetTask(targets.slice(offset, offset + size), groupHierarchy, topClassId);
+            if (candidate.input.length <= MAX_REQUEST_CHARACTERS) {
+              bestSize = size; bestTask = candidate; low = size + 1;
+            } else high = size - 1;
+          }
+          if (!bestSize || !bestTask) {
+            throw new Error('上位クラスの階層情報と対象クラス1件を送信上限内に収められません。対象クラスの選択範囲を小さくするか、全体参照をOFFにしてください。');
+          }
+          targetTasks.push(bestTask);
+          offset += bestSize;
         }
-        if (!bestSize || !bestTask) {
-          throw new Error('全上位・中間クラスの情報と対象クラス1件を送信上限内に収められません。対象クラスの選択範囲を小さくするか、全体参照をOFFにしてください。');
-        }
-        targetTasks.push(bestTask);
-        offset += bestSize;
       }
       return targetTasks;
     }
@@ -101,6 +127,16 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     const hierarchyChunkLimit = MAX_REQUEST_CHARACTERS;
     const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
     const hierarchyById = new Map(hierarchyClasses.map((item) => [item.id, item]));
+    const topAncestorFor = (id) => {
+      let currentId = id;
+      const seen = new Set();
+      while (currentId && !seen.has(currentId)) {
+        seen.add(currentId);
+        if (hierarchyById.get(currentId)?.type === 'top') return currentId;
+        currentId = parentByChild.get(currentId);
+      }
+      return '';
+    };
     const childrenByParent = new Map();
     scope.relations.forEach(({ child, parent }) => {
       if (!hierarchyById.has(child) || !hierarchyById.has(parent)) return;
@@ -126,8 +162,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
           parentId = parentByChild.get(parentId);
         }
       });
-      const classIdsForTask = scope.allowHierarchyEdits
-        ? new Set(hierarchyClasses.map((item) => item.id)) : includedIds;
+      const classIdsForTask = includedIds;
       const taskScope = {
         mode: 'hierarchy_scope',
         selectedIds: scope.selectedIds.filter((id) => classIdsForTask.has(id)),
@@ -181,6 +216,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     // Pack small hierarchy branches together so they do not each require a separate API call.
     const packedHierarchyTasks = [];
     let pendingHierarchyScope = null;
+    const upperClassesIn = (taskScope) => new Set(taskScope.classes.map((item) => topAncestorFor(item.id)));
     const mergeHierarchyScopes = (left, right) => {
       const classesById = new Map([...left.classes, ...right.classes].map((item) => [item.id, item]));
       const relationByKey = new Map([...left.relations, ...right.relations]
@@ -198,7 +234,8 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     hierarchyTasks.forEach((task) => {
       const candidateScope = pendingHierarchyScope ? mergeHierarchyScopes(pendingHierarchyScope, task.scope) : task.scope;
       const candidateTask = buildHierarchyTask(candidateScope);
-      if (pendingHierarchyScope && candidateTask.input.length > hierarchyChunkLimit) {
+      const candidateUpperClasses = upperClassesIn(candidateScope);
+      if (pendingHierarchyScope && (candidateTask.input.length > hierarchyChunkLimit || candidateUpperClasses.size > 1)) {
         packedHierarchyTasks.push(buildHierarchyTask(pendingHierarchyScope));
         pendingHierarchyScope = task.scope;
       } else {
@@ -228,10 +265,11 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
       targetUnits.push({ target, hierarchyTask });
     });
 
-    const makeTargetScope = (units) => {
+    const makeTargetScope = (units, topClassId) => {
       const targets = units.map((unit) => unit.target);
       const targetIds = new Set(targets.map((item) => item.id));
-      const hierarchyByIdLocal = new Map(hierarchyClasses.map((item) => [item.id, item]));
+      const localHierarchy = hierarchyClasses.filter((item) => topAncestorFor(item.id) === topClassId);
+      const hierarchyByIdLocal = new Map(localHierarchy.map((item) => [item.id, item]));
       const classes = [...hierarchyByIdLocal.values(), ...targets];
       const includedIds = new Set(classes.map((item) => item.id));
       return {
@@ -244,32 +282,40 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         counts: {}
       };
     };
-    const buildTargetTask = (units) => {
-      const taskScope = makeTargetScope(units);
+    const buildTargetTask = (units, topClassId) => {
+      const taskScope = makeTargetScope(units, topClassId);
       const input = buildUserContent(userText, taskScope, conversation, {
         forceSnapshot: true,
         instruction: targetOperationInstruction
       });
-      return { kind: 'targets', scope: taskScope, input };
+      return { kind: 'upper_class_targets', topClassId, scope: taskScope, input };
     };
     // Fill each target request as much as possible. Binary search finds the largest
     // contiguous batch that remains within the request limit, minimizing call count.
-    let targetOffset = 0;
-    while (targetOffset < targetUnits.length) {
-      const remaining = targetUnits.length - targetOffset;
-      let low = 1; let high = remaining; let bestSize = 0; let bestTask = null;
-      while (low <= high) {
-        const size = Math.floor((low + high) / 2);
-        const candidate = buildTargetTask(targetUnits.slice(targetOffset, targetOffset + size));
-        if (candidate.input.length <= MAX_REQUEST_CHARACTERS) {
-          bestSize = size; bestTask = candidate; low = size + 1;
-        } else high = size - 1;
+    const targetUnitsByTop = new Map();
+    targetUnits.forEach((unit) => {
+      const topClassId = topAncestorFor(unit.target.id);
+      if (!targetUnitsByTop.has(topClassId)) targetUnitsByTop.set(topClassId, []);
+      targetUnitsByTop.get(topClassId).push(unit);
+    });
+    for (const [topClassId, units] of targetUnitsByTop) {
+      let targetOffset = 0;
+      while (targetOffset < units.length) {
+        const remaining = units.length - targetOffset;
+        let low = 1; let high = remaining; let bestSize = 0; let bestTask = null;
+        while (low <= high) {
+          const size = Math.floor((low + high) / 2);
+          const candidate = buildTargetTask(units.slice(targetOffset, targetOffset + size), topClassId);
+          if (candidate.input.length <= MAX_REQUEST_CHARACTERS) {
+            bestSize = size; bestTask = candidate; low = size + 1;
+          } else high = size - 1;
+        }
+        if (!bestSize || !bestTask) {
+          throw new Error('上位クラスと対象クラス1件だけでも送信上限を超えています。選択範囲を小さくするか、クラス名の長い範囲を分けてください。');
+        }
+        targetTasks.push(bestTask);
+        targetOffset += bestSize;
       }
-      if (!bestSize || !bestTask) {
-        throw new Error('対象クラス1件と移動先候補だけでも送信上限を超えています。選択範囲を小さくするか、クラス名の長い範囲を分けてください。');
-      }
-      targetTasks.push(bestTask);
-      targetOffset += bestSize;
     }
     const hierarchyCoverage = new Set(hierarchyTasks.flatMap((task) => task.scope.editableIds));
     const targetCoverage = new Set(targetTasks.flatMap((task) => task.scope.editableIds));
@@ -287,7 +333,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         input.scopeCoverage = 'all_classes_chunk';
         input.coverageChunk = { index: index + 1, total: tasks.length };
         if (input.selectedScope?.kind === 'initial_snapshot') input.selectedScope.data.scopeCoverage = 'all_classes_chunk';
-        input.instruction = `${input.instruction} 全上位・中間クラスと選択中クラスの分割処理中です。追加クラス情報を要求せず、この分割範囲だけを評価し、全体評価を終えたとは断定しないでください。`;
+        input.instruction = `${input.instruction} 全体分析を上位クラス単位で分割処理中です。追加クラス情報を要求せず、この分割範囲だけを評価し、全体評価を終えたとは断定しないでください。`;
         task.input = JSON.stringify(input);
       });
     }

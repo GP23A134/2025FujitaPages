@@ -2,10 +2,10 @@
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
 import { createClassIdCodec } from './id-codec.js?v=20261103-ai-module-system-step6-v1';
 import { sendOpenAIRequest } from './api-client.js?v=20261103-ai-module-system-step6-v1';
-import { createRequestPlanner } from './request-planner.js?v=20261103-ai-module-system-step6-v1';
-import { createResponseHandler } from './response-handler.js?v=20261104-noop-move-validation-v1';
+import { createRequestPlanner } from './request-planner.js?v=20261104-upper-class-chunks-v1';
+import { createResponseHandler } from './response-handler.js?v=20261104-no-extra-data-requests-v1';
 import { createConversationStore } from './conversation-store.js?v=20261103-ai-review-fixes-v1';
-import { createConversationView } from './conversation-view.js?v=20261103-ai-module-system-step6-v1';
+import { createConversationView } from './conversation-view.js?v=20261104-readable-ai-replies-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261104-preview-hover-highlight-v2';
 
 (() => {
@@ -82,31 +82,11 @@ import { createProposalPreview } from './proposal-preview.js?v=20261104-preview-
           required: ['i', 't', 's', 'r', 'q', 'u', 'o']
         }, maxItems: AI_OUTPUT_LIMITS.proposals
       },
-      q: { type: 'array', maxItems: AI_OUTPUT_LIMITS.questions, items: { type: 'string' } },
-      d: {
-        type: 'array', maxItems: 5, items: {
-          type: 'object', additionalProperties: false,
-          properties: {
-            c: { type: ['string', 'null'] }, n: { type: ['string', 'null'] },
-            x: {
-              type: ['object', 'null'], additionalProperties: false,
-              properties: {
-                t: { type: ['string', 'null'], enum: ['top', 'middle', null] },
-                k: { type: 'array', items: { type: 'string' } },
-                r: { type: 'string', enum: ['any', 'parent', 'child', 'descendant', 'sibling', 'same_top_ancestor'] },
-                l: { type: 'integer' }
-              },
-              required: ['t', 'k', 'r', 'l']
-            },
-            w: { type: 'string' }
-          },
-          required: ['c', 'n', 'x', 'w']
-        }
-      }
+      q: { type: 'array', maxItems: AI_OUTPUT_LIMITS.questions, items: { type: 'string' } }
     },
-    required: ['m', 'p', 'q', 'd']
+    required: ['m', 'p', 'q']
   };
-  const compactResponseInstructions = '応答は短縮キーのJSON形式です。トップレベルはm=回答文、p=提案配列、q=確認質問配列、d=追加データ要求配列です。提案はi=id,t=題名,s=要約,r=理由,q=質問,u=不確実点,o=操作配列。操作キーはt=操作種別コード(a=addClass,r=renameClass,m=moveClass,mc=moveChildren,d=deleteClass)、ct=classType,tmp=temporaryId,l=label,p=parentId,c=classId,dst=destinationId,f=from,to=toです。追加データ要求はc=classId,n=className,x=検索条件,w=理由です。検索条件はt=classType,k=nameKeywords,r=relationToSelection,l=limitです。スキーマにある全キーを必ず出力し、使わない値はnullにしてください。';
+  const compactResponseInstructions = '応答は短縮キーのJSON形式です。トップレベルはm=回答文、p=提案配列、q=確認質問配列です。提案はi=id,t=題名,s=要約,r=理由,q=質問,u=不確実点,o=操作配列。操作キーはt=操作種別コード(a=addClass,r=renameClass,m=moveClass,mc=moveChildren,d=deleteClass)、ct=classType,tmp=temporaryId,l=label,p=parentId,c=classId,dst=destinationId,f=from,to=toです。スキーマにある全キーを必ず出力し、使わない値はnullにしてください。';
 
   const keyInput = document.getElementById('ai-api-key');
   const fullGraphScopeToggle = document.getElementById('ai-full-graph-scope');
@@ -336,20 +316,28 @@ let proposalPreview = null;
     const estimate = `料金の目安：約 ${formatUsd(inputUsd + outputCapUsd)}\n※概算です。会話履歴や追加の送信は含まれず、実際の料金と異なる場合があります。${pricingDate ? ` ${pricingDate}` : ''}`;
     return [splitNote, estimate].filter(Boolean).join('\n\n');
   };
-  const confirmSendBeforeRequest = (userText, scope, summary, conversation, reusingAnalysisMemory = false, forceConfirm = false) => {
+  const confirmSendBeforeRequest = (userText, scope, summary, conversation, reusingAnalysisMemory = false, forceConfirm = false,
+    displayScope = scope, sendingDelta = false, sendingSplit = false) => {
     if (!confirmBeforeSendToggle.checked && !forceConfirm) return Promise.resolve(true);
     if (pendingSendConfirmation) return Promise.resolve(false);
     const sendingAllClasses = !reusingAnalysisMemory && (scope.includeAllClasses || scope.scopeCoverage === 'all_classes');
     const summaryNode = document.getElementById('ai-send-confirm-summary');
     summaryNode.textContent = summary;
     document.getElementById('ai-send-confirm-request').textContent = userText;
-    document.getElementById('ai-send-confirm-title').textContent = sendingAllClasses
+    document.getElementById('ai-send-confirm-title').textContent = sendingSplit
+      ? '分割した送信範囲を確認'
+      : sendingDelta ? '変更分の送信を確認'
+      : sendingAllClasses
       ? '全上位・中間クラス情報の送信を確認'
       : 'AIへの送信内容を確認';
     const skipLabel = document.querySelector('.ai-send-confirm-skip');
     skipLabel.hidden = sendingAllClasses;
     document.getElementById('ai-send-confirm-classes-summary').textContent = reusingAnalysisMemory
       ? '前回の分析要約を再利用（クラスデータの再送なし）'
+      : sendingSplit
+        ? `上位クラス単位の分割送信（今回送るクラス ${displayScope.classes.length}件）`
+      : sendingDelta
+        ? `前回のデータを会話内で参照し、変更差分を送信（変更 ${displayScope.classes.length}件・削除 ${displayScope.removedClassIds?.length || 0}件）`
       : sendingAllClasses
         ? scope.includeAllClasses
           ? `上位・中間クラス ${scope.sharedContextIds?.length || 0}件（選択中 ${scope.editableIds.length}件）`
@@ -381,7 +369,7 @@ let proposalPreview = null;
     }
     const typeLabels = { top: '上位', middle: '中間', class: '対象' };
     const editable = new Set(scope.editableIds);
-    const rows = [...scope.classes]
+    const rows = [...displayScope.classes]
       .sort((a, b) => (typeLabels[a.type] || '').localeCompare(typeLabels[b.type] || '') || String(a.label || '').localeCompare(String(b.label || ''), 'ja'))
       .map((item) => {
         const row = document.createElement('tr');
@@ -396,6 +384,15 @@ let proposalPreview = null;
         row.append(shareType, kind, label, id);
         return row;
       });
+    (displayScope.removedClassIds || []).forEach((id) => {
+      const row = document.createElement('tr');
+      const shareType = document.createElement('td'); shareType.textContent = '削除';
+      const kind = document.createElement('td'); kind.textContent = 'クラス';
+      const label = document.createElement('td'); label.textContent = '削除されたクラス';
+      const idCell = document.createElement('td'); idCell.textContent = id;
+      row.append(shareType, kind, label, idCell);
+      rows.push(row);
+    });
     body.replaceChildren(...rows);
     sendConfirmSkipToggle.checked = false;
     sendConfirmDialog.returnValue = '';
@@ -511,7 +508,6 @@ let proposalPreview = null;
     const renderedResponseGroups = new Set();
     currentConversation.items.forEach((item) => {
       if (item.type === 'message') renderMessage(item);
-      else if (item.type === 'data-requests') renderDataRequest(item);
       else if (item.type === 'scope-summary') {
         const details = document.createElement('details');
         details.className = 'ai-scope-summary';
@@ -654,14 +650,7 @@ let proposalPreview = null;
         }))
       })),
       questions: wire.q,
-      dataRequests: wire.d.map((request) => ({
-        classId: request.c, className: request.n,
-        classQuery: request.x && {
-          classType: request.x.t, nameKeywords: request.x.k,
-          relationToSelection: request.x.r, limit: request.x.l
-        },
-        reason: request.w
-      }))
+      dataRequests: []
     };
   };
   const normalizeQuestionForDeduplication = (value) => String(value || '')
@@ -751,6 +740,38 @@ let proposalPreview = null;
       diff.targetContext = current.targetContext;
     }
     return diff;
+  };
+  const scopeDeltaForDisplay = (before, after) => {
+    if (!before || before.mode !== after.mode) return null;
+    const describe = (scope) => {
+      const parents = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
+      const roots = new Set(scope.selectionRoots || scope.selectedIds);
+      const editable = new Set(scope.editableIds);
+      const shared = new Set(scope.sharedContextIds || []);
+      return new Map(scope.classes.map((item) => {
+        let role = '';
+        if (roots.has(item.id)) role += 'r';
+        if (editable.has(item.id)) role += 'e';
+        if (shared.has(item.id)) role += 's';
+        if (!role) role = 'c';
+        const parentId = item.parentId ?? parents.get(item.id) ?? null;
+        const parentLabel = parentId && !scope.classes.some((entry) => entry.id === parentId) ? item.parentLabel || null : null;
+        return [item.id, JSON.stringify([item.type, item.label, parentId, role, parentLabel])];
+      }));
+    };
+    const oldRows = describe(before);
+    const newRows = describe(after);
+    const changedIds = new Set(after.classes.filter((item) => oldRows.get(item.id) !== newRows.get(item.id)).map((item) => item.id));
+    const removedClassIds = [...oldRows.keys()].filter((id) => !newRows.has(id));
+    return {
+      ...after,
+      classes: after.classes.filter((item) => changedIds.has(item.id)),
+      editableIds: after.editableIds.filter((id) => changedIds.has(id)),
+      selectedIds: after.selectedIds.filter((id) => changedIds.has(id)),
+      sharedContextIds: (after.sharedContextIds || []).filter((id) => changedIds.has(id)),
+      relations: after.relations.filter(({ child, parent }) => changedIds.has(child) || changedIds.has(parent)),
+      removedClassIds
+    };
   };
   const requestPlanner = createRequestPlanner({
     editor,
@@ -1436,8 +1457,8 @@ let proposalPreview = null;
     catch (error) { logAiProblem('データ版ハッシュの計算', error); setStatus(error.message, 'error'); return; }
     const fingerprintBeforeRequest = stateFingerprint();
     const priorAnalysisMemory = conversation.splitMemory;
-    if (selectionChanged || scopeModeChanged || includeAllClasses) {
-      // 全体参照では前回のAPI会話履歴に頼らず、一致する保存要約か最新スナップショットを使う。
+    if (selectionChanged || scopeModeChanged) {
+      // 選択対象や参照モードが変わった場合だけ会話を切り替え、同じ全体参照ではデータ差分を継続送信する。
       conversation.responseId = '';
       conversation.initialSnapshotSent = false;
       conversation.previousScope = null;
@@ -1451,6 +1472,9 @@ let proposalPreview = null;
       && !explicitFullReanalysis);
     const forceFullReanalysis = explicitFullReanalysis || automaticStructureReanalysis || wantsClassificationOptimization;
     const canReuseAnalysisMemory = !forceFullReanalysis && memoryScopeMatches;
+    // Exact per-task cache keys include each upper class's current data and the request.
+    // They remain safe to reuse during a forced reanalysis when unchanged upper classes match.
+    const canReuseSplitChunks = memoryScopeMatches;
     if (priorAnalysisMemory && !canReuseAnalysisMemory && !forceFullReanalysis) conversation.splitMemory = null;
     const fullScopeContent = requestPlanner.buildUserContent(userText, scope, conversation);
     const analysisMemoryContent = canReuseAnalysisMemory && priorAnalysisMemory.baseDataHash === baseDataHash
@@ -1483,20 +1507,55 @@ let proposalPreview = null;
         return;
       }
     }
-    const requestInputs = splitTasks ? splitTasks.map((task) => task.input) : [userContent];
+    const cachedChunkEntries = splitTasks && canReuseSplitChunks ? priorAnalysisMemory.chunkCache || [] : [];
+    const chunkCacheByKey = new Map(cachedChunkEntries.map((entry) => [entry.key, entry.result]));
+    const splitChunkKeys = splitTasks
+      ? await Promise.all(splitTasks.map((task) => splitTaskCacheKey(task, userText, systemPrompt)))
+      : [];
+    const cachedChunkCount = splitChunkKeys.reduce((count, key) => count + (chunkCacheByKey.has(key) ? 1 : 0), 0);
+    const unsentSplitTasks = splitTasks
+      ? splitTasks.filter((_, index) => !chunkCacheByKey.has(splitChunkKeys[index]))
+      : [];
+    const requestInputs = splitTasks ? unsentSplitTasks.map((task) => task.input) : [userContent];
+    const sendingDelta = Boolean(!usesAnalysisMemory && !splitTasks && conversation.responseId
+      && conversation.initialSnapshotSent && !selectionChanged && !scopeModeChanged);
+    const splitDisplayScope = splitTasks ? (() => {
+      const taskScopes = unsentSplitTasks.map((task) => task.scope);
+      const classesById = new Map(taskScopes.flatMap((taskScope) => taskScope.classes).map((item) => [item.id, item]));
+      const ids = new Set(classesById.keys());
+      const editableIds = new Set(taskScopes.flatMap((taskScope) => taskScope.editableIds));
+      return {
+        ...scope,
+        classes: [...classesById.values()],
+        relations: [...new Map(taskScopes.flatMap((taskScope) => taskScope.relations)
+          .filter(({ child, parent }) => ids.has(child) && ids.has(parent))
+          .map((relation) => [`${relation.child}\u0000${relation.parent}`, relation])).values()],
+        editableIds: [...editableIds],
+        selectedIds: [...new Set(taskScopes.flatMap((taskScope) => taskScope.selectedIds))],
+        sharedContextIds: [...ids].filter((id) => !editableIds.has(id)),
+        removedClassIds: []
+      };
+    })() : null;
+    const displayScope = splitTasks
+      ? splitDisplayScope
+      : sendingDelta ? scopeDeltaForDisplay(conversation.previousScope, scope) || scope : scope;
+    const sendingSplit = Boolean(splitTasks);
     const userMessageCount = conversation.items.filter((item) => item.type === 'message' && item.role === 'user').length;
     const longConversationNote = !usesAnalysisMemory && userMessageCount >= 7
       ? '会話が長くなっています。前のやりとりも利用量に影響するため、必要なら「＋」から新しい相談を始めてください。'
       : '';
     const outputTokenBudget = splitTasks
-      ? splitTasks.length * CHUNK_OUTPUT_TOKENS + SYNTHESIS_OUTPUT_TOKENS
+      ? requestInputs.length * CHUNK_OUTPUT_TOKENS + SYNTHESIS_OUTPUT_TOKENS
       : MAX_OUTPUT_TOKENS;
-    const preflightNote = [estimateRequestCost(requestInputs, systemPrompt, outputTokenBudget), longConversationNote].filter(Boolean).join('\n\n');
+    const cacheReuseNote = splitTasks && cachedChunkCount
+      ? `保存済みの分割評価 ${cachedChunkCount}件を再利用し、今回送る分割 ${unsentSplitTasks.length}件だけ再分析します。最後に評価結果を統合します。`
+      : '';
+    const preflightNote = [cacheReuseNote, estimateRequestCost(requestInputs, systemPrompt, outputTokenBudget), longConversationNote].filter(Boolean).join('\n\n');
     updateUsageSummary();
     activePreparationLabel = '送信内容の確認待ち';
     preparationIndicator.textContent = `${activePreparationLabel}…（${formatElapsedTime((Date.now() - requestStartedAt) / 1000)}）`;
     const sendApproved = await confirmSendBeforeRequest(userText, scope, preflightNote, conversation, usesAnalysisMemory,
-      scope.scopeCoverage === 'all_classes' && !usesAnalysisMemory);
+      scope.scopeCoverage === 'all_classes' && !usesAnalysisMemory, displayScope, sendingDelta, sendingSplit);
     if (!sendApproved) {
       updateUsageSummary();
       conversation.workflowStatus = `送信をキャンセルしました（所要時間 ${formatElapsedTime((Date.now() - requestStartedAt) / 1000)}）`;
@@ -1613,10 +1672,7 @@ let proposalPreview = null;
         const chunkResults = new Array(splitTasks.length);
         const nextChunkCache = [];
         // 一致したチャンクはAPIへ再送せず、未変更の範囲だけを再評価します。
-        const cachedChunkEntries = canReuseAnalysisMemory ? priorAnalysisMemory.chunkCache || [] : [];
-        const chunkCacheByKey = new Map(cachedChunkEntries.map((entry) => [entry.key, entry.result]));
-        const chunkKeys = await Promise.all(splitTasks.map((task) => splitTaskCacheKey(task, userText, systemPrompt)));
-        const cachedChunkCount = chunkKeys.reduce((count, key) => count + (chunkCacheByKey.has(key) ? 1 : 0), 0);
+        const chunkKeys = splitChunkKeys;
         const splitWarnings = new Set();
         let splitRepairFailed = false;
         for (let offset = 0; offset < splitTasks.length; offset += 2) {
@@ -1685,9 +1741,7 @@ let proposalPreview = null;
           // because chunk responses have already been expanded from aliases at this point.
           const compactStructureById = new Map(scope.classes.map((item, index) => [item.id, allStructureClasses[index]]));
           const structureById = new Map(scope.classes.map((item) => [item.id, item]));
-          const synthesisStructureIds = new Set(scope.classes
-            .filter((item) => item.type === 'top' || item.type === 'middle')
-            .map((item) => item.id));
+          const synthesisStructureIds = new Set();
           chunkResults.forEach((part) => (part?.proposals || []).forEach((proposal) => (proposal.operations || []).forEach((operation) => {
             ['classId', 'destinationId', 'from', 'to', 'parentId'].forEach((key) => {
               if (structureById.has(operation[key])) synthesisStructureIds.add(operation[key]);
@@ -1732,7 +1786,7 @@ let proposalPreview = null;
                 }))
               }))
             })),
-            instruction: `全分割範囲の回答と操作を統合してください。classStructure.coverageがhierarchy_and_operation_referencesの場合、classStructureは上位・中間クラスとチャンク案で参照されたクラスだけを含む部分一覧です。省略された対象クラスが存在しないとは扱わず、各chunkAssessmentsのmessage、summary、reasonに記されたクラス名やテーマを根拠として活用してください。classStructureがある場合は各行のID、種別、名称、親ID、scopeRoleを使い、操作対象が変更可能か、移動先が実在して種別も有効か、複数チャンクの案が競合しないか確認してください。chunkAssessmentsのoperationsが省略されている場合、その操作を検証済みと扱わないでください。単一チャンクの提案をそのまま繰り返さず、複数チャンクをまたぐ一貫した変更案が必要な場合に限り、各チャンクの記述と構造情報に根拠のある操作をまとめて提案してください。根拠のないクラスや関係は作らないでください。回答に影響する具体的な未確認点がある場合だけ短く示し、定型的に全体構造がないと説明しないでください。質問や追加データ要求は作らないでください。${scope.scopeCoverage === 'all_classes' ? '全上位・中間クラスと選択中クラスの構造情報は共有済みです。' : 'クラス名・種別・親子関係の評価は入力範囲に限ってください。'}`,
+            instruction: `全分割範囲の回答と操作を統合してください。classStructure.coverageがhierarchy_and_operation_referencesの場合、classStructureはチャンク案で参照されたクラスとその親だけを含む部分一覧です。省略された対象クラスや階層クラスが存在しないとは扱わず、各chunkAssessmentsのmessage、summary、reasonに記されたクラス名やテーマを根拠として活用してください。classStructureがある場合は各行のID、種別、名称、親ID、scopeRoleを使い、操作対象が変更可能か、移動先が実在して種別も有効か、複数チャンクの案が競合しないか確認してください。chunkAssessmentsのoperationsが省略されている場合、その操作を検証済みと扱わないでください。単一チャンクの提案をそのまま繰り返さず、複数チャンクをまたぐ一貫した変更案が必要な場合に限り、各チャンクの記述と構造情報に根拠のある操作をまとめて提案してください。根拠のないクラスや関係は作らないでください。回答に影響する具体的な未確認点がある場合だけ短く示し、定型的に全体構造がないと説明しないでください。質問や追加データ要求は作らないでください。${scope.scopeCoverage === 'all_classes' ? '全範囲の分割評価を受け取っています。チャンク評価と参照構造から確認できる提案だけを返してください。' : 'クラス名・種別・親子関係の評価は入力範囲に限ってください。'}`,
             responsePolicy: scope.scopeCoverage === 'all_classes'
               ? 'dataRequestsとquestionsは空配列にしてください。全体構造で検証できた提案だけを返してください。'
               : 'dataRequestsとquestionsは空配列にしてください。入力範囲の全体構造で検証できた提案だけを返してください。'

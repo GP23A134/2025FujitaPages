@@ -10,14 +10,69 @@ export const createConversationView = ({
     persistSavedConversations,
     setStatus
   }) => {
+    const appendInlineText = (parent, text) => {
+      const parts = String(text).split(/(\*\*[^*]+\*\*)/g);
+      parts.forEach((part) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          const strong = document.createElement('strong');
+          strong.textContent = part.slice(2, -2);
+          parent.append(strong);
+        } else if (part) parent.append(document.createTextNode(part));
+      });
+    };
+    const renderAssistantText = (body, text) => {
+      const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+      let index = 0;
+      while (index < lines.length) {
+        while (index < lines.length && !lines[index].trim()) index += 1;
+        if (index >= lines.length) break;
+        const heading = lines[index].match(/^#{1,3}\s+(.+)$/);
+        if (heading) {
+          const title = document.createElement('strong');
+          title.className = 'ai-message-heading';
+          appendInlineText(title, heading[1].trim());
+          body.append(title);
+          index += 1;
+          continue;
+        }
+        const firstBullet = lines[index].match(/^\s*[-*・]\s+(.+)$/);
+        const firstNumber = lines[index].match(/^\s*\d+[.)、]\s+(.+)$/);
+        if (firstBullet || firstNumber) {
+          const ordered = Boolean(firstNumber);
+          const list = document.createElement(ordered ? 'ol' : 'ul');
+          while (index < lines.length) {
+            const match = lines[index].match(ordered ? /^\s*\d+[.)、]\s+(.+)$/ : /^\s*[-*・]\s+(.+)$/);
+            if (!match) break;
+            const item = document.createElement('li');
+            appendInlineText(item, match[1].trim());
+            list.append(item);
+            index += 1;
+          }
+          body.append(list);
+          continue;
+        }
+        const paragraphLines = [];
+        while (index < lines.length && lines[index].trim()) {
+          if (/^#{1,3}\s+/.test(lines[index]) || /^\s*(?:[-*・]|\d+[.)、])\s+/.test(lines[index])) break;
+          paragraphLines.push(lines[index].trim());
+          index += 1;
+        }
+        if (!paragraphLines.length) { index += 1; continue; }
+        const paragraph = document.createElement('p');
+        appendInlineText(paragraph, paragraphLines.join(' '));
+        body.append(paragraph);
+      }
+    };
     const renderMessage = (item) => {
       const bubble = document.createElement('article');
       bubble.className = `ai-message is-${item.role}`;
       if (item.responseGroupId) bubble.dataset.responseGroupId = item.responseGroupId;
       const title = document.createElement('strong');
       title.textContent = item.role === 'user' ? 'あなた' : 'AI';
-      const body = document.createElement('p');
-      body.textContent = item.text;
+      const body = document.createElement(item.role === 'assistant' ? 'div' : 'p');
+      body.className = 'ai-message-body';
+      if (item.role === 'assistant') renderAssistantText(body, item.text);
+      else body.textContent = item.text;
       bubble.append(title, body);
       messages.append(bubble);
     };

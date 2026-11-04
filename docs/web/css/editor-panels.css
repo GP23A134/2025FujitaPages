@@ -245,7 +245,11 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-message { padding: 0.15rem 0.2rem; color: #1e293b; font-size: 0.88rem; }
 .ai-message.is-user { align-self: flex-end; max-width: 88%; padding: 0.55rem 0.7rem; border: 1px solid #dbeafe; border-radius: 12px; background: #eff6ff; }
 .ai-message strong { color: #0f3d63; font-size: 0.78rem; }
-.ai-message p { margin: 0.2rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-message-body { display: grid; gap: 0.55rem; margin-top: 0.3rem; font-size: 0.86rem; line-height: 1.65; overflow-wrap: anywhere; }
+.ai-message-body p { margin: 0; white-space: pre-wrap; }
+.ai-message-body ul, .ai-message-body ol { display: grid; gap: 0.25rem; margin: 0; padding-left: 1.35rem; }
+.ai-message-body li { padding-left: 0.1rem; }
+.ai-message-heading { margin-top: 0.1rem; color: #0f3d63; font-size: 0.84rem; }
 .ai-chat-form { display: grid; flex: 0 0 auto; grid-template-columns: minmax(0, 1fr); align-items: end; gap: 0.45rem; padding-top: 0.45rem; border-top: 1px solid #e2e8f0; }
 .ai-chat-composer-tools { display: flex; min-width: 0; flex: 0 1 auto; align-items: center; gap: 0.4rem; }
 .ai-scope-option { display: flex; min-width: max-content; align-items: center; gap: 0.35rem; padding: 0; border: 0; color: #475569; background: transparent; cursor: pointer; font: inherit; font-size: 0.68rem; font-weight: 650; line-height: 1.2; text-align: left; white-space: nowrap; }
@@ -312,29 +316,6 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-question-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
 .ai-question-actions .search-button { border-color: #0369a1; color: #fff; background: #0369a1; }
 .ai-question-complete { margin: 0.5rem 0 0; color: #475569; font-size: 0.78rem; }
-.ai-data-request-card { flex: 0 0 auto; padding: 0.7rem; border: 1px solid #fbbf24; border-radius: 9px; color: #713f12; background: #fffbeb; font-size: 0.82rem; }
-.ai-data-request-card > strong { display: block; color: #854d0e; }
-.ai-data-request-card p { margin: 0.4rem 0; line-height: 1.45; }
-.ai-data-request-card ul { margin: 0.35rem 0 0.55rem; padding-left: 1.2rem; }
-.ai-data-request-card li { margin: 0.2rem 0; overflow-wrap: anywhere; }
-.ai-data-request-candidate-group { margin-top: 0.55rem; padding: 0.5rem; border: 1px solid #dbe3ec; border-radius: 7px; background: #fff; }
-.ai-data-request-candidate-group > strong { color: #334155; font-size: 0.8rem; }
-.ai-data-request-candidate-group > p { margin: 0.3rem 0; color: #64748b; font-size: 0.74rem; }
-.ai-data-request-candidate-group ul { max-height: 14rem; overflow: auto; margin: 0.35rem 0 0; padding: 0; list-style: none; }
-.ai-data-request-candidate { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0.15rem 0.45rem; padding: 0.35rem; border-bottom: 1px solid #e2e8f0; cursor: pointer; }
-.ai-data-request-candidate input { grid-row: span 2; accent-color: #0369a1; }
-.ai-data-request-candidate-name { min-width: 0; color: #334155; font-size: 0.78rem; }
-.ai-data-request-candidate small { min-width: 0; overflow: hidden; color: #64748b; font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
-.ai-data-request-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.4rem; }
-.ai-data-request-selection-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
-.ai-data-request-selection-actions button { min-height: 1.9rem; padding: 0.25rem 0.55rem; border: 1px solid #94a3b8; border-radius: 6px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.74rem; }
-.ai-data-request-selection-actions button:disabled { opacity: 0.55; cursor: not-allowed; }
-.ai-data-request-actions button { min-height: 2rem; padding: 0.3rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.76rem; }
-.ai-data-request-actions button:disabled { opacity: 0.55; cursor: not-allowed; }
-.ai-data-request-actions .search-button { border-color: #0369a1; color: #fff; background: #0369a1; }
-.ai-data-request-status { margin: 0.45rem 0 0; color: #475569; font-size: 0.76rem; }
-.ai-data-request-query, .ai-data-request-query-note { margin: 0.35rem 0; color: #475569; font-size: 0.74rem; line-height: 1.4; }
-.ai-data-request-query-note { padding: 0.4rem 0.5rem; border-left: 3px solid #f59e0b; color: #854d0e; background: #fffbeb; }
 .ai-preview-dialog {
   --ai-preview-node-height: 1.5rem;
   --ai-preview-heading-font-size: 0.75rem;
