@@ -1387,7 +1387,7 @@ let proposalPreview = null;
     preparationIndicator.className = 'ai-thinking-indicator';
     preparationIndicator.setAttribute('role', 'status');
     preparationIndicator.setAttribute('aria-live', 'polite');
-    preparationIndicator.textContent = '依頼内容を準備しています…（0s）';
+    preparationIndicator.textContent = `${activePreparationLabel}…（0s）`;
     messages.append(preparationIndicator);
     messages.scrollTop = messages.scrollHeight;
     activePreparationIndicator = preparationIndicator;
@@ -1395,11 +1395,15 @@ let proposalPreview = null;
     status.textContent = '';
     status.className = 'ai-status';
     if (currentConversation) currentConversation.status = '';
-    activePreparationTimer = window.setInterval(() => {
+    const updatePreparationIndicator = () => {
       const elapsed = formatElapsedTime((Date.now() - requestStartedAt) / 1000);
       const message = `${activePreparationLabel}…（${elapsed}）`;
       if (activePreparationIndicator === preparationIndicator) preparationIndicator.textContent = message;
-    }, 1000);
+    };
+    updatePreparationIndicator();
+    activePreparationTimer = window.setInterval(updatePreparationIndicator, 1000);
+    // 準備処理に入る前に、チャット欄へ開始状態を描画する。
+    await new Promise((resolve) => requestAnimationFrame(resolve));
     const key = keyInput.value.trim();
     if (!key) { setStatus('設定欄にOpenAI APIキーを入力してください。', 'error'); keyInput.focus(); return; }
     if (!await modelConfigPromise) { setStatus('モデル設定を読み込めないため依頼を送信できません。', 'error'); return; }
@@ -2147,6 +2151,52 @@ let proposalPreview = null;
       item.excludedOperationIndexes = new Set(item.proposal.operations.map((_, index) => index));
     });
   });
+  const reconcilePendingProposalAdditions = (appliedProposal) => {
+    const snapshot = appliedProposal.appliedPreviewSnapshot;
+    if (!snapshot) return;
+    const beforeIds = new Set(snapshot.before.classes.map((item) => item.id));
+    const addedClasses = snapshot.after.classes.filter((item) => !beforeIds.has(item.id));
+    if (!addedClasses.length) return;
+    currentConversation.items.filter((item) => item.type === 'proposal' && item !== appliedProposal
+      && item.status !== 'applied').forEach((item) => {
+      const aliases = new Map();
+      item.proposal.operations.forEach((operation) => {
+        if (operation.type !== 'addClass' || !operation.temporaryId) return;
+        const label = String(operation.label || '').trim();
+        const appliedClass = addedClasses.find((candidate) => candidate.type === operation.classType
+          && String(candidate.label || '').trim() === label);
+        if (appliedClass) aliases.set(operation.temporaryId, appliedClass.id);
+      });
+      if (!aliases.size) return;
+      const originalOperations = item.proposal.operations.map((operation) => ({ ...operation }));
+      const originallyExcluded = new Set(item.excludedOperationIndexes || []);
+      const resolveAppliedIds = (operation) => {
+        const normalized = { ...operation };
+        ['parentId', 'classId', 'destinationId', 'from', 'to'].forEach((key) => {
+          if (aliases.has(normalized[key])) normalized[key] = aliases.get(normalized[key]);
+        });
+        return normalized;
+      };
+      item.availableIds = [...new Set([...(item.availableIds || []), ...aliases.values()])];
+      responseHandler.normalizeDuplicateClassOperations({ proposals: [item.proposal] }, item.availableIds);
+      const normalizedIndexes = new Map();
+      item.proposal.operations.forEach((operation, index) => {
+        const key = JSON.stringify(operation);
+        if (!normalizedIndexes.has(key)) normalizedIndexes.set(key, []);
+        normalizedIndexes.get(key).push(index);
+      });
+      const excludedIndexes = new Set();
+      originalOperations.forEach((operation, index) => {
+        if (operation.type === 'addClass' && aliases.has(operation.temporaryId)) return;
+        const key = JSON.stringify(resolveAppliedIds(operation));
+        const matches = normalizedIndexes.get(key);
+        if (!matches?.length) return;
+        const normalizedIndex = matches.shift();
+        if (originallyExcluded.has(index)) excludedIndexes.add(normalizedIndex);
+      });
+      item.excludedOperationIndexes = excludedIndexes;
+    });
+  };
   document.getElementById('ai-apply-proposal').addEventListener('click', async () => {
     const applyConversation = currentConversation;
     const applyStartedAt = Date.now();
@@ -2166,10 +2216,14 @@ let proposalPreview = null;
       const applied = await proposalPreview.applyCurrentProposal();
       if (!applied) return;
       applySucceeded = true;
+      reconcilePendingProposalAdditions(applied.currentProposal);
       renderConversation();
-      if (applied.nextProposal) {
+      const previewQueue = proposalPreview.previewableProposals();
+      const appliedIndex = previewQueue.indexOf(applied.currentProposal);
+      const nextProposal = appliedIndex >= 0 ? previewQueue.slice(appliedIndex + 1)[0] : null;
+      if (nextProposal) {
         setStatus('提案を適用しました。次の提案を確認しています。');
-        await proposalPreview.transitionPreview(() => proposalPreview.showPreview(applied.nextProposal));
+        await proposalPreview.transitionPreview(() => proposalPreview.showPreview(nextProposal));
         renderConversation();
       } else {
         closePreview();
