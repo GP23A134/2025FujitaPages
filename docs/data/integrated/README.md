@@ -1,6 +1,6 @@
 # 統合データ
 
-`DataIntegrate`または`ClassDataUpdate`が生成するJSONを置きます。Webページ用データの元になるため、手動編集せずJavaプログラムから更新してください。
+`DataIntegrate`または`ClassDataUpdate`が生成するJSONを置きます。Webページ用データの元になるため、手動編集せずJavaプログラムから更新してください。クラス分類の更新後は`WebDataBuild`も実行してブラウザー用データを再生成します。
 
 | ファイル | 内容 |
 |---|---|
@@ -9,5 +9,6 @@
 | `class-data.json` | 上位・中間クラスと親子関係 |
 | `target-class-data.json` | クラス一覧 |
 
-Web表示用データは`class-data.json`から`WebDataBuild`が生成します。確認用TSVは`DataIntegrate`または`ClassDataUpdate`が[`../output/`](../output/)に出力します。
+`class-data.json`には上位・中間クラスと親子関係、`target-class-data.json`には対象クラス一覧が入ります。Web表示用データは`class-data.json`とほかの統合JSONから`WebDataBuild`が生成します。確認用TSVは`DataIntegrate`または`ClassDataUpdate`が[`../output/`](../output/)に出力します。
+
 実行順は[データフォルダー全体のREADME](../)、各Javaプログラムの説明は[JavaツールのREADME](../../java/)を参照してください。

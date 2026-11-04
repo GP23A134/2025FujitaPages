@@ -5,7 +5,7 @@
 ## 画面
 
 - `index.html`：クラス階層、インスタンス、集計結果を閲覧します。
-- `edit.html`：クラス階層を編集し、変更案を確認・適用します。AIチャットを使う場合は、画面でOpenAI APIキーを入力します。キーはブラウザー内だけで使います。
+- `edit.html`：クラス階層を編集し、保持中の対象を移動し、変更案を確認・適用します。AIチャットを使う場合は画面でOpenAI APIキーを入力します。
 
 ## データ更新の流れ
 
@@ -31,10 +31,12 @@ Javaツールのコンパイル、実行コマンド、クエリモードは[Jav
 | `web/data/config/` | AIモデル設定とシステムプロンプト |
 | `web/data/generated/` | Javaツールが生成するWeb表示データ |
 | `java/` | データ取得、統合、更新、Webデータ生成のJavaソースとSPARQLクエリ |
-| `bin/` | Javaのコンパイル出力先 |
+| `bin/` | Javaのローカルコンパイル出力先。`.gitignore`でGit管理から除外 |
 | `lib/` | Javaツールの依存ライブラリ |
 | `config/` | 開発補助ツールの設定 |
 | `data/` | 取得結果、統合データ、更新入力、TSV出力 |
+
+`data/input/history/`には分類更新前のスナップショットと適用済み入力をローカル保存します。履歴JSONと一時入力`data/input/class-update.json`は`.gitignore`で除外されます。統合JSONや生成TSV、Web表示データは更新結果としてGit管理します。
 
 ## README一覧
 
@@ -43,6 +45,7 @@ Javaツールのコンパイル、実行コマンド、クエリモードは[Jav
 - [Javaツールとクエリ](java/)
 - [データフォルダー全体](data/)
 - [クラス分類の更新入力](data/input/)
+- [クラス分類のローカル履歴](data/input/history/)
 - [SPARQLクエリ結果](data/query-results/)
 - [階層クエリ結果](data/query-results/hierarchy/)
 - [統合データ](data/integrated/)

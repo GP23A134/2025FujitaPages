@@ -9,4 +9,4 @@
 
 `WebDataBuild`は`data/integrated/`を読み、`web/data/generated/`へ出力します。出力ファイルがない場合はフォルダーを作成します。
 
-faviconは`web/favicon.svg`に置いています。APIキーは編集画面で利用者が入力し、ページを閉じるまでメモリ内に保持します。
+faviconは`web/favicon.svg`に置いています。APIキーは編集画面で利用者が入力し、ページを開いている間だけブラウザーのメモリ内に保持します。設定ファイルや生成データにキーを保存しません。

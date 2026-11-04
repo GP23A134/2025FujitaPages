@@ -13,6 +13,10 @@
 
 Webページ用のCSS・JavaScript・設定・生成データは、[`../web/`](../web/)にまとめています。`WebDataBuild`の出力先は`../web/data/generated/`です。
 
+## Git管理
+
+`data/input/class-update.json`は更新時に使う一時入力で、成功すると`input/history/`へ移動します。実行前スナップショットと処理済み入力を含む`input/history/*.json`、`query-results/**/*.tmp`は`.gitignore`で除外します。取得元JSON、統合JSON、TSV、Web生成データは更新後に差分を確認してGit管理します。Javaの`.class`ファイルは`bin/`に生成され、Git管理対象外です。
+
 ## データ処理の流れ
 
 1. `java/QueryRun.java`がクエリ結果を`query-results/`に保存します。
