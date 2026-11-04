@@ -9,5 +9,5 @@
 | `class-data.json` | 上位・中間クラスと親子関係 |
 | `target-class-data.json` | クラス一覧 |
 
-中間・上位クラス一覧は`class-data.json`から`WebDataBuild`が生成します。確認用TSVは[`../output/`](../output/)に出力します。
-実行順や各プログラムの説明は[`../README.md`](../README.md)を参照してください。
+Web表示用データは`class-data.json`から`WebDataBuild`が生成します。確認用TSVは`DataIntegrate`または`ClassDataUpdate`が[`../output/`](../output/)に出力します。
+実行順は[データフォルダー全体のREADME](../README.md)、各Javaプログラムの説明は[JavaツールのREADME](../../java/README.md)を参照してください。

@@ -1617,7 +1617,7 @@ let proposalPreview = null;
         let splitRepairFailed = false;
         for (let offset = 0; offset < splitTasks.length; offset += 2) {
           const batch = splitTasks.slice(offset, offset + 2);
-          const chunkProgress = `${offset + 1}-${Math.min(offset + batch.length, splitTasks.length)}/${splitTasks.length}件を処理中${cachedChunkCount ? `（再利用 ${cachedChunkCount}件）` : ''}`;
+          const chunkProgress = `${offset + 1}/${splitTasks.length}件を処理中${cachedChunkCount ? `（再利用 ${cachedChunkCount}件）` : ''}`;
           setThinkingStage(conversation, '分割処理中', chunkProgress);
           const parts = await Promise.all(batch.map(async (task, batchIndex) => {
             const index = offset + batchIndex;
