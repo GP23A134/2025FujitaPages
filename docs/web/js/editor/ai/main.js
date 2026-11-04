@@ -2,7 +2,7 @@
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
 import { createClassIdCodec } from './id-codec.js?v=20261104-send-data-review-fixes-v1';
 import { sendOpenAIRequest } from './api-client.js?v=20261103-ai-module-system-step6-v1';
-import { createRequestPlanner } from './request-planner.js?v=20261104-send-data-review-fixes-v1';
+import { createRequestPlanner } from './request-planner.js?v=20261104-output-safe-batches-v1';
 import { createResponseHandler } from './response-handler.js?v=20261104-no-extra-data-requests-v1';
 import { createConversationStore } from './conversation-store.js?v=20261103-ai-review-fixes-v1';
 import { createConversationView } from './conversation-view.js?v=20261104-readable-ai-replies-v1';

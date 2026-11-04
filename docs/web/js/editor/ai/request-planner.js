@@ -407,7 +407,8 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         const candidate = makeBatch([...pending, unit]);
         const editableIds = new Set(candidate.scope.editableIds);
         const editableTargetCount = candidate.scope.classes.filter((item) => item.type === 'class' && editableIds.has(item.id)).length;
-        const exceedsGroupLimit = candidate.units.length > 20;
+        // Four units keep the grouped response budget near the previously stable 12k-token ceiling.
+        const exceedsGroupLimit = candidate.units.length > 4;
         const exceedsOperationLimit = candidate.scope.allowHierarchyEdits && editableTargetCount > 20;
         if (pending.length && (candidate.input.length > MAX_REQUEST_CHARACTERS || exceedsGroupLimit || exceedsOperationLimit)) {
           batches.push(makeBatch(pending));
