@@ -583,6 +583,9 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-changed { outline: none; }
 #ai-preview-dialog .tree .is-ai-preview-excluded { opacity: 0.5; outline: 1px dashed #64748b; outline-offset: 1px; }
 #ai-preview-dialog .tree .is-ai-preview-hover-related { outline: 3px solid #f59e0b !important; outline-offset: 2px; filter: brightness(0.96); box-shadow: 0 3px 10px rgba(15, 23, 42, 0.24); }
+#ai-preview-dialog .tree .is-ai-preview-hover-parent { outline: 3px solid #f59e0b; outline-offset: 2px; background-color: #fef3c7; box-shadow: 0 3px 10px rgba(15, 23, 42, 0.2); }
+.ai-preview-change-item.is-ai-preview-change-hovered { background: #fef3c7; }
+.ai-preview-change-item:focus-visible { position: relative; z-index: 4; outline: 3px solid #f59e0b; outline-offset: 2px; }
 #ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-changed:hover,
 #ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-changed:hover,
 #ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-excluded:hover,

@@ -399,12 +399,44 @@ export const createProposalPreview = ({
     });
   };
   const clearPreviewHover = () => {
-    document.querySelectorAll('#ai-preview-before .is-ai-preview-hover-related, #ai-preview-after .is-ai-preview-hover-related')
-      .forEach((node) => node.classList.remove('is-ai-preview-hover-related'));
+    document.querySelectorAll('#ai-preview-before .is-ai-preview-hover-related, #ai-preview-after .is-ai-preview-hover-related,
+      #ai-preview-before .is-ai-preview-hover-parent, #ai-preview-after .is-ai-preview-hover-parent,
+      .ai-preview-change-item.is-ai-preview-change-hovered')
+      .forEach((node) => node.classList.remove('is-ai-preview-hover-related', 'is-ai-preview-hover-parent',
+        'is-ai-preview-change-hovered'));
     document.querySelectorAll('#ai-preview-direction .is-ai-preview-arrow-hovered')
       .forEach((path) => path.classList.remove('is-ai-preview-arrow-hovered'));
     document.getElementById('ai-preview-add-origin')?.classList.remove('is-ai-preview-hover-related');
     document.getElementById('ai-preview-delete-target')?.classList.remove('is-ai-preview-hover-related');
+  };
+  const highlightMoveParent = (host, childId, parentByChild) => {
+    const parentId = parentByChild.get(childId);
+    if (parentId) previewNodeRow(host, parentId)?.classList.add('is-ai-preview-hover-parent');
+  };
+  const highlightMoveArrows = (arrows) => {
+    const beforeHost = document.getElementById('ai-preview-before');
+    const afterHost = document.getElementById('ai-preview-after');
+    arrows.filter((arrow) => arrow.kind === 'is-move').forEach((arrow) => {
+      highlightMoveParent(beforeHost, arrow.from, previewPlan.beforeParents);
+      highlightMoveParent(afterHost, arrow.to, previewPlan.afterParents);
+    });
+  };
+  const highlightMoveOperation = (operationIndex, row = null) => {
+    clearPreviewHover();
+    const matchingArrows = (previewPlan?.arrows || []).filter((arrow) => arrow.operationIndex === operationIndex
+      && arrow.kind === 'is-move');
+    if (!matchingArrows.length) return;
+    row?.classList.add('is-ai-preview-change-hovered');
+    const beforeHost = document.getElementById('ai-preview-before');
+    const afterHost = document.getElementById('ai-preview-after');
+    const arrowSvg = document.getElementById('ai-preview-direction');
+    matchingArrows.forEach((arrow) => {
+      previewNodeRow(beforeHost, arrow.from)?.classList.add('is-ai-preview-hover-related');
+      previewNodeRow(afterHost, arrow.to)?.classList.add('is-ai-preview-hover-related');
+      arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
+        .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
+    });
+    highlightMoveArrows(matchingArrows);
   };
   const highlightPreviewTarget = (target) => {
     clearPreviewHover();
@@ -422,6 +454,7 @@ export const createProposalPreview = ({
       arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
         .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
     });
+    highlightMoveArrows(matchingArrows);
   };
   const highlightPreviewSource = (sourceTarget) => {
     clearPreviewHover();
@@ -437,6 +470,7 @@ export const createProposalPreview = ({
       arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
         .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
     });
+    highlightMoveArrows(matchingArrows);
   };
   const highlightPreviewAdditions = () => {
     clearPreviewHover();
@@ -498,6 +532,37 @@ export const createProposalPreview = ({
     if (event.relatedTarget instanceof Node && target.contains(event.relatedTarget)) return;
     clearPreviewHover();
   });
+  const bindChangeListHover = (list) => {
+    const rowFor = (event) => event.target.closest('.ai-preview-change-item[data-operation-index]');
+    list.addEventListener('pointerover', (event) => {
+      const row = rowFor(event);
+      if (!row || !list.contains(row) || (event.relatedTarget instanceof Node && row.contains(event.relatedTarget))) return;
+      const operation = previewPlan?.proposalItem.proposal.operations[Number(row.dataset.operationIndex)];
+      if (operation?.type === 'moveClass' || operation?.type === 'moveChildren') {
+        highlightMoveOperation(Number(row.dataset.operationIndex), row);
+      } else clearPreviewHover();
+    });
+    list.addEventListener('pointerout', (event) => {
+      const row = rowFor(event);
+      if (!row || !list.contains(row) || (event.relatedTarget instanceof Node && row.contains(event.relatedTarget))) return;
+      clearPreviewHover();
+    });
+    list.addEventListener('focusin', (event) => {
+      const row = rowFor(event);
+      if (!row || !list.contains(row)) return;
+      const operation = previewPlan?.proposalItem.proposal.operations[Number(row.dataset.operationIndex)];
+      if (operation?.type === 'moveClass' || operation?.type === 'moveChildren') {
+        highlightMoveOperation(Number(row.dataset.operationIndex), row);
+      } else clearPreviewHover();
+    });
+    list.addEventListener('focusout', (event) => {
+      const row = rowFor(event);
+      if (!row || !list.contains(row) || (event.relatedTarget instanceof Node && row.contains(event.relatedTarget))) return;
+      clearPreviewHover();
+    });
+  };
+  bindChangeListHover(document.getElementById('ai-preview-change-list'));
+  bindChangeListHover(document.getElementById('ai-preview-final-change-list'));
   const updatePreviewSelection = (proposalItem, update) => {
     const previous = new Set(proposalItem.excludedOperationIndexes);
     update();
@@ -531,6 +596,11 @@ export const createProposalPreview = ({
       const excluded = proposalItem.excludedOperationIndexes.has(index);
       const row = document.createElement('li');
       row.className = `ai-preview-change-item${excluded ? ' is-excluded' : ''}`;
+      row.dataset.operationIndex = String(index);
+      if (operation.type === 'moveClass' || operation.type === 'moveChildren') {
+        row.tabIndex = 0;
+        row.setAttribute('aria-label', operationLabel(operation));
+      }
       const toggle = document.createElement('input');
       toggle.type = 'checkbox'; toggle.checked = !excluded;
       toggle.disabled = proposalItem.status === 'applied';
@@ -999,7 +1069,9 @@ export const createProposalPreview = ({
     impact.textContent = '';
     document.getElementById('ai-preview-group-include').hidden = isApplied;
     document.getElementById('ai-preview-group-exclude').hidden = isApplied;
-    previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), arrows: previewArrows, candidate, expectedFingerprint, expectedBaseHash, readOnly: isApplied };
+    previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), arrows: previewArrows,
+      beforeParents: new Map(beforeParents), afterParents: new Map(displayParents), candidate,
+      expectedFingerprint, expectedBaseHash, readOnly: isApplied };
     previewColumns?.classList.remove('is-loading');
     requestAnimationFrame(() => renderPreviewArrows(previewArrows));
     applyButton.disabled = isApplied || activeOperations.length === 0;
