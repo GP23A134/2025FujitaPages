@@ -419,6 +419,9 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-change-page-heading h3 { min-width: 0; margin: 0; color: #0f3d63; font-size: 0.95rem; }
 .ai-preview-change-page-heading .ai-preview-selection-actions { margin-left: auto; }
 .ai-preview-arrow-toggle { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 0.35rem; min-height: 2rem; padding: 0.2rem 0.45rem; border: 1px solid #cbd5e1; border-radius: 999px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.72rem; }
+.ai-preview-order-toggle { display: inline-flex; flex: 0 0 auto; align-items: center; min-height: 2rem; padding: 0.2rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.72rem; }
+.ai-preview-order-toggle:disabled { color: #94a3b8; background: #f1f5f9; cursor: not-allowed; }
+.ai-preview-order-toggle:focus-visible { outline: 2px solid #0284c7; outline-offset: 2px; }
 .ai-preview-arrow-toggle:focus-visible { outline: 2px solid #0284c7; outline-offset: 2px; }
 .ai-preview-arrow-toggle-state { min-width: 1.35rem; color: #64748b; font-size: 0.65rem; font-weight: 800; }
 .ai-preview-arrow-toggle-track { position: relative; width: 1.8rem; height: 1rem; border-radius: 999px; background: #94a3b8; transition: background-color 0.15s ease; }

@@ -21,6 +21,7 @@ export const createProposalPreview = ({
   let previewPlan = null;
   let previewPageIndex = 0;
   let previewGroups = [];
+  let sortPreviewByOperation = true;
   const operationCategory = (operation) => {
     if (operation?.type === 'addClass') return { label: '追加', className: 'is-add' };
     if (operation?.type === 'renameClass') return { label: '改名', className: 'is-rename' };
@@ -77,12 +78,23 @@ export const createProposalPreview = ({
       children.get(parent).push(child);
       parentIds.add(child);
     });
+    const orderedIds = (ids) => {
+      const values = [...ids];
+      if (!options.orderByOperation) return values;
+      const operationIndexes = options.operationIndexesByClass;
+      return values.map((id, originalIndex) => ({
+        id,
+        originalIndex,
+        rank: Math.min(...(operationIndexes?.get(id) || []), Number.POSITIVE_INFINITY)
+      })).sort((left, right) => left.rank - right.rank || left.originalIndex - right.originalIndex)
+        .map(({ id }) => id);
+    };
     const buildNode = (id, path = new Set()) => {
       const item = classesById.get(id);
       if (!item || path.has(id)) return null;
       const nextPath = new Set(path).add(id);
       const node = { id, label: item.label, type: item.type, previewDeleted: Boolean(item.previewDeleted), children: [], targets: [] };
-      (children.get(id) || []).forEach((childId) => {
+      orderedIds(children.get(id) || []).forEach((childId) => {
         const child = classesById.get(childId);
         if (!child) return;
         if (child.type === 'class') node.targets.push(child);
@@ -91,10 +103,13 @@ export const createProposalPreview = ({
           if (childNode) node.children.push(childNode);
         }
       });
+      node.targets = orderedIds(node.targets.map(({ id: targetId }) => targetId))
+        .map((targetId) => classesById.get(targetId)).filter(Boolean);
       return node;
     };
     const roots = state.classes.filter((item) => item.type === 'top' && !parentIds.has(item.id))
-      .map((item) => buildNode(item.id)).filter(Boolean);
+      .map((item) => item.id);
+    const orderedRoots = orderedIds(roots).map((id) => buildNode(id)).filter(Boolean);
     host.classList.add('tree');
     const targetCountFor = (item) => state.counts?.[item.id] || 0;
     const countFor = (node) => node.targets.length + node.children.reduce((sum, child) => sum + countFor(child), 0);
@@ -122,7 +137,7 @@ export const createProposalPreview = ({
       checkbox.addEventListener('change', () => options.onToggle?.(indexes, checkbox.checked));
       return checkbox;
     };
-    window.renderHierarchyTree(host, roots, {
+    window.renderHierarchyTree(host, orderedRoots, {
       countFor,
       targetCountFor,
       isOpen: () => true,
@@ -650,6 +665,8 @@ export const createProposalPreview = ({
   const showPreview = async (proposalItem, applyRequested = false, fastUpdate = false) => {
     const previewColumns = document.querySelector('.ai-preview-columns');
     previewColumns?.classList.add('is-loading');
+    const orderToggle = document.getElementById('ai-preview-order-toggle');
+    if (orderToggle) orderToggle.disabled = true;
     syncProposalPage(proposalItem);
     if (hasUnsubmittedQuestions(proposalItem.responseGroupId)) {
       if (previewDialog.open) closePreview();
@@ -909,12 +926,14 @@ export const createProposalPreview = ({
       appendTree(before, groupPreviewState(beforeState), groupAffectedIds, {
         countLabelFor: hierarchyCountLabel(beforeHierarchyCounts),
         operationIndexesByClass, addedOperationIndexesByClass, operations, deletionOperationByClass,
+        orderByOperation: sortPreviewByOperation,
         excludedOperationIndexes: proposalItem.excludedOperationIndexes
       });
       appendTree(after, groupPreviewState(proposedDisplayState), groupAffectedIds, {
         selectable: !isApplied,
         countLabelFor: hierarchyCountLabel(afterHierarchyCounts),
         operationIndexesByClass, addedOperationIndexesByClass, operations,
+        orderByOperation: sortPreviewByOperation,
         deletionOperationByClass,
         excludedOperationIndexes: proposalItem.excludedOperationIndexes,
         onToggle: (indexes, include) => {
@@ -936,11 +955,21 @@ export const createProposalPreview = ({
     document.getElementById('ai-preview-group-include').hidden = isApplied;
     document.getElementById('ai-preview-group-exclude').hidden = isApplied;
     previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), arrows: previewArrows, candidate, expectedFingerprint, expectedBaseHash, readOnly: isApplied };
+    if (orderToggle) {
+      orderToggle.textContent = sortPreviewByOperation ? '元の並びに戻す' : '変更順に並べる';
+      orderToggle.setAttribute('aria-pressed', String(sortPreviewByOperation));
+      orderToggle.disabled = isApplied;
+    }
     previewColumns?.classList.remove('is-loading');
     requestAnimationFrame(() => renderPreviewArrows(previewArrows));
     applyButton.disabled = isApplied || activeOperations.length === 0;
     if (applyRequested && activeOperations.length) applyButton.focus();
   };
+  document.getElementById('ai-preview-order-toggle')?.addEventListener('click', () => {
+    if (!previewPlan || previewPlan.readOnly) return;
+    sortPreviewByOperation = !sortPreviewByOperation;
+    void showPreview(previewPlan.proposalItem, false, true).catch(reportPreviewError);
+  });
   const navigatePreview = (direction) => {
     if (!previewPlan) return;
     const items = previewableProposals();
