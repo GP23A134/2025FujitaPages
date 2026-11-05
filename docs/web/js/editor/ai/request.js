@@ -23,12 +23,17 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
       conversationContext: conversation.localContext || undefined,
       scopeCoverage: activeScope.scopeCoverage || 'selected_classes',
       selectedScope: diffScope(previousScope, activeScope),
-      referenceHierarchy: activeScope.referenceHierarchy || undefined,
       instruction: `${instruction} ${scopeInstruction} ${noEditableClassesInstruction}`
     }));
   };
   // 全体参照が上限を超える場合、階層範囲と対象クラス範囲を分割して漏れなく計画します。
   const makeLargeScopePlan = async (userText, scope, conversation) => {
+    const hierarchyParentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
+    const hierarchyRows = scope.classes.filter((item) => ['top', 'middle'].includes(item.type))
+      .map((item) => [item.id, item.type, item.label, hierarchyParentByChild.get(item.id) || null]);
+    const contextCharacterCount = shortenInputIds(JSON.stringify({ scopeCoverage: 'hierarchy_reference', hierarchy: hierarchyRows })).length;
+    const taskCharacterLimit = MAX_REQUEST_CHARACTERS - contextCharacterCount;
+    if (taskCharacterLimit <= 0) throw new Error('上位・中間クラスの全体情報が送信上限を超えています。');
     const upperClassBatchCount = 10;
     const upperClassBatchIndex = (id) => {
       let hash = 2166136261;
@@ -46,12 +51,6 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     const editableHierarchyIds = new Set(scope.classes
       .filter((item) => ['top', 'middle'].includes(item.type) && scope.editableIds.includes(item.id))
       .map((item) => item.id));
-    const hierarchyIds = new Set(scope.classes.filter((item) => ['top', 'middle'].includes(item.type)).map((item) => item.id));
-    const parentByClass = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
-    const referenceHierarchy = scope.classes.filter((item) => hierarchyIds.has(item.id))
-      .map((item) => [item.id, item.type, item.label, parentByClass.get(item.id) || null]);
-    const sharedReference = JSON.stringify(referenceHierarchy).length <= MAX_REQUEST_CHARACTERS / 3
-      ? referenceHierarchy : null;
     if (!isHierarchySelection && !editableHierarchyIds.size) {
       const editableIdSet = new Set(scope.editableIds);
       const classTypeById = new Map(scope.classes.map((item) => [item.id, item.type]));
@@ -99,7 +98,6 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
           },
           allowHierarchyEdits: Boolean(scope.allowHierarchyEdits)
         };
-        if (sharedReference) taskScope.referenceHierarchy = sharedReference;
         const input = buildUserContent(userText, taskScope, conversation, {
           forceSnapshot: true,
           instruction: targetInstruction
@@ -124,7 +122,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
             await yieldToBrowser();
             const size = Math.floor((low + high) / 2);
             const candidate = buildTargetTask(targets.slice(offset, offset + size), groupHierarchy, topClassId);
-            if (candidate.input.length <= MAX_REQUEST_CHARACTERS) {
+            if (candidate.input.length <= taskCharacterLimit) {
               bestSize = size; bestTask = candidate; low = size + 1;
             } else high = size - 1;
           }
@@ -139,6 +137,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         task.kind = 'upper_class_unit';
         task.unitId = `upper_unit_${index + 1}`;
         task.instruction = targetInstruction;
+        task.contextCharacterCount = contextCharacterCount;
       });
       return targetTasks;
     }
@@ -158,7 +157,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
       ? 'この分割範囲では上位・中間クラスの追加・改名・移動を提案できます。削除は利用者が明示した場合だけにしてください。対象クラスの個別IDや全件情報は含まれないため、対象クラスの操作は提案しないでください。targetContextの対象クラス数は規模を示す参考情報です。入力にない情報を推測しないでください。selectionRootsの上位クラスは必要なら中間クラスへ移動できます。その場合は上位を中間化し、配下の親子関係を保って移動してください。'
       : 'この分割範囲では上位・中間クラスの追加・改名・移動・削除を提案できます。対象クラスの個別IDや全件情報は含まれません。targetContextに対象クラス数がある場合は読み取り専用の参考として使えますが、対象クラスの変更案は作らず、入力にない情報を推測しないでください。この制約は今回の階層分割範囲だけに適用し、AIシステム全体が対象クラスの移動しかできないなどと説明してはいけません。selectionRootsの上位クラスは中間クラスへ移動できます。その場合は上位を中間化し、配下の親子関係を保って移動してください。';
     const hierarchyClasses = scope.classes.filter((item) => ['top', 'middle'].includes(item.type));
-    const hierarchyChunkLimit = MAX_REQUEST_CHARACTERS;
+    const hierarchyChunkLimit = taskCharacterLimit;
     const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
     const hierarchyById = new Map(hierarchyClasses.map((item) => [item.id, item]));
     const topAncestorFor = (id) => {
@@ -210,7 +209,6 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         },
         allowHierarchyEdits: Boolean(scope.allowHierarchyEdits)
       };
-      if (sharedReference) taskScope.referenceHierarchy = sharedReference;
       return buildHierarchyTask(taskScope);
     };
     const hierarchyTasks = [];
@@ -264,8 +262,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         editableIds: [...new Set([...left.editableIds, ...right.editableIds])],
         classes: [...classesById.values()],
         relations: [...relationByKey.values()],
-        counts: {},
-        referenceHierarchy: sharedReference || undefined
+        counts: {}
       };
     };
     const hierarchyTasksByBucket = new Map();
@@ -326,8 +323,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         editableIds: [...targetIds],
         classes,
         relations: scope.relations.filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
-        counts: {},
-        referenceHierarchy: sharedReference || undefined
+        counts: {}
       };
     };
     const buildTargetTask = (units, topClassId) => {
@@ -355,7 +351,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
           await yieldToBrowser();
           const size = Math.floor((low + high) / 2);
           const candidate = buildTargetTask(units.slice(targetOffset, targetOffset + size), topClassId);
-          if (candidate.input.length <= MAX_REQUEST_CHARACTERS) {
+          if (candidate.input.length <= taskCharacterLimit) {
             bestSize = size; bestTask = candidate; low = size + 1;
           } else high = size - 1;
         }
@@ -386,9 +382,11 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         task.input = JSON.stringify(input);
       });
     }
+    tasks.forEach((task) => { task.contextCharacterCount = contextCharacterCount; });
     return tasks;
   };
     const packAnalysisUnits = async (units, userText, conversation) => {
+      const taskCharacterLimit = MAX_REQUEST_CHARACTERS - (units[0]?.contextCharacterCount || 0);
       const mergeScopes = (left, right) => {
         const classesById = new Map([...left.classes, ...right.classes].map((item) => [item.id, item]));
         const relationsByKey = new Map([...left.relations, ...right.relations]
@@ -402,7 +400,6 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
           classes: [...classesById.values()],
           relations: [...relationsByKey.values()],
           counts: { ...(left.counts || {}), ...(right.counts || {}) },
-          referenceHierarchy: left.referenceHierarchy || right.referenceHierarchy,
           sharedContextIds: [...new Set([...(left.sharedContextIds || []), ...(right.sharedContextIds || [])])],
           targetContext: {
             descendantTargetClassCounts: {
@@ -439,10 +436,10 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         // Four units keep the grouped response budget near the previously stable 12k-token ceiling.
         const exceedsGroupLimit = candidate.units.length > 4;
         const exceedsOperationLimit = candidate.scope.allowHierarchyEdits && editableTargetCount > 20;
-        if (pending.length && (candidate.input.length > MAX_REQUEST_CHARACTERS || exceedsGroupLimit || exceedsOperationLimit)) {
+        if (pending.length && (candidate.input.length > taskCharacterLimit || exceedsGroupLimit || exceedsOperationLimit)) {
           batches.push(makeBatch(pending));
           pending = [unit];
-        } else if (candidate.input.length <= MAX_REQUEST_CHARACTERS && !exceedsGroupLimit && !exceedsOperationLimit) {
+        } else if (candidate.input.length <= taskCharacterLimit && !exceedsGroupLimit && !exceedsOperationLimit) {
           pending = [...pending, unit];
         } else {
           throw new Error('上位クラスの分析単位を送信上限内にまとめられません。対象範囲を小さくしてください。');

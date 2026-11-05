@@ -1,6 +1,6 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261105-hierarchy-planning-v1';
+import { createRequestPlanner, createChunkSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261105-shared-hierarchy-v1';
 import { createResponseHandler, createOperationPolicy } from './proposal-engine.js?v=20261105-hierarchy-planning-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261105-functional-modules-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261105-hierarchy-planning-v1';
@@ -1347,6 +1347,16 @@ let proposalPreview = null;
     request: userText.trim(),
     conversationContext: conversation.localContext || '',
     kind: task.kind,
+    hierarchyContext: (() => {
+      const state = editor.getState();
+      const hierarchy = state.classes.filter((item) => ['top', 'middle'].includes(item.type));
+      const ids = new Set(hierarchy.map((item) => item.id));
+      return {
+        classes: hierarchy.map(({ id, type, label }) => [id, type, label]).sort((a, b) => a[0].localeCompare(b[0])),
+        relations: state.relations.filter(({ child, parent }) => ids.has(child) && ids.has(parent))
+          .map(({ child, parent }) => [child, parent]).sort((a, b) => `${a[0]}:${a[1]}`.localeCompare(`${b[0]}:${b[1]}`))
+      };
+    })(),
     instruction: JSON.parse(task.input || '{}').instruction || task.instruction || '',
     scope: {
       mode: task.scope.mode,
@@ -1547,7 +1557,25 @@ let proposalPreview = null;
     const splitBatches = splitTasks
       ? splitUsesUpperUnits ? await requestPlanner.packAnalysisUnits(unsentSplitTasks, userText, conversation) : unsentSplitTasks
       : [];
-    const requestInputs = splitTasks ? splitBatches.map((task) => task.input) : [userContent];
+    const hierarchyReferenceInput = splitBatches.length ? (() => {
+      const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
+      const hierarchy = scope.classes.filter((item) => ['top', 'middle'].includes(item.type))
+        .map((item) => [item.id, item.type, item.label, parentByChild.get(item.id) || null]);
+      return shortenInputIds(JSON.stringify({ scopeCoverage: 'hierarchy_reference', hierarchy }));
+    })() : '';
+    if (hierarchyReferenceInput.length > MAX_REQUEST_CHARACTERS) {
+      setStatus('上位・中間クラスの全体情報が送信上限を超えています。階層情報を一括で共有できないため、送信を中止しました。', 'error');
+      return;
+    }
+    if (splitBatches.some((task) => hierarchyReferenceInput.length + task.input.length > MAX_REQUEST_CHARACTERS)) {
+      setStatus('階層情報と対象クラスの分割入力を同じ送信上限内に収められません。選択範囲を小さくして再依頼してください。', 'error');
+      return;
+    }
+    // The previous response is charged again in each continuation, so include
+    // the shared hierarchy in the preflight estimate for every sent batch.
+    const requestInputs = splitTasks
+      ? [hierarchyReferenceInput, ...splitBatches.map((task) => hierarchyReferenceInput + task.input)].filter(Boolean)
+      : [userContent];
     const sendingDelta = Boolean(!usesAnalysisMemory && !splitTasks && conversation.responseId
       && conversation.initialSnapshotSent && !selectionChanged && !scopeModeChanged);
     const splitDisplayScope = splitTasks ? (() => {
@@ -1576,7 +1604,7 @@ let proposalPreview = null;
       ? '会話が長くなっています。前のやりとりも利用量に影響するため、必要なら「＋」から新しい相談を始めてください。'
       : '';
     const outputTokenBudget = splitTasks
-      ? unsentSplitTasks.length * CHUNK_OUTPUT_TOKENS + SYNTHESIS_OUTPUT_TOKENS
+      ? unsentSplitTasks.length * CHUNK_OUTPUT_TOKENS + SYNTHESIS_OUTPUT_TOKENS + (splitBatches.length ? 128 : 0)
       : MAX_OUTPUT_TOKENS;
     const cacheReuseNote = splitTasks && cachedChunkCount
       ? `上位クラスごとの保存済み評価 ${cachedChunkCount}件を再利用し、変更のある単位 ${unsentSplitTasks.length}件だけを送信単位にまとめて再分析します。最後に評価結果を統合します。`
@@ -1640,6 +1668,10 @@ let proposalPreview = null;
       const proposalOperationPolicies = new Map();
       let completeCoverageRetryFailed = false;
       if (splitTasks) {
+        const hierarchyContextId = splitBatches.length ? (await sendApiRequest(hierarchyReferenceInput, '', 128,
+          '階層情報を共有中', false, true,
+          '入力された上位・中間クラスのID、種別、名称、親IDを後続の依頼で参照してください。今回は変更案を作らず、mに受領確認だけを返してください。')).responseBody.id : '';
+        if (splitBatches.length && !hierarchyContextId) throw new Error('階層情報の共有に失敗しました。');
         result = { baseDataHash, message: '', proposals: [], questions: [], dataRequests: [] };
         const messagesFromParts = [];
         const chunkResults = new Array(splitTasks.length);
@@ -1707,9 +1739,9 @@ let proposalPreview = null;
           const parts = await Promise.all(batch.map(async (task) => {
             if (splitUsesUpperUnits) {
               const outputLimit = task.units.length * CHUNK_OUTPUT_TOKENS;
-              return await sendApiRequest(task.input, '', outputLimit, '分割処理中', true);
+              return await sendApiRequest(task.input, hierarchyContextId, outputLimit, '分割処理中', true);
             }
-            const response = await sendApiRequest(task.input, '', CHUNK_OUTPUT_TOKENS, '分割処理中');
+            const response = await sendApiRequest(task.input, hierarchyContextId, CHUNK_OUTPUT_TOKENS, '分割処理中');
             return await retryCompleteScopeDataRequest(response, task.scope.scopeCoverage === 'all_classes_chunk');
           }));
           parts.forEach((part, batchIndex) => {
