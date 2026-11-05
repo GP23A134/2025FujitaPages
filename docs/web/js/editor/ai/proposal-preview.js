@@ -21,7 +21,6 @@ export const createProposalPreview = ({
   let previewPlan = null;
   let previewPageIndex = 0;
   let previewGroups = [];
-  const sortPreviewByOperation = true;
   const operationCategory = (operation) => {
     if (operation?.type === 'addClass') return { label: '追加', className: 'is-add' };
     if (operation?.type === 'renameClass') return { label: '改名', className: 'is-rename' };
@@ -69,6 +68,47 @@ export const createProposalPreview = ({
       event.preventDefault();
     }, true);
   };
+  const getPreviewVerticalRanks = (state, visibleIds) => {
+    const classesById = new Map(state.classes.filter((item) => visibleIds.has(item.id)).map((item) => [item.id, item]));
+    const children = new Map();
+    const parentIds = new Set();
+    state.relations.forEach(({ child, parent }) => {
+      if (!classesById.has(child) || !classesById.has(parent)) return;
+      if (!children.has(parent)) children.set(parent, []);
+      children.get(parent).push(child);
+      parentIds.add(child);
+    });
+    const targetIdsFor = (id) => (children.get(id) || []).filter((childId) => classesById.get(childId)?.type === 'class');
+    const hierarchyChildrenFor = (id) => (children.get(id) || []).filter((childId) => classesById.get(childId)
+      && classesById.get(childId).type !== 'class');
+    const countCache = new Map();
+    const countFor = (id, path = new Set()) => {
+      if (countCache.has(id)) return countCache.get(id);
+      if (path.has(id)) return 0;
+      const nextPath = new Set(path).add(id);
+      const count = targetIdsFor(id).length + hierarchyChildrenFor(id)
+        .reduce((sum, childId) => sum + countFor(childId, nextPath), 0);
+      countCache.set(id, count);
+      return count;
+    };
+    const compareHierarchy = (leftId, rightId) => countFor(rightId) - countFor(leftId)
+      || String(classesById.get(leftId)?.label || '').localeCompare(String(classesById.get(rightId)?.label || ''), 'ja');
+    const compareTargets = (leftId, rightId) => (state.counts?.[rightId] || 0) - (state.counts?.[leftId] || 0)
+      || String(classesById.get(leftId)?.label || '').localeCompare(String(classesById.get(rightId)?.label || ''), 'ja');
+    const ranks = new Map();
+    let rank = 0;
+    const visit = (id, path = new Set()) => {
+      if (path.has(id) || !classesById.has(id)) return;
+      const startRank = rank++;
+      const nextPath = new Set(path).add(id);
+      hierarchyChildrenFor(id).sort(compareHierarchy).forEach((childId) => visit(childId, nextPath));
+      targetIdsFor(id).sort(compareTargets).forEach((targetId) => ranks.set(targetId, rank++));
+      ranks.set(id, (startRank + rank - 1) / 2);
+    };
+    state.classes.filter((item) => item.type === 'top' && !parentIds.has(item.id) && classesById.has(item.id))
+      .forEach((item) => visit(item.id));
+    return ranks;
+  };
   const appendTree = (host, state, affectedIds = new Set(), options = {}) => {
     keepPreviewTreeExpanded(host);
     const classesById = new Map(state.classes.map((item) => [item.id, item]));
@@ -78,23 +118,12 @@ export const createProposalPreview = ({
       children.get(parent).push(child);
       parentIds.add(child);
     });
-    const orderedIds = (ids) => {
-      const values = [...ids];
-      if (!options.orderByOperation) return values;
-      const operationIndexes = options.operationIndexesByClass;
-      return values.map((id, originalIndex) => ({
-        id,
-        originalIndex,
-        rank: Math.min(...(operationIndexes?.get(id) || []), Number.POSITIVE_INFINITY)
-      })).sort((left, right) => left.rank - right.rank || left.originalIndex - right.originalIndex)
-        .map(({ id }) => id);
-    };
     const buildNode = (id, path = new Set()) => {
       const item = classesById.get(id);
       if (!item || path.has(id)) return null;
       const nextPath = new Set(path).add(id);
       const node = { id, label: item.label, type: item.type, previewDeleted: Boolean(item.previewDeleted), children: [], targets: [] };
-      orderedIds(children.get(id) || []).forEach((childId) => {
+      (children.get(id) || []).forEach((childId) => {
         const child = classesById.get(childId);
         if (!child) return;
         if (child.type === 'class') node.targets.push(child);
@@ -103,17 +132,32 @@ export const createProposalPreview = ({
           if (childNode) node.children.push(childNode);
         }
       });
-      node.targets = orderedIds(node.targets.map(({ id: targetId }) => targetId))
-        .map((targetId) => classesById.get(targetId)).filter(Boolean);
       return node;
     };
     const roots = state.classes.filter((item) => item.type === 'top' && !parentIds.has(item.id))
       .map((item) => item.id);
-    const orderedRoots = orderedIds(roots).map((id) => buildNode(id)).filter(Boolean);
+    const orderedRoots = roots.map((id) => buildNode(id)).filter(Boolean).sort((left, right) => {
+      const leftRank = options.counterpartRanks?.get(left.id);
+      const rightRank = options.counterpartRanks?.get(right.id);
+      if (leftRank !== undefined && rightRank !== undefined && leftRank !== rightRank) return leftRank - rightRank;
+      if (leftRank !== undefined || rightRank !== undefined) return leftRank !== undefined ? -1 : 1;
+      return 0;
+    });
     host.classList.add('tree');
     const targetCountFor = (item) => state.counts?.[item.id] || 0;
     const countFor = (node) => node.targets.length + node.children.reduce((sum, child) => sum + countFor(child), 0);
     const indexesFor = (id) => Array.from(options.operationIndexesByClass?.get(id) || []);
+    const compareByCounterpart = (fallback) => (left, right) => {
+      const leftRank = options.counterpartRanks?.get(left.id);
+      const rightRank = options.counterpartRanks?.get(right.id);
+      if (leftRank !== undefined && rightRank !== undefined && leftRank !== rightRank) return leftRank - rightRank;
+      if (leftRank !== undefined || rightRank !== undefined) return leftRank !== undefined ? -1 : 1;
+      return fallback(left, right);
+    };
+    const compareChildren = compareByCounterpart((left, right) => countFor(right) - countFor(left)
+      || String(left.label || '').localeCompare(String(right.label || ''), 'ja'));
+    const compareTargets = compareByCounterpart((left, right) => targetCountFor(right) - targetCountFor(left)
+      || String(left.label || '').localeCompare(String(right.label || ''), 'ja'));
     const appendTypeBadges = (host, indexes) => {
       const categories = [...new Map(indexes.map((index) => operationCategory(options.operations?.[index]))
         .filter(Boolean).map((category) => [category.label, category])).values()];
@@ -140,6 +184,8 @@ export const createProposalPreview = ({
     window.renderHierarchyTree(host, orderedRoots, {
       countFor,
       targetCountFor,
+      compareChildren,
+      compareTargets,
       isOpen: () => true,
       displayId: () => '',
       decorateSummary: (summary, _content, node) => {
@@ -918,17 +964,21 @@ export const createProposalPreview = ({
       const afterAffectedIds = new Set(operationIds);
       addAncestors(beforeAffectedIds, beforeParents, beforeIds);
       addAncestors(afterAffectedIds, displayParents, displayIds);
-      appendTree(before, previewState(beforeState, beforeAffectedIds), beforeAffectedIds, {
+      const beforePreviewState = previewState(beforeState, beforeAffectedIds);
+      const afterPreviewState = previewState(proposedDisplayState, afterAffectedIds);
+      const beforeCounterpartRanks = getPreviewVerticalRanks(afterPreviewState, afterAffectedIds);
+      const afterCounterpartRanks = getPreviewVerticalRanks(beforePreviewState, beforeAffectedIds);
+      appendTree(before, beforePreviewState, beforeAffectedIds, {
         countLabelFor: hierarchyCountLabel(beforeHierarchyCounts),
         operationIndexesByClass, addedOperationIndexesByClass, operations, deletionOperationByClass,
-        orderByOperation: sortPreviewByOperation,
+        counterpartRanks: beforeCounterpartRanks,
         excludedOperationIndexes: proposalItem.excludedOperationIndexes
       });
-      appendTree(after, previewState(proposedDisplayState, afterAffectedIds), afterAffectedIds, {
+      appendTree(after, afterPreviewState, afterAffectedIds, {
         selectable: !isApplied,
         countLabelFor: hierarchyCountLabel(afterHierarchyCounts),
         operationIndexesByClass, addedOperationIndexesByClass, operations,
-        orderByOperation: sortPreviewByOperation,
+        counterpartRanks: afterCounterpartRanks,
         deletionOperationByClass,
         excludedOperationIndexes: proposalItem.excludedOperationIndexes,
         onToggle: (indexes, include) => {

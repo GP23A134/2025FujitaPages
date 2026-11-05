@@ -9,14 +9,14 @@
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261103-edit-search-parity-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261105-operation-order-always-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261105-tree-order-data-v1">
   <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261104-root-add-row-no-marker-v1">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-held-panel-fixed-v2">
   <script src="web/data/generated/class-data.js" defer></script>
   <script src="web/data/generated/instance-data.js" defer></script>
 
   <!-- データ → 共通ツリー → 編集状態・パネル・ツリー・イベント → AIの順で実行する。 -->
-  <script src="web/js/shared/tree.js?v=20261103-edit-middle-sticky-gap-zero-v1" defer></script>
+  <script src="web/js/shared/tree.js?v=20261105-preview-arrow-order-v1" defer></script>
   <script src="web/js/editor/state.js?v=20261103-tree-sticky-gap-zero-v1" defer></script>
   <script src="web/js/editor/panels.js?v=20261103-edit-search-parity-v1" defer></script>
   <script src="web/js/editor/tree.js?v=20261104-root-add-row-no-marker-v1" defer></script>
@@ -258,7 +258,7 @@
       <div class="ai-preview-columns is-loading">
         <svg id="ai-preview-direction" class="ai-preview-direction" aria-hidden="true"></svg>
         <section>
-          <div class="ai-preview-column-header"><h3>変更前（提案順）</h3></div>
+          <div class="ai-preview-column-header"><h3>変更前</h3></div>
           <div id="ai-preview-before" class="ai-preview-tree"></div>
         </section>
         <div class="ai-preview-arrow-lane" aria-hidden="true"></div>
@@ -266,7 +266,7 @@
         <div id="ai-preview-delete-target" class="ai-preview-delete-target" hidden>− 削除</div>
         <section>
           <div class="ai-preview-column-header">
-            <h3>変更後（提案順）</h3>
+            <h3>変更後</h3>
             <button type="button" id="ai-preview-arrow-toggle" class="ai-preview-arrow-toggle" role="switch" aria-checked="true" aria-label="矢印表示">
               <span>矢印表示</span><span class="ai-preview-arrow-toggle-state">ON</span><span class="ai-preview-arrow-toggle-track" aria-hidden="true"><span></span></span>
             </button>
@@ -330,6 +330,6 @@
       <button type="button" id="edit-validation-export" class="search-button" hidden>警告を確認して出力</button>
     </div>
   </dialog>
-  <script type="module" src="web/js/editor/ai/main.js?v=20261105-operation-order-always-v1"></script>
+  <script type="module" src="web/js/editor/ai/main.js?v=20261105-preview-arrow-order-v1"></script>
 </body>
 </html>

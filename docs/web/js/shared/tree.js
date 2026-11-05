@@ -195,12 +195,14 @@
         list.className = 'tree-level-rows';
         list.style.setProperty('--tree-level-color', treeDepthColor(depth + 1));
         if (options.beforeChildren) options.beforeChildren(node, list, depth);
+        const compareChildren = options.compareChildren || ((a, b) => countFor(b) - countFor(a)
+          || String(a.label || '').localeCompare(String(b.label || ''), 'ja'));
+        const compareTargets = options.compareTargets || ((a, b) => targetCountFor(b) - targetCountFor(a)
+          || String(a.label || '').localeCompare(String(b.label || ''), 'ja'));
         appendTreeLevelRows(
           list,
-          [...node.children].sort((a, b) => countFor(b) - countFor(a)
-            || String(a.label || '').localeCompare(String(b.label || ''), 'ja')),
-          [...node.targets].sort((a, b) => targetCountFor(b) - targetCountFor(a)
-            || String(a.label || '').localeCompare(String(b.label || ''), 'ja')),
+          [...node.children].sort(compareChildren),
+          [...node.targets].sort(compareTargets),
           (child) => {
             const row = document.createElement('li');
             row.style.setProperty('--tree-level-color', treeDepthColor(depth + 1));
