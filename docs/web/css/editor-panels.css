@@ -323,10 +323,10 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-question-actions .search-button { border-color: #0369a1; color: #fff; background: #0369a1; }
 .ai-question-complete { margin: 0.5rem 0 0; color: #475569; font-size: 0.78rem; }
 .ai-preview-dialog {
-  --ai-preview-node-height: 1.5rem;
-  --ai-preview-heading-font-size: 0.75rem;
+  --ai-preview-node-height: 1.6rem;
+  --ai-preview-heading-font-size: 0.9rem;
   --ai-preview-heading-width: 22rem;
-  --ai-preview-class-gap: 0.25rem;
+  --ai-preview-class-gap: 0.35rem;
   --ai-preview-target-width: 300px;
   --ai-preview-root-middle-link-length: calc(0.75rem + 2px);
   --ai-preview-nested-middle-link-length: calc(0.75rem + 4px);
