@@ -24,7 +24,8 @@ export const createProposalPreview = ({
   const operationCategory = (operation) => {
     if (operation?.type === 'addClass') return { label: '追加', className: 'is-add' };
     if (operation?.type === 'renameClass') return { label: '改名', className: 'is-rename' };
-    if (operation?.type === 'moveClass' || operation?.type === 'moveChildren') return { label: '移動', className: 'is-move' };
+    if (operation?.type === 'moveClass') return { label: 'クラス移動', className: 'is-move' };
+    if (operation?.type === 'moveChildren') return { label: '階層移動', className: 'is-move' };
     if (operation?.type === 'deleteClass') return { label: '削除', className: 'is-delete' };
     return { label: 'その他', className: 'is-other' };
   };

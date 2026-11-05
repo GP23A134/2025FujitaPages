@@ -6,7 +6,7 @@ import { createRequestPlanner } from './request-planner.js?v=20261104-preparatio
 import { createResponseHandler } from './response-handler.js?v=20261105-editable-scope-reference-fix-v1';
 import { createConversationStore } from './conversation-store.js?v=20261103-ai-review-fixes-v1';
 import { createConversationView } from './conversation-view.js?v=20261104-readable-ai-replies-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261105-parent-grouped-move-bends-v3';
+import { createProposalPreview } from './proposal-preview.js?v=20261105-move-tag-types-v1';
 
 (() => {
   const editor = window.classEditorAI;
@@ -923,32 +923,34 @@ let proposalPreview = null;
     return '不明な操作';
   };
   const operationCategory = (operation) => {
-    if (operation?.type === 'addClass') return { label: '追加', className: 'is-add' };
-    if (operation?.type === 'renameClass') return { label: '改名', className: 'is-rename' };
-    if (operation?.type === 'moveClass' || operation?.type === 'moveChildren') return { label: '移動', className: 'is-move' };
-    if (operation?.type === 'deleteClass') return { label: '削除', className: 'is-delete' };
-    return { label: 'その他', className: 'is-other' };
+    if (operation?.type === 'addClass') return { key: 'addClass', label: '追加', className: 'is-add' };
+    if (operation?.type === 'renameClass') return { key: 'renameClass', label: '改名', className: 'is-rename' };
+    if (operation?.type === 'moveClass') return { key: 'moveClass', label: 'クラス移動', className: 'is-move' };
+    if (operation?.type === 'moveChildren') return { key: 'moveChildren', label: '階層移動', className: 'is-move' };
+    if (operation?.type === 'deleteClass') return { key: 'deleteClass', label: '削除', className: 'is-delete' };
+    return { key: 'other', label: 'その他', className: 'is-other' };
   };
   const operationLegendCategories = [
-    { label: '追加', className: 'is-add' },
-    { label: '改名', className: 'is-rename' },
-    { label: '移動', className: 'is-move' },
-    { label: '削除', className: 'is-delete' }
+    { key: 'addClass', label: '追加', className: 'is-add' },
+    { key: 'renameClass', label: '改名', className: 'is-rename' },
+    { key: 'moveClass', label: 'クラス移動', className: 'is-move' },
+    { key: 'moveChildren', label: '階層移動', className: 'is-move' },
+    { key: 'deleteClass', label: '削除', className: 'is-delete' }
   ];
   const countOperationTypes = (operations) => {
-    const counts = new Map(operationLegendCategories.map(({ className }) => [className, 0]));
+    const counts = new Map(operationLegendCategories.map(({ key }) => [key, 0]));
     operations.forEach((operation) => {
       const category = operationCategory(operation);
-      if (counts.has(category.className)) counts.set(category.className, counts.get(category.className) + 1);
+      if (counts.has(category.key)) counts.set(category.key, counts.get(category.key) + 1);
     });
     return counts;
   };
   const renderOperationCountBadges = (operations, className) => {
     const counts = countOperationTypes(operations);
-    return operationLegendCategories.map(({ label, className: categoryClass }) => {
+    return operationLegendCategories.map(({ key, label, className: categoryClass }) => {
       const badge = document.createElement('span');
       badge.className = `${className} ${categoryClass}`;
-      badge.textContent = `${label}（${counts.get(categoryClass)}件）`;
+      badge.textContent = `${label}（${counts.get(key)}件）`;
       return badge;
     });
   };

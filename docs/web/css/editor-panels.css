@@ -516,7 +516,8 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .tree-level-content { display: inline-flex; flex: 0 1 auto; min-width: 0; flex-wrap: wrap; gap: 0.3rem; align-items: baseline; margin: 0; padding: 0 0.35rem; line-height: 1rem; white-space: normal; }
 #ai-preview-dialog .tree .tree-level-label { min-width: 0; flex: 0 1 auto; }
 #ai-preview-dialog .tree .tree-top-class > summary > .ai-preview-type-badge,
-#ai-preview-dialog .tree .tree-middle-class > summary > .ai-preview-type-badge { margin-left: auto; }
+#ai-preview-dialog .tree .tree-middle-class > summary > .ai-preview-type-badge,
+#ai-preview-dialog .tree .tree-leaf-class > .ai-preview-type-badge.is-move { margin-left: auto; }
 #ai-preview-dialog .tree .count-badge { padding: 0 0.35rem; font-size: 0.65rem; line-height: 1rem; }
 #ai-preview-dialog .tree .tree-level-id { display: none; }
 #ai-preview-dialog .tree .tree-leaf-id { display: none; margin: 0; color: #64748b; font-size: 0.5rem; font-weight: 400; }
