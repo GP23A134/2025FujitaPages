@@ -591,6 +591,8 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .tree-leaf-class,
 #ai-preview-dialog .tree .tree-top-class > summary,
 #ai-preview-dialog .tree .tree-middle-class > summary { transform-origin: left center; transition: transform 120ms ease, box-shadow 120ms ease; }
+#ai-preview-dialog .tree .tree-level-label,
+#ai-preview-dialog .tree .tree-leaf-label { transition: font-size 120ms ease; }
 #ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-hover-related,
 #ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-hover-parent,
 #ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-hover-related,
@@ -600,9 +602,15 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .tree-child-middle-list > li > .tree-middle-class > summary.is-ai-preview-hover-related,
 #ai-preview-dialog .tree .tree-child-middle-list > li > .tree-middle-class > summary.is-ai-preview-hover-parent {
   z-index: 5;
-  transform: scale(1.04);
+  transform: scale(1.07);
   box-shadow: 0 3px 8px rgba(15, 23, 42, 0.2);
 }
+#ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-hover-related .tree-leaf-label,
+#ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-hover-parent .tree-leaf-label,
+#ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-hover-related .tree-level-label,
+#ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-hover-parent .tree-level-label,
+#ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-hover-related .tree-level-label,
+#ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-hover-parent .tree-level-label { font-size: 0.96rem; }
 .ai-preview-change-item.is-ai-preview-change-hovered { background: #fef3c7; }
 .ai-preview-change-item:focus-visible { position: relative; z-index: 4; outline: 3px solid #f59e0b; outline-offset: 2px; }
 #ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-changed:hover,
