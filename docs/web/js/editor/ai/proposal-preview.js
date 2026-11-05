@@ -284,23 +284,7 @@ export const createProposalPreview = ({
     if (addOrigin) addOrigin.hidden = svg.hidden || !hasAdditions;
     if (deleteTarget) deleteTarget.hidden = svg.hidden || !hasDeletions;
     if (svg.hidden) return;
-    const groupedMoves = new Map();
-    const routingArrows = [];
-    arrows.forEach((arrow) => {
-      if (arrow.kind === 'is-move' && !arrow.excluded) {
-        const targetParentId = previewPlan.afterParents.get(arrow.to);
-        if (!targetParentId) {
-          routingArrows.push({ arrow });
-          return;
-        }
-        if (!groupedMoves.has(targetParentId)) groupedMoves.set(targetParentId, []);
-        groupedMoves.get(targetParentId).push(arrow);
-      } else routingArrows.push({ arrow });
-    });
-    groupedMoves.forEach((group) => {
-      if (group.length > 1) routingArrows.push({ arrow: group[0], groupArrows: group });
-      else if (group.length) routingArrows.push({ arrow: group[0] });
-    });
+    const routingArrows = arrows.map((arrow) => ({ arrow }));
     const trackGap = 5;
     const bounds = svg.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
@@ -349,17 +333,15 @@ export const createProposalPreview = ({
     const deleteTargetBounds = hasDeletions ? deleteTarget?.getBoundingClientRect() : null;
     const gutterLeft = beforeBounds.right - bounds.left;
     const gutterRight = afterBounds.left - bounds.left;
-    const routes = routingArrows.map(({ arrow, groupArrows }) => {
+    const routes = routingArrows.map(({ arrow }) => {
       const color = previewArrowColors[arrow.kind];
       if (!color) return null;
-      const sourceId = groupArrows ? previewPlan.beforeParents.get(groupArrows[0].from) : arrow.from;
-      const targetId = groupArrows ? previewPlan.afterParents.get(groupArrows[0].to) : arrow.to;
       const source = arrow.kind === 'is-add' && !arrow.from
-        ? addOriginBounds : previewNodeRow(before, sourceId)?.getBoundingClientRect();
+        ? addOriginBounds : previewNodeRow(before, arrow.from)?.getBoundingClientRect();
       const target = arrow.kind === 'is-delete' && !arrow.to
-        ? deleteTargetBounds : previewNodeRow(after, targetId)?.getBoundingClientRect();
+        ? deleteTargetBounds : previewNodeRow(after, arrow.to)?.getBoundingClientRect();
       if (!source && !target) return null;
-      return { arrow, color, source, target, groupArrows };
+      return { arrow, color, source, target };
     }).filter(Boolean).sort((left, right) => {
       const leftSourceY = left.source ? left.source.top + left.source.height / 2 : left.target?.top ?? 0;
       const leftTargetY = left.target ? left.target.top + left.target.height / 2 : left.source?.top ?? 0;
@@ -402,58 +384,9 @@ export const createProposalPreview = ({
       if (arrow.excluded) path.setAttribute('opacity', '0.45');
       svg.append(path);
     };
-    routes.forEach(({ arrow, color, source, target, groupArrows }, index) => {
+    routes.forEach(({ arrow, color, source, target }, index) => {
       const laneX = gutterLeft + trackBankInset + (index + 0.5) * trackGap;
       const channelY = height * (index + 1) / (routes.length + 1);
-      if (groupArrows?.length > 1) {
-        const branches = groupArrows.map((groupArrow) => ({
-          arrow: groupArrow,
-          source: previewNodeRow(before, groupArrow.from)?.getBoundingClientRect(),
-          target: previewNodeRow(after, groupArrow.to)?.getBoundingClientRect()
-        })).filter(({ source: branchSource, target: branchTarget }) => branchSource || branchTarget);
-        const targetParentId = previewPlan.afterParents.get(groupArrows[0].to);
-        const targetParent = previewNodeRow(after, targetParentId)?.getBoundingClientRect();
-        const sourceYs = branches.filter(({ source: branchSource }) => branchSource)
-          .map(({ source: branchSource }) => branchSource.top + branchSource.height / 2 - bounds.top);
-        const targetYs = branches.filter(({ target: branchTarget }) => branchTarget)
-          .map(({ target: branchTarget }) => branchTarget.top + branchTarget.height / 2 - bounds.top);
-        const parentY = targetParent ? targetParent.top + targetParent.height / 2 - bounds.top : null;
-        if (sourceYs.length && targetYs.length) {
-          const sourceJunctionY = sourceYs.reduce((sum, y) => sum + y, 0) / sourceYs.length;
-          const targetJunctionX = targetParent
-            ? targetParent.left - bounds.left - 4
-            : laneX + trackGap;
-          const operationArrows = new Map();
-          branches.forEach((branch) => {
-            const groupArrow = branch.arrow;
-            if (!operationArrows.has(groupArrow.operationIndex)) operationArrows.set(groupArrow.operationIndex, groupArrow);
-            if (branch.source) {
-              const y = branch.source.top + branch.source.height / 2 - bounds.top;
-              appendRoutePath({ commands: [`M ${branch.source.right - bounds.left} ${y} H ${laneX}`], arrow: groupArrow, color, marker: false });
-            }
-            if (branch.target) {
-              const y = branch.target.top + branch.target.height / 2 - bounds.top;
-              appendRoutePath({ commands: [`M ${targetJunctionX} ${y} H ${branch.target.left - bounds.left}`], arrow: groupArrow, color });
-            }
-          });
-          operationArrows.forEach((operationArrow) => {
-            const commonPaths = [
-              [`M ${laneX} ${Math.min(...sourceYs)} V ${Math.max(...sourceYs)}`],
-              parentY === null
-                ? [`M ${laneX} ${sourceJunctionY} H ${targetJunctionX} V ${Math.min(...targetYs)} V ${Math.max(...targetYs)}`]
-                : [`M ${laneX} ${sourceJunctionY} H ${targetJunctionX} V ${parentY}`,
-                  `M ${targetJunctionX} ${Math.min(parentY, ...targetYs)} V ${Math.max(parentY, ...targetYs)}`]
-            ];
-            commonPaths.forEach((commands) => appendRoutePath({
-              commands,
-              arrow: operationArrow,
-              color,
-              marker: false
-            }));
-          });
-        }
-        return;
-      }
       const isAddition = arrow.kind === 'is-add' && !arrow.from;
       const startX = source ? (isAddition ? source.left + source.width / 2 : source.right) - bounds.left : laneX;
       const endX = target ? target.left - bounds.left : laneX;
