@@ -2,11 +2,11 @@
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
 import { createClassIdCodec } from './id-codec.js?v=20261104-send-data-review-fixes-v1';
 import { sendOpenAIRequest } from './api-client.js?v=20261103-ai-module-system-step6-v1';
-import { createRequestPlanner } from './request-planner.js?v=20261104-output-safe-batches-v1';
-import { createResponseHandler } from './response-handler.js?v=20261104-no-extra-data-requests-v1';
+import { createRequestPlanner } from './request-planner.js?v=20261104-preparation-yields-v1';
+import { createResponseHandler } from './response-handler.js?v=20261105-parent-path-duplicate-guard-v1';
 import { createConversationStore } from './conversation-store.js?v=20261103-ai-review-fixes-v1';
 import { createConversationView } from './conversation-view.js?v=20261104-readable-ai-replies-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261104-preview-hover-highlight-v2';
+import { createProposalPreview } from './proposal-preview.js?v=20261105-add-origin-and-action-outlines-v1';
 
 (() => {
   const editor = window.classEditorAI;
@@ -29,6 +29,7 @@ import { createProposalPreview } from './proposal-preview.js?v=20261104-preview-
     logAiProblem('未処理の非同期エラー', event.reason);
   });
   const createIdCodec = () => createClassIdCodec(editor.getState().classes);
+  const yieldToBrowser = () => new Promise((resolve) => window.setTimeout(resolve, 0));
 
   // Context tokenization varies by model and language; cap the serialized user payload conservatively.
   const MAX_REQUEST_CHARACTERS = 60000;
@@ -104,6 +105,11 @@ import { createProposalPreview } from './proposal-preview.js?v=20261104-preview-
       }
     },
     required: ['g']
+  };
+  const summaryResponseSchema = {
+    type: 'object', additionalProperties: false,
+    properties: { m: { type: 'string' } },
+    required: ['m']
   };
   const compactGroupedResponseInstructions = `${compactResponseInstructions.replace('トップレベルはm=回答文、p=提案配列、q=確認質問配列です。', 'トップレベルはg=上位クラス別回答配列です。各回答はk=入力analysisGroupsのkey、m=回答文、p=提案配列、q=確認質問配列です。')} 各analysisGroups.keyをちょうど1回ずつ返し、異なるグループの変更案を混ぜないでください。`;
 
@@ -745,7 +751,7 @@ let proposalPreview = null;
     });
     return unique;
   };
-  const parseAIResponse = (response, grouped = false) => {
+  const parseAIResponse = (response, grouped = false, summaryOnly = false) => {
     if (response.status === 'incomplete') {
       const reason = response.incomplete_details?.reason;
       if (reason === 'max_output_tokens') {
@@ -755,6 +761,7 @@ let proposalPreview = null;
     }
     try {
       const wire = JSON.parse(readResponseText(response));
+      if (summaryOnly) return { message: wire.m, proposals: [], questions: [], dataRequests: [] };
       return grouped
         ? { groups: wire.g.map((item) => ({ key: item.k, ...expandCompactResponse({ m: item.m, p: item.p, q: item.q }) })) }
         : expandCompactResponse(wire);
@@ -1515,6 +1522,7 @@ let proposalPreview = null;
     const previouslySharedIds = selectionChanged || includeAllClasses || previousScopeIncludedAllClasses
       ? [] : (conversation.previousScope?.sharedContextIds || []);
     let scope;
+    await yieldToBrowser();
     try { scope = getPayloadSnapshot([...previouslySharedIds, ...additionalContextIds], includeAllClasses); } catch (error) { logAiProblem('送信範囲の作成', error); setStatus(error.message, 'error'); return; }
     if (!scope) { setStatus('保持欄でクラスを選択するか、「全上位・中間クラスを参照」を有効にしてください。', 'error'); return; }
     if (wantsClassificationOptimization) {
@@ -1526,8 +1534,10 @@ let proposalPreview = null;
     try { await verifyLoadedDataVersion(); }
     catch (error) { logAiProblem('データ版の確認', error); setStatus(error.message, 'error'); return; }
     let baseDataHash;
+    await yieldToBrowser();
     try { baseDataHash = await currentDataHash(); }
     catch (error) { logAiProblem('データ版ハッシュの計算', error); setStatus(error.message, 'error'); return; }
+    await yieldToBrowser();
     const fingerprintBeforeRequest = stateFingerprint();
     const priorAnalysisMemory = conversation.splitMemory;
     if (selectionChanged || scopeModeChanged) {
@@ -1549,6 +1559,7 @@ let proposalPreview = null;
     // They remain safe to reuse during a forced reanalysis when unchanged upper classes match.
     const canReuseSplitChunks = memoryScopeMatches;
     if (priorAnalysisMemory && !canReuseAnalysisMemory && !forceFullReanalysis) conversation.splitMemory = null;
+    await yieldToBrowser();
     const fullScopeContent = requestPlanner.buildUserContent(userText, scope, conversation);
     const analysisMemoryContent = canReuseAnalysisMemory && priorAnalysisMemory.baseDataHash === baseDataHash
       ? buildAnalysisMemoryFollowup(userText, priorAnalysisMemory) : '';
@@ -1565,7 +1576,7 @@ let proposalPreview = null;
       && (optimizationTargetCount > 20 || (!optimizationTargetCount && optimizationHierarchyCount > 20));
     if (userContent.length > MAX_REQUEST_CHARACTERS || needsOptimizationCoverageSplit) {
       conversation.localContext = conversation.localContext || summarizeVisibleConversation(conversation);
-      try { splitTasks = requestPlanner.makeLargeScopePlan(userText, scope, conversation); }
+      try { splitTasks = await requestPlanner.makeLargeScopePlan(userText, scope, conversation); }
       catch (error) { logAiProblem('送信データの分割計画', error); setStatus(error.message, 'error'); return; }
       splitUsesUpperUnits = Boolean(splitTasks?.length && splitTasks.every((task) => task.kind === 'upper_class_unit'));
       if (splitTasks?.length > 1) console.info('[AIチャット] 大規模範囲を分割して処理します', {
@@ -1592,7 +1603,7 @@ let proposalPreview = null;
       ? splitTasks.filter((_, index) => !chunkCacheByKey.has(splitChunkKeys[index]))
       : [];
     const splitBatches = splitTasks
-      ? splitUsesUpperUnits ? requestPlanner.packAnalysisUnits(unsentSplitTasks, userText, conversation) : unsentSplitTasks
+      ? splitUsesUpperUnits ? await requestPlanner.packAnalysisUnits(unsentSplitTasks, userText, conversation) : unsentSplitTasks
       : [];
     const requestInputs = splitTasks ? splitBatches.map((task) => task.input) : [userContent];
     const sendingDelta = Boolean(!usesAnalysisMemory && !splitTasks && conversation.responseId
@@ -1674,22 +1685,25 @@ let proposalPreview = null;
       // 範囲別指示をデータJSONから分離して共通プロンプトの後ろへ置き、
       // 同じ処理モードの依頼でプロンプト先頭を揃えてキャッシュを使いやすくします。
       const sendApiRequest = async (input, previousResponseId = '', maxOutputTokens = MAX_OUTPUT_TOKENS,
-        stage = userText.startsWith('確認事項への回答です') ? '追加情報の回答を送信中' : '回答・変更案を作成中', grouped = false) => {
+        stage = userText.startsWith('確認事項への回答です') ? '追加情報の回答を送信中' : '回答・変更案を作成中', grouped = false, summaryOnly = false) => {
         const requestPayload = JSON.parse(input);
         const requestPolicies = ['instruction', 'proposalPolicy', 'responsePolicy']
           .map((key) => typeof requestPayload[key] === 'string' ? requestPayload[key].trim() : '')
           .filter(Boolean);
         ['instruction', 'proposalPolicy', 'responsePolicy'].forEach((key) => { delete requestPayload[key]; });
         const apiInput = shortenInputIds(JSON.stringify(requestPayload));
-        const instructions = [systemPrompt, grouped ? compactGroupedResponseInstructions : compactResponseInstructions, ...requestPolicies].join('\n\n');
+        const formatInstructions = summaryOnly
+          ? 'JSON形式でmキーに全チャンクの短い全体要約だけを返してください。提案や操作、質問は出力しません。'
+          : grouped ? compactGroupedResponseInstructions : compactResponseInstructions;
+        const instructions = [systemPrompt, formatInstructions, ...requestPolicies].join('\n\n');
         const promptCacheKey = `class-editor-ai-${(await digest(`${modelSelect.value}\n${instructions}`)).slice(0, 48)}`;
         const body = {
           model: modelSelect.value,
           reasoning: { effort: 'low' },
           instructions,
           input: apiInput,
-          text: { format: { type: 'json_schema', name: grouped ? 'class_edit_group_results' : 'class_edit_proposals', strict: true,
-            schema: grouped ? groupedResponseSchema : responseSchema } },
+          text: { format: { type: 'json_schema', name: summaryOnly ? 'class_edit_summary' : grouped ? 'class_edit_group_results' : 'class_edit_proposals', strict: true,
+            schema: summaryOnly ? summaryResponseSchema : grouped ? groupedResponseSchema : responseSchema } },
           max_output_tokens: maxOutputTokens,
           prompt_cache_key: promptCacheKey,
           store: true
@@ -1704,7 +1718,7 @@ let proposalPreview = null;
         recordUsage(responseBody);
         setThinkingStage(conversation, '結果を処理中');
         await new Promise((resolve) => requestAnimationFrame(resolve));
-        const result = parseAIResponse(responseBody, grouped);
+        const result = parseAIResponse(responseBody, grouped, summaryOnly);
         const restoreId = createIdCodec().restore;
         const responseGroups = grouped ? result.groups : [result];
         responseGroups.forEach((group) => {
@@ -1757,6 +1771,8 @@ let proposalPreview = null;
         const chunkKeys = splitChunkKeys;
         const splitWarnings = new Set();
         let splitRepairFailed = false;
+        const hasEditableTargetClasses = (unit) => unit.scope.classes.some((item) => item.type === 'class'
+          && unit.scope.editableIds.includes(item.id));
         const processSplitUnit = (unit, index, unitResult, repairFailed = false) => {
           responseHandler.validatePayload(unitResult, baseDataHash);
           responseHandler.normalizeDuplicateClassOperations(unitResult, unit.scope.classes.map((item) => item.id));
@@ -1770,7 +1786,9 @@ let proposalPreview = null;
           const discardedOperationCount = responseHandler.validateSplitTaskOperations(unitResult, unit);
           responseHandler.suppressNoopMoveOperations(unitResult, unit.scope);
           if (discardedOperationCount) splitWarnings.add(`${discardedOperationCount}件の範囲外操作を除外しました。表示される変更案を確認してください。`);
-          if (unitResult.message) messagesFromParts.push(unitResult.message);
+          if (unitResult.message && (scope.scopeCoverage !== 'all_classes' || hasEditableTargetClasses(unit))) {
+            messagesFromParts.push(unitResult.message);
+          }
           result.questions.push(...unitResult.questions);
           result.dataRequests.push(...unitResult.dataRequests);
           unitResult.proposals.forEach((proposal) => {
@@ -1837,162 +1855,63 @@ let proposalPreview = null;
           result.message = [result.message, '分割範囲の一部で回答を作成できなかったため、以下は部分的な結果です。']
             .filter(Boolean).join('\n');
         } else {
-          const allStructureClasses = compactScope(scope).classes;
-          // compactScope preserves classes order; keep original IDs for operation lookup
-          // because chunk responses have already been expanded from aliases at this point.
-          const compactStructureById = new Map(scope.classes.map((item, index) => [item.id, allStructureClasses[index]]));
-          const structureById = new Map(scope.classes.map((item) => [item.id, item]));
-          // Carry the available hierarchy into synthesis even when a chunk proposed no operation.
-          const synthesisStructureIds = new Set(scope.classes
-            .filter((item) => ['top', 'middle'].includes(item.type))
-            .map((item) => item.id));
-          chunkResults.forEach((part) => (part?.proposals || []).forEach((proposal) => (proposal.operations || []).forEach((operation) => {
-            ['classId', 'destinationId', 'from', 'to', 'parentId'].forEach((key) => {
-              if (structureById.has(operation[key])) synthesisStructureIds.add(operation[key]);
-            });
-          })));
-          const structureParentById = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
-          [...synthesisStructureIds].forEach((id) => {
-            let parentId = structureParentById.get(id);
-            const seen = new Set();
-            while (parentId && structureById.has(parentId) && !seen.has(parentId)) {
-              seen.add(parentId);
-              synthesisStructureIds.add(parentId);
-              parentId = structureParentById.get(parentId);
-            }
-          });
-          const synthesisStructure = scope.classes
-            .filter((item) => synthesisStructureIds.has(item.id))
-            .map((item) => compactStructureById.get(item.id))
-            .filter(Boolean);
-          const editableTargetParentRows = scope.classes
-            .filter((item) => item.type === 'class' && scope.editableIds.includes(item.id) && item.parentId)
-            .map((item) => ({ classId: item.id, classLabel: item.label, parentId: item.parentId, parentLabel: item.parentLabel || null }));
-          const targetParentFacts = editableTargetParentRows.length <= 100
-            ? editableTargetParentRows
-            : editableTargetParentRows.filter((item) => userText.includes(item.classLabel) || userText.includes(item.classId)).slice(0, 100);
-          const buildSynthesisInput = (maxTextLength, maxProposalsPerChunk, maxOperationsPerProposal, includeStructure) => shortenInputIds(JSON.stringify({
+          const hasEditableHierarchyClasses = (unit) => unit.scope.classes.some((item) => ['top', 'middle'].includes(item.type)
+            && unit.scope.editableIds.includes(item.id));
+          const hasSummaryContent = (unit) => hasEditableTargetClasses(unit)
+            || (scope.allowHierarchyEdits && hasEditableHierarchyClasses(unit));
+          const buildSynthesisInput = (maxTextLength, maxProposalsPerChunk) => shortenInputIds(JSON.stringify({
             request: userText,
-            conversationContext: conversation.localContext || undefined,
             scopeCoverage: 'chunk_synthesis',
             sourceScopeCoverage: scope.scopeCoverage,
             coverageChunk: { total: splitTasks.length },
-            classStructure: includeStructure ? {
-              coverage: scope.scopeCoverage === 'all_classes' ? 'complete_hierarchy' : 'available_hierarchy_and_operation_references',
-              classes: synthesisStructure
-            } : undefined,
-            targetParentFacts,
-            chunkAssessments: chunkResults.map((part, index) => ({
+            chunkAssessments: chunkResults.flatMap((part, index) => hasSummaryContent(splitTasks[index]) ? [{
               chunk: index + 1,
               message: String(part?.message || '').slice(0, maxTextLength),
-              questions: (part?.questions || []).slice(0, 3).map((question) => String(question).slice(0, 300)),
               proposals: (part?.proposals || []).slice(0, maxProposalsPerChunk).map((proposal) => ({
-                title: String(proposal.title || '').slice(0, 160),
+                title: String(proposal.title || '').slice(0, 100),
                 summary: String(proposal.summary || '').slice(0, maxTextLength),
-                reason: String(proposal.reason || '').slice(0, maxTextLength),
-                uncertainties: (proposal.uncertainties || []).slice(0, 2).map((item) => String(item).slice(0, 180)),
-                operationsOmitted: Math.max(0, proposal.operations.length - maxOperationsPerProposal),
-                operations: proposal.operations.slice(0, maxOperationsPerProposal).map(({ type, classType, temporaryId, label, parentId, classId, destinationId, from, to }) => ({
-                  type, classType, temporaryId, label, parentId, classId, destinationId, from, to
-                }))
+                reason: String(proposal.reason || '').slice(0, maxTextLength)
               }))
-            })),
-            instruction: `全分割範囲の回答と操作を統合してください。classStructure.coverageがcomplete_hierarchyなら全上位・中間クラスを含みます。階層情報が未共有・確認不能とは説明せず、意味的に適切な移動先が見つからない場合はその判断根拠を示してください。available_hierarchy_and_operation_referencesの場合だけ、classStructureを利用可能な階層と提案で参照されたクラスの一部として扱い、省略された対象クラスや階層クラスが存在しないとは扱わないでください。targetParentFactsにある対象クラスのID・名称・親ID・親ラベルは入力で確認済みの事実です。親ラベルを確認できないとは説明せず、親クラスの種別や代替移動先が不足している場合はその点だけを説明してください。各行のID、種別、名称、親ID、scopeRoleを使い、操作対象が変更可能か、移動先が実在して種別も有効か、複数チャンクの案が競合しないか確認してください。chunkAssessmentsのoperationsが省略されている場合、その操作を検証済みと扱わないでください。単一チャンクの提案をそのまま繰り返さず、複数チャンクをまたぐ一貫した変更案が必要な場合に限り、各チャンクの記述と構造情報に根拠のある操作をまとめて提案してください。根拠のないクラスや関係は作らないでください。回答に影響する具体的な未確認点だけを示し、質問や追加データ要求は作らないでください。${scope.scopeCoverage === 'all_classes' ? '全範囲の分割評価を受け取っています。チャンク評価と参照構造から確認できる提案だけを返してください。' : 'クラス名・種別・親子関係の評価は入力範囲に限ってください。'}`,
-            responsePolicy: scope.scopeCoverage === 'all_classes'
-              ? 'dataRequestsとquestionsは空配列にしてください。全体構造で検証できた提案だけを返してください。'
-              : 'dataRequestsとquestionsは空配列にしてください。入力範囲の全体構造で検証できた提案だけを返してください。'
+            }] : []),
+            instruction: '分割結果の共通傾向を最大3文で要約してください。提案・操作・質問は作らず、チャンクに書かれた結果だけを根拠にします。各チャンクは個別評価であり、全体整合性の確認ができていない場合は明記してください。',
+            responsePolicy: 'mキーに短い全体要約だけを返してください。新しい提案・操作・質問は返しません。'
           }));
-          let maxTextLength = 1400;
-          let maxProposalsPerChunk = 8;
-          let maxOperationsPerProposal = 40;
-          let includeStructure = true;
-          let synthesisInput = buildSynthesisInput(maxTextLength, maxProposalsPerChunk, maxOperationsPerProposal, includeStructure);
+          let maxTextLength = 220;
+          let maxProposalsPerChunk = 3;
+          let synthesisInput = buildSynthesisInput(maxTextLength, maxProposalsPerChunk);
           while (synthesisInput.length > MAX_REQUEST_CHARACTERS) {
-            if (maxTextLength > 100) maxTextLength = Math.floor(maxTextLength * 0.6);
+            if (maxTextLength > 120) maxTextLength = Math.floor(maxTextLength * 0.6);
             else if (maxProposalsPerChunk > 1) maxProposalsPerChunk = Math.max(1, Math.floor(maxProposalsPerChunk / 2));
-            else if (maxOperationsPerProposal > 5) maxOperationsPerProposal = Math.max(5, Math.floor(maxOperationsPerProposal / 2));
             else break;
-            synthesisInput = buildSynthesisInput(maxTextLength, maxProposalsPerChunk, maxOperationsPerProposal, includeStructure);
+            synthesisInput = buildSynthesisInput(maxTextLength, maxProposalsPerChunk);
           }
           if (synthesisInput.length <= MAX_REQUEST_CHARACTERS) {
             setThinkingStage(conversation, '結果を統合中', '');
             try {
-              let synthesis = await sendApiRequest(synthesisInput, '', SYNTHESIS_OUTPUT_TOKENS, '結果を統合中');
-              if (scope.scopeCoverage === 'all_classes') synthesis = await retryCompleteScopeDataRequest(synthesis);
-              if (synthesis.repairFailed) splitRepairFailed = true;
-              responseHandler.validatePayload(synthesis.result, baseDataHash);
-              responseHandler.normalizeDuplicateClassOperations(synthesis.result, scope.classes.map((item) => item.id));
-              if (synthesis.result.dataRequests.length) {
-                result.dataRequests = synthesis.result.dataRequests;
-                result.questions = [];
-              } else {
-                const temporaryReference = (operations) => {
-                  const temporaryIds = new Map(operations.filter((operation) => operation.type === 'addClass' && operation.temporaryId)
-                    .map((operation, index) => [operation.temporaryId, `$temporary${index + 1}`]));
-                  return JSON.stringify(operations.map((operation) => [
-                    operation.type, operation.classType,
-                    temporaryIds.get(operation.temporaryId) || operation.temporaryId,
-                    operation.label,
-                    temporaryIds.get(operation.parentId) || operation.parentId,
-                    temporaryIds.get(operation.classId) || operation.classId,
-                    temporaryIds.get(operation.destinationId) || operation.destinationId,
-                    temporaryIds.get(operation.from) || operation.from,
-                    temporaryIds.get(operation.to) || operation.to
-                  ]));
-                };
-                const existingProposalSignatures = new Set(result.proposals.map((proposal) => temporaryReference(proposal.operations)));
-                let rejectedSynthesisProposals = 0;
-                synthesis.result.proposals.forEach((proposal, index) => {
-                  responseHandler.suppressNoopMoveOperations({ proposals: [proposal] }, scope);
-                  const signature = temporaryReference(proposal.operations);
-                  if (!proposal.operations.length || existingProposalSignatures.has(signature)) return;
-                  try {
-                    editor.applyOperations(proposal.operations, fingerprintBeforeRequest, scope.editableIds, scope.classes.map((item) => item.id));
-                  } catch (error) {
-                    logAiProblem('全体統合案の検証', error, 'warn');
-                    rejectedSynthesisProposals += 1;
-                    return;
-                  }
-                  existingProposalSignatures.add(signature);
-                  proposal.id = `synthesis_proposal${index + 1}`;
-                  result.proposals.push(proposal);
-                  proposalScopes.set(proposal.id, [...scope.editableIds]);
-                  proposalPreviewScopes.set(proposal.id, scope.classes.map((item) => item.id));
-                  proposalAvailableScopes.set(proposal.id, scope.classes.map((item) => item.id));
-                });
-                result.questions.push(...synthesis.result.questions);
-                if (rejectedSynthesisProposals) {
-                  splitWarnings.add(`${rejectedSynthesisProposals}件の全体統合案を、適用可能な範囲と構造を確認できず除外しました。`);
-                }
-                const chunkProposalCount = chunkResults.reduce((sum, part) => sum + (part?.proposals?.length || 0), 0);
-                if (chunkProposalCount && !result.proposals.some((proposal) => proposal.operations.length)) {
-                  logAiProblem('分割案の統合後に変更案がありません', new Error('分割単位では提案がありましたが、統合後に適用可能な提案が残りませんでした。'), 'warn', {
-                    taskCount: splitTasks.length,
-                    chunkProposalCount,
-                    rejectedSynthesisProposalCount: rejectedSynthesisProposals
-                  });
-                }
-              }
+              const synthesis = await sendApiRequest(synthesisInput, '', SYNTHESIS_OUTPUT_TOKENS, '結果を統合中', false, true);
               const summary = String(synthesis.result.message || '').trim();
               if (summary) result.message = [summary, ...splitWarnings].filter(Boolean).join('\n');
               else result.message = [result.message, '全体の統合結果を作成できなかったため、以下は分割ごとの回答です。']
                 .filter(Boolean).join('\n');
             } catch (error) {
               logAiProblem('分割結果の全体統合', error, 'warn');
-              result.message = [result.message, '全体の統合処理に失敗したため、以下は分割ごとの回答です。']
-                .filter(Boolean).join('\n');
+              result.message = scope.scopeCoverage === 'all_classes'
+                ? '全体を分割して評価しましたが、分割結果の統合に失敗しました。表示中の変更案は各範囲の個別評価です。全体を横断した整合性確認は完了していません。'
+                : [result.message, '全体の統合処理に失敗したため、以下は分割ごとの回答です。']
+                  .filter(Boolean).join('\n');
             }
           } else {
             const chunkProposalCount = chunkResults.reduce((sum, part) => sum + (part?.proposals?.length || 0), 0);
             logAiProblem('分割結果を構造情報付きで統合できません', new Error('クラス構造を保持した統合入力が上限を超えました。構造を省いて統合することはせず、分割別の結果を保持します。'), 'warn', {
               taskCount: splitTasks.length,
-              classStructureCount: synthesisStructure.length,
               chunkProposalCount,
               synthesisInputCharacters: synthesisInput.length,
               maximumCharacters: MAX_REQUEST_CHARACTERS
             });
-            result.message = [result.message, '全体統合は構造情報を保ったままでは送信上限に収まらなかったため行わず、各分割範囲で検証した結果を個別に表示します。']
-              .filter(Boolean).join('\n');
+            result.message = scope.scopeCoverage === 'all_classes'
+              ? '全体の分割評価は完了しましたが、構造情報を保った統合入力が上限を超えたため、結果を統合できませんでした。表示中の変更案は各範囲の個別評価で、全体を横断した整合性確認は完了していません。'
+              : [result.message, '全体統合は構造情報を保ったままでは送信上限に収まらなかったため行わず、各分割範囲で検証した結果を個別に表示します。']
+                .filter(Boolean).join('\n');
           }
         }
         conversation.splitMemory = result.dataRequests.length || splitRepairFailed
@@ -2280,8 +2199,10 @@ let proposalPreview = null;
     previewArrowToggle.setAttribute('aria-checked', String(visible));
     previewArrowToggle.querySelector('.ai-preview-arrow-toggle-state').textContent = visible ? 'ON' : 'OFF';
     const arrowSvg = document.getElementById('ai-preview-direction');
+    const addOrigin = document.getElementById('ai-preview-add-origin');
     arrowSvg.hidden = !visible;
     arrowSvg.setAttribute('aria-hidden', String(!visible));
+    if (!visible && addOrigin) addOrigin.hidden = true;
     if (visible) requestAnimationFrame(() => proposalPreview.renderPreviewArrows(proposalPreview.plan?.arrows || []));
     else arrowSvg.replaceChildren();
   });

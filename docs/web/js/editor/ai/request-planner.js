@@ -1,6 +1,8 @@
 // 現在の選択範囲を依頼JSONへ変換し、大きすぎる範囲を処理単位へ分割します。
 // scope固有の指示はJSON内に一時的に載せ、送信層が固定プロンプトの後ろへ移します。
 export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope, shortenInputIds }) => {
+  // 長い全体分析の計画中も、ブラウザーに描画と入力イベントの処理を返します。
+  const yieldToBrowser = () => new Promise((resolve) => window.setTimeout(resolve, 0));
   // 通常依頼では前回スナップショットとの差分を使い、初回・強制更新では全体を送ります。
   const buildUserContent = (userText, activeScope, conversation, options = {}) => {
     const usePrevious = !options.forceSnapshot && conversation.initialSnapshotSent && conversation.responseId;
@@ -25,7 +27,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     }));
   };
   // 全体参照が上限を超える場合、階層範囲と対象クラス範囲を分割して漏れなく計画します。
-  const makeLargeScopePlan = (userText, scope, conversation) => {
+  const makeLargeScopePlan = async (userText, scope, conversation) => {
     const upperClassBatchCount = 10;
     const upperClassBatchIndex = (id) => {
       let hash = 2166136261;
@@ -105,6 +107,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         while (offset < targets.length) {
           let low = 1; let high = Math.min(targets.length - offset, scope.allowHierarchyEdits ? 20 : targets.length - offset); let bestSize = 0; let bestTask = null;
           while (low <= high) {
+            await yieldToBrowser();
             const size = Math.floor((low + high) / 2);
             const candidate = buildTargetTask(targets.slice(offset, offset + size), groupHierarchy, topClassId);
             if (candidate.input.length <= MAX_REQUEST_CHARACTERS) {
@@ -201,7 +204,8 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
       (childrenByParent.get(id) || []).forEach((childId) => collectRemainingSubtree(childId, collected));
       return collected;
     };
-    const partitionHierarchySubtree = (rootId) => {
+    const partitionHierarchySubtree = async (rootId) => {
+      await yieldToBrowser();
       const subtreeIds = collectRemainingSubtree(rootId);
       if (!subtreeIds.size) return;
       const candidate = makeHierarchyTask([...subtreeIds]);
@@ -221,12 +225,14 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         hierarchyTasks.push(rootTask);
         remainingHierarchyIds.delete(rootId);
       }
-      (childrenByParent.get(rootId) || []).filter((id) => remainingHierarchyIds.has(id)).forEach(partitionHierarchySubtree);
+      for (const childId of (childrenByParent.get(rootId) || []).filter((id) => remainingHierarchyIds.has(id))) {
+        await partitionHierarchySubtree(childId);
+      }
     };
-    hierarchyScope.selectedIds.forEach((id) => {
-      if (remainingHierarchyIds.has(id)) partitionHierarchySubtree(id);
-    });
-    [...remainingHierarchyIds].forEach(partitionHierarchySubtree);
+    for (const id of hierarchyScope.selectedIds) {
+      if (remainingHierarchyIds.has(id)) await partitionHierarchySubtree(id);
+    }
+    for (const id of [...remainingHierarchyIds]) await partitionHierarchySubtree(id);
 
     // Pack small hierarchy branches together so they do not each require a separate API call.
     const packedHierarchyTasks = [];
@@ -254,6 +260,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     for (const [, bucketTasks] of [...hierarchyTasksByBucket].sort(([left], [right]) => left - right)) {
       let pendingHierarchyScope = null;
       for (const task of bucketTasks) {
+        await yieldToBrowser();
         const candidateScope = pendingHierarchyScope ? mergeHierarchyScopes(pendingHierarchyScope, task.scope) : task.scope;
         const candidateTask = buildHierarchyTask(candidateScope);
         if (pendingHierarchyScope && candidateTask.input.length > hierarchyChunkLimit) {
@@ -326,6 +333,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         const remaining = units.length - targetOffset;
         let low = 1; let high = remaining; let bestSize = 0; let bestTask = null;
         while (low <= high) {
+          await yieldToBrowser();
           const size = Math.floor((low + high) / 2);
           const candidate = buildTargetTask(units.slice(targetOffset, targetOffset + size), topClassId);
           if (candidate.input.length <= MAX_REQUEST_CHARACTERS) {
@@ -361,7 +369,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     }
     return tasks;
   };
-    const packAnalysisUnits = (units, userText, conversation) => {
+    const packAnalysisUnits = async (units, userText, conversation) => {
       const mergeScopes = (left, right) => {
         const classesById = new Map([...left.classes, ...right.classes].map((item) => [item.id, item]));
         const relationsByKey = new Map([...left.relations, ...right.relations]
@@ -403,7 +411,8 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
       };
       const batches = [];
       let pending = [];
-      units.forEach((unit) => {
+      for (const unit of units) {
+        await yieldToBrowser();
         const candidate = makeBatch([...pending, unit]);
         const editableIds = new Set(candidate.scope.editableIds);
         const editableTargetCount = candidate.scope.classes.filter((item) => item.type === 'class' && editableIds.has(item.id)).length;
@@ -418,7 +427,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         } else {
           throw new Error('上位クラスの分析単位を送信上限内にまとめられません。対象範囲を小さくしてください。');
         }
-      });
+      }
       if (pending.length) batches.push(makeBatch(pending));
       return batches;
     };

@@ -40,8 +40,21 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
     // 選択範囲に親クラスが含まれない場合も、実データを使って現在の親を判定する。
     const currentRelations = editor.getState()?.relations || scope.relations || [];
     const currentParentByChild = new Map(currentRelations.map(({ child, parent }) => [child, parent]));
+    const currentLabels = new Map((editor.getState()?.classes || scope.classes || []).map(({ id, label }) => [id, label]));
     result.proposals.forEach((proposal) => {
       const parentByChild = new Map(currentParentByChild);
+      const labelsById = new Map(currentLabels);
+      const visiblePath = (id) => {
+        const parts = [];
+        const seen = new Set();
+        let currentId = id;
+        while (currentId && !seen.has(currentId)) {
+          seen.add(currentId);
+          parts.unshift(labelsById.get(currentId) || currentId);
+          currentId = parentByChild.get(currentId);
+        }
+        return parts.join(' › ');
+      };
       const createsCycle = (sourceId, destinationId) => {
         let currentId = destinationId;
         const seen = new Set();
@@ -55,12 +68,14 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
       let removedMoveCount = 0;
       proposal.operations = proposal.operations.filter((operation) => {
         if (operation.type === 'addClass') {
+          labelsById.set(operation.temporaryId, String(operation.label || '').trim());
           if (operation.classType === 'middle' && operation.parentId) parentByChild.set(operation.temporaryId, operation.parentId);
           return true;
         }
         if (operation.type === 'moveClass') {
           const currentParent = parentByChild.get(operation.classId);
-          if (currentParent === operation.destinationId || createsCycle(operation.classId, operation.destinationId)) {
+          const sameVisibleParentPath = currentParent && visiblePath(currentParent) === visiblePath(operation.destinationId);
+          if (currentParent === operation.destinationId || sameVisibleParentPath || createsCycle(operation.classId, operation.destinationId)) {
             removedMoveCount += 1;
             return false;
           }
@@ -71,7 +86,8 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
           const children = [...parentByChild]
             .filter(([, parent]) => parent === operation.from)
             .map(([child]) => child);
-          if (!children.length || operation.from === operation.to || createsCycle(operation.from, operation.to)
+          const sameVisibleParentPath = visiblePath(operation.from) === visiblePath(operation.to);
+          if (!children.length || operation.from === operation.to || sameVisibleParentPath || createsCycle(operation.from, operation.to)
             || children.every((child) => parentByChild.get(child) === operation.to)) {
             removedMoveCount += 1;
             return false;
@@ -80,8 +96,10 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
         }
         return true;
       });
-      if (removedMoveCount && proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal) {
-        proposal.uncertainties.push('親子関係が変わらない移動、または循環を作る移動先は除外しました。');
+      const noopWarning = '親のIDまたは表示上の経路が変わらない移動、または循環を作る移動先は除外しました。';
+      if (removedMoveCount && proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal
+        && !proposal.uncertainties.includes(noopWarning)) {
+        proposal.uncertainties.push(noopWarning);
       }
     });
     result.proposals = result.proposals.filter((proposal) => proposal.operations.length || proposal.questions.length);
@@ -93,21 +111,31 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
   const normalizeDuplicateClassOperations = (result, availableIds = []) => {
     const state = editor.getState();
     const classById = new Map(state.classes.map((item) => [item.id, item]));
+    const parentByChild = new Map(state.relations.map(({ child, parent }) => [child, parent]));
     const available = new Set(availableIds);
     result.proposals.forEach((proposal) => {
       const aliases = new Map();
       const unavailableDuplicateIds = new Set();
+      const ambiguousDuplicateIds = new Set();
       const additionsByTypeAndLabel = new Map();
       proposal.operations.forEach((operation) => {
         if (operation.type !== 'addClass' || !operation.temporaryId || !['top', 'middle'].includes(operation.classType)) return;
         const label = String(operation.label || '').trim();
         const key = `${operation.classType}\u0000${label}`;
-        const existing = state.classes.find((item) => item.type === operation.classType
+        const matches = state.classes.filter((item) => item.type === operation.classType
           && String(item.label || '').trim() === label);
-        if (existing && available.has(existing.id)) aliases.set(operation.temporaryId, existing.id);
-        else if (existing) unavailableDuplicateIds.add(operation.temporaryId);
-        else if (additionsByTypeAndLabel.has(key)) aliases.set(operation.temporaryId, additionsByTypeAndLabel.get(key));
-        else additionsByTypeAndLabel.set(key, operation.temporaryId);
+        const availableMatches = matches.filter((item) => available.has(item.id));
+        let existing = null;
+        if (availableMatches.length === 1) existing = availableMatches[0];
+        else if (availableMatches.length > 1 && operation.parentId) {
+          const parentMatches = availableMatches.filter((item) => parentByChild.get(item.id) === operation.parentId);
+          if (parentMatches.length === 1) existing = parentMatches[0];
+          else ambiguousDuplicateIds.add(operation.temporaryId);
+        } else if (!matches.length && additionsByTypeAndLabel.has(key)) {
+          aliases.set(operation.temporaryId, additionsByTypeAndLabel.get(key));
+        } else if (!matches.length) additionsByTypeAndLabel.set(key, operation.temporaryId);
+        else if (availableMatches.length === 0) unavailableDuplicateIds.add(operation.temporaryId);
+        if (existing) aliases.set(operation.temporaryId, existing.id);
       });
       const resolveAlias = (id) => {
         const seen = new Set();
@@ -128,27 +156,33 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
             });
             return normalized;
           });
-        if (proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal) {
+        if (proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal
+          && !proposal.uncertainties.includes('同じ種類・名称のクラスが既にあるため、新設せず既存クラスを再利用します。')) {
           proposal.uncertainties.push('同じ種類・名称のクラスが既にあるため、新設せず既存クラスを再利用します。');
         }
       }
-      if (unavailableDuplicateIds.size) {
+      if (unavailableDuplicateIds.size || ambiguousDuplicateIds.size) {
         let addedBlockedId = true;
         while (addedBlockedId) {
           addedBlockedId = false;
           proposal.operations.forEach((operation) => {
-            if (operation.type === 'addClass' && operation.temporaryId && unavailableDuplicateIds.has(operation.parentId)
-              && !unavailableDuplicateIds.has(operation.temporaryId)) {
-              unavailableDuplicateIds.add(operation.temporaryId);
+            const blockedIds = new Set([...unavailableDuplicateIds, ...ambiguousDuplicateIds]);
+            if (operation.type === 'addClass' && operation.temporaryId && blockedIds.has(operation.parentId)
+              && !blockedIds.has(operation.temporaryId)) {
+              ambiguousDuplicateIds.add(operation.temporaryId);
               addedBlockedId = true;
             }
           });
         }
-        const referencesUnavailableDuplicate = (operation) => ['temporaryId', 'parentId', 'classId', 'destinationId', 'from', 'to']
-          .some((key) => unavailableDuplicateIds.has(operation[key]));
-        proposal.operations = proposal.operations.filter((operation) => !referencesUnavailableDuplicate(operation));
-        if (proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal) {
-          proposal.uncertainties.push('同名クラスは存在しますが選択範囲外のため、そのクラスに依存する操作を除外しました。');
+        const blockedIds = new Set([...unavailableDuplicateIds, ...ambiguousDuplicateIds]);
+        const referencesBlockedDuplicate = (operation) => ['temporaryId', 'parentId', 'classId', 'destinationId', 'from', 'to']
+          .some((key) => blockedIds.has(operation[key]));
+        proposal.operations = proposal.operations.filter((operation) => !referencesBlockedDuplicate(operation));
+        const warning = ambiguousDuplicateIds.size
+          ? '同じ種類・名称のクラスが複数あり、親階層から再利用先を一意に決められないため、関連操作を除外しました。'
+          : '同名クラスは存在しますが選択範囲外のため、そのクラスに依存する操作を除外しました。';
+        if (proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal && !proposal.uncertainties.includes(warning)) {
+          proposal.uncertainties.push(warning);
         }
       }
       const duplicateRenameIndexes = new Set();

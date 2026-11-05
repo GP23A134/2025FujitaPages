@@ -210,7 +210,11 @@ export const createProposalPreview = ({
   const renderPreviewArrows = (arrows = []) => {
     const svg = document.getElementById('ai-preview-direction');
     const columns = document.querySelector('.ai-preview-columns');
-    if (!svg || !columns || svg.hidden) return;
+    const addOrigin = document.getElementById('ai-preview-add-origin');
+    if (!svg || !columns) return;
+    const hasAdditions = arrows.some((arrow) => arrow.kind === 'is-add' && !arrow.from);
+    if (addOrigin) addOrigin.hidden = svg.hidden || !hasAdditions;
+    if (svg.hidden) return;
     const bounds = svg.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
     const laneWidth = Math.max(120, arrows.length * 3 + 24);
@@ -250,12 +254,14 @@ export const createProposalPreview = ({
     const after = document.getElementById('ai-preview-after');
     const beforeBounds = before.getBoundingClientRect();
     const afterBounds = after.getBoundingClientRect();
+    const addOriginBounds = hasAdditions ? addOrigin?.getBoundingClientRect() : null;
     const gutterLeft = beforeBounds.right - bounds.left;
     const gutterRight = afterBounds.left - bounds.left;
     const routes = arrows.map((arrow) => {
       const color = previewArrowColors[arrow.kind];
       if (!color) return null;
-      const source = previewNodeRow(before, arrow.from)?.getBoundingClientRect();
+      const source = arrow.kind === 'is-add' && !arrow.from
+        ? addOriginBounds : previewNodeRow(before, arrow.from)?.getBoundingClientRect();
       const target = previewNodeRow(after, arrow.to)?.getBoundingClientRect();
       if (!source && !target) return null;
       return { arrow, color, source, target };
@@ -317,6 +323,7 @@ export const createProposalPreview = ({
       .forEach((node) => node.classList.remove('is-ai-preview-hover-related'));
     document.querySelectorAll('#ai-preview-direction .is-ai-preview-arrow-hovered')
       .forEach((path) => path.classList.remove('is-ai-preview-arrow-hovered'));
+    document.getElementById('ai-preview-add-origin')?.classList.remove('is-ai-preview-hover-related');
   };
   const highlightPreviewTarget = (target) => {
     clearPreviewHover();
@@ -329,6 +336,7 @@ export const createProposalPreview = ({
     matchingArrows.forEach((arrow) => {
       const source = previewNodeRow(sourceHost, arrow.from);
       source?.classList.add('is-ai-preview-hover-related');
+      if (!arrow.from && arrow.kind === 'is-add') document.getElementById('ai-preview-add-origin')?.classList.add('is-ai-preview-hover-related');
       arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
         .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
     });
@@ -355,7 +363,24 @@ export const createProposalPreview = ({
       void showPreview(proposalItem, false, true).catch(reportPreviewError);
     });
   };
-  const renderPreviewChangeList = (proposalItem, indexes, listId) => {
+  const hierarchyPathFor = (state, id) => {
+    const classesById = new Map(state.classes.map((item) => [item.id, item]));
+    const parentByChild = new Map(state.relations.map(({ child, parent }) => [child, parent]));
+    const labelCounts = new Map();
+    state.classes.forEach((item) => labelCounts.set(item.label, (labelCounts.get(item.label) || 0) + 1));
+    const segments = [];
+    const seen = new Set();
+    let current = id;
+    while (current && classesById.has(current) && !seen.has(current)) {
+      seen.add(current);
+      const item = classesById.get(current);
+      const shortId = current.split('/').pop();
+      segments.unshift(labelCounts.get(item.label) > 1 ? `${item.label} [${shortId}]` : item.label);
+      current = parentByChild.get(current);
+    }
+    return segments.join(' › ');
+  };
+  const renderPreviewChangeList = (proposalItem, indexes, listId, detailFor = () => '') => {
     const list = document.getElementById(listId);
     const rows = indexes.map((index) => {
       const operation = proposalItem.proposal.operations[index];
@@ -371,6 +396,13 @@ export const createProposalPreview = ({
         else proposalItem.excludedOperationIndexes.add(index);
       }));
       const text = document.createElement('span'); text.className = 'ai-preview-change-text'; text.textContent = operationLabel(operation);
+      const detailText = detailFor(operation);
+      if (detailText) {
+        const detail = document.createElement('span');
+        detail.className = 'ai-preview-change-detail';
+        detail.textContent = detailText;
+        text.append(detail);
+      }
       const type = document.createElement('span'); type.className = `ai-preview-type-badge ${operationCategory(operation).className}`;
       const category = operationCategory(operation);
       type.textContent = category.label;
@@ -737,6 +769,20 @@ export const createProposalPreview = ({
       const direct = counts.direct.get(node.id) || 0;
       return `合計 ${total}件・直下 ${direct}件`;
     };
+    const operationDetail = (operation) => {
+      if (operation.type === 'moveClass') {
+        const beforePath = hierarchyPathFor(beforeState, operation.classId);
+        const afterId = resolveProposedId(operation.classId);
+        const afterPath = hierarchyPathFor(candidate, afterId);
+        return `変更前: ${beforePath}\n変更後: ${afterPath}`;
+      }
+      if (operation.type === 'moveChildren') {
+        const from = resolveProposedId(operation.from);
+        const to = resolveProposedId(operation.to);
+        return `移動元: ${hierarchyPathFor(beforeState, from)}\n移動先: ${hierarchyPathFor(candidate, to)}`;
+      }
+      return '';
+    };
     updatePreviewPageChrome(proposalItem);
     const currentGroupIndex = 0;
     const currentGroup = previewGroups[currentGroupIndex];
@@ -768,11 +814,11 @@ export const createProposalPreview = ({
           });
         }
       });
-      renderPreviewChangeList(proposalItem, currentGroup.indexes, 'ai-preview-change-list');
+      renderPreviewChangeList(proposalItem, currentGroup.indexes, 'ai-preview-change-list', operationDetail);
     } else {
       renderPreviewChangeList(proposalItem, [], 'ai-preview-change-list');
     }
-    renderPreviewChangeList(proposalItem, operations.map((_, index) => index), 'ai-preview-final-change-list');
+    renderPreviewChangeList(proposalItem, operations.map((_, index) => index), 'ai-preview-final-change-list', operationDetail);
     const impact = document.getElementById('ai-preview-impact');
     impact.classList.remove('is-loading');
     impact.textContent = '';
