@@ -313,7 +313,7 @@ export const createProposalPreview = ({
       marker.setAttribute('refY', '5');
       marker.setAttribute('markerWidth', '6');
       marker.setAttribute('markerHeight', '6');
-      marker.setAttribute('orient', kind === 'is-move' ? '0' : 'auto');
+      marker.setAttribute('orient', 'auto');
       const head = document.createElementNS(namespace, 'path');
       head.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
       head.setAttribute('fill', color);
@@ -333,27 +333,15 @@ export const createProposalPreview = ({
     const deleteTargetBounds = hasDeletions ? deleteTarget?.getBoundingClientRect() : null;
     const gutterLeft = beforeBounds.right - bounds.left;
     const gutterRight = afterBounds.left - bounds.left;
-    const treeConnectorY = (node, fallbackY) => {
-      const connectorNode = node?.matches('.tree-leaf-class') ? node.closest('li') : node;
-      if (!connectorNode) return fallbackY;
-      const connectorBounds = connectorNode.getBoundingClientRect();
-      const connectorPosition = getComputedStyle(connectorNode).getPropertyValue('--tree-connector-y').trim();
-      const connectorOffset = connectorPosition.endsWith('%')
-        ? connectorBounds.height * Number.parseFloat(connectorPosition) / 100
-        : connectorPosition.endsWith('px') ? Number.parseFloat(connectorPosition) : connectorBounds.height / 2;
-      return connectorBounds.top + connectorOffset - bounds.top;
-    };
     const routes = routingArrows.map(({ arrow }) => {
       const color = previewArrowColors[arrow.kind];
       if (!color) return null;
-      const targetNode = arrow.kind === 'is-delete' && !arrow.to ? null : previewNodeRow(after, arrow.to);
-      const sourceNode = arrow.kind === 'is-add' && !arrow.from ? null : previewNodeRow(before, arrow.from);
       const source = arrow.kind === 'is-add' && !arrow.from
-        ? addOriginBounds : sourceNode?.getBoundingClientRect();
+        ? addOriginBounds : previewNodeRow(before, arrow.from)?.getBoundingClientRect();
       const target = arrow.kind === 'is-delete' && !arrow.to
-        ? deleteTargetBounds : targetNode?.getBoundingClientRect();
+        ? deleteTargetBounds : previewNodeRow(after, arrow.to)?.getBoundingClientRect();
       if (!source && !target) return null;
-      return { arrow, color, source, target, targetNode };
+      return { arrow, color, source, target };
     }).filter(Boolean).sort((left, right) => {
       const leftSourceY = left.source ? left.source.top + left.source.height / 2 : left.target?.top ?? 0;
       const leftTargetY = left.target ? left.target.top + left.target.height / 2 : left.source?.top ?? 0;
@@ -361,6 +349,41 @@ export const createProposalPreview = ({
       const rightTargetY = right.target ? right.target.top + right.target.height / 2 : right.source?.top ?? 0;
       return leftSourceY + leftTargetY - rightSourceY - rightTargetY || leftSourceY - rightSourceY;
     });
+    const moveLaneGroups = new Map();
+    const laneGroups = [];
+    routes.forEach((route, index) => {
+      if (route.arrow.kind !== 'is-move') {
+        laneGroups.push({ routes: [route], firstIndex: index, parentY: null });
+        return;
+      }
+      const parentId = previewPlan?.afterParents?.get(route.arrow.to) ?? null;
+      const key = parentId;
+      let group = moveLaneGroups.get(key);
+      if (!group) {
+        const parentRect = parentId
+          ? previewNodeRow(after, parentId)?.getBoundingClientRect() : null;
+        group = {
+          routes: [],
+          firstIndex: index,
+          parentY: parentRect ? parentRect.top + parentRect.height / 2 : Number.POSITIVE_INFINITY,
+        };
+        moveLaneGroups.set(key, group);
+        laneGroups.push(group);
+      }
+      group.routes.push(route);
+      group.firstIndex = Math.min(group.firstIndex, index);
+    });
+    laneGroups.sort((left, right) => {
+      if (left.parentY !== null && right.parentY !== null) return left.parentY - right.parentY;
+      if (left.parentY !== null) return -1;
+      if (right.parentY !== null) return 1;
+      return left.firstIndex - right.firstIndex;
+    });
+    let nextLaneIndex = 0;
+    laneGroups.forEach((group) => group.routes.forEach((route) => {
+      route.laneIndex = nextLaneIndex;
+      nextLaneIndex += 1;
+    }));
     const trackBankInset = Math.max(0, (gutterRight - gutterLeft - routes.length * trackGap) / 2);
     const assignPorts = (side) => {
       const groups = new Map();
@@ -396,8 +419,8 @@ export const createProposalPreview = ({
       if (arrow.excluded) path.setAttribute('opacity', '0.45');
       svg.append(path);
     };
-    routes.forEach(({ arrow, color, source, target, targetNode }, index) => {
-      const laneX = gutterLeft + trackBankInset + (routes.length - index - 0.5) * trackGap;
+    routes.forEach(({ arrow, color, source, target, laneIndex }, index) => {
+      const laneX = gutterLeft + trackBankInset + (routes.length - laneIndex - 0.5) * trackGap;
       const channelY = height * (index + 1) / (routes.length + 1);
       const isAddition = arrow.kind === 'is-add' && !arrow.from;
       const startX = source ? (isAddition ? source.left + source.width / 2 : source.right) - bounds.left : laneX;
@@ -407,9 +430,7 @@ export const createProposalPreview = ({
         : routes[index].startY ?? (target ? target.top + target.height / 2 - bounds.top : channelY);
       const endY = routes[index].endY ?? (source ? source.top + source.height / 2 - bounds.top : channelY);
       if (arrow.kind === 'is-move' && source && target) {
-        const arrowY = treeConnectorY(targetNode, endY);
-        appendRoutePath({ commands: [`M ${startX} ${startY} H ${laneX} V ${arrowY}`], arrow, color });
-        appendRoutePath({ commands: [`M ${laneX} ${arrowY} H ${endX}`], arrow, color, marker: false });
+        appendRoutePath({ commands: [`M ${startX} ${startY} H ${laneX} V ${endY} H ${endX}`], arrow, color });
         return;
       }
       const commands = [];
