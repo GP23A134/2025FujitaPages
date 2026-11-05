@@ -1,134 +1,206 @@
 [
   {
-    "id": "common-summary",
-    "title": "選択範囲を要約",
-    "prompt": "選択中のクラスとその親子関係を要約してください。各クラスの役割と、分類の特徴が分かるように説明してください。変更案は出さないでください。",
-    "showWhen": { "always": true }
+    "id": "target-membership",
+    "title": "所属を見直す",
+    "prompt": "選択範囲に対象クラスが含まれる場合は、現在の所属が内容に合っているか確認してください。所属変更が必要な対象クラスがあれば、移動先と理由を提案してください。中間クラスや上位クラスの階層変更は、分類上必要な場合に限り、対象・移動先・理由を示して提案してください。変更が不要、または判断できない場合は変更案を出さないでください。",
+    "showWhen": {
+      "always": true
+    }
   },
   {
     "id": "common-classification-check",
     "title": "分類の問題を確認",
     "prompt": "選択範囲を確認し、明確な分類ミス、重複、または不自然な親子関係があれば、対象と根拠を示してください。判断が難しいものは問題として扱わないでください。",
-    "showWhen": { "always": true }
+    "showWhen": {
+      "always": true
+    }
   },
   {
     "id": "unclassified-review",
     "title": "未分類を整理",
     "prompt": "未分類（t_0）直下の対象クラスを確認し、既存の上位・中間クラスへ分類できるものだけ、移動先と理由を提案してください。判断が難しいものや既存の分類に合わないものは未分類のままにし、新しいクラスは追加しないでください。",
-    "showWhen": { "unclassified": true }
-  },
-  {
-    "id": "target-membership",
-    "title": "所属を見直す",
-    "prompt": "選択中の対象クラスについて、現在の所属が内容に合っているか確認してください。移動が明確に必要なものだけ、既存の移動先と理由を提案してください。判断できないものは変更しないでください。",
-    "showWhen": { "selectionTypes": ["target"] }
+    "showWhen": {
+      "unclassified": true
+    }
   },
   {
     "id": "target-destination-compare",
     "title": "移動先を比較",
     "prompt": "選択中の対象クラスごとに、既存の移動先候補を比較してください。最も適切な候補と判断理由を示し、候補間に明確な差がない場合は移動を提案しないでください。",
-    "showWhen": { "selectionTypes": ["target"] }
+    "showWhen": {
+      "selectionTypes": [
+        "target"
+      ]
+    }
   },
   {
     "id": "target-similarity",
     "title": "似た対象を確認",
     "prompt": "選択中の対象クラス同士に、内容の重複や強い類似があるか確認してください。該当するものだけを示し、似ていると判断した根拠を説明してください。",
-    "showWhen": { "selectionTypes": ["target"], "minSelected": 2 }
+    "showWhen": {
+      "selectionTypes": [
+        "target"
+      ],
+      "minSelected": 2
+    }
   },
   {
     "id": "target-parent-review",
     "title": "親クラスを確認",
     "prompt": "選択中の対象クラスについて、現在の上位クラスや中間クラスとのつながりが内容に合っているか確認してください。別の親クラスが明確に適切な場合のみ、移動先と理由を提案してください。",
-    "showWhen": { "selectionTypes": ["target"] }
+    "showWhen": {
+      "selectionTypes": [
+        "target"
+      ]
+    }
   },
   {
     "id": "target-name-review",
     "title": "対象クラス名を確認",
     "prompt": "選択中の対象クラスの名称が、そのクラスの内容と所属先での役割を適切に表しているか確認してください。改名が明確に必要な場合のみ、変更後の名称と理由を提案してください。",
-    "showWhen": { "selectionTypes": ["target"] }
+    "showWhen": {
+      "selectionTypes": [
+        "target"
+      ]
+    }
   },
   {
     "id": "top-direct-classes",
     "title": "直下クラスを整理",
     "prompt": "選択中の上位クラス直下にある対象クラスを確認してください。既存の中間クラスへ移動するのが明確に適切なものだけ、移動先と理由を提案してください。",
-    "showWhen": { "selectionTypes": ["top"] }
+    "showWhen": {
+      "selectionTypes": [
+        "top"
+      ]
+    }
   },
   {
     "id": "top-middle-class-review",
     "title": "中間クラスを検討",
     "prompt": "選択中の上位クラス直下の対象クラスを確認し、既存の中間クラスでは分類しにくいまとまりがあるか検討してください。まとまりが明確な場合のみ、新しい中間クラスの名称と対象を提案してください。",
-    "showWhen": { "selectionTypes": ["top"] }
+    "showWhen": {
+      "selectionTypes": [
+        "top"
+      ]
+    }
   },
   {
     "id": "top-middle-overlap",
     "title": "中間クラス同士を比較",
     "prompt": "選択中の上位クラスの中間クラス同士を比較し、役割や配下の対象が重なっていないか確認してください。統合が明確に妥当な場合のみ、統合先と配下の移動案、理由を提案してください。",
-    "showWhen": { "selectionTypes": ["top"] }
+    "showWhen": {
+      "selectionTypes": [
+        "top"
+      ]
+    }
   },
   {
     "id": "top-direct-gap",
     "title": "直下の分類漏れを確認",
     "prompt": "選択中の上位クラス直下にある対象クラスを確認してください。既存の中間クラスに分類できるものと、新しい中間クラスが必要なまとまりを分けて示してください。根拠が不十分な移動や追加は提案しないでください。",
-    "showWhen": { "selectionTypes": ["top"] }
+    "showWhen": {
+      "selectionTypes": [
+        "top"
+      ]
+    }
   },
   {
     "id": "middle-children-review",
     "title": "配下の分類を見直す",
-    "prompt": "選択中の中間クラスと、その配下の対象クラスを確認してください。対象クラスの内容と中間クラスの役割が合っていない場合のみ、既存クラスへの移動案と理由を示してください。",
-    "showWhen": { "selectionTypes": ["middle"] }
+    "prompt": "選択中の中間クラスと、その配下の対象クラスを確認してください。対象クラスの内容と中間クラスの役割が合っていない場合のみ、既存クラスへの移動案と理由を示してください。選択中の中間クラス自体を別の中間クラスの配下へ移す、または独立した上位クラスへ変更することが分類上必要な場合は、その案と理由も示してください。",
+    "showWhen": {
+      "selectionTypes": [
+        "middle"
+      ]
+    }
   },
   {
     "id": "middle-name-review",
     "title": "中間クラス名を見直す",
     "prompt": "選択中の中間クラスの名称が配下の対象クラスを適切に表しているか確認してください。変更が明確に必要な場合のみ、変更後の名称と理由を提案してください。",
-    "showWhen": { "selectionTypes": ["middle"] }
+    "showWhen": {
+      "selectionTypes": [
+        "middle"
+      ]
+    }
   },
   {
     "id": "middle-split-review",
     "title": "中間クラスの分割を検討",
-    "prompt": "選択中の中間クラスの配下に、異なる役割のまとまりが複数あるか確認してください。分割が明確に必要な場合のみ、新しい中間クラスと対象の振り分け案を提案してください。",
-    "showWhen": { "selectionTypes": ["middle"] }
+    "prompt": "選択中の中間クラスの配下に、異なる役割のまとまりが複数あるか確認してください。分割が明確に必要な場合のみ、新しい中間クラスと対象の振り分け案を提案してください。あわせて、選択中の中間クラス自体の階層変更が分類上必要な場合は、別の中間クラスの配下への移動または独立した上位クラスへの変更案を理由とともに示してください。",
+    "showWhen": {
+      "selectionTypes": [
+        "middle"
+      ]
+    }
   },
   {
     "id": "middle-merge-review",
     "title": "中間クラスの統合を検討",
-    "prompt": "選択中の中間クラスと、同じ上位クラスに属する他の中間クラスを比較してください。役割が実質的に重複する場合のみ、統合先と配下の移動案を理由とともに提案してください。",
-    "showWhen": { "selectionTypes": ["middle"] }
+    "prompt": "選択中の中間クラスと、同じ上位クラスに属する他の中間クラスを比較してください。役割が実質的に重複する場合のみ、統合先と配下の移動案を理由とともに提案してください。選択中の中間クラス自体を別の中間クラスの配下へ移す、または独立した上位クラスへ変更することが分類上必要な場合は、その案と理由も示してください。",
+    "showWhen": {
+      "selectionTypes": [
+        "middle"
+      ]
+    }
   },
   {
     "id": "middle-empty-review",
     "title": "空の中間クラスを確認",
     "prompt": "選択中の中間クラスに対象クラスが属しているか確認してください。配下が空の場合は、空であることと親クラスを示し、削除や統合が明確に妥当な場合だけ案を提案してください。",
-    "showWhen": { "selectionTypes": ["middle"] }
+    "showWhen": {
+      "selectionTypes": [
+        "middle"
+      ]
+    }
   },
   {
     "id": "multi-class-pattern",
     "title": "選択クラスの共通点を探す",
     "prompt": "選択中の複数クラスに共通する内容や役割があるか確認してください。共通点が明確な場合は、分類の整理案を理由とともに示し、共通点が弱い場合は無理にまとめないでください。",
-    "showWhen": { "minSelected": 2 }
+    "showWhen": {
+      "minSelected": 2
+    }
   },
   {
     "id": "multi-parent-consistency",
     "title": "親ごとの分類を比較",
     "prompt": "選択中のクラスが属する親ごとの分類を比較してください。同じような内容が異なる基準で分類されている場合のみ、基準を揃える案と対象、理由を示してください。",
-    "showWhen": { "minSelected": 2, "differentParents": true }
+    "showWhen": {
+      "minSelected": 2,
+      "differentParents": true
+    }
   },
   {
     "id": "hierarchy-duplicates",
     "title": "階層の重複を確認",
     "prompt": "参照できる範囲で、役割や名称が重複している上位クラス・中間クラスがないか確認してください。統合や改名が明確に適切な場合のみ、対象と変更案、その理由を示してください。",
-    "showWhen": { "fullGraph": true }
+    "showWhen": {
+      "fullGraph": true
+    }
   },
   {
     "id": "hierarchy-review",
     "title": "階層構造を点検",
     "prompt": "参照できる範囲の親子関係を確認し、分類の一貫性が大きく崩れている箇所を示してください。問題が明確な箇所だけ、変更案と理由を提案してください。",
-    "showWhen": { "fullGraph": true }
+    "showWhen": {
+      "fullGraph": true
+    }
   },
   {
     "id": "hierarchy-naming",
     "title": "階層ごとの命名を確認",
     "prompt": "参照できる範囲で、上位クラス・中間クラス・対象クラスの名称が同じ命名基準に沿っているか確認してください。基準から外れているものが明確な場合のみ、変更後の名称と理由を提案してください。",
-    "showWhen": { "fullGraph": true }
+    "showWhen": {
+      "fullGraph": true
+    }
+  },
+  {
+    "id": "common-summary",
+    "title": "選択範囲を要約",
+    "prompt": "選択範囲のクラスと親子関係を要約し、各クラスの役割と分類の特徴を説明してください。変更案は出さないでください。",
+    "showWhen": {
+      "always": true
+    }
   }
 ]
