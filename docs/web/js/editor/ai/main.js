@@ -1,13 +1,10 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createClassIdCodec } from './id-codec.js?v=20261104-send-data-review-fixes-v1';
-import { sendOpenAIRequest } from './api-client.js?v=20261103-ai-module-system-step6-v1';
-import { createRequestPlanner } from './request-planner.js?v=20261104-preparation-yields-v1';
-import { createResponseHandler } from './response-handler.js?v=20261105-editable-scope-reference-fix-v1';
-import { createConversationStore } from './conversation-store.js?v=20261103-ai-review-fixes-v1';
-import { createConversationView } from './conversation-view.js?v=20261104-readable-ai-replies-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261105-move-tag-types-v1';
-import { filterPromptExamples } from './prompt-examples.js?v=20261105-selection-aware-v1';
+import { createRequestPlanner, createChunkSynthesizer, filterPromptExamples } from './request.js?v=20261105-functional-modules-v1';
+import { createResponseHandler, createOperationPolicy } from './proposal-engine.js?v=20261105-functional-modules-v1';
+import { createConversationStore, createConversationView } from './chat.js?v=20261105-functional-modules-v1';
+import { createProposalPreview } from './proposal-preview.js?v=20261105-operation-policy-v1';
+import { createAIClient } from './ai-client.js?v=20261105-functional-modules-v1';
 
 (() => {
   const editor = window.classEditorAI;
@@ -29,7 +26,6 @@ import { filterPromptExamples } from './prompt-examples.js?v=20261105-selection-
   window.addEventListener('unhandledrejection', (event) => {
     logAiProblem('未処理の非同期エラー', event.reason);
   });
-  const createIdCodec = () => createClassIdCodec(editor.getState().classes);
   const yieldToBrowser = () => new Promise((resolve) => window.setTimeout(resolve, 0));
 
   // Context tokenization varies by model and language; cap the serialized user payload conservatively.
@@ -54,66 +50,7 @@ import { filterPromptExamples } from './prompt-examples.js?v=20261105-selection-
   };
   // ここでの上限はAPIスキーマの上限です。応答トークンの上限は依頼種別ごとに別途設定します。
   const AI_OUTPUT_LIMITS = { proposals: 30, questions: 3, operationsPerProposal: 40, uncertaintiesPerProposal: 5 };
-
-  // API応答スキーマは短いキーを使い、JSONキー名による出力トークンを抑えます。
-  // 受信後に内部形式へ展開するため、UIや応答検証は短縮キーを意識しません。
-  const compactOperationSchema = {
-    type: 'object', additionalProperties: false,
-    properties: {
-      t: { type: 'string', enum: ['a', 'r', 'm', 'mc', 'd'] },
-      ct: { type: ['string', 'null'], enum: ['top', 'middle', null] },
-      tmp: { type: ['string', 'null'] }, l: { type: ['string', 'null'] },
-      p: { type: ['string', 'null'] }, c: { type: ['string', 'null'] },
-      dst: { type: ['string', 'null'] }, f: { type: ['string', 'null'] }, to: { type: ['string', 'null'] }
-    },
-    required: ['t', 'ct', 'tmp', 'l', 'p', 'c', 'dst', 'f', 'to']
-  };
-  const responseSchema = {
-    type: 'object', additionalProperties: false,
-    properties: {
-      m: { type: 'string' },
-      p: {
-        type: 'array', items: {
-          type: 'object', additionalProperties: false,
-          properties: {
-            i: { type: 'string' }, t: { type: 'string' }, s: { type: 'string' }, r: { type: 'string' },
-            q: { type: 'array', maxItems: AI_OUTPUT_LIMITS.questions, items: { type: 'string' } },
-            u: { type: 'array', maxItems: AI_OUTPUT_LIMITS.uncertaintiesPerProposal, items: { type: 'string' } },
-            o: { type: 'array', maxItems: AI_OUTPUT_LIMITS.operationsPerProposal, items: compactOperationSchema }
-          },
-          required: ['i', 't', 's', 'r', 'q', 'u', 'o']
-        }, maxItems: AI_OUTPUT_LIMITS.proposals
-      },
-      q: { type: 'array', maxItems: AI_OUTPUT_LIMITS.questions, items: { type: 'string' } }
-    },
-    required: ['m', 'p', 'q']
-  };
-  const compactResponseInstructions = '応答は短縮キーのJSON形式です。トップレベルはm=回答文、p=提案配列、q=確認質問配列です。提案はi=id,t=題名,s=要約,r=理由,q=質問,u=不確実点,o=操作配列。操作キーはt=操作種別コード(a=addClass,r=renameClass,m=moveClass,mc=moveChildren,d=deleteClass)、ct=classType,tmp=temporaryId,l=label,p=parentId,c=classId,dst=destinationId,f=from,to=toです。スキーマにある全キーを必ず出力し、使わない値はnullにしてください。';
-  const groupedResponseSchema = {
-    type: 'object', additionalProperties: false,
-    properties: {
-      g: {
-        type: 'array', maxItems: 20, items: {
-          type: 'object', additionalProperties: false,
-          properties: {
-            k: { type: 'string' },
-            m: { type: 'string' },
-            p: responseSchema.properties.p,
-            q: responseSchema.properties.q
-          },
-          required: ['k', 'm', 'p', 'q']
-        }
-      }
-    },
-    required: ['g']
-  };
-  const summaryResponseSchema = {
-    type: 'object', additionalProperties: false,
-    properties: { m: { type: 'string' } },
-    required: ['m']
-  };
-  const compactGroupedResponseInstructions = `${compactResponseInstructions.replace('トップレベルはm=回答文、p=提案配列、q=確認質問配列です。', 'トップレベルはg=上位クラス別回答配列です。各回答はk=入力analysisGroupsのkey、m=回答文、p=提案配列、q=確認質問配列です。')} 各analysisGroups.keyをちょうど1回ずつ返し、異なるグループの変更案を混ぜないでください。`;
-
+  // APIの短縮出力形式と内部データ形式の境界はai-client.jsに集約します。
   const keyInput = document.getElementById('ai-api-key');
   const fullGraphScopeToggle = document.getElementById('ai-full-graph-scope');
   const settingsDialog = document.getElementById('edit-settings-dialog');
@@ -198,6 +135,7 @@ import { filterPromptExamples } from './prompt-examples.js?v=20261105-selection-
   const defaultPromptExamples = [
     { id: 'common-summary', title: '選択範囲を要約', prompt: '選択中のクラスとその親子関係を要約してください。各クラスの役割と、分類の特徴が分かるように説明してください。変更案は出さないでください。', showWhen: { always: true } },
     { id: 'common-classification-check', title: '分類の問題を確認', prompt: '選択範囲を確認し、明確な分類ミス、重複、または不自然な親子関係があれば、対象と根拠を示してください。判断が難しいものは問題として扱わないでください。', showWhen: { always: true } },
+    { id: 'unclassified-review', title: '未分類を整理', prompt: '未分類（t_0）直下の対象クラスを確認し、既存の上位・中間クラスへ分類できるものだけ、移動先と理由を提案してください。判断が難しいものや既存の分類に合わないものは未分類のままにし、新しいクラスは追加しないでください。', showWhen: { unclassified: true } },
     { id: 'target-membership', title: '所属を見直す', prompt: '選択中の対象クラスについて、現在の所属が内容に合っているか確認してください。移動が明確に必要なものだけ、既存の移動先と理由を提案してください。判断できないものは変更しないでください。', showWhen: { selectionTypes: ['target'] } },
     { id: 'target-destination-compare', title: '移動先を比較', prompt: '選択中の対象クラスごとに、既存の移動先候補を比較してください。最も適切な候補と判断理由を示し、候補間に明確な差がない場合は移動を提案しないでください。', showWhen: { selectionTypes: ['target'] } },
     { id: 'target-similarity', title: '似た対象を確認', prompt: '選択中の対象クラス同士に、内容の重複や強い類似があるか確認してください。該当するものだけを示し、似ていると判断した根拠を説明してください。', showWhen: { selectionTypes: ['target'], minSelected: 2 } },
@@ -230,16 +168,29 @@ import { filterPromptExamples } from './prompt-examples.js?v=20261105-selection-
     const selectedClasses = selectionRoots.map((id) => classesById.get(id)).filter(Boolean);
     const selectedTypes = new Set(selectedClasses.map((item) => item.type === 'class' ? 'target' : item.type));
     const selectedParents = new Set(selectionRoots.map((id) => parentByChild.get(id) ?? null));
+    const unclassifiedId = state.classes.find((item) => item.type === 'top' && item.label === '未分類')?.id;
+    const belongsToUnclassified = (id) => {
+      const seen = new Set();
+      let currentId = id;
+      while (currentId && !seen.has(currentId)) {
+        if (currentId === unclassifiedId) return true;
+        seen.add(currentId);
+        currentId = parentByChild.get(currentId);
+      }
+      return false;
+    };
     const context = {
       selectedCount: selectionRoots.length,
       selectedTypes,
       differentParents: selectedParents.size > 1,
+      unclassifiedSelected: Boolean(unclassifiedId && selectionRoots.some(belongsToUnclassified)),
       fullGraph: isFullGraphScopeEnabled()
     };
     const contextKey = JSON.stringify({
       selectedCount: context.selectedCount,
       selectedTypes: [...context.selectedTypes].sort(),
       differentParents: context.differentParents,
+      unclassifiedSelected: context.unclassifiedSelected,
       fullGraph: context.fullGraph
     });
     if (lastRenderedPromptExamples === examples && lastPromptExampleContext === contextKey) return;
@@ -737,6 +688,15 @@ let proposalPreview = null;
     const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
     return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
   };
+  const { responseFormat, createIdCodec, shortenInputIds, responsesClient } = createAIClient({
+    editor,
+    outputLimits: AI_OUTPUT_LIMITS,
+    digest
+  });
+  const {
+    responseSchema, groupedResponseSchema, summaryResponseSchema,
+    compactResponseInstructions, compactGroupedResponseInstructions
+  } = responseFormat;
   const currentDataHash = async () => digest(JSON.stringify({ version: sourceDataVersion, state: stableState() }));
   const verifyLoadedDataVersion = async () => {
     if (sourceDataVersionPromise) await sourceDataVersionPromise;
@@ -745,33 +705,6 @@ let proposalPreview = null;
     const latest = (await response.text()).trim();
     if (!latest || !sourceDataVersion) throw new Error('クラスデータの版情報を取得できません。');
     if (latest !== sourceDataVersion) throw new Error('編集画面を開いた後にデータ版が更新されています。ページを再読み込みしてから依頼してください。');
-  };
-  const readResponseText = (response) => {
-    if (typeof response.output_text === 'string') return response.output_text;
-    for (const item of response.output || []) {
-      for (const content of item.content || []) {
-        if (content.type === 'output_text' && typeof content.text === 'string') return content.text;
-      }
-    }
-    throw new Error('AIから読み取れるテキストが返りませんでした。もう一度依頼してください。');
-  };
-  // 短縮されたAPI応答を、画面とresponse-handler.jsが使う名前付きオブジェクトへ戻します。
-  const expandCompactResponse = (wire) => {
-    const operationTypes = { a: 'addClass', r: 'renameClass', m: 'moveClass', mc: 'moveChildren', d: 'deleteClass' };
-    return {
-      message: wire.m,
-      proposals: wire.p.map((proposal) => ({
-        id: proposal.i, title: proposal.t, summary: proposal.s, reason: proposal.r,
-        questions: proposal.q, uncertainties: proposal.u,
-        operations: proposal.o.map((operation) => ({
-          type: operationTypes[operation.t], classType: operation.ct, temporaryId: operation.tmp,
-          label: operation.l, parentId: operation.p, classId: operation.c,
-          destinationId: operation.dst, from: operation.f, to: operation.to
-        }))
-      })),
-      questions: wire.q,
-      dataRequests: []
-    };
   };
   const normalizeQuestionForDeduplication = (value) => String(value || '')
     .normalize('NFKC')
@@ -799,34 +732,12 @@ let proposalPreview = null;
     });
     return unique;
   };
-  const parseAIResponse = (response, grouped = false, summaryOnly = false) => {
-    if (response.status === 'incomplete') {
-      const reason = response.incomplete_details?.reason;
-      if (reason === 'max_output_tokens') {
-        throw new Error('AIの返答が出力上限に達して途中で終わりました。確認事項への回答は保持されています。選択範囲を小さくして、もう一度送信してください。');
-      }
-      throw new Error('AIの返答が完了しなかったため、変更案を読み取れませんでした。確認事項への回答は保持されています。もう一度送信してください。');
-    }
-    try {
-      const wire = JSON.parse(readResponseText(response));
-      if (summaryOnly) return { message: wire.m, proposals: [], questions: [], dataRequests: [] };
-      return grouped
-        ? { groups: wire.g.map((item) => ({ key: item.k, ...expandCompactResponse({ m: item.m, p: item.p, q: item.q }) })) }
-        : expandCompactResponse(wire);
-    } catch (error) {
-      if (error instanceof SyntaxError) {
-        throw new Error('AIの返答形式が不完全で、変更案を読み取れませんでした。確認事項への回答は保持されています。依頼を短くするか、選択範囲を小さくしてもう一度送信してください。');
-      }
-      throw error;
-    }
-  };
   const compactScope = (scope) => {
     const idCodec = createIdCodec();
     const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
     const scopeClassIds = new Set(scope.classes.map(({ id }) => id));
     const roots = new Set(scope.selectionRoots || scope.selectedIds || []);
     const editable = new Set(scope.editableIds || []);
-    const shared = new Set(scope.sharedContextIds || []);
     return {
       mode: scope.mode || 'selected_scope',
       scopeCoverage: scope.scopeCoverage || 'selected_classes',
@@ -835,7 +746,6 @@ let proposalPreview = null;
         let role = '';
         if (roots.has(id)) role += 'r';
         if (editable.has(id)) role += 'e';
-        if (shared.has(id)) role += 's';
         if (!role) role = 'c';
         const resolvedParentId = parentId ?? parentByChild.get(id);
         const resolvedParentLabel = resolvedParentId && !scopeClassIds.has(resolvedParentId) ? parentLabel || null : null;
@@ -844,7 +754,7 @@ let proposalPreview = null;
       targetContext: scope.targetContext || { descendantTargetClassCounts: {} }
     };
   };
-  const shortenInputIds = (input) => createIdCodec().shortenText(input);
+  const chunkSynthesizer = createChunkSynthesizer({ MAX_REQUEST_CHARACTERS });
   const diffScope = (before, after) => {
     const current = compactScope(after);
     if (!before) return { kind: 'initial_snapshot', data: current };
@@ -871,12 +781,10 @@ let proposalPreview = null;
       const parents = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
       const roots = new Set(scope.selectionRoots || scope.selectedIds);
       const editable = new Set(scope.editableIds);
-      const shared = new Set(scope.sharedContextIds || []);
       return new Map(scope.classes.map((item) => {
         let role = '';
         if (roots.has(item.id)) role += 'r';
         if (editable.has(item.id)) role += 'e';
-        if (shared.has(item.id)) role += 's';
         if (!role) role = 'c';
         const parentId = item.parentId ?? parents.get(item.id) ?? null;
         const parentLabel = parentId && !scope.classes.some((entry) => entry.id === parentId) ? item.parentLabel || null : null;
@@ -1562,6 +1470,11 @@ let proposalPreview = null;
     if (!systemPrompt) { setStatus('AIプロンプトを読み込めないため依頼を送信できません。', 'error'); return; }
     const conversation = currentConversation;
     conversation.workflowStatus = '';
+    const isGeneratedFollowup = (text) => /^(?:確認事項への回答です|追加クラス情報の共有を許可します|追加クラス情報の共有は許可しません)/.test(text);
+    const originalOperationRequest = [...conversation.items].reverse()
+      .find((item) => item.type === 'message' && item.role === 'user' && !isGeneratedFollowup(item.text))?.text || '';
+    const operationRequestText = isGeneratedFollowup(userText) && originalOperationRequest
+      ? `${originalOperationRequest}\n${userText}` : userText;
     const currentSelectedIds = [...editor.selectedIds].sort();
     const previousSelectedIds = [...(conversation.selectedIds || [])].sort();
     const selectionChanged = JSON.stringify(currentSelectedIds) !== JSON.stringify(previousSelectedIds);
@@ -1576,9 +1489,6 @@ let proposalPreview = null;
     try { scope = getPayloadSnapshot([...previouslySharedIds, ...additionalContextIds], includeAllClasses); } catch (error) { logAiProblem('送信範囲の作成', error); setStatus(error.message, 'error'); return; }
     if (!scope) { setStatus('保持欄でクラスを選択するか、「全上位・中間クラスを参照」を有効にしてください。', 'error'); return; }
     if (wantsClassificationOptimization) {
-      const hierarchyIds = scope.classes.filter((item) => ['top', 'middle'].includes(item.type)).map((item) => item.id);
-      scope.editableIds = [...new Set([...scope.editableIds, ...hierarchyIds])];
-      scope.sharedContextIds = (scope.sharedContextIds || []).filter((id) => !hierarchyIds.includes(id));
       scope.allowHierarchyEdits = true;
     }
     try { await verifyLoadedDataVersion(); }
@@ -1732,54 +1642,23 @@ let proposalPreview = null;
     let requestSucceeded = false;
     try {
       activeRequestController = new AbortController();
-      // 範囲別指示をデータJSONから分離して共通プロンプトの後ろへ置き、
-      // 同じ処理モードの依頼でプロンプト先頭を揃えてキャッシュを使いやすくします。
       const sendApiRequest = async (input, previousResponseId = '', maxOutputTokens = MAX_OUTPUT_TOKENS,
         stage = userText.startsWith('確認事項への回答です') ? '追加情報の回答を送信中' : '回答・変更案を作成中', grouped = false, summaryOnly = false, promptOverride = '') => {
-        const requestPayload = JSON.parse(input);
-        const requestPolicies = ['instruction', 'proposalPolicy', 'responsePolicy']
-          .map((key) => typeof requestPayload[key] === 'string' ? requestPayload[key].trim() : '')
-          .filter(Boolean);
-        ['instruction', 'proposalPolicy', 'responsePolicy'].forEach((key) => { delete requestPayload[key]; });
-        const apiInput = summaryOnly ? JSON.stringify(requestPayload) : shortenInputIds(JSON.stringify(requestPayload));
-        const formatInstructions = summaryOnly
-          ? 'JSON形式でmキーに統合後の返答文だけを返してください。'
-          : grouped ? compactGroupedResponseInstructions : compactResponseInstructions;
-        const instructions = [promptOverride || systemPrompt, formatInstructions, ...requestPolicies].join('\n\n');
-        const promptCacheKey = `class-editor-ai-${(await digest(`${modelSelect.value}\n${instructions}`)).slice(0, 48)}`;
-        const body = {
-          model: modelSelect.value,
-          reasoning: { effort: 'low' },
-          instructions,
-          input: apiInput,
-          text: { format: { type: 'json_schema', name: summaryOnly ? 'class_edit_summary' : grouped ? 'class_edit_group_results' : 'class_edit_proposals', strict: true,
-            schema: summaryOnly ? summaryResponseSchema : grouped ? groupedResponseSchema : responseSchema } },
-          max_output_tokens: maxOutputTokens,
-          prompt_cache_key: promptCacheKey,
-          store: true
-        };
-        if (previousResponseId) body.previous_response_id = previousResponseId;
-        setThinkingStage(conversation, stage);
-        const responseBody = await sendOpenAIRequest({
+        const response = await responsesClient.send(input, {
           apiKey: key,
-          body,
-          signal: activeRequestController.signal
+          model: modelSelect.value,
+          systemPrompt,
+          previousResponseId,
+          maxOutputTokens,
+          stage,
+          grouped,
+          summaryOnly,
+          promptOverride,
+          signal: activeRequestController.signal,
+          onStage: (nextStage) => setThinkingStage(conversation, nextStage),
+          onUsage: recordUsage
         });
-        recordUsage(responseBody);
-        setThinkingStage(conversation, '結果を処理中');
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-        const result = parseAIResponse(responseBody, grouped, summaryOnly);
-        const restoreId = createIdCodec().restore;
-        const responseGroups = grouped ? result.groups : [result];
-        responseGroups.forEach((group) => {
-          (group.dataRequests || []).forEach((request) => { if (request.classId) request.classId = restoreId(request.classId); });
-          group.proposals.forEach((proposal) => proposal.operations.forEach((operation) => {
-            ['parentId', 'classId', 'destinationId', 'from', 'to'].forEach((key) => {
-              if (operation[key]) operation[key] = restoreId(operation[key]);
-            });
-          }));
-        });
-        return { responseBody, result };
+        return response;
       };
       const retryCompleteScopeDataRequest = async (response, isChunk = false) => {
         responseHandler.validatePayload(response.result, baseDataHash);
@@ -1811,6 +1690,7 @@ let proposalPreview = null;
       const proposalScopes = new Map();
       const proposalPreviewScopes = new Map();
       const proposalAvailableScopes = new Map();
+      const proposalOperationPolicies = new Map();
       let completeCoverageRetryFailed = false;
       if (splitTasks) {
         result = { baseDataHash, message: '', proposals: [], questions: [], dataRequests: [] };
@@ -1826,6 +1706,7 @@ let proposalPreview = null;
         const processSplitUnit = (unit, index, unitResult, repairFailed = false) => {
           responseHandler.validatePayload(unitResult, baseDataHash);
           responseHandler.normalizeDuplicateClassOperations(unitResult, unit.scope.classes.map((item) => item.id));
+          const operationPolicy = createOperationPolicy({ requestText: operationRequestText, taskKind: unit.kind, scope: unit.scope });
           const cacheResult = structuredClone(unitResult);
           chunkResults[index] = cacheResult;
           nextChunkCache.push({ key: chunkKeys[index], result: cacheResult });
@@ -1833,7 +1714,7 @@ let proposalPreview = null;
           unitResult.proposals.forEach((proposal, proposalIndex) => {
             proposal.id = `part${index + 1}_proposal${proposalIndex + 1}`;
           });
-          const discardedOperationCount = responseHandler.validateSplitTaskOperations(unitResult, unit);
+          const discardedOperationCount = responseHandler.enforceOperationPolicy(unitResult, unit.scope, operationPolicy);
           responseHandler.suppressNoopMoveOperations(unitResult, unit.scope);
           if (discardedOperationCount) splitWarnings.add(`${discardedOperationCount}件の範囲外操作を除外しました。表示される変更案を確認してください。`);
           if (unitResult.message && (scope.scopeCoverage !== 'all_classes' || hasEditableTargetClasses(unit))) {
@@ -1844,7 +1725,7 @@ let proposalPreview = null;
           unitResult.proposals.forEach((proposal) => {
             if (proposal.operations.length) {
               try {
-                editor.applyOperations(proposal.operations, fingerprintBeforeRequest, unit.scope.editableIds, unit.scope.classes.map((item) => item.id));
+                editor.applyOperations(proposal.operations, fingerprintBeforeRequest, unit.scope.editableIds, unit.scope.classes.map((item) => item.id), operationPolicy);
               } catch (error) {
                 logAiProblem(`分割${index + 1}の提案検証`, error, 'warn');
                 proposal.operations = [];
@@ -1855,6 +1736,7 @@ let proposalPreview = null;
             proposalScopes.set(proposal.id, [...unit.scope.editableIds]);
             proposalPreviewScopes.set(proposal.id, unit.scope.classes.map((item) => item.id));
             proposalAvailableScopes.set(proposal.id, unit.scope.classes.map((item) => item.id));
+            proposalOperationPolicies.set(proposal.id, operationPolicy);
           });
         };
         const unitIndex = new Map(splitTasks.map((task, index) => [task, index]));
@@ -1918,72 +1800,19 @@ let proposalPreview = null;
             const scopeLabel = rootIds.map((id) => classById.get(id)?.label).filter(Boolean).join('・');
             return [{ chunk: index + 1, scope: scopeLabel || `分割 ${index + 1}`, message: String(part.message) }];
           });
-          const buildSynthesisInput = (entries, round) => JSON.stringify({
-            request: userText,
-            scopeCoverage: 'chunk_synthesis',
-            sourceScopeCoverage: scope.scopeCoverage,
-            synthesisRound: round,
-            results: entries
-          });
-          const packSynthesisInputs = (entries, round) => {
-            const batches = [];
-            let current = [];
-            for (const entry of entries) {
-              const candidate = [...current, entry];
-              if (buildSynthesisInput(candidate, round).length <= MAX_REQUEST_CHARACTERS) current = candidate;
-              else {
-                if (!current.length) return null;
-                batches.push(current);
-                current = [entry];
-                if (buildSynthesisInput(current, round).length > MAX_REQUEST_CHARACTERS) return null;
-              }
-            }
-            if (current.length) batches.push(current);
-            return batches;
-          };
           const synthesisPrompt = await synthesisPromptPromise;
-          let synthesisEntries = chunkAssessments;
-          let synthesisInput = synthesisPrompt && synthesisEntries.length
-            ? buildSynthesisInput(synthesisEntries, 1) : '';
-          let synthesisRound = 1;
-          let synthesisReady = Boolean(synthesisInput) && synthesisInput.length <= MAX_REQUEST_CHARACTERS;
-          if (!synthesisReady && synthesisPrompt && synthesisEntries.length) {
-            const batches = packSynthesisInputs(synthesisEntries, 1);
-            synthesisReady = Boolean(batches);
-          }
-          if (synthesisReady) {
-            setThinkingStage(conversation, '結果を統合中', '');
-            try {
-              while (true) {
-                const batches = packSynthesisInputs(synthesisEntries, synthesisRound);
-                if (!batches) throw new Error('分割回答の全文を統合入力に収められません。');
-                const merged = [];
-                for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
-                  setThinkingStage(conversation, '結果を統合中', batches.length > 1 ? `${batchIndex + 1}/${batches.length}統合単位` : '');
-                  const payload = buildSynthesisInput(batches[batchIndex], synthesisRound);
-                  const synthesis = await sendApiRequest(payload, '', SYNTHESIS_OUTPUT_TOKENS, '結果を統合中', false, true, synthesisPrompt);
-                  const text = String(synthesis.result.message || '').trim();
-                  if (!text) throw new Error('統合AIから文章が返りませんでした。');
-                  merged.push({ scope: batches.length > 1 ? `統合結果 ${batchIndex + 1}` : '統合結果', message: text });
-                }
-                if (merged.length === 1) {
-                  result.message = [merged[0].message, ...splitWarnings].filter(Boolean).join('\n');
-                  break;
-                }
-                synthesisEntries = merged;
-                synthesisRound += 1;
-              }
-            } catch (error) {
-              logAiProblem('分割結果の全体統合', error, 'warn');
-              result.message = scope.scopeCoverage === 'all_classes'
-                ? '全体を分割して評価しましたが、分割回答の統合に失敗しました。以下に分割ごとの回答を表示します。全体を横断した整合性確認は完了していません。'
-                : [result.message, '分割回答の統合に失敗したため、以下は分割ごとの回答です。']
-                  .filter(Boolean).join('\n');
-            }
-          } else {
-            result.message = [result.message, '分割回答の全文を統合入力に収められなかったため、以下は分割ごとの回答です。']
-                .filter(Boolean).join('\n');
-          }
+          const synthesis = await chunkSynthesizer.synthesize({
+            request: userText,
+            sourceScopeCoverage: scope.scopeCoverage,
+            initialMessage: result.message,
+            assessments: chunkAssessments,
+            warnings: [...splitWarnings],
+            prompt: synthesisPrompt,
+            send: (payload, prompt) => sendApiRequest(payload, '', SYNTHESIS_OUTPUT_TOKENS, '結果を統合中', false, true, prompt),
+            onProgress: (current, total) => setThinkingStage(conversation, '結果を統合中', total > 1 ? `${current}/${total}統合単位` : ''),
+            onError: (error) => logAiProblem('分割結果の全体統合', error, 'warn')
+          });
+          result.message = synthesis.message;
         }
         conversation.splitMemory = result.dataRequests.length || splitRepairFailed
           ? null : buildAnalysisMemory(scope, splitTasks, chunkResults, result, baseDataHash,
@@ -2003,13 +1832,14 @@ let proposalPreview = null;
         if (!responseId && !usesAnalysisMemory) throw new Error('会話IDを取得できませんでした。新しい相談からやり直してください。');
         responseHandler.validatePayload(result, baseDataHash);
         responseHandler.normalizeDuplicateClassOperations(result, scope.classes.map((item) => item.id));
-        responseHandler.removeOperationsWithoutEditableScope(result, scope);
+        const operationPolicy = createOperationPolicy({ requestText: operationRequestText, taskKind: 'selected_scope', scope });
+        responseHandler.enforceOperationPolicy(result, scope, operationPolicy);
         responseHandler.suppressNoopMoveOperations(result, scope);
         if (usesAnalysisMemory) {
           result.proposals.forEach((proposal) => {
             if (!proposal.operations.length) return;
             try {
-              editor.applyOperations(proposal.operations, fingerprintBeforeRequest, scope.editableIds, scope.classes.map((item) => item.id));
+              editor.applyOperations(proposal.operations, fingerprintBeforeRequest, scope.editableIds, scope.classes.map((item) => item.id), operationPolicy);
             } catch (error) {
               logAiProblem('分析要約を使った提案の検証', error, 'warn');
               proposal.operations = [];
@@ -2049,6 +1879,7 @@ let proposalPreview = null;
           proposalScopes.set(proposal.id, [...scope.editableIds]);
           proposalPreviewScopes.set(proposal.id, scope.classes.map((item) => item.id));
           proposalAvailableScopes.set(proposal.id, scope.classes.map((item) => item.id));
+          proposalOperationPolicies.set(proposal.id, operationPolicy);
         });
         if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
       }
@@ -2113,6 +1944,7 @@ let proposalPreview = null;
           editableIds: proposalScopes.get(proposal.id) || [...scope.editableIds],
           availableIds: proposalAvailableScopes.get(proposal.id) || scope.classes.map((item) => item.id),
           previewClassIds: proposalPreviewScopes.get(proposal.id) || scope.classes.map((item) => item.id),
+          operationPolicy: proposalOperationPolicies.get(proposal.id) || createOperationPolicy({ requestText: operationRequestText, taskKind: 'selected_scope', scope }),
           baseDataHash,
           status: awaitingAnswers ? 'awaiting-answers' : 'pending'
         });

@@ -919,9 +919,9 @@ export const createProposalPreview = ({
     }
     const activeOperations = operations.filter((_, index) => !proposalItem.excludedOperationIndexes.has(index));
     const proposedCandidate = isApplied ? proposalItem.appliedPreviewSnapshot.after
-      : editor.applyOperations(operations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds);
+      : editor.applyOperations(operations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds, proposalItem.operationPolicy);
     const candidate = isApplied || activeOperations.length === operations.length ? proposedCandidate
-      : editor.applyOperations(activeOperations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds);
+      : editor.applyOperations(activeOperations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds, proposalItem.operationPolicy);
     const expectedBaseHash = isApplied ? '' : previewBaseHash;
     if (proposalItem.status === 'stale') {
       proposalItem.baseDataHash = expectedBaseHash;
@@ -1214,7 +1214,7 @@ export const createProposalPreview = ({
     await verifyLoadedDataVersion();
     const currentHash = await currentDataHash();
     if (currentHash !== plan.expectedBaseHash) throw new Error('提案の作成後にデータが変更されました。最新データで提案し直してください。');
-    const candidate = editor.applyOperations(plan.operations, plan.expectedFingerprint, currentProposal.editableIds, currentProposal.availableIds);
+    const candidate = editor.applyOperations(plan.operations, plan.expectedFingerprint, currentProposal.editableIds, currentProposal.availableIds, currentProposal.operationPolicy);
     const beforeSnapshot = editor.getState();
     currentProposal.appliedPreviewSnapshot = {
       before: { classes: beforeSnapshot.classes.map((item) => ({ ...item })), relations: beforeSnapshot.relations.map((item) => ({ ...item })), counts: beforeSnapshot.counts },

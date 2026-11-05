@@ -71,12 +71,15 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         const taskScope = {
           mode: 'selected_scope',
           scopeCoverage: 'all_classes_chunk',
-          selectedIds: scope.selectedIds.filter((id) => targetIds.has(id)),
-          selectionRoots: targets.map((item) => item.id),
+          selectedIds: scope.selectedIds.filter((id) => includedIds.has(id)),
+          selectionRoots: (scope.selectionRoots || scope.selectedIds).filter((id) => includedIds.has(id)),
           sharedContextIds: (scope.sharedContextIds || []).filter((id) => hierarchyIds.has(id)),
-          editableIds: scope.allowHierarchyEdits
-            ? [...new Set([...groupHierarchy.map((item) => item.id), ...targets.map((item) => item.id)])]
-            : targets.map((item) => item.id),
+          editableIds: [...new Set([
+            ...groupHierarchy
+              .filter((item) => scope.editableIds.includes(item.id))
+              .map((item) => item.id),
+            ...targets.map((item) => item.id)
+          ])],
           classes: [...groupHierarchy, ...targets],
           relations: scope.relations.filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
           counts: Object.fromEntries([...includedIds].filter((id) => Object.prototype.hasOwnProperty.call(scope.counts || {}, id)).map((id) => [id, scope.counts[id]])),
@@ -133,7 +136,9 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
       ? {
         ...scope,
         mode: 'hierarchy_scope',
-        editableIds: scope.classes.filter((item) => ['top', 'middle'].includes(item.type)).map((item) => item.id),
+        editableIds: scope.classes
+          .filter((item) => ['top', 'middle'].includes(item.type) && scope.editableIds.includes(item.id))
+          .map((item) => item.id),
         allowHierarchyEdits: true
       }
       : editor.getHierarchyScopedState(scope.selectedIds);
@@ -433,3 +438,99 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     };
     return { buildUserContent, makeLargeScopePlan, packAnalysisUnits };
 };
+
+// 分割回答の文章だけを、専用の統合依頼でまとめます。
+// チャンクの検証・提案・会話状態は呼び出し側が管理します。
+export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS }) => {
+  const buildInput = (request, sourceScopeCoverage, entries, round) => JSON.stringify({
+    request,
+    scopeCoverage: 'chunk_synthesis',
+    sourceScopeCoverage,
+    synthesisRound: round,
+    results: entries
+  });
+
+  const packInputs = (entries, round, request, sourceScopeCoverage) => {
+    const batches = [];
+    let current = [];
+    for (const entry of entries) {
+      const candidate = [...current, entry];
+      if (buildInput(request, sourceScopeCoverage, candidate, round).length <= MAX_REQUEST_CHARACTERS) current = candidate;
+      else {
+        if (!current.length) return null;
+        batches.push(current);
+        current = [entry];
+        if (buildInput(request, sourceScopeCoverage, current, round).length > MAX_REQUEST_CHARACTERS) return null;
+      }
+    }
+    if (current.length) batches.push(current);
+    return batches;
+  };
+
+  const synthesize = async ({ request, sourceScopeCoverage, initialMessage, assessments, warnings = [], prompt,
+    send, onProgress = () => {}, onError = () => {} }) => {
+    let entries = assessments;
+    let round = 1;
+    const maxRounds = 8;
+    const initialInput = prompt && entries.length ? buildInput(request, sourceScopeCoverage, entries, round) : '';
+    let ready = Boolean(initialInput) && initialInput.length <= MAX_REQUEST_CHARACTERS;
+    if (!ready && prompt && entries.length) ready = Boolean(packInputs(entries, round, request, sourceScopeCoverage));
+
+    if (!ready) {
+      return {
+        message: [initialMessage, '分割回答の全文を統合入力に収められなかったため、以下は分割ごとの回答です。']
+          .filter(Boolean).join('\n')
+      };
+    }
+
+    try {
+      while (true) {
+        if (round > maxRounds) throw new Error('分割回答の統合が所定回数で完了しませんでした。');
+        const batches = packInputs(entries, round, request, sourceScopeCoverage);
+        if (!batches) throw new Error('分割回答の全文を統合入力に収められません。');
+        const previousSize = entries.reduce((size, entry) => size + JSON.stringify(entry).length, 0);
+        const merged = [];
+        for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+          onProgress(batchIndex + 1, batches.length);
+          const payload = buildInput(request, sourceScopeCoverage, batches[batchIndex], round);
+          const synthesis = await send(payload, prompt);
+          const text = String(synthesis.result.message || '').trim();
+          if (!text) throw new Error('統合AIから文章が返りませんでした。');
+          merged.push({ scope: batches.length > 1 ? `統合結果 ${batchIndex + 1}` : '統合結果', message: text });
+        }
+        if (merged.length === 1) {
+          return { message: [merged[0].message, ...warnings].filter(Boolean).join('\n') };
+        }
+        const mergedSize = merged.reduce((size, entry) => size + JSON.stringify(entry).length, 0);
+        if (merged.length >= entries.length && mergedSize >= previousSize) {
+          throw new Error('分割回答の統合結果が小さくならなかったため、統合を中断しました。');
+        }
+        entries = merged;
+        round += 1;
+      }
+    } catch (error) {
+      onError(error);
+      return {
+        message: sourceScopeCoverage === 'all_classes'
+          ? ['全体を分割して評価しましたが、分割回答の統合に失敗しました。以下に分割ごとの回答を表示します。全体を横断した整合性確認は完了していません。', initialMessage]
+            .filter(Boolean).join('\n\n')
+          : [initialMessage, '分割回答の統合に失敗したため、以下は分割ごとの回答です。'].filter(Boolean).join('\n')
+      };
+    }
+  };
+
+  return { synthesize };
+};
+
+// 選択範囲と全体参照設定に合わせて、プロンプト例を絞り込みます。
+export const filterPromptExamples = (examples, context) => examples.filter((example) => {
+  const condition = example?.showWhen;
+  if (!condition || condition.always) return true;
+  if (condition.unclassified && !context.unclassifiedSelected) return false;
+  if (condition.fullGraph && !context.fullGraph) return false;
+  if (Number.isFinite(condition.minSelected) && context.selectedCount < condition.minSelected) return false;
+  if (condition.selectionTypes?.some((type) => !context.selectedTypes.has(type))) return false;
+  if (condition.differentParents && !context.differentParents) return false;
+  return true;
+});
+

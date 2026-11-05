@@ -1,3 +1,79 @@
+// AIの依頼意図と分割タスクから、許可する操作を一元的に決めます。
+const ALL_OPERATIONS = ['addClass', 'renameClass', 'moveClass', 'moveChildren', 'deleteClass'];
+
+const asksForNoChanges = (text) => /変更案(?:は|を)?(?:出さない|作らない|不要|いらない)|提案(?:は|を)(?:出さない|作らない|不要|いらない|しない)|(?:要約|説明|評価|比較|確認)だけ|^(?:今回は)?提案しない/.test(text);
+const asksForChanges = (text) => /(?:変更案|提案|移動(?:案|して|させて|先を)|追加(?:案|して|する)|新設(?:案|して|する)|作成(?:案|して|する)|作って|設けて|改名(?:案|して|する)|削除(?:案|して|する|を許可|を認め)|統合(?:案|して|する|が明確|を検討|を許可|や改名)|分割(?:案|して|する)|再編(?:案|して|する)|再構成(?:案|して|する)|振り分け(?:案|て|る)|分類(?:案|して|し直して|する)|見直(?:案|して|す)|最適化(?:案|して|する)|整理(?:案|して|する)|改善(?:案|して|する)|整えて|変更(?:案|して|する)|検討して|検討し|(?:必要なら|可能なら|必要に応じて).{0,12}(?:削除|統合))/.test(text);
+const explicitlyAllowsDeletion = (text) => !/(?:削除|消去|取り除).{0,8}(?:しない|不要|禁止|出さない)/.test(text)
+  && (/(?:削除|消去|取り除)(?:案|を検討|を提案|を出し|を許可|を認め|して|したい|してください|が必要)/.test(text)
+    || /統合.{0,12}(?:が明確|を検討|して|案|する|したい|を許可|を認め|が適切|が妥当)/.test(text)
+    || /(?:必要なら|可能なら|必要に応じて).{0,12}(?:削除|統合)/.test(text));
+
+const requestedOperationTypes = (text) => {
+  if (/(?:最適化|再編|再構成|体系.{0,8}整理|構造.{0,8}整理)/.test(text)) {
+    return ALL_OPERATIONS.filter((type) => type !== 'deleteClass' || explicitlyAllowsDeletion(text));
+  }
+  const types = new Set();
+  if (/(?:新設|作成|追加|作って|設けて|分割|新しい.{0,12}(?:クラス|まとまり))/.test(text)) types.add('addClass');
+  if (/(?:改名|名称変更|変更後の名称|名前を変|命名)/.test(text)) types.add('renameClass');
+  if (/(?:移動|移す|移し|再分類|振り分け|所属.{0,8}(?:変|見直|整理))/.test(text)) types.add('moveClass');
+  if (/(?:配下.{0,8}(?:まとめ|一括)|(?:すべて|全て).{0,8}子)/.test(text)) types.add('moveChildren');
+  if (explicitlyAllowsDeletion(text)) {
+    types.add('deleteClass');
+    types.add('moveClass');
+    types.add('moveChildren');
+  }
+  if (!types.size && asksForChanges(text)) return ALL_OPERATIONS.filter((type) => type !== 'deleteClass');
+  return [...types];
+};
+
+export const createOperationPolicy = ({ requestText = '', taskKind = 'selected_scope', scope = {} }) => {
+  const request = String(requestText);
+  let allowedTypes = asksForNoChanges(request) || !asksForChanges(request) ? [] : requestedOperationTypes(request);
+  let addClassTypes = ['top', 'middle'];
+  let moveSourceTypes = ['top', 'middle', 'class'];
+  let allowDelete = allowedTypes.includes('deleteClass') && explicitlyAllowsDeletion(request);
+
+  if (taskKind === 'upper_class_unit' || taskKind === 'upper_class_targets') {
+    allowedTypes = allowedTypes.filter((type) => ['addClass', 'moveClass', ...(taskKind === 'upper_class_unit' && scope.allowHierarchyEdits ? ['renameClass', 'moveChildren'] : [])].includes(type));
+    addClassTypes = ['middle'];
+    moveSourceTypes = taskKind === 'upper_class_unit' && scope.allowHierarchyEdits
+      ? ['top', 'middle', 'class'] : ['class'];
+    allowDelete = false;
+  } else if (taskKind === 'hierarchy') {
+    moveSourceTypes = ['top', 'middle'];
+    allowedTypes = allowedTypes.filter((type) => type !== 'deleteClass' || allowDelete);
+  } else {
+    allowedTypes = allowedTypes.filter((type) => type !== 'deleteClass' || allowDelete);
+  }
+
+  return {
+    taskKind,
+    allowedTypes,
+    addClassTypes,
+    moveSourceTypes,
+    allowDelete,
+    requireAllDescendantsEditableForDelete: true
+  };
+};
+
+export const operationAllowedByPolicy = (operation, policy, classesById, editableIds) => {
+  if (!operation || !policy?.allowedTypes?.includes(operation.type)) return false;
+  if (operation.type === 'addClass') return policy.addClassTypes.includes(operation.classType);
+  if (operation.type === 'deleteClass' && !policy.allowDelete) return false;
+  if (operation.type === 'moveClass') {
+    const source = classesById.get(operation.classId);
+    return editableIds.has(operation.classId) && policy.moveSourceTypes.includes(source?.type);
+  }
+  if (operation.type === 'moveChildren') return editableIds.has(operation.from)
+    && classesById.get(operation.from)?.type === 'middle'
+    && policy.moveSourceTypes.includes('middle');
+  if (['renameClass', 'deleteClass'].includes(operation.type)) {
+    return editableIds.has(operation.classId) && policy.moveSourceTypes.includes(classesById.get(operation.classId)?.type);
+  }
+  return true;
+};
+
+
 // AI応答を内部形式で検証し、操作の安全性を確認します。
 // モデルの出力は検証が完了するまで編集データへ適用しません。
 export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQuestions }) => {
@@ -206,58 +282,62 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
       }
     });
   };
-  const removeOperationsWithoutEditableScope = (result, scope) => {
+  const enforceOperationPolicy = (result, scope, policy) => {
     const currentRelations = editor.getState()?.relations || scope.relations || [];
     const editableIds = new Set(scope.editableIds || []);
+    const classesById = new Map([...(editor.getState()?.classes || []), ...(scope.classes || [])].map((item) => [item.id, item]));
+    const childrenByParent = new Map();
+    currentRelations.forEach(({ child, parent }) => {
+      if (!childrenByParent.has(parent)) childrenByParent.set(parent, []);
+      childrenByParent.get(parent).push(child);
+    });
+    const hasUneditableDescendant = (id) => {
+      const queue = [...(childrenByParent.get(id) || [])];
+      const seen = new Set();
+      while (queue.length) {
+        const childId = queue.pop();
+        if (seen.has(childId)) continue;
+        seen.add(childId);
+        if (!editableIds.has(childId)) return true;
+        queue.push(...(childrenByParent.get(childId) || []));
+      }
+      return false;
+    };
+    let totalRemovedCount = 0;
     result.proposals.forEach((proposal) => {
-      const editable = new Set(editableIds);
-      const parentByChild = new Map(currentRelations.map(({ child, parent }) => [child, parent]));
+      const proposalClassesById = new Map(classesById);
+      const proposalEditableIds = new Set(editableIds);
+      proposal.operations.forEach((operation) => {
+        if (operation.type === 'addClass' && operation.temporaryId && operation.classType) {
+          proposalClassesById.set(operation.temporaryId, { id: operation.temporaryId, type: operation.classType, label: operation.label });
+          proposalEditableIds.add(operation.temporaryId);
+        }
+      });
       let removedCount = 0;
       proposal.operations = proposal.operations.filter((operation) => {
-        if (operation.type === 'addClass') {
-          if (operation.temporaryId) editable.add(operation.temporaryId);
-          if (operation.classType === 'middle' && operation.temporaryId && operation.parentId) {
-            parentByChild.set(operation.temporaryId, operation.parentId);
-          }
-          return true;
-        }
-        if (!['renameClass', 'moveClass', 'moveChildren', 'deleteClass'].includes(operation.type)) return true;
-        const sourceId = operation.classId || operation.from;
-        if (!editable.has(sourceId)) {
-          removedCount += 1;
-          return false;
-        }
-        if (operation.type === 'moveClass') {
-          parentByChild.set(operation.classId, operation.destinationId);
-        } else if (operation.type === 'moveChildren') {
-          const children = [...parentByChild]
-            .filter(([, parent]) => parent === operation.from)
-            .map(([child]) => child);
-          if (children.some((child) => !editable.has(child))) {
-            removedCount += 1;
-            return false;
-          }
-          children.forEach((child) => parentByChild.set(child, operation.to));
-        } else if (operation.type === 'deleteClass') {
-          parentByChild.delete(operation.classId);
-        }
-        return true;
+        const allowed = operationAllowedByPolicy(operation, policy, proposalClassesById, proposalEditableIds)
+          && !(operation.type === 'deleteClass' && policy.requireAllDescendantsEditableForDelete
+            && hasUneditableDescendant(operation.classId));
+        if (!allowed) removedCount += 1;
+        return allowed;
       });
+      totalRemovedCount += removedCount;
       if (removedCount && proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal) {
-        const warning = '選択範囲外のクラスを変更する操作は除外しました。';
+        const warning = '依頼・分割範囲で許可されない操作、または選択範囲外のクラスに影響する操作は除外しました。';
         if (!proposal.uncertainties.includes(warning)) proposal.uncertainties.push(warning);
       }
     });
     const removedProposals = result.proposals.filter((proposal) => !proposal.operations.length && !proposal.questions.length);
     result.proposals = result.proposals.filter((proposal) => proposal.operations.length || proposal.questions.length);
     if (removedProposals.length) {
-      result.message = [result.message, '選択範囲外のクラスを変更する提案は適用できないため、該当する操作を除外しました。']
+      result.message = [result.message, '依頼・分割範囲で許可されない操作を含むため、該当する操作を除外しました。']
         .filter(Boolean).join('\n\n');
     }
     if (!editableIds.size && !result.proposals.some((proposal) => proposal.operations.length)) {
       result.message = [result.message, '変更できるクラスが選択されていません。変更案が必要な場合は対象クラスを選択してください。']
         .filter(Boolean).join('\n\n');
     }
+    return totalRemovedCount;
   };
   const resolveDataRequests = (requests, scope) => {
     const state = editor.getState();
@@ -381,105 +461,11 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
     });
     return { requests: [...resolved.values()], candidateGroups, unresolved: [...new Set(unresolved)], unavailableTargets: [...new Set(unavailableTargets)] };
   };
-  const validateSplitTaskOperations = (result, task) => {
-    const editable = new Set(task.scope.editableIds);
-    const classesById = new Map(task.scope.classes.map((item) => [item.id, item]));
-    let discardedOperationCount = 0;
-    result.proposals.forEach((proposal) => {
-      const originalOperationCount = proposal.operations.length;
-      const temporaryIds = new Set(proposal.operations
-        .filter((operation) => operation.type === 'addClass' && operation.temporaryId)
-        .map((operation) => operation.temporaryId));
-      const temporaryTypeById = new Map(proposal.operations
-        .filter((operation) => operation.type === 'addClass' && operation.temporaryId)
-        .map((operation) => [operation.temporaryId, operation.classType]));
-      const isDestination = (id) => {
-        const item = classesById.get(id);
-        return Boolean((item && ['top', 'middle'].includes(item.type)) || temporaryIds.has(id));
-      };
-      const allowed = proposal.operations.filter((operation) => {
-        if (task.kind === 'full_hierarchy_targets') {
-          if (task.scope.allowHierarchyEdits) {
-            if (operation.type === 'addClass') {
-              if (!['top', 'middle'].includes(operation.classType) || !operation.temporaryId) return false;
-              if (operation.classType === 'top') return !operation.parentId;
-              const parentType = classesById.get(operation.parentId)?.type || temporaryTypeById.get(operation.parentId);
-              return ['top', 'middle'].includes(parentType);
-            }
-            if (operation.type === 'renameClass') {
-              const source = classesById.get(operation.classId);
-              return editable.has(operation.classId) && ['top', 'middle'].includes(source?.type)
-                && typeof operation.label === 'string' && operation.label.trim().length > 0;
-            }
-            if (operation.type === 'moveClass') {
-              const sourceType = classesById.get(operation.classId)?.type;
-              const destinationType = classesById.get(operation.destinationId)?.type
-                || temporaryTypeById.get(operation.destinationId);
-              if (!editable.has(operation.classId) || !['top', 'middle', 'class'].includes(sourceType)
-                || !['top', 'middle'].includes(destinationType)) return false;
-              return sourceType !== 'top' || destinationType === 'middle';
-            }
-            return false;
-          }
-          if (operation.type === 'addClass') {
-            if (operation.classType !== 'middle' || !operation.temporaryId) return false;
-            const parentType = classesById.get(operation.parentId)?.type || temporaryTypeById.get(operation.parentId);
-            return ['top', 'middle'].includes(parentType);
-          }
-          const destinationType = classesById.get(operation.destinationId)?.type || temporaryTypeById.get(operation.destinationId);
-          return operation.type === 'moveClass'
-            && editable.has(operation.classId)
-            && classesById.get(operation.classId)?.type === 'class'
-            && ['top', 'middle'].includes(destinationType);
-        }
-        if (task.kind === 'targets') {
-          if (operation.type === 'addClass') {
-            if (operation.classType !== 'middle' || !operation.temporaryId) return false;
-            const parentType = classesById.get(operation.parentId)?.type || temporaryTypeById.get(operation.parentId);
-            return ['top', 'middle'].includes(parentType);
-          }
-          const destinationType = classesById.get(operation.destinationId)?.type || temporaryTypeById.get(operation.destinationId);
-          return operation.type === 'moveClass'
-            && editable.has(operation.classId)
-            && classesById.get(operation.classId)?.type === 'class'
-            && ['top', 'middle'].includes(destinationType);
-        }
-        const sourceId = operation.classId || operation.from;
-        if (['renameClass', 'moveClass', 'moveChildren', 'deleteClass'].includes(operation.type)
-          && !editable.has(sourceId)) return false;
-        if (operation.type === 'moveClass') {
-          if (!isDestination(operation.destinationId)) return false;
-          const sourceType = classesById.get(operation.classId)?.type
-            || temporaryTypeById.get(operation.classId);
-          const destinationType = classesById.get(operation.destinationId)?.type
-            || temporaryTypeById.get(operation.destinationId);
-          if (sourceType === 'top' && destinationType !== 'middle') return false;
-        }
-        if (operation.type === 'moveChildren' && !isDestination(operation.to)) return false;
-        if (operation.type === 'addClass') {
-          if (!['top', 'middle'].includes(operation.classType)) return false;
-          if (operation.classType === 'top' && operation.parentId) return false;
-          if (operation.classType === 'middle' && !isDestination(operation.parentId)) return false;
-        }
-        return ['addClass', 'renameClass', 'moveClass', 'moveChildren', 'deleteClass'].includes(operation.type);
-      });
-      discardedOperationCount += proposal.operations.length - allowed.length;
-      proposal.operations = allowed;
-      if (!proposal.operations.length && !proposal.questions.length) {
-        proposal.questions.push('この分割範囲では適用可能な変更操作がありませんでした。');
-      } else if (allowed.length < originalOperationCount) {
-        proposal.uncertainties.push('分割範囲外の操作は安全確認のため除外しました。表示中の変更内容を確認してください。');
-        proposal.summary = `分割範囲外の操作を除外した案です。${proposal.summary || proposal.title}`;
-      }
-    });
-    return discardedOperationCount;
-  };
     return {
       validatePayload,
       suppressNoopMoveOperations,
       normalizeDuplicateClassOperations,
-      removeOperationsWithoutEditableScope,
-      resolveDataRequests,
-      validateSplitTaskOperations
+      enforceOperationPolicy,
+      resolveDataRequests
     };
 };

@@ -756,7 +756,7 @@ window.classEditorAI = {
       .filter((item) => item && ['top', 'middle'].includes(item.type));
     return buildAiTargetContext(all, hierarchyClasses);
   },
-  applyOperations(operations, expectedFingerprint, editableIds = [], availableIds = editableIds) {
+  applyOperations(operations, expectedFingerprint, editableIds = [], availableIds = editableIds, operationPolicy = null) {
     const current = this.getState();
     const fingerprint = JSON.stringify({ classes: current.classes, relations: current.relations });
     if (fingerprint !== expectedFingerprint) throw new Error('提案作成後にクラスデータが変更されています。最新データで提案し直してください。');
@@ -765,6 +765,44 @@ window.classEditorAI = {
     const byId = new Map(candidateClasses.map((item) => [item.id, item]));
     const editable = new Set(editableIds);
     const available = new Set(availableIds);
+    const originalParentByChild = new Map(current.relations.map(({ child, parent }) => [child, parent]));
+    const policyAllows = (operation) => !operationPolicy
+      || (operationPolicy.allowedTypes || []).includes(operation.type);
+    const assertPolicyAllows = (operation) => {
+      if (!policyAllows(operation)) throw new Error('この依頼または分割範囲では許可されていない操作です。');
+      if (operation.type === 'addClass' && operationPolicy?.addClassTypes
+        && !operationPolicy.addClassTypes.includes(operation.classType)) throw new Error('この依頼範囲では指定した種類のクラスを追加できません。');
+      if (operation.type === 'moveClass' && operationPolicy?.moveSourceTypes) {
+        const source = byId.get(resolve(operation.classId));
+        if (!operationPolicy.moveSourceTypes.includes(source?.type)) throw new Error('この依頼範囲では指定した種類のクラスを移動できません。');
+      }
+      if (operation.type === 'moveChildren' && operationPolicy?.moveSourceTypes
+        && !operationPolicy.moveSourceTypes.includes('middle')) throw new Error('この依頼範囲では配下一括移動ができません。');
+      if (['renameClass', 'deleteClass'].includes(operation.type) && operationPolicy?.moveSourceTypes) {
+        const source = byId.get(resolve(operation.classId));
+        if (!operationPolicy.moveSourceTypes.includes(source?.type)) throw new Error('この依頼範囲では指定した種類のクラスを変更できません。');
+      }
+      if (operation.type === 'deleteClass' && operationPolicy && !operationPolicy.allowDelete) {
+        throw new Error('この依頼ではクラス削除が許可されていません。');
+      }
+    };
+    const hasUneditableOriginalDescendant = (id) => {
+      const childrenByParent = new Map();
+      originalParentByChild.forEach((parentId, childId) => {
+        if (!childrenByParent.has(parentId)) childrenByParent.set(parentId, []);
+        childrenByParent.get(parentId).push(childId);
+      });
+      const pending = [...(childrenByParent.get(id) || [])];
+      const seen = new Set();
+      while (pending.length) {
+        const childId = pending.pop();
+        if (seen.has(childId)) continue;
+        seen.add(childId);
+        if (!editable.has(childId)) return true;
+        pending.push(...(childrenByParent.get(childId) || []));
+      }
+      return false;
+    };
     const editableSource = (id) => {
       if (!editable.has(id)) throw new Error('選択範囲外のクラスを変更する提案は適用できません。');
     };
@@ -794,6 +832,7 @@ window.classEditorAI = {
     };
     operations.forEach((operation) => {
       if (!operation || typeof operation !== 'object') throw new Error('提案操作の形式が不正です。');
+      assertPolicyAllows(operation);
       if (operation.type === 'addClass') {
         if (!['top', 'middle'].includes(operation.classType) || !String(operation.label || '').trim()
           || !operation.temporaryId || temporaryIds.has(operation.temporaryId)) throw new Error('追加クラスの指定が不正です。');
@@ -892,6 +931,9 @@ window.classEditorAI = {
         const id = resolve(operation.classId); const item = byId.get(id);
         editableSource(id);
         if (!item || !['top', 'middle'].includes(item.type) || item.label === '未分類') throw new Error('削除できるのは未分類以外の上位・中間クラスだけです。');
+        if (operationPolicy?.requireAllDescendantsEditableForDelete !== false && hasUneditableOriginalDescendant(id)) {
+          throw new Error(`「${item.label}」の配下に未選択のクラスがあるため削除できません。`);
+        }
         if ([...relationByChild.values()].some((relation) => relation.parent === id)) throw new Error(`「${item.label}」の配下を先に移動してください。`);
         relationByChild.delete(id);
         candidateClasses.splice(candidateClasses.indexOf(item), 1); byId.delete(id); return;
