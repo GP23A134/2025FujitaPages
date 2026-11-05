@@ -399,9 +399,13 @@ export const createProposalPreview = ({
     });
   };
   const clearPreviewHover = () => {
-    document.querySelectorAll('#ai-preview-before .is-ai-preview-hover-related, #ai-preview-after .is-ai-preview-hover-related,
-      #ai-preview-before .is-ai-preview-hover-parent, #ai-preview-after .is-ai-preview-hover-parent,
-      .ai-preview-change-item.is-ai-preview-change-hovered')
+    document.querySelectorAll([
+      '#ai-preview-before .is-ai-preview-hover-related',
+      '#ai-preview-after .is-ai-preview-hover-related',
+      '#ai-preview-before .is-ai-preview-hover-parent',
+      '#ai-preview-after .is-ai-preview-hover-parent',
+      '.ai-preview-change-item.is-ai-preview-change-hovered'
+    ].join(', '))
       .forEach((node) => node.classList.remove('is-ai-preview-hover-related', 'is-ai-preview-hover-parent',
         'is-ai-preview-change-hovered'));
     document.querySelectorAll('#ai-preview-direction .is-ai-preview-arrow-hovered')
