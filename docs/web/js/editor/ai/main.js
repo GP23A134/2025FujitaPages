@@ -886,6 +886,7 @@ let proposalPreview = null;
   };
   const operationLegendCategories = [
     { key: 'addClass', label: '追加', className: 'is-add' },
+    { key: 'move', label: '移動', className: 'is-move' },
     { key: 'renameClass', label: '改名', className: 'is-rename' },
     { key: 'deleteClass', label: '削除', className: 'is-delete' }
   ];
@@ -893,7 +894,7 @@ let proposalPreview = null;
     const counts = new Map(operationLegendCategories.map(({ key }) => [key, 0]));
     operations.forEach((operation) => {
       const category = operationCategory(operation);
-      const countKey = ['moveClass', 'moveChildren', 'promoteClass'].includes(category.key) ? 'addClass' : category.key;
+      const countKey = ['moveClass', 'moveChildren', 'promoteClass'].includes(category.key) ? 'move' : category.key;
       if (counts.has(countKey)) counts.set(countKey, counts.get(countKey) + 1);
     });
     return counts;
