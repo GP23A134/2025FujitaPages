@@ -271,6 +271,8 @@ export const createProposalPreview = ({
     return [...host.querySelectorAll('.ai-preview-class[data-class-id]')]
       .find((item) => item.dataset.classId === id) || null;
   };
+  const previewNodeId = (node) => node?.dataset.classId
+    || node?.closest('details[data-class-id]')?.dataset.classId || '';
   const renderPreviewArrows = (arrows = []) => {
     const svg = document.getElementById('ai-preview-direction');
     const columns = document.querySelector('.ai-preview-columns');
@@ -445,7 +447,8 @@ export const createProposalPreview = ({
   const highlightPreviewTarget = (target) => {
     clearPreviewHover();
     if (!target) return;
-    const matchingArrows = (previewPlan?.arrows || []).filter((arrow) => arrow.to === target.dataset.classId);
+    const targetId = previewNodeId(target);
+    const matchingArrows = (previewPlan?.arrows || []).filter((arrow) => arrow.to === targetId);
     if (!matchingArrows.length) return;
     target.classList.add('is-ai-preview-hover-related');
     const sourceHost = document.getElementById('ai-preview-before');
@@ -463,7 +466,8 @@ export const createProposalPreview = ({
   const highlightPreviewSource = (sourceTarget) => {
     clearPreviewHover();
     if (!sourceTarget) return;
-    const matchingArrows = (previewPlan?.arrows || []).filter((arrow) => arrow.from === sourceTarget.dataset.classId);
+    const sourceId = previewNodeId(sourceTarget);
+    const matchingArrows = (previewPlan?.arrows || []).filter((arrow) => arrow.from === sourceId);
     if (!matchingArrows.length) return;
     sourceTarget.classList.add('is-ai-preview-hover-related');
     const afterHost = document.getElementById('ai-preview-after');
@@ -512,26 +516,26 @@ export const createProposalPreview = ({
   deleteTarget?.addEventListener('pointerleave', clearPreviewHover);
   const beforeTree = document.getElementById('ai-preview-before');
   beforeTree.addEventListener('pointerover', (event) => {
-    const target = event.target.closest('.ai-preview-class[data-class-id]');
+    const target = event.target.closest('.ai-preview-class[data-class-id], .tree-top-class > summary, .tree-middle-class > summary');
     if (!target || !beforeTree.contains(target)) return;
     if (event.relatedTarget instanceof Node && target.contains(event.relatedTarget)) return;
     highlightPreviewSource(target);
   });
   beforeTree.addEventListener('pointerout', (event) => {
-    const target = event.target.closest('.ai-preview-class[data-class-id]');
+    const target = event.target.closest('.ai-preview-class[data-class-id], .tree-top-class > summary, .tree-middle-class > summary');
     if (!target || !beforeTree.contains(target)) return;
     if (event.relatedTarget instanceof Node && target.contains(event.relatedTarget)) return;
     clearPreviewHover();
   });
   const afterTree = document.getElementById('ai-preview-after');
   afterTree.addEventListener('pointerover', (event) => {
-    const target = event.target.closest('.ai-preview-class[data-class-id]');
+    const target = event.target.closest('.ai-preview-class[data-class-id], .tree-top-class > summary, .tree-middle-class > summary');
     if (!target || !afterTree.contains(target)) return;
     if (event.relatedTarget instanceof Node && target.contains(event.relatedTarget)) return;
     highlightPreviewTarget(target);
   });
   afterTree.addEventListener('pointerout', (event) => {
-    const target = event.target.closest('.ai-preview-class[data-class-id]');
+    const target = event.target.closest('.ai-preview-class[data-class-id], .tree-top-class > summary, .tree-middle-class > summary');
     if (!target || !afterTree.contains(target)) return;
     if (event.relatedTarget instanceof Node && target.contains(event.relatedTarget)) return;
     clearPreviewHover();
