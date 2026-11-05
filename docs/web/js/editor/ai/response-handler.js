@@ -208,8 +208,9 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
   };
   const removeOperationsWithoutEditableScope = (result, scope) => {
     const currentRelations = editor.getState()?.relations || scope.relations || [];
+    const editableIds = new Set(scope.editableIds || []);
     result.proposals.forEach((proposal) => {
-      const editable = new Set(scope.editableIds || []);
+      const editable = new Set(editableIds);
       const parentByChild = new Map(currentRelations.map(({ child, parent }) => [child, parent]));
       let removedCount = 0;
       proposal.operations = proposal.operations.filter((operation) => {
@@ -253,7 +254,7 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
       result.message = [result.message, '選択範囲外のクラスを変更する提案は適用できないため、該当する操作を除外しました。']
         .filter(Boolean).join('\n\n');
     }
-    if (!editable.size && !result.proposals.some((proposal) => proposal.operations.length)) {
+    if (!editableIds.size && !result.proposals.some((proposal) => proposal.operations.length)) {
       result.message = [result.message, '変更できるクラスが選択されていません。変更案が必要な場合は対象クラスを選択してください。']
         .filter(Boolean).join('\n\n');
     }

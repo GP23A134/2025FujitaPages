@@ -3,10 +3,10 @@
 import { createClassIdCodec } from './id-codec.js?v=20261104-send-data-review-fixes-v1';
 import { sendOpenAIRequest } from './api-client.js?v=20261103-ai-module-system-step6-v1';
 import { createRequestPlanner } from './request-planner.js?v=20261104-preparation-yields-v1';
-import { createResponseHandler } from './response-handler.js?v=20261105-operation-scope-guard-v2';
+import { createResponseHandler } from './response-handler.js?v=20261105-editable-scope-reference-fix-v1';
 import { createConversationStore } from './conversation-store.js?v=20261103-ai-review-fixes-v1';
 import { createConversationView } from './conversation-view.js?v=20261104-readable-ai-replies-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261105-grouped-move-routes-v1';
+import { createProposalPreview } from './proposal-preview.js?v=20261105-parent-routed-move-groups-v1';
 
 (() => {
   const editor = window.classEditorAI;

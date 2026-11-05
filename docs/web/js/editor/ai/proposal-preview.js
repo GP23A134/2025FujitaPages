@@ -287,10 +287,14 @@ export const createProposalPreview = ({
     const groupedMoves = new Map();
     const routingArrows = [];
     arrows.forEach((arrow) => {
-      const operation = previewPlan?.proposalItem.proposal.operations[arrow.operationIndex];
-      if (arrow.kind === 'is-move' && !arrow.excluded && operation?.type === 'moveChildren') {
-        if (!groupedMoves.has(arrow.operationIndex)) groupedMoves.set(arrow.operationIndex, []);
-        groupedMoves.get(arrow.operationIndex).push(arrow);
+      if (arrow.kind === 'is-move' && !arrow.excluded) {
+        const targetParentId = previewPlan.afterParents.get(arrow.to);
+        if (!targetParentId) {
+          routingArrows.push({ arrow });
+          return;
+        }
+        if (!groupedMoves.has(targetParentId)) groupedMoves.set(targetParentId, []);
+        groupedMoves.get(targetParentId).push(arrow);
       } else routingArrows.push({ arrow });
     });
     groupedMoves.forEach((group) => {
@@ -403,24 +407,49 @@ export const createProposalPreview = ({
       const channelY = height * (index + 1) / (routes.length + 1);
       if (groupArrows?.length > 1) {
         const branches = groupArrows.map((groupArrow) => ({
+          arrow: groupArrow,
           source: previewNodeRow(before, groupArrow.from)?.getBoundingClientRect(),
           target: previewNodeRow(after, groupArrow.to)?.getBoundingClientRect()
         })).filter(({ source: branchSource, target: branchTarget }) => branchSource || branchTarget);
-        const branchYs = branches.flatMap(({ source: branchSource, target: branchTarget }) => [
-          ...(branchSource ? [branchSource.top + branchSource.height / 2 - bounds.top] : []),
-          ...(branchTarget ? [branchTarget.top + branchTarget.height / 2 - bounds.top] : [])
-        ]);
-        if (branchYs.length) {
-          appendRoutePath({ commands: [`M ${laneX} ${Math.min(...branchYs)} V ${Math.max(...branchYs)}`], arrow, color, marker: false });
-          branches.forEach(({ source: branchSource, target: branchTarget }) => {
-            if (branchSource) {
-              const y = branchSource.top + branchSource.height / 2 - bounds.top;
-              appendRoutePath({ commands: [`M ${branchSource.right - bounds.left} ${y} H ${laneX}`], arrow, color, marker: false });
+        const targetParentId = previewPlan.afterParents.get(groupArrows[0].to);
+        const targetParent = previewNodeRow(after, targetParentId)?.getBoundingClientRect();
+        const sourceYs = branches.filter(({ source: branchSource }) => branchSource)
+          .map(({ source: branchSource }) => branchSource.top + branchSource.height / 2 - bounds.top);
+        const targetYs = branches.filter(({ target: branchTarget }) => branchTarget)
+          .map(({ target: branchTarget }) => branchTarget.top + branchTarget.height / 2 - bounds.top);
+        const parentY = targetParent ? targetParent.top + targetParent.height / 2 - bounds.top : null;
+        if (sourceYs.length && targetYs.length) {
+          const sourceJunctionY = sourceYs.reduce((sum, y) => sum + y, 0) / sourceYs.length;
+          const targetJunctionX = targetParent
+            ? targetParent.left - bounds.left - 4
+            : laneX + trackGap;
+          const operationArrows = new Map();
+          branches.forEach((branch) => {
+            const groupArrow = branch.arrow;
+            if (!operationArrows.has(groupArrow.operationIndex)) operationArrows.set(groupArrow.operationIndex, groupArrow);
+            if (branch.source) {
+              const y = branch.source.top + branch.source.height / 2 - bounds.top;
+              appendRoutePath({ commands: [`M ${branch.source.right - bounds.left} ${y} H ${laneX}`], arrow: groupArrow, color, marker: false });
             }
-            if (branchTarget) {
-              const y = branchTarget.top + branchTarget.height / 2 - bounds.top;
-              appendRoutePath({ commands: [`M ${laneX} ${y} H ${branchTarget.left - bounds.left}`], arrow, color });
+            if (branch.target) {
+              const y = branch.target.top + branch.target.height / 2 - bounds.top;
+              appendRoutePath({ commands: [`M ${targetJunctionX} ${y} H ${branch.target.left - bounds.left}`], arrow: groupArrow, color });
             }
+          });
+          operationArrows.forEach((operationArrow) => {
+            const commonPaths = [
+              [`M ${laneX} ${Math.min(...sourceYs)} V ${Math.max(...sourceYs)}`],
+              parentY === null
+                ? [`M ${laneX} ${sourceJunctionY} H ${targetJunctionX} V ${Math.min(...targetYs)} V ${Math.max(...targetYs)}`]
+                : [`M ${laneX} ${sourceJunctionY} H ${targetJunctionX} V ${parentY}`,
+                  `M ${targetJunctionX} ${Math.min(parentY, ...targetYs)} V ${Math.max(parentY, ...targetYs)}`]
+            ];
+            commonPaths.forEach((commands) => appendRoutePath({
+              commands,
+              arrow: operationArrow,
+              color,
+              marker: false
+            }));
           });
         }
         return;
