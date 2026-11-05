@@ -897,7 +897,7 @@ export const createProposalPreview = ({
       document.getElementById('ai-preview-summary').textContent = proposalItem.proposal.summary || proposalItem.proposal.title || '変更内容の説明はありません。';
       document.getElementById('ai-preview-reason').textContent = proposalItem.proposal.reason || '理由の記載はありません。';
       document.getElementById('ai-preview-uncertainties').textContent = proposalItem.proposal.uncertainties?.length
-        ? proposalItem.proposal.uncertainties.join('、') : '特になし';
+        ? proposalItem.proposal.uncertainties.join('\n') : '特になし';
       document.getElementById('ai-preview-change-list-details').open = false;
       document.getElementById('ai-preview-change-list').replaceChildren();
       document.getElementById('ai-preview-final-change-list').replaceChildren();

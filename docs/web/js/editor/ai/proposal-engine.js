@@ -308,6 +308,7 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
       return false;
     };
     let totalRemovedCount = 0;
+    const excludedOperations = [];
     const current = editor.getState();
     const fingerprint = JSON.stringify({ classes: current.classes, relations: current.relations });
     result.proposals.forEach((proposal) => {
@@ -320,7 +321,6 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
         }
       });
       let removedCount = 0;
-      const removedReasons = [];
       proposal.operations = proposal.operations.filter((operation) => {
         const allowedByPolicy = operationAllowedByPolicy(operation, policy, proposalClassesById, proposalEditableIds);
         const hasUnselectedDescendant = operation.type === 'deleteClass' && policy.requireAllDescendantsEditableForDelete
@@ -328,15 +328,18 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
         const allowed = allowedByPolicy && !hasUnselectedDescendant;
         if (!allowed) {
           removedCount += 1;
-          removedReasons.push(hasUnselectedDescendant
+          const reason = hasUnselectedDescendant
             ? '削除対象の配下に未選択のクラスがあります。配下を含めて選択してください。'
-            : `${operation.type || '不明'}は今回の依頼または編集範囲で許可されていません。`);
+            : `${operation.type || '不明'}は今回の依頼または編集範囲で許可されていません。`;
+          excludedOperations.push({ proposal: proposal.title || proposal.summary || proposal.id,
+            type: operation.type || '不明', classId: operation.classId || operation.from || '', reason });
         }
         return allowed;
       });
       totalRemovedCount += removedCount;
       if (removedCount) {
-        const warning = `一部の操作を除外しました: ${[...new Set(removedReasons)].join(' ')}`;
+        const warning = `一部の操作を除外しました: ${excludedOperations.slice(-removedCount)
+          .map((item) => `${item.classId || item.type}（${item.reason}）`).join(' ')}`;
         proposal.uncertainties.push(warning);
       }
       if (proposal.operations.length) {
@@ -359,6 +362,7 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
       result.message = [result.message, '変更できるクラスが選択されていません。変更案が必要な場合は対象クラスを選択してください。']
         .filter(Boolean).join('\n\n');
     }
+    result.excludedOperations = excludedOperations;
     return totalRemovedCount;
   };
   const resolveDataRequests = (requests, scope) => {

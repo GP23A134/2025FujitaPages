@@ -23,6 +23,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
       conversationContext: conversation.localContext || undefined,
       scopeCoverage: activeScope.scopeCoverage || 'selected_classes',
       selectedScope: diffScope(previousScope, activeScope),
+      referenceHierarchy: activeScope.referenceHierarchy || undefined,
       instruction: `${instruction} ${scopeInstruction} ${noEditableClassesInstruction}`
     }));
   };
@@ -42,7 +43,16 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     const isHierarchySelection = selectedRootClasses.length === selectionRoots.length
       && selectedRootClasses.length > 0
       && selectedRootClasses.every((item) => ['top', 'middle'].includes(item.type));
-    if (!isHierarchySelection) {
+    const editableHierarchyIds = new Set(scope.classes
+      .filter((item) => ['top', 'middle'].includes(item.type) && scope.editableIds.includes(item.id))
+      .map((item) => item.id));
+    const hierarchyIds = new Set(scope.classes.filter((item) => ['top', 'middle'].includes(item.type)).map((item) => item.id));
+    const parentByClass = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
+    const referenceHierarchy = scope.classes.filter((item) => hierarchyIds.has(item.id))
+      .map((item) => [item.id, item.type, item.label, parentByClass.get(item.id) || null]);
+    const sharedReference = JSON.stringify(referenceHierarchy).length <= MAX_REQUEST_CHARACTERS / 3
+      ? referenceHierarchy : null;
+    if (!isHierarchySelection && !editableHierarchyIds.size) {
       const editableIdSet = new Set(scope.editableIds);
       const classTypeById = new Map(scope.classes.map((item) => [item.id, item.type]));
       const selectedTargets = scope.classes.filter((item) => item.type === 'class' && editableIdSet.has(item.id));
@@ -89,6 +99,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
           },
           allowHierarchyEdits: Boolean(scope.allowHierarchyEdits)
         };
+        if (sharedReference) taskScope.referenceHierarchy = sharedReference;
         const input = buildUserContent(userText, taskScope, conversation, {
           forceSnapshot: true,
           instruction: targetInstruction
@@ -199,6 +210,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         },
         allowHierarchyEdits: Boolean(scope.allowHierarchyEdits)
       };
+      if (sharedReference) taskScope.referenceHierarchy = sharedReference;
       return buildHierarchyTask(taskScope);
     };
     const hierarchyTasks = [];
@@ -252,7 +264,8 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         editableIds: [...new Set([...left.editableIds, ...right.editableIds])],
         classes: [...classesById.values()],
         relations: [...relationByKey.values()],
-        counts: {}
+        counts: {},
+        referenceHierarchy: sharedReference || undefined
       };
     };
     const hierarchyTasksByBucket = new Map();
@@ -313,7 +326,8 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         editableIds: [...targetIds],
         classes,
         relations: scope.relations.filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
-        counts: {}
+        counts: {},
+        referenceHierarchy: sharedReference || undefined
       };
     };
     const buildTargetTask = (units, topClassId) => {
@@ -388,6 +402,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
           classes: [...classesById.values()],
           relations: [...relationsByKey.values()],
           counts: { ...(left.counts || {}), ...(right.counts || {}) },
+          referenceHierarchy: left.referenceHierarchy || right.referenceHierarchy,
           sharedContextIds: [...new Set([...(left.sharedContextIds || []), ...(right.sharedContextIds || [])])],
           targetContext: {
             descendantTargetClassCounts: {

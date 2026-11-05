@@ -1,9 +1,9 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261105-promote-class-v1';
-import { createResponseHandler, createOperationPolicy } from './proposal-engine.js?v=20261105-promote-class-v1';
+import { createRequestPlanner, createChunkSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261105-hierarchy-planning-v1';
+import { createResponseHandler, createOperationPolicy } from './proposal-engine.js?v=20261105-hierarchy-planning-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261105-functional-modules-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261105-promote-class-v1';
+import { createProposalPreview } from './proposal-preview.js?v=20261105-hierarchy-planning-v1';
 import { createAIClient } from './ai-client.js?v=20261105-promote-class-v1';
 
 (() => {
@@ -1647,12 +1647,17 @@ let proposalPreview = null;
         // 一致したチャンクはAPIへ再送せず、未変更の範囲だけを再評価します。
         const chunkKeys = splitChunkKeys;
         let discardedOperationTotal = 0;
+        const discardedOperationDetails = [];
         let splitRepairFailed = false;
         const hasEditableTargetClasses = (unit) => unit.scope.classes.some((item) => item.type === 'class'
           && unit.scope.editableIds.includes(item.id));
         const processSplitUnit = (unit, index, unitResult, repairFailed = false) => {
+          // The unit owns only its editable sources. Destinations may be any hierarchy
+          // class shared by the full request, including classes in another unit.
+          const validationScope = { ...scope, editableIds: unit.scope.editableIds };
+          const availableClassIds = scope.classes.map((item) => item.id);
           responseHandler.validatePayload(unitResult, baseDataHash);
-          responseHandler.normalizeDuplicateClassOperations(unitResult, unit.scope.classes.map((item) => item.id));
+          responseHandler.normalizeDuplicateClassOperations(unitResult, availableClassIds);
           const operationPolicy = createOperationPolicy({ requestText: operationRequestText, taskKind: unit.kind, scope: unit.scope });
           const cacheResult = structuredClone(unitResult);
           chunkResults[index] = cacheResult;
@@ -1661,9 +1666,13 @@ let proposalPreview = null;
           unitResult.proposals.forEach((proposal, proposalIndex) => {
             proposal.id = `part${index + 1}_proposal${proposalIndex + 1}`;
           });
-          const discardedOperationCount = responseHandler.enforceOperationPolicy(unitResult, unit.scope, operationPolicy);
-          responseHandler.suppressNoopMoveOperations(unitResult, unit.scope);
+          const discardedOperationCount = responseHandler.enforceOperationPolicy(unitResult, validationScope, operationPolicy);
+          responseHandler.suppressNoopMoveOperations(unitResult, validationScope);
           discardedOperationTotal += discardedOperationCount;
+          (unitResult.excludedOperations || []).forEach((excluded) => {
+            const source = scope.classes.find((item) => item.id === excluded.classId);
+            discardedOperationDetails.push(`${source?.label || excluded.classId || excluded.type}: ${excluded.reason}`);
+          });
           if (unitResult.message && (scope.scopeCoverage !== 'all_classes' || hasEditableTargetClasses(unit))) {
             messagesFromParts.push(unitResult.message);
           }
@@ -1672,7 +1681,7 @@ let proposalPreview = null;
           unitResult.proposals.forEach((proposal) => {
             if (proposal.operations.length) {
               try {
-                editor.applyOperations(proposal.operations, fingerprintBeforeRequest, unit.scope.editableIds, unit.scope.classes.map((item) => item.id), operationPolicy);
+                editor.applyOperations(proposal.operations, fingerprintBeforeRequest, unit.scope.editableIds, availableClassIds, operationPolicy);
               } catch (error) {
                 logAiProblem(`分割${index + 1}の提案検証`, error, 'warn');
                 proposal.operations = [];
@@ -1681,8 +1690,8 @@ let proposalPreview = null;
             }
             result.proposals.push(proposal);
             proposalScopes.set(proposal.id, [...unit.scope.editableIds]);
-            proposalPreviewScopes.set(proposal.id, unit.scope.classes.map((item) => item.id));
-            proposalAvailableScopes.set(proposal.id, unit.scope.classes.map((item) => item.id));
+            proposalPreviewScopes.set(proposal.id, availableClassIds);
+            proposalAvailableScopes.set(proposal.id, availableClassIds);
             proposalOperationPolicies.set(proposal.id, operationPolicy);
           });
         };
@@ -1728,7 +1737,7 @@ let proposalPreview = null;
         }
         result.message = messagesFromParts.join('\n');
         const splitWarnings = discardedOperationTotal
-          ? [`分割範囲の検証で範囲外の操作を合計${discardedOperationTotal}件除外しました。表示される変更案を確認してください。`]
+          ? [`分割範囲の検証で操作を${discardedOperationTotal}件除外しました。${[...new Set(discardedOperationDetails)].join(' ')}`]
           : [];
         if (splitWarnings.length) result.message = [result.message, ...splitWarnings].filter(Boolean).join('\n');
         if (result.dataRequests.length) {
@@ -1743,12 +1752,16 @@ let proposalPreview = null;
             || (scope.allowHierarchyEdits && hasEditableHierarchyClasses(unit));
           const chunkAssessments = chunkResults.flatMap((part, index) => {
             const task = splitTasks[index];
-            if (!part?.message || !hasSummaryContent(task)) return [];
+            if (!part || !hasSummaryContent(task)) return [];
             const taskScope = task.scope;
             const classById = new Map(taskScope.classes.map((item) => [item.id, item]));
             const rootIds = task.topClassId ? [task.topClassId] : (taskScope.selectionRoots || taskScope.selectedIds || []);
             const scopeLabel = rootIds.map((id) => classById.get(id)?.label).filter(Boolean).join('・');
-            return [{ chunk: index + 1, scope: scopeLabel || `分割 ${index + 1}`, message: String(part.message) }];
+            return [{ chunk: index + 1, scope: scopeLabel || `分割 ${index + 1}`, message: String(part.message || ''),
+              operations: (result.proposals || []).filter((proposal) => proposal.id?.startsWith(`part${index + 1}_`))
+                .flatMap((proposal) => proposal.operations.map((operation) => ({ type: operation.type,
+                  classId: operation.classId || operation.from || '',
+                  destinationId: operation.destinationId || operation.parentId || '' }))) }];
           });
           const synthesisPrompt = await synthesisPromptPromise;
           const synthesis = await chunkSynthesizer.synthesize({
