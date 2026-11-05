@@ -412,14 +412,31 @@ export const createProposalPreview = ({
       '#ai-preview-after .is-ai-preview-hover-related',
       '#ai-preview-before .is-ai-preview-hover-parent',
       '#ai-preview-after .is-ai-preview-hover-parent',
+      '#ai-preview-before .is-ai-preview-wire-related',
+      '#ai-preview-after .is-ai-preview-wire-related',
       '.ai-preview-change-item.is-ai-preview-change-hovered'
     ].join(', '))
       .forEach((node) => node.classList.remove('is-ai-preview-hover-related', 'is-ai-preview-hover-parent',
-        'is-ai-preview-change-hovered'));
+        'is-ai-preview-wire-related', 'is-ai-preview-change-hovered'));
     document.querySelectorAll('#ai-preview-direction .is-ai-preview-arrow-hovered')
       .forEach((path) => path.classList.remove('is-ai-preview-arrow-hovered'));
     document.getElementById('ai-preview-add-origin')?.classList.remove('is-ai-preview-hover-related');
     document.getElementById('ai-preview-delete-target')?.classList.remove('is-ai-preview-hover-related');
+  };
+  const highlightTreePath = (host, classId, parentByChild) => {
+    const visited = new Set();
+    let currentId = classId;
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId);
+      const node = previewNodeRow(host, currentId);
+      if (!node) break;
+      node.closest('li')?.classList.add('is-ai-preview-wire-related');
+      const parentId = parentByChild.get(currentId);
+      if (!parentId) break;
+      previewNodeRow(host, parentId)?.closest('details')
+        ?.querySelector(':scope > .tree-level-rows')?.classList.add('is-ai-preview-wire-related');
+      currentId = parentId;
+    }
   };
   const highlightMoveParent = (host, childId, parentByChild) => {
     const parentId = parentByChild.get(childId);
@@ -429,6 +446,8 @@ export const createProposalPreview = ({
     const beforeHost = document.getElementById('ai-preview-before');
     const afterHost = document.getElementById('ai-preview-after');
     arrows.filter((arrow) => arrow.kind === 'is-move').forEach((arrow) => {
+      highlightTreePath(beforeHost, arrow.from, previewPlan.beforeParents);
+      highlightTreePath(afterHost, arrow.to, previewPlan.afterParents);
       highlightMoveParent(beforeHost, arrow.from, previewPlan.beforeParents);
       highlightMoveParent(afterHost, arrow.to, previewPlan.afterParents);
     });
@@ -445,6 +464,8 @@ export const createProposalPreview = ({
     matchingArrows.forEach((arrow) => {
       previewNodeRow(beforeHost, arrow.from)?.classList.add('is-ai-preview-hover-related');
       previewNodeRow(afterHost, arrow.to)?.classList.add('is-ai-preview-hover-related');
+      highlightTreePath(beforeHost, arrow.from, previewPlan.beforeParents);
+      highlightTreePath(afterHost, arrow.to, previewPlan.afterParents);
       arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
         .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
     });
@@ -462,6 +483,8 @@ export const createProposalPreview = ({
     matchingArrows.forEach((arrow) => {
       const source = previewNodeRow(sourceHost, arrow.from);
       source?.classList.add('is-ai-preview-hover-related');
+      highlightTreePath(sourceHost, arrow.from, previewPlan.beforeParents);
+      highlightTreePath(document.getElementById('ai-preview-after'), arrow.to, previewPlan.afterParents);
       if (!arrow.from && arrow.kind === 'is-add') document.getElementById('ai-preview-add-origin')?.classList.add('is-ai-preview-hover-related');
       if (arrow.kind === 'is-delete' && !arrow.to) document.getElementById('ai-preview-delete-target')?.classList.add('is-ai-preview-hover-related');
       arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
@@ -476,10 +499,13 @@ export const createProposalPreview = ({
     const matchingArrows = (previewPlan?.arrows || []).filter((arrow) => arrow.from === sourceId);
     if (!matchingArrows.length) return;
     sourceTarget.classList.add('is-ai-preview-hover-related');
+    const beforeHost = document.getElementById('ai-preview-before');
     const afterHost = document.getElementById('ai-preview-after');
     const arrowSvg = document.getElementById('ai-preview-direction');
     matchingArrows.forEach((arrow) => {
       previewNodeRow(afterHost, arrow.to)?.classList.add('is-ai-preview-hover-related');
+      highlightTreePath(beforeHost, sourceId, previewPlan.beforeParents);
+      highlightTreePath(afterHost, arrow.to, previewPlan.afterParents);
       if (arrow.kind === 'is-delete' && !arrow.to) document.getElementById('ai-preview-delete-target')?.classList.add('is-ai-preview-hover-related');
       arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
         .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
@@ -496,6 +522,7 @@ export const createProposalPreview = ({
     addOrigin.classList.add('is-ai-preview-hover-related');
     additions.forEach((arrow) => {
       previewNodeRow(afterHost, arrow.to)?.classList.add('is-ai-preview-hover-related');
+      highlightTreePath(afterHost, arrow.to, previewPlan.afterParents);
       arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
         .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
     });
@@ -510,6 +537,7 @@ export const createProposalPreview = ({
     deleteTarget.classList.add('is-ai-preview-hover-related');
     deletions.forEach((arrow) => {
       previewNodeRow(beforeHost, arrow.from)?.classList.add('is-ai-preview-hover-related');
+      highlightTreePath(beforeHost, arrow.from, previewPlan.beforeParents);
       arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
         .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
     });
