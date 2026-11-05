@@ -380,10 +380,17 @@ export const createProposalPreview = ({
       return left.firstIndex - right.firstIndex;
     });
     let nextLaneIndex = 0;
-    laneGroups.forEach((group) => group.routes.forEach((route) => {
-      route.laneIndex = nextLaneIndex;
-      nextLaneIndex += 1;
-    }));
+    laneGroups.forEach((group) => {
+      const firstLaneIndex = nextLaneIndex;
+      group.routes.forEach((route) => {
+        route.laneIndex = nextLaneIndex;
+        nextLaneIndex += 1;
+      });
+      if (group.routes.length > 1 && group.routes[0].arrow.kind === 'is-move') {
+        const bendLaneIndex = (firstLaneIndex + nextLaneIndex - 1) / 2;
+        group.routes.forEach((route) => { route.bendLaneIndex = bendLaneIndex; });
+      }
+    });
     const trackBankInset = Math.max(0, (gutterRight - gutterLeft - routes.length * trackGap) / 2);
     const assignPorts = (side) => {
       const groups = new Map();
@@ -419,8 +426,11 @@ export const createProposalPreview = ({
       if (arrow.excluded) path.setAttribute('opacity', '0.45');
       svg.append(path);
     };
-    routes.forEach(({ arrow, color, source, target, laneIndex }, index) => {
+    routes.forEach(({ arrow, color, source, target, laneIndex, bendLaneIndex }, index) => {
       const laneX = gutterLeft + trackBankInset + (routes.length - laneIndex - 0.5) * trackGap;
+      const bendX = bendLaneIndex === undefined
+        ? laneX
+        : gutterLeft + trackBankInset + (routes.length - bendLaneIndex - 0.5) * trackGap;
       const channelY = height * (index + 1) / (routes.length + 1);
       const isAddition = arrow.kind === 'is-add' && !arrow.from;
       const startX = source ? (isAddition ? source.left + source.width / 2 : source.right) - bounds.left : laneX;
@@ -430,7 +440,9 @@ export const createProposalPreview = ({
         : routes[index].startY ?? (target ? target.top + target.height / 2 - bounds.top : channelY);
       const endY = routes[index].endY ?? (source ? source.top + source.height / 2 - bounds.top : channelY);
       if (arrow.kind === 'is-move' && source && target) {
-        appendRoutePath({ commands: [`M ${startX} ${startY} H ${laneX} V ${endY} H ${endX}`], arrow, color });
+        const sourceToBendLength = Math.max(0, bendX - startX);
+        const shortenedEndX = Math.max(bendX, endX - sourceToBendLength);
+        appendRoutePath({ commands: [`M ${startX} ${startY} H ${bendX} V ${endY} H ${shortenedEndX}`], arrow, color });
         return;
       }
       const commands = [];
