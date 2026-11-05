@@ -326,7 +326,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
   --ai-preview-node-height: 1.6rem;
   --ai-preview-heading-font-size: 0.9rem;
   --ai-preview-heading-width: 22rem;
-  --ai-preview-class-gap: 0.35rem;
+  --ai-preview-class-gap: 0.4rem;
   --ai-preview-target-width: 300px;
   --ai-preview-root-middle-link-length: calc(0.75rem + 2px);
   --ai-preview-nested-middle-link-length: calc(0.75rem + 4px);
@@ -494,8 +494,8 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-columns.is-loading .ai-preview-add-origin,
 .ai-preview-columns.is-loading .ai-preview-delete-target { visibility: hidden !important; }
 .ai-preview-direction path { pointer-events: stroke; cursor: pointer; transition: stroke-width 120ms ease, opacity 120ms ease, filter 120ms ease; }
-.ai-preview-direction path:hover { stroke-width: 3.5px; opacity: 1; filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.35)); }
-.ai-preview-direction path.is-ai-preview-arrow-hovered { stroke-width: 3.5px; opacity: 1; filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.35)); }
+.ai-preview-direction path:hover { stroke-width: 4px; opacity: 1; filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.35)); }
+.ai-preview-direction path.is-ai-preview-arrow-hovered { stroke-width: 4px; opacity: 1; filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.35)); }
 @media (max-width: 760px) {
   .ai-preview-change-actions { flex-basis: 100%; justify-content: flex-end; }
   .ai-preview-columns { grid-template-columns: minmax(0, 1fr); }
@@ -582,6 +582,9 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .is-ai-preview-changed:not(.tree-leaf-class) { outline: 2px solid #f59e0b; outline-offset: 1px; }
 #ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-changed { outline: none; }
 #ai-preview-dialog .tree .is-ai-preview-excluded { opacity: 0.5; outline: 1px dashed #64748b; outline-offset: 1px; }
+#ai-preview-dialog .tree .tree-leaf-class,
+#ai-preview-dialog .tree .tree-top-class > summary,
+#ai-preview-dialog .tree .tree-middle-class > summary { transform-origin: left center; transition: transform 120ms ease, box-shadow 120ms ease; }
 #ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-hover-related,
 #ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-hover-parent,
 #ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-hover-related,
@@ -589,7 +592,11 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-hover-related,
 #ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-hover-parent,
 #ai-preview-dialog .tree .tree-child-middle-list > li > .tree-middle-class > summary.is-ai-preview-hover-related,
-#ai-preview-dialog .tree .tree-child-middle-list > li > .tree-middle-class > summary.is-ai-preview-hover-parent { background-color: #fef3c7; }
+#ai-preview-dialog .tree .tree-child-middle-list > li > .tree-middle-class > summary.is-ai-preview-hover-parent {
+  z-index: 5;
+  transform: scale(1.04);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.2);
+}
 .ai-preview-change-item.is-ai-preview-change-hovered { background: #fef3c7; }
 .ai-preview-change-item:focus-visible { position: relative; z-index: 4; outline: 3px solid #f59e0b; outline-offset: 2px; }
 #ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-changed:hover,
