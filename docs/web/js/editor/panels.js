@@ -112,7 +112,10 @@ function renderInstances() {
   document.querySelectorAll('#edit-tree .tree-add-row').forEach((button) => {
     button.disabled = aiChatOpen;
   });
-  document.querySelectorAll('#edit-tree .tree-add-button.move-held-button, #edit-tree .tree-class-edit-button:not(.select-descendants-button)').forEach((button) => {
+  document.querySelectorAll('#edit-tree .tree-add-button.move-held-button').forEach((button) => {
+    button.hidden = aiChatOpen;
+  });
+  document.querySelectorAll('#edit-tree .tree-class-edit-button:not(.select-descendants-button)').forEach((button) => {
     button.disabled = aiChatOpen;
   });
   const heldListView = document.getElementById('held-list-view');

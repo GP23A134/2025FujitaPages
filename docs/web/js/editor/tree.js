@@ -347,8 +347,7 @@ function renderTree() {
       checkbox.addEventListener('change', (event) => applyTreeSelectionRange(checkbox, event, checkbox.checked));
       levelContent.prepend(checkbox);
     }
-    if (treeHierarchyEditModeEnabled && item.label !== '未分類'
-      && (classKind(item) === 'top' || classKind(item) === 'middle')) {
+    if (classKind(item) === 'top' || classKind(item) === 'middle') {
       const actions = document.createElement('span');
       actions.className = 'tree-class-edit-actions';
       actions.addEventListener('click', (event) => event.stopPropagation());
@@ -381,28 +380,31 @@ function renderTree() {
         syncTargetButtonAvailability();
         renderInstances();
       });
-      const rename = document.createElement('button');
-      rename.type = 'button';
-      rename.className = 'rename-class-button tree-class-edit-button';
-      rename.textContent = '名称変更';
-      rename.setAttribute('aria-label', `${item.label}の名称変更`);
-      rename.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        renameClass(item);
-      });
-      const remove = document.createElement('button');
-      remove.type = 'button';
-      remove.className = 'delete-class-button tree-class-edit-button';
-      remove.textContent = '削除';
-      remove.disabled = item.label === '未分類';
-      remove.setAttribute('aria-label', `${item.label}を削除`);
-      remove.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        deleteClass(item);
-      });
-      actions.append(selectDescendants, rename, remove);
+      actions.append(selectDescendants);
+      if (treeHierarchyEditModeEnabled && item.label !== '未分類') {
+        const rename = document.createElement('button');
+        rename.type = 'button';
+        rename.className = 'rename-class-button tree-class-edit-button';
+        rename.textContent = '名称変更';
+        rename.setAttribute('aria-label', `${item.label}の名称変更`);
+        rename.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          renameClass(item);
+        });
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'delete-class-button tree-class-edit-button';
+        remove.textContent = '削除';
+        remove.disabled = item.label === '未分類';
+        remove.setAttribute('aria-label', `${item.label}を削除`);
+        remove.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          deleteClass(item);
+        });
+        actions.append(rename, remove);
+      }
       summary.append(actions);
     }
     if (classKind(item) === 'middle') {
