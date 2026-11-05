@@ -92,7 +92,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
   const compactOperationSchema = {
     type: 'object', additionalProperties: false,
     properties: {
-      t: { type: 'string', enum: ['a', 'r', 'm', 'mc', 'd'] },
+      t: { type: 'string', enum: ['a', 'r', 'm', 'mc', 'p', 'd'] },
       ct: { type: ['string', 'null'], enum: ['top', 'middle', null] },
       tmp: { type: ['string', 'null'] }, l: { type: ['string', 'null'] },
       p: { type: ['string', 'null'] }, c: { type: ['string', 'null'] },
@@ -120,7 +120,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     },
     required: ['m', 'p', 'q']
   };
-  const compactResponseInstructions = '応答は短縮キーのJSON形式です。トップレベルはm=回答文、p=提案配列、q=確認質問配列です。提案はi=id,t=題名,s=要約,r=理由,q=質問,u=不確実点,o=操作配列。操作キーはt=操作種別コード(a=addClass,r=renameClass,m=moveClass,mc=moveChildren,d=deleteClass)、ct=classType,tmp=temporaryId,l=label,p=parentId,c=classId,dst=destinationId,f=from,to=toです。スキーマにある全キーを必ず出力し、使わない値はnullにしてください。';
+  const compactResponseInstructions = '応答は短縮キーのJSON形式です。トップレベルはm=回答文、p=提案配列、q=確認質問配列です。提案はi=id,t=題名,s=要約,r=理由,q=質問,u=不確実点,o=操作配列。操作キーはt=操作種別コード(a=addClass,r=renameClass,m=moveClass,mc=moveChildren,p=promoteClass,d=deleteClass)、ct=classType,tmp=temporaryId,l=label,p=parentId,c=classId,dst=destinationId,f=from,to=toです。スキーマにある全キーを必ず出力し、使わない値はnullにしてください。';
   const groupedResponseSchema = {
     type: 'object', additionalProperties: false,
     properties: {
@@ -151,7 +151,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     throw new Error('AIから読み取れるテキストが返りませんでした。もう一度依頼してください。');
   };
   const expandCompactResponse = (wire) => {
-    const operationTypes = { a: 'addClass', r: 'renameClass', m: 'moveClass', mc: 'moveChildren', d: 'deleteClass' };
+    const operationTypes = { a: 'addClass', r: 'renameClass', m: 'moveClass', mc: 'moveChildren', p: 'promoteClass', d: 'deleteClass' };
     return {
       message: wire.m,
       proposals: wire.p.map((proposal) => ({

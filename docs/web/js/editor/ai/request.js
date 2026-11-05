@@ -13,7 +13,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         ? '全体構造を分割処理中です。今回の範囲だけを評価し、全体評価を終えたと断定しないでください。'
         : '入力範囲外のクラス情報を推測しません。結論に必要な情報が範囲外なら、不足している階層・クラス情報を回答文で説明し、その範囲を選択して再依頼するよう案内してください。追加共有の候補検索は行いません。';
     const instruction = options.instruction || (activeScope.mode === 'hierarchy_scope'
-      ? '階層クラスだけの範囲です。上位・中間クラスの追加・改名・移動・削除を提案できますが、対象クラスの操作は禁止です。上位を中間へ移す場合は配下の親子関係を保ってください。'
+      ? '階層クラスだけの範囲です。上位・中間クラスの追加・改名・移動・削除と、選択済み中間クラスの上位化を提案できますが、対象クラスの操作は禁止です。階層の変換では配下の親子関係を保ってください。'
       : '今回の依頼に合わせて、selectedScope内の情報を評価・説明し、安全に確定できる提案を返してください。');
     const noEditableClassesInstruction = activeScope.editableIds.length
       ? ''

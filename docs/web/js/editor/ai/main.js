@@ -1,10 +1,10 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261105-hierarchy-policy-v1';
-import { createResponseHandler, createOperationPolicy } from './proposal-engine.js?v=20261105-hierarchy-policy-v1';
+import { createRequestPlanner, createChunkSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261105-promote-class-v1';
+import { createResponseHandler, createOperationPolicy } from './proposal-engine.js?v=20261105-promote-class-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261105-functional-modules-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261105-operation-policy-v1';
-import { createAIClient } from './ai-client.js?v=20261105-functional-modules-v1';
+import { createProposalPreview } from './proposal-preview.js?v=20261105-promote-class-v1';
+import { createAIClient } from './ai-client.js?v=20261105-promote-class-v1';
 
 (() => {
   const editor = window.classEditorAI;
@@ -871,6 +871,7 @@ let proposalPreview = null;
         : `「${sourceLabel}」を「${labelFor(operation.destinationId)}」へ移動`;
     }
     if (operation.type === 'moveChildren') return `「${labelFor(operation.from)}」の配下を「${labelFor(operation.to)}」へ移動`;
+    if (operation.type === 'promoteClass') return `中間クラス「${labelFor(operation.classId)}」を上位クラス化`;
     if (operation.type === 'deleteClass') return `「${labelFor(operation.classId)}」を削除`;
     return '不明な操作';
   };
@@ -879,6 +880,7 @@ let proposalPreview = null;
     if (operation?.type === 'renameClass') return { key: 'renameClass', label: '改名', className: 'is-rename' };
     if (operation?.type === 'moveClass') return { key: 'moveClass', label: '移動', className: 'is-move' };
     if (operation?.type === 'moveChildren') return { key: 'moveChildren', label: '移動', className: 'is-move' };
+    if (operation?.type === 'promoteClass') return { key: 'promoteClass', label: '上位化', className: 'is-move' };
     if (operation?.type === 'deleteClass') return { key: 'deleteClass', label: '削除', className: 'is-delete' };
     return { key: 'other', label: 'その他', className: 'is-other' };
   };
@@ -891,7 +893,7 @@ let proposalPreview = null;
     const counts = new Map(operationLegendCategories.map(({ key }) => [key, 0]));
     operations.forEach((operation) => {
       const category = operationCategory(operation);
-      const countKey = ['moveClass', 'moveChildren'].includes(category.key) ? 'addClass' : category.key;
+      const countKey = ['moveClass', 'moveChildren', 'promoteClass'].includes(category.key) ? 'addClass' : category.key;
       if (counts.has(countKey)) counts.set(countKey, counts.get(countKey) + 1);
     });
     return counts;

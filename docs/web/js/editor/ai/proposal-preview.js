@@ -26,6 +26,7 @@ export const createProposalPreview = ({
     if (operation?.type === 'renameClass') return { label: '改名', className: 'is-rename' };
     if (operation?.type === 'moveClass') return { label: '移動', className: 'is-move' };
     if (operation?.type === 'moveChildren') return { label: '移動', className: 'is-move' };
+    if (operation?.type === 'promoteClass') return { label: '上位化', className: 'is-move' };
     if (operation?.type === 'deleteClass') return { label: '削除', className: 'is-delete' };
     return { label: 'その他', className: 'is-other' };
   };
@@ -756,6 +757,9 @@ export const createProposalPreview = ({
       } else if (!key && operation.type === 'moveClass' && deletedIds.has(parentByChild.get(operation.classId))) {
         key = `delete:${parentByChild.get(operation.classId)}`;
         kind = 'deletion';
+      } else if (!key && operation.type === 'promoteClass') {
+        key = `promote:${operation.classId}`;
+        kind = 'class';
       } else if (!key && operation.type === 'moveClass') {
         key = `destination:${operation.destinationId || ''}`;
         kind = 'destination';
@@ -1016,7 +1020,7 @@ export const createProposalPreview = ({
       } else if (operation.type === 'renameClass') {
         const id = resolveProposedId(operation.classId);
         previewArrows.push({ kind, from: operation.classId, to: id, excluded, operationIndex: index });
-      } else if (operation.type === 'moveClass') {
+      } else if (operation.type === 'moveClass' || operation.type === 'promoteClass') {
         const targetClass = resolveProposedId(operation.classId);
         previewArrows.push({ kind, from: operation.classId, to: targetClass, excluded, operationIndex: index });
       } else if (operation.type === 'moveChildren') {
@@ -1098,7 +1102,7 @@ export const createProposalPreview = ({
       return `合計 ${total}件・直下 ${direct}件`;
     };
     const operationDetail = (operation) => {
-      if (operation.type === 'moveClass') {
+      if (operation.type === 'moveClass' || operation.type === 'promoteClass') {
         const beforePath = hierarchyPathFor(beforeState, operation.classId);
         const afterId = resolveProposedId(operation.classId);
         const afterPath = hierarchyPathFor(candidate, afterId);

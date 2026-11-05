@@ -785,6 +785,8 @@ window.classEditorAI = {
       if (operation.type === 'deleteClass' && operationPolicy && !operationPolicy.allowDelete) {
         throw new Error('この依頼ではクラス削除が許可されていません。');
       }
+      if (operation.type === 'promoteClass' && operationPolicy?.moveSourceTypes
+        && !operationPolicy.moveSourceTypes.includes('middle')) throw new Error('この依頼範囲では中間クラスを上位化できません。');
     };
     const hasUneditableOriginalDescendant = (id) => {
       const childrenByParent = new Map();
@@ -926,6 +928,28 @@ window.classEditorAI = {
           relationByChild.delete(child);
           addRelationCandidate(child, toId);
         }); return;
+      }
+      if (operation.type === 'promoteClass') {
+        const id = resolve(operation.classId);
+        editableSource(id);
+        const item = byId.get(id);
+        if (!item || item.type !== 'middle' || item.label === '未分類') throw new Error('上位化できるのは未分類以外の中間クラスだけです。');
+        if (candidateClasses.some((other) => other.id !== id && other.type === 'top' && other.label.trim() === item.label.trim())) {
+          throw new Error(`同名の上位クラス「${item.label}」があるため上位化できません。`);
+        }
+        const newId = newClassId('top');
+        relationByChild.delete(id);
+        [...relationByChild.values()].forEach((relation) => {
+          if (relation.parent === id) relation.parent = newId;
+        });
+        item.id = newId;
+        item.type = 'top';
+        byId.delete(id);
+        byId.set(newId, item);
+        convertedIds.set(id, newId);
+        editable.delete(id);
+        editable.add(newId);
+        return;
       }
       if (operation.type === 'deleteClass') {
         const id = resolve(operation.classId); const item = byId.get(id);

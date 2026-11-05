@@ -1,5 +1,5 @@
 // AIの依頼意図と分割タスクから、許可する操作を一元的に決めます。
-const ALL_OPERATIONS = ['addClass', 'renameClass', 'moveClass', 'moveChildren', 'deleteClass'];
+const ALL_OPERATIONS = ['addClass', 'renameClass', 'moveClass', 'moveChildren', 'promoteClass', 'deleteClass'];
 
 const asksForNoChanges = (text) => /変更案(?:は|を)?(?:出さない|作らない|不要|いらない)|提案(?:は|を)(?:出さない|作らない|不要|いらない|しない)|(?:要約|説明|評価|比較|確認)だけ|^(?:今回は)?提案しない/.test(text);
 const asksForChanges = (text) => /(?:変更案|提案|移動(?:案|して|させて|先を)|追加(?:案|して|する)|新設(?:案|して|する)|作成(?:案|して|する)|作って|設けて|改名(?:案|して|する)|削除(?:案|して|する|を許可|を認め)|統合(?:案|して|する|が明確|を検討|を許可|や改名)|分割(?:案|して|する)|再編(?:案|して|する)|再構成(?:案|して|する)|振り分け(?:案|て|る)|分類(?:案|して|し直して|する)|見直(?:案|して|す)|最適化(?:案|して|する)|整理(?:案|して|する)|改善(?:案|して|する)|整えて|変更(?:案|して|する)|検討して|検討し|(?:必要なら|可能なら|必要に応じて).{0,12}(?:削除|統合))/.test(text);
@@ -17,6 +17,7 @@ const requestedOperationTypes = (text) => {
   if (/(?:改名|名称変更|変更後の名称|名前を変|命名)/.test(text)) types.add('renameClass');
   if (/(?:移動|移す|移し|再分類|振り分け|所属.{0,8}(?:変|見直|整理))/.test(text)) types.add('moveClass');
   if (/(?:配下.{0,8}(?:まとめ|一括)|(?:すべて|全て).{0,8}子)/.test(text)) types.add('moveChildren');
+  if (/(?:上位化|上位クラス化|昇格|独立した上位)/.test(text)) types.add('promoteClass');
   if (explicitlyAllowsDeletion(text)) {
     types.add('deleteClass');
     types.add('moveClass');
@@ -28,13 +29,14 @@ const requestedOperationTypes = (text) => {
 
 export const createOperationPolicy = ({ requestText = '', taskKind = 'selected_scope', scope = {} }) => {
   const request = String(requestText);
-  let allowedTypes = asksForNoChanges(request) || !asksForChanges(request) ? [] : requestedOperationTypes(request);
+  let allowedTypes = asksForNoChanges(request) || !(asksForChanges(request) || /上位化|上位クラス化|昇格/.test(request))
+    ? [] : requestedOperationTypes(request);
   let addClassTypes = ['top', 'middle'];
   let moveSourceTypes = ['top', 'middle', 'class'];
   let allowDelete = allowedTypes.includes('deleteClass') && explicitlyAllowsDeletion(request);
 
   if (taskKind === 'upper_class_unit' || taskKind === 'upper_class_targets') {
-    allowedTypes = allowedTypes.filter((type) => ['addClass', 'moveClass', ...(taskKind === 'upper_class_unit' && scope.allowHierarchyEdits ? ['renameClass', 'moveChildren', 'deleteClass'] : [])].includes(type));
+    allowedTypes = allowedTypes.filter((type) => ['addClass', 'moveClass', ...(taskKind === 'upper_class_unit' && scope.allowHierarchyEdits ? ['renameClass', 'moveChildren', 'promoteClass', 'deleteClass'] : [])].includes(type));
     addClassTypes = ['middle'];
     moveSourceTypes = taskKind === 'upper_class_unit' && scope.allowHierarchyEdits
       ? ['top', 'middle', 'class'] : ['class'];
@@ -60,6 +62,8 @@ export const operationAllowedByPolicy = (operation, policy, classesById, editabl
   if (!operation || !policy?.allowedTypes?.includes(operation.type)) return false;
   if (operation.type === 'addClass') return policy.addClassTypes.includes(operation.classType);
   if (operation.type === 'deleteClass' && !policy.allowDelete) return false;
+  if (operation.type === 'promoteClass') return editableIds.has(operation.classId)
+    && classesById.get(operation.classId)?.type === 'middle' && policy.moveSourceTypes.includes('middle');
   if (operation.type === 'moveClass') {
     const source = classesById.get(operation.classId);
     return editableIds.has(operation.classId) && policy.moveSourceTypes.includes(source?.type);
@@ -97,7 +101,7 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
         || !proposal.id || proposalIds.has(proposal.id)) throw new Error('AIの提案形式が不正です。提案は適用できません。');
       proposalIds.add(proposal.id);
       proposal.operations.forEach((operation) => {
-        if (!operation || !['addClass', 'renameClass', 'moveClass', 'moveChildren', 'deleteClass'].includes(operation.type)) throw new Error('許可されていない操作を含む提案です。適用できません。');
+        if (!operation || !ALL_OPERATIONS.includes(operation.type)) throw new Error('許可されていない操作を含む提案です。適用できません。');
       });
     });
     result.proposals.forEach((proposal) => {
