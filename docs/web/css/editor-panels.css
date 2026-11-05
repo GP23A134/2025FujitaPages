@@ -565,6 +565,9 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree > details > ul > li.is-ai-preview-wire-related::before { border-top-width: 3px; }
 #ai-preview-dialog .tree .tree-child-middle-list > li.is-ai-preview-wire-related > .tree-middle-class > summary::before,
 #ai-preview-dialog .tree .tree-target-list > li.is-ai-preview-wire-related::before { border-top-width: 2px; }
+#ai-preview-dialog .tree .tree-level-rows.is-ai-preview-wire-related { border-left-width: 3px; }
+#ai-preview-dialog .tree > details > ul.tree-level-rows.is-ai-preview-wire-related { border-left-width: 0; }
+#ai-preview-dialog .tree > details > ul.is-ai-preview-wire-related::before { border-left-width: 3px; }
 #ai-preview-dialog .tree .tree-child-middle-list > li:has(> .tree-middle-class) { margin: 0; padding: 0; background: transparent; }
 #ai-preview-dialog .tree .tree-child-middle-list > li:has(> .tree-middle-class)::before { display: none; }
 #ai-preview-dialog .tree .tree-middle-class { width: auto; max-width: 100%; margin-block: 0; }
