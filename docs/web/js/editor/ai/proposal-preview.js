@@ -21,7 +21,7 @@ export const createProposalPreview = ({
   let previewPlan = null;
   let previewPageIndex = 0;
   let previewGroups = [];
-  let sortPreviewByOperation = true;
+  const sortPreviewByOperation = true;
   const operationCategory = (operation) => {
     if (operation?.type === 'addClass') return { label: '追加', className: 'is-add' };
     if (operation?.type === 'renameClass') return { label: '改名', className: 'is-rename' };
@@ -665,8 +665,6 @@ export const createProposalPreview = ({
   const showPreview = async (proposalItem, applyRequested = false, fastUpdate = false) => {
     const previewColumns = document.querySelector('.ai-preview-columns');
     previewColumns?.classList.add('is-loading');
-    const orderToggle = document.getElementById('ai-preview-order-toggle');
-    if (orderToggle) orderToggle.disabled = true;
     syncProposalPage(proposalItem);
     if (hasUnsubmittedQuestions(proposalItem.responseGroupId)) {
       if (previewDialog.open) closePreview();
@@ -882,8 +880,6 @@ export const createProposalPreview = ({
         }
       }
     };
-    addAncestors(operationIds, beforeParents, beforeIds);
-    addAncestors(operationIds, displayParents, displayIds);
     const before = document.getElementById('ai-preview-before'); const after = document.getElementById('ai-preview-after');
     const previewState = (state, previewIds = operationIds) => ({
       classes: state.classes.filter((item) => previewIds.has(item.id)),
@@ -917,19 +913,18 @@ export const createProposalPreview = ({
     before.replaceChildren();
     after.replaceChildren();
     if (currentGroup) {
-      // 変更箇所と、その変更前後の親経路だけを表示対象にする。
-      // 全クラスを含めると、提案と無関係な枝までプレビューに出てしまう。
-      const groupAffectedIds = new Set(operationIds);
-      addAncestors(groupAffectedIds, beforeParents, beforeIds);
-      addAncestors(groupAffectedIds, displayParents, displayIds);
-      const groupPreviewState = (state) => previewState(state, groupAffectedIds);
-      appendTree(before, groupPreviewState(beforeState), groupAffectedIds, {
+      // 変更対象と各状態で必要な祖先だけを表示し、反対側の親階層は混ぜない。
+      const beforeAffectedIds = new Set(operationIds);
+      const afterAffectedIds = new Set(operationIds);
+      addAncestors(beforeAffectedIds, beforeParents, beforeIds);
+      addAncestors(afterAffectedIds, displayParents, displayIds);
+      appendTree(before, previewState(beforeState, beforeAffectedIds), beforeAffectedIds, {
         countLabelFor: hierarchyCountLabel(beforeHierarchyCounts),
         operationIndexesByClass, addedOperationIndexesByClass, operations, deletionOperationByClass,
         orderByOperation: sortPreviewByOperation,
         excludedOperationIndexes: proposalItem.excludedOperationIndexes
       });
-      appendTree(after, groupPreviewState(proposedDisplayState), groupAffectedIds, {
+      appendTree(after, previewState(proposedDisplayState, afterAffectedIds), afterAffectedIds, {
         selectable: !isApplied,
         countLabelFor: hierarchyCountLabel(afterHierarchyCounts),
         operationIndexesByClass, addedOperationIndexesByClass, operations,
@@ -955,21 +950,11 @@ export const createProposalPreview = ({
     document.getElementById('ai-preview-group-include').hidden = isApplied;
     document.getElementById('ai-preview-group-exclude').hidden = isApplied;
     previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), arrows: previewArrows, candidate, expectedFingerprint, expectedBaseHash, readOnly: isApplied };
-    if (orderToggle) {
-      orderToggle.textContent = sortPreviewByOperation ? '元の並びに戻す' : '変更順に並べる';
-      orderToggle.setAttribute('aria-pressed', String(sortPreviewByOperation));
-      orderToggle.disabled = isApplied;
-    }
     previewColumns?.classList.remove('is-loading');
     requestAnimationFrame(() => renderPreviewArrows(previewArrows));
     applyButton.disabled = isApplied || activeOperations.length === 0;
     if (applyRequested && activeOperations.length) applyButton.focus();
   };
-  document.getElementById('ai-preview-order-toggle')?.addEventListener('click', () => {
-    if (!previewPlan || previewPlan.readOnly) return;
-    sortPreviewByOperation = !sortPreviewByOperation;
-    void showPreview(previewPlan.proposalItem, false, true).catch(reportPreviewError);
-  });
   const navigatePreview = (direction) => {
     if (!previewPlan) return;
     const items = previewableProposals();

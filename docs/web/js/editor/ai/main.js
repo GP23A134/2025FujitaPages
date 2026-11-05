@@ -6,7 +6,7 @@ import { createRequestPlanner } from './request-planner.js?v=20261104-preparatio
 import { createResponseHandler } from './response-handler.js?v=20261105-operation-scope-guard-v2';
 import { createConversationStore } from './conversation-store.js?v=20261103-ai-review-fixes-v1';
 import { createConversationView } from './conversation-view.js?v=20261104-readable-ai-replies-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261105-preview-order-toggle-v10';
+import { createProposalPreview } from './proposal-preview.js?v=20261105-operation-order-always-v1';
 
 (() => {
   const editor = window.classEditorAI;
