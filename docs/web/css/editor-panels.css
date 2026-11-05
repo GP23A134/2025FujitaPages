@@ -582,8 +582,14 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .is-ai-preview-changed:not(.tree-leaf-class) { outline: 2px solid #f59e0b; outline-offset: 1px; }
 #ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-changed { outline: none; }
 #ai-preview-dialog .tree .is-ai-preview-excluded { opacity: 0.5; outline: 1px dashed #64748b; outline-offset: 1px; }
-#ai-preview-dialog .tree .is-ai-preview-hover-related,
-#ai-preview-dialog .tree .is-ai-preview-hover-parent { background-color: #fef3c7; }
+#ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-hover-related,
+#ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-hover-parent,
+#ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-hover-related,
+#ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-hover-parent,
+#ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-hover-related,
+#ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-hover-parent,
+#ai-preview-dialog .tree .tree-child-middle-list > li > .tree-middle-class > summary.is-ai-preview-hover-related,
+#ai-preview-dialog .tree .tree-child-middle-list > li > .tree-middle-class > summary.is-ai-preview-hover-parent { background-color: #fef3c7; }
 .ai-preview-change-item.is-ai-preview-change-hovered { background: #fef3c7; }
 .ai-preview-change-item:focus-visible { position: relative; z-index: 4; outline: 3px solid #f59e0b; outline-offset: 2px; }
 #ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-changed:hover,

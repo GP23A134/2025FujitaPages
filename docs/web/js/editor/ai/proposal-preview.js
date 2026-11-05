@@ -284,10 +284,24 @@ export const createProposalPreview = ({
     if (addOrigin) addOrigin.hidden = svg.hidden || !hasAdditions;
     if (deleteTarget) deleteTarget.hidden = svg.hidden || !hasDeletions;
     if (svg.hidden) return;
+    const groupedMoves = new Map();
+    const routingArrows = [];
+    arrows.forEach((arrow) => {
+      const operation = previewPlan?.proposalItem.proposal.operations[arrow.operationIndex];
+      if (arrow.kind === 'is-move' && !arrow.excluded && operation?.type === 'moveChildren') {
+        if (!groupedMoves.has(arrow.operationIndex)) groupedMoves.set(arrow.operationIndex, []);
+        groupedMoves.get(arrow.operationIndex).push(arrow);
+      } else routingArrows.push({ arrow });
+    });
+    groupedMoves.forEach((group) => {
+      if (group.length > 1) routingArrows.push({ arrow: group[0], groupArrows: group });
+      else if (group.length) routingArrows.push({ arrow: group[0] });
+    });
+    const trackGap = 5;
     const bounds = svg.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
-    const laneWidth = Math.max(120, arrows.length * 3 + 24);
-    const routingHeight = Math.max(100, arrows.length * 3 + 32);
+    const laneWidth = Math.max(120, routingArrows.length * trackGap + 24);
+    const routingHeight = Math.max(100, routingArrows.length * 3 + 32);
     if (columns.dataset.previewLaneWidth !== String(laneWidth)
       || columns.dataset.previewRoutingHeight !== String(routingHeight)) {
       columns.dataset.previewLaneWidth = String(laneWidth);
@@ -331,21 +345,24 @@ export const createProposalPreview = ({
     const deleteTargetBounds = hasDeletions ? deleteTarget?.getBoundingClientRect() : null;
     const gutterLeft = beforeBounds.right - bounds.left;
     const gutterRight = afterBounds.left - bounds.left;
-    const routes = arrows.map((arrow) => {
+    const routes = routingArrows.map(({ arrow, groupArrows }) => {
       const color = previewArrowColors[arrow.kind];
       if (!color) return null;
+      const sourceId = groupArrows ? previewPlan.beforeParents.get(groupArrows[0].from) : arrow.from;
+      const targetId = groupArrows ? previewPlan.afterParents.get(groupArrows[0].to) : arrow.to;
       const source = arrow.kind === 'is-add' && !arrow.from
-        ? addOriginBounds : previewNodeRow(before, arrow.from)?.getBoundingClientRect();
+        ? addOriginBounds : previewNodeRow(before, sourceId)?.getBoundingClientRect();
       const target = arrow.kind === 'is-delete' && !arrow.to
-        ? deleteTargetBounds : previewNodeRow(after, arrow.to)?.getBoundingClientRect();
+        ? deleteTargetBounds : previewNodeRow(after, targetId)?.getBoundingClientRect();
       if (!source && !target) return null;
-      return { arrow, color, source, target };
+      return { arrow, color, source, target, groupArrows };
     }).filter(Boolean).sort((left, right) => {
-      const leftY = left.source?.top ?? left.target?.top ?? 0;
-      const rightY = right.source?.top ?? right.target?.top ?? 0;
-      return leftY - rightY;
+      const leftSourceY = left.source ? left.source.top + left.source.height / 2 : left.target?.top ?? 0;
+      const leftTargetY = left.target ? left.target.top + left.target.height / 2 : left.source?.top ?? 0;
+      const rightSourceY = right.source ? right.source.top + right.source.height / 2 : right.target?.top ?? 0;
+      const rightTargetY = right.target ? right.target.top + right.target.height / 2 : right.source?.top ?? 0;
+      return leftSourceY + leftTargetY - rightSourceY - rightTargetY || leftSourceY - rightSourceY;
     });
-    const trackGap = 3;
     const trackBankInset = Math.max(0, (gutterRight - gutterLeft - routes.length * trackGap) / 2);
     const assignPorts = (side) => {
       const groups = new Map();
@@ -368,9 +385,46 @@ export const createProposalPreview = ({
     };
     assignPorts('source');
     assignPorts('target');
-    routes.forEach(({ arrow, color, source, target }, index) => {
+    const appendRoutePath = ({ commands, arrow, color, marker = true }) => {
+      const path = document.createElementNS(namespace, 'path');
+      path.setAttribute('d', commands.join(' '));
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', color);
+      path.setAttribute('stroke-width', '1.5');
+      path.setAttribute('stroke-linejoin', 'round');
+      if (marker) path.setAttribute('marker-end', `url(#ai-preview-arrowhead-${arrow.kind})`);
+      path.dataset.operationIndex = String(arrow.operationIndex);
+      if (arrow.excluded) path.setAttribute('stroke-dasharray', '4 3');
+      if (arrow.excluded) path.setAttribute('opacity', '0.45');
+      svg.append(path);
+    };
+    routes.forEach(({ arrow, color, source, target, groupArrows }, index) => {
       const laneX = gutterLeft + trackBankInset + (index + 0.5) * trackGap;
       const channelY = height * (index + 1) / (routes.length + 1);
+      if (groupArrows?.length > 1) {
+        const branches = groupArrows.map((groupArrow) => ({
+          source: previewNodeRow(before, groupArrow.from)?.getBoundingClientRect(),
+          target: previewNodeRow(after, groupArrow.to)?.getBoundingClientRect()
+        })).filter(({ source: branchSource, target: branchTarget }) => branchSource || branchTarget);
+        const branchYs = branches.flatMap(({ source: branchSource, target: branchTarget }) => [
+          ...(branchSource ? [branchSource.top + branchSource.height / 2 - bounds.top] : []),
+          ...(branchTarget ? [branchTarget.top + branchTarget.height / 2 - bounds.top] : [])
+        ]);
+        if (branchYs.length) {
+          appendRoutePath({ commands: [`M ${laneX} ${Math.min(...branchYs)} V ${Math.max(...branchYs)}`], arrow, color, marker: false });
+          branches.forEach(({ source: branchSource, target: branchTarget }) => {
+            if (branchSource) {
+              const y = branchSource.top + branchSource.height / 2 - bounds.top;
+              appendRoutePath({ commands: [`M ${branchSource.right - bounds.left} ${y} H ${laneX}`], arrow, color, marker: false });
+            }
+            if (branchTarget) {
+              const y = branchTarget.top + branchTarget.height / 2 - bounds.top;
+              appendRoutePath({ commands: [`M ${laneX} ${y} H ${branchTarget.left - bounds.left}`], arrow, color });
+            }
+          });
+        }
+        return;
+      }
       const isAddition = arrow.kind === 'is-add' && !arrow.from;
       const startX = source ? (isAddition ? source.left + source.width / 2 : source.right) - bounds.left : laneX;
       const endX = target ? target.left - bounds.left : laneX;
@@ -378,7 +432,6 @@ export const createProposalPreview = ({
         ? source.bottom - bounds.top
         : routes[index].startY ?? (target ? target.top + target.height / 2 - bounds.top : channelY);
       const endY = routes[index].endY ?? (source ? source.top + source.height / 2 - bounds.top : channelY);
-      const path = document.createElementNS(namespace, 'path');
       const commands = [];
       if (isAddition && source && target) {
         commands.push(`M ${startX} ${startY} V ${endY} H ${endX}`);
@@ -388,16 +441,7 @@ export const createProposalPreview = ({
         if (target) commands.push(`V ${endY} H ${endX}`);
         else commands.push(`V ${channelY}`);
       }
-      path.setAttribute('d', commands.join(' '));
-      path.setAttribute('fill', 'none');
-      path.setAttribute('stroke', color);
-      path.setAttribute('stroke-width', '1.5');
-      path.setAttribute('stroke-linejoin', 'round');
-      path.setAttribute('marker-end', `url(#ai-preview-arrowhead-${arrow.kind})`);
-      path.dataset.operationIndex = String(arrow.operationIndex);
-      if (arrow.excluded) path.setAttribute('stroke-dasharray', '4 3');
-      if (arrow.excluded) path.setAttribute('opacity', '0.45');
-      svg.append(path);
+      appendRoutePath({ commands, arrow, color });
     });
   };
   const clearPreviewHover = () => {
