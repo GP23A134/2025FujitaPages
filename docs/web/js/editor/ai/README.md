@@ -14,6 +14,7 @@
 | `conversation-store.js` | 会話履歴のブラウザー保存・復元 |
 | `conversation-view.js` | 履歴一覧とメッセージ吹き出しの描画 |
 | `proposal-preview.js` | 変更案のプレビュー、操作選択、ナビゲーション、適用 |
+| `prompt-examples.js` | 選択範囲と全体参照設定に応じたプロンプト例の絞り込み |
 
 ## 送信フローを `main.js` に残す理由
 
