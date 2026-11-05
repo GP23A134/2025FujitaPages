@@ -34,11 +34,11 @@ export const createOperationPolicy = ({ requestText = '', taskKind = 'selected_s
   let allowDelete = allowedTypes.includes('deleteClass') && explicitlyAllowsDeletion(request);
 
   if (taskKind === 'upper_class_unit' || taskKind === 'upper_class_targets') {
-    allowedTypes = allowedTypes.filter((type) => ['addClass', 'moveClass', ...(taskKind === 'upper_class_unit' && scope.allowHierarchyEdits ? ['renameClass', 'moveChildren'] : [])].includes(type));
+    allowedTypes = allowedTypes.filter((type) => ['addClass', 'moveClass', ...(taskKind === 'upper_class_unit' && scope.allowHierarchyEdits ? ['renameClass', 'moveChildren', 'deleteClass'] : [])].includes(type));
     addClassTypes = ['middle'];
     moveSourceTypes = taskKind === 'upper_class_unit' && scope.allowHierarchyEdits
       ? ['top', 'middle', 'class'] : ['class'];
-    allowDelete = false;
+    allowDelete = taskKind === 'upper_class_unit' && Boolean(scope.allowHierarchyEdits) && allowDelete;
   } else if (taskKind === 'hierarchy') {
     moveSourceTypes = ['top', 'middle'];
     allowedTypes = allowedTypes.filter((type) => type !== 'deleteClass' || allowDelete);
@@ -304,6 +304,8 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
       return false;
     };
     let totalRemovedCount = 0;
+    const current = editor.getState();
+    const fingerprint = JSON.stringify({ classes: current.classes, relations: current.relations });
     result.proposals.forEach((proposal) => {
       const proposalClassesById = new Map(classesById);
       const proposalEditableIds = new Set(editableIds);
@@ -314,17 +316,33 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
         }
       });
       let removedCount = 0;
+      const removedReasons = [];
       proposal.operations = proposal.operations.filter((operation) => {
-        const allowed = operationAllowedByPolicy(operation, policy, proposalClassesById, proposalEditableIds)
-          && !(operation.type === 'deleteClass' && policy.requireAllDescendantsEditableForDelete
-            && hasUneditableDescendant(operation.classId));
-        if (!allowed) removedCount += 1;
+        const allowedByPolicy = operationAllowedByPolicy(operation, policy, proposalClassesById, proposalEditableIds);
+        const hasUnselectedDescendant = operation.type === 'deleteClass' && policy.requireAllDescendantsEditableForDelete
+          && hasUneditableDescendant(operation.classId);
+        const allowed = allowedByPolicy && !hasUnselectedDescendant;
+        if (!allowed) {
+          removedCount += 1;
+          removedReasons.push(hasUnselectedDescendant
+            ? '削除対象の配下に未選択のクラスがあります。配下を含めて選択してください。'
+            : `${operation.type || '不明'}は今回の依頼または編集範囲で許可されていません。`);
+        }
         return allowed;
       });
       totalRemovedCount += removedCount;
-      if (removedCount && proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal) {
-        const warning = '依頼・分割範囲で許可されない操作、または選択範囲外のクラスに影響する操作は除外しました。';
-        if (!proposal.uncertainties.includes(warning)) proposal.uncertainties.push(warning);
+      if (removedCount) {
+        const warning = `一部の操作を除外しました: ${[...new Set(removedReasons)].join(' ')}`;
+        proposal.uncertainties.push(warning);
+      }
+      if (proposal.operations.length) {
+        try {
+          editor.applyOperations(proposal.operations, fingerprint, scope.editableIds || [],
+            (scope.classes || []).map((item) => item.id), policy);
+        } catch (error) {
+          proposal.operations = [];
+          proposal.questions.push(`残りの操作だけでは提案が成立しないため、この提案全体を止めました。${error.message}`);
+        }
       }
     });
     const removedProposals = result.proposals.filter((proposal) => !proposal.operations.length && !proposal.questions.length);

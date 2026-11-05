@@ -879,7 +879,7 @@ window.classEditorAI = {
         if (!availableReference(destinationId)) throw new Error('選択中または共有許可済みのクラスだけを移動先に指定できます。');
         const item = byId.get(id); const destination = byId.get(destinationId);
         if (item && isUnclassified(item)) throw new Error('未分類は受け皿のため移動できません。');
-        const convertsTopToMiddle = item?.type === 'top' && destination?.type === 'middle';
+        const convertsTopToMiddle = item?.type === 'top' && ['top', 'middle'].includes(destination?.type);
         if (!item || !destination || (!['middle', 'class'].includes(item.type) && !convertsTopToMiddle)
           || !['top', 'middle'].includes(destination.type) || item.id === destination.id) throw new Error('クラスの移動先または対象が不正です。');
         let ancestorId = destinationId;

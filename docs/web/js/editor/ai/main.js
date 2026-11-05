@@ -1,7 +1,7 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, filterPromptExamples } from './request.js?v=20261105-functional-modules-v1';
-import { createResponseHandler, createOperationPolicy } from './proposal-engine.js?v=20261105-functional-modules-v1';
+import { createRequestPlanner, createChunkSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261105-hierarchy-policy-v1';
+import { createResponseHandler, createOperationPolicy } from './proposal-engine.js?v=20261105-hierarchy-policy-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261105-functional-modules-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261105-operation-policy-v1';
 import { createAIClient } from './ai-client.js?v=20261105-functional-modules-v1';
@@ -877,23 +877,22 @@ let proposalPreview = null;
   const operationCategory = (operation) => {
     if (operation?.type === 'addClass') return { key: 'addClass', label: '追加', className: 'is-add' };
     if (operation?.type === 'renameClass') return { key: 'renameClass', label: '改名', className: 'is-rename' };
-    if (operation?.type === 'moveClass') return { key: 'moveClass', label: 'クラス移動', className: 'is-move' };
-    if (operation?.type === 'moveChildren') return { key: 'moveChildren', label: '階層移動', className: 'is-move' };
+    if (operation?.type === 'moveClass') return { key: 'moveClass', label: '移動', className: 'is-move' };
+    if (operation?.type === 'moveChildren') return { key: 'moveChildren', label: '移動', className: 'is-move' };
     if (operation?.type === 'deleteClass') return { key: 'deleteClass', label: '削除', className: 'is-delete' };
     return { key: 'other', label: 'その他', className: 'is-other' };
   };
   const operationLegendCategories = [
     { key: 'addClass', label: '追加', className: 'is-add' },
     { key: 'renameClass', label: '改名', className: 'is-rename' },
-    { key: 'moveClass', label: 'クラス移動', className: 'is-move' },
-    { key: 'moveChildren', label: '階層移動', className: 'is-move' },
     { key: 'deleteClass', label: '削除', className: 'is-delete' }
   ];
   const countOperationTypes = (operations) => {
     const counts = new Map(operationLegendCategories.map(({ key }) => [key, 0]));
     operations.forEach((operation) => {
       const category = operationCategory(operation);
-      if (counts.has(category.key)) counts.set(category.key, counts.get(category.key) + 1);
+      const countKey = ['moveClass', 'moveChildren'].includes(category.key) ? 'addClass' : category.key;
+      if (counts.has(countKey)) counts.set(countKey, counts.get(countKey) + 1);
     });
     return counts;
   };
@@ -1642,49 +1641,14 @@ let proposalPreview = null;
     let requestSucceeded = false;
     try {
       activeRequestController = new AbortController();
-      const sendApiRequest = async (input, previousResponseId = '', maxOutputTokens = MAX_OUTPUT_TOKENS,
-        stage = userText.startsWith('確認事項への回答です') ? '追加情報の回答を送信中' : '回答・変更案を作成中', grouped = false, summaryOnly = false, promptOverride = '') => {
-        const response = await responsesClient.send(input, {
-          apiKey: key,
-          model: modelSelect.value,
-          systemPrompt,
-          previousResponseId,
-          maxOutputTokens,
-          stage,
-          grouped,
-          summaryOnly,
-          promptOverride,
-          signal: activeRequestController.signal,
-          onStage: (nextStage) => setThinkingStage(conversation, nextStage),
-          onUsage: recordUsage
-        });
-        return response;
-      };
-      const retryCompleteScopeDataRequest = async (response, isChunk = false) => {
-        responseHandler.validatePayload(response.result, baseDataHash);
-        if (scope.scopeCoverage !== 'all_classes' || !response.result.dataRequests.length) return response;
-        if (!response.responseBody.id) throw new Error('修正回答の会話IDを取得できませんでした。');
-        const correctionInput = JSON.stringify({
-          request: isChunk
-            ? '前回の回答を修正してください。全上位・中間クラスと選択中クラスの情報を複数のリクエストに分割して処理中です。今回の入力はその一部なので、追加のクラス情報は要求せず、この範囲だけを評価してください。全体評価を終えたとは断定せず、最初の利用者依頼に沿って回答してください。'
-            : '前回の回答を修正してください。全上位・中間クラスと選択中クラスのID・種別・名称・親子関係はすでに共有されています。追加のクラス情報は要求せず、最初の利用者依頼に対して、受け取った情報から判断できる範囲で評価・説明・変更案を返してください。実データや件数がないため判断できない点は、その限界を説明してください。',
-          scopeCoverage: isChunk ? 'all_classes_chunk' : 'all_classes',
-          responsePolicy: 'dataRequestsは必ず空配列にしてください。追加クラス情報をmessageやquestionsで要求してはいけません。ユーザーの意図や希望する変更方針の確認だけはquestionsで尋ねられます。'
-        });
-        const corrected = await sendApiRequest(correctionInput, response.responseBody.id || '');
-        responseHandler.validatePayload(corrected.result, baseDataHash);
-        if (corrected.result.dataRequests.length) {
-          corrected.result = {
-            ...corrected.result,
-            message: '全上位・中間クラス情報を使った回答を作成できませんでした。追加データは要求せず、クラス構造から判断できる範囲で改めて依頼してください。',
-            proposals: [],
-            questions: [],
-            dataRequests: []
-          };
-          corrected.repairFailed = true;
-        }
-        return corrected;
-      };
+      const { send: sendApiRequest, retryCompleteScopeDataRequest } = createRequestSender({
+        responsesClient, responseHandler, apiKey: key, model: modelSelect.value, systemPrompt,
+        signal: activeRequestController.signal, baseDataHash, scopeCoverage: scope.scopeCoverage,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+        defaultStage: userText.startsWith('確認事項への回答です') ? '追加情報の回答を送信中' : '回答・変更案を作成中',
+        onStage: (nextStage) => setThinkingStage(conversation, nextStage),
+        onUsage: recordUsage
+      });
       let result;
       let responseId = '';
       const proposalScopes = new Map();
@@ -1699,7 +1663,7 @@ let proposalPreview = null;
         const nextChunkCache = [];
         // 一致したチャンクはAPIへ再送せず、未変更の範囲だけを再評価します。
         const chunkKeys = splitChunkKeys;
-        const splitWarnings = new Set();
+        let discardedOperationTotal = 0;
         let splitRepairFailed = false;
         const hasEditableTargetClasses = (unit) => unit.scope.classes.some((item) => item.type === 'class'
           && unit.scope.editableIds.includes(item.id));
@@ -1716,7 +1680,7 @@ let proposalPreview = null;
           });
           const discardedOperationCount = responseHandler.enforceOperationPolicy(unitResult, unit.scope, operationPolicy);
           responseHandler.suppressNoopMoveOperations(unitResult, unit.scope);
-          if (discardedOperationCount) splitWarnings.add(`${discardedOperationCount}件の範囲外操作を除外しました。表示される変更案を確認してください。`);
+          discardedOperationTotal += discardedOperationCount;
           if (unitResult.message && (scope.scopeCoverage !== 'all_classes' || hasEditableTargetClasses(unit))) {
             messagesFromParts.push(unitResult.message);
           }
@@ -1780,7 +1744,10 @@ let proposalPreview = null;
           if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
         }
         result.message = messagesFromParts.join('\n');
-        if (splitWarnings.size) result.message = [result.message, ...splitWarnings].filter(Boolean).join('\n');
+        const splitWarnings = discardedOperationTotal
+          ? [`分割範囲の検証で範囲外の操作を合計${discardedOperationTotal}件除外しました。表示される変更案を確認してください。`]
+          : [];
+        if (splitWarnings.length) result.message = [result.message, ...splitWarnings].filter(Boolean).join('\n');
         if (result.dataRequests.length) {
           // Keep the normal local sharing-confirmation flow when the selected scope is incomplete.
         } else if (splitRepairFailed) {
@@ -1806,7 +1773,7 @@ let proposalPreview = null;
             sourceScopeCoverage: scope.scopeCoverage,
             initialMessage: result.message,
             assessments: chunkAssessments,
-            warnings: [...splitWarnings],
+            warnings: splitWarnings,
             prompt: synthesisPrompt,
             send: (payload, prompt) => sendApiRequest(payload, '', SYNTHESIS_OUTPUT_TOKENS, '結果を統合中', false, true, prompt),
             onProgress: (current, total) => setThinkingStage(conversation, '結果を統合中', total > 1 ? `${current}/${total}統合単位` : ''),

@@ -62,7 +62,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         return '';
       };
       const targetInstruction = scope.allowHierarchyEdits
-        ? 'この分割範囲に含まれる上位クラス配下の対象クラスを評価してください。既存の階層を優先し、必要な追加・改名・移動はこの上位クラスの範囲に限って提案します。新しいクラスと対象クラスの移動は同じ提案にまとめ、対象との関連を説明してください。無関係な階層変更、削除、入力にないクラスや関係の推測は禁止します。'
+        ? 'この分割範囲に含まれる上位クラス配下の対象クラスを評価してください。既存の階層を優先し、必要な追加・改名・移動はこの上位クラスの範囲に限って提案します。削除は利用者が明示して許可し、配下の既存クラスがすべて今回の編集範囲に含まれる場合だけ提案します。子の移動を先、親の削除を後に置いてください。新しいクラスと対象クラスの移動は同じ提案にまとめ、対象との関連を説明してください。無関係な階層変更や入力にないクラス・関係の推測は禁止します。'
         : 'この分割範囲に含まれる上位クラス配下の対象クラスを評価し、必要な移動を提案してください。利用者が新設を求めた場合は、この範囲に含まれる上位・中間クラスの下へ中間クラスを追加できます。新設クラスと対象クラスの移動は同じ提案にまとめます。入力にないクラスや関係の推測、範囲外のクラス操作は禁止します。別の上位クラスをまたぐ判断は最終統合に委ねてください。';
       const buildTargetTask = (targets, groupHierarchy, topClassId) => {
         const targetIds = new Set(targets.map((item) => item.id));
@@ -533,4 +533,38 @@ export const filterPromptExamples = (examples, context) => examples.filter((exam
   if (condition.differentParents && !context.differentParents) return false;
   return true;
 });
+
+// 送信と全体範囲の再試行を、画面状態から独立した処理として扱います。
+export const createRequestSender = ({ responsesClient, responseHandler, apiKey, model, systemPrompt,
+  signal, baseDataHash, scopeCoverage, maxOutputTokens, defaultStage, onStage, onUsage }) => {
+  const send = (input, previousResponseId = '', outputTokens = maxOutputTokens,
+    stage = defaultStage, grouped = false, summaryOnly = false, promptOverride = '') => responsesClient.send(input, {
+    apiKey, model, systemPrompt, previousResponseId, maxOutputTokens: outputTokens,
+    stage, grouped, summaryOnly, promptOverride, signal, onStage, onUsage
+  });
+  const retryCompleteScopeDataRequest = async (response, isChunk = false) => {
+    responseHandler.validatePayload(response.result, baseDataHash);
+    if (scopeCoverage !== 'all_classes' || !response.result.dataRequests.length) return response;
+    if (!response.responseBody.id) throw new Error('修正回答の会話IDを取得できませんでした。');
+    const correctionInput = JSON.stringify({
+      request: isChunk
+        ? '前回の回答を修正してください。全上位・中間クラスと選択中クラスの情報を複数のリクエストに分割して処理中です。今回の入力はその一部なので、追加のクラス情報は要求せず、この範囲だけを評価してください。全体評価を終えたとは断定せず、最初の利用者依頼に沿って回答してください。'
+        : '前回の回答を修正してください。全上位・中間クラスと選択中クラスのID・種別・名称・親子関係はすでに共有されています。追加のクラス情報は要求せず、最初の利用者依頼に対して、受け取った情報から判断できる範囲で評価・説明・変更案を返してください。実データや件数がないため判断できない点は、その限界を説明してください。',
+      scopeCoverage: isChunk ? 'all_classes_chunk' : 'all_classes',
+      responsePolicy: 'dataRequestsは必ず空配列にしてください。追加クラス情報をmessageやquestionsで要求してはいけません。ユーザーの意図や希望する変更方針の確認だけはquestionsで尋ねられます。'
+    });
+    const corrected = await send(correctionInput, response.responseBody.id || '');
+    responseHandler.validatePayload(corrected.result, baseDataHash);
+    if (corrected.result.dataRequests.length) {
+      corrected.result = {
+        ...corrected.result,
+        message: '全上位・中間クラス情報を使った回答を作成できませんでした。追加データは要求せず、クラス構造から判断できる範囲で改めて依頼してください。',
+        proposals: [], questions: [], dataRequests: []
+      };
+      corrected.repairFailed = true;
+    }
+    return corrected;
+  };
+  return { send, retryCompleteScopeDataRequest };
+};
 
