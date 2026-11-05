@@ -3,7 +3,7 @@
 import { createClassIdCodec } from './id-codec.js?v=20261104-send-data-review-fixes-v1';
 import { sendOpenAIRequest } from './api-client.js?v=20261103-ai-module-system-step6-v1';
 import { createRequestPlanner } from './request-planner.js?v=20261104-preparation-yields-v1';
-import { createResponseHandler } from './response-handler.js?v=20261105-parent-path-duplicate-guard-v1';
+import { createResponseHandler } from './response-handler.js?v=20261105-operation-scope-guard-v2';
 import { createConversationStore } from './conversation-store.js?v=20261103-ai-review-fixes-v1';
 import { createConversationView } from './conversation-view.js?v=20261104-readable-ai-replies-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261105-preview-order-toggle-v10';
@@ -150,6 +150,10 @@ import { createProposalPreview } from './proposal-preview.js?v=20261105-preview-
       settingsStatus.classList.add('is-error');
       return null;
     });
+  const synthesisPromptPromise = fetch('web/data/config/ai-synthesis-prompt.md', { cache: 'no-store' })
+    .then((response) => { if (!response.ok) throw new Error('統合専用プロンプトを読み込めません。'); return response.text(); })
+    .then((prompt) => prompt.trim())
+    .catch((error) => { logAiProblem('統合専用プロンプトの読み込み', error); return ''; });
   const modelConfigPromise = fetch('web/data/config/ai-models.json', { cache: 'no-store' })
     .then((response) => { if (!response.ok) throw new Error('モデル設定ファイルを読み込めません。'); return response.json(); })
     .then((config) => {
@@ -1685,17 +1689,17 @@ let proposalPreview = null;
       // 範囲別指示をデータJSONから分離して共通プロンプトの後ろへ置き、
       // 同じ処理モードの依頼でプロンプト先頭を揃えてキャッシュを使いやすくします。
       const sendApiRequest = async (input, previousResponseId = '', maxOutputTokens = MAX_OUTPUT_TOKENS,
-        stage = userText.startsWith('確認事項への回答です') ? '追加情報の回答を送信中' : '回答・変更案を作成中', grouped = false, summaryOnly = false) => {
+        stage = userText.startsWith('確認事項への回答です') ? '追加情報の回答を送信中' : '回答・変更案を作成中', grouped = false, summaryOnly = false, promptOverride = '') => {
         const requestPayload = JSON.parse(input);
         const requestPolicies = ['instruction', 'proposalPolicy', 'responsePolicy']
           .map((key) => typeof requestPayload[key] === 'string' ? requestPayload[key].trim() : '')
           .filter(Boolean);
         ['instruction', 'proposalPolicy', 'responsePolicy'].forEach((key) => { delete requestPayload[key]; });
-        const apiInput = shortenInputIds(JSON.stringify(requestPayload));
+        const apiInput = summaryOnly ? JSON.stringify(requestPayload) : shortenInputIds(JSON.stringify(requestPayload));
         const formatInstructions = summaryOnly
-          ? 'JSON形式でmキーに全チャンクの短い全体要約だけを返してください。提案や操作、質問は出力しません。'
+          ? 'JSON形式でmキーに統合後の返答文だけを返してください。'
           : grouped ? compactGroupedResponseInstructions : compactResponseInstructions;
-        const instructions = [systemPrompt, formatInstructions, ...requestPolicies].join('\n\n');
+        const instructions = [promptOverride || systemPrompt, formatInstructions, ...requestPolicies].join('\n\n');
         const promptCacheKey = `class-editor-ai-${(await digest(`${modelSelect.value}\n${instructions}`)).slice(0, 48)}`;
         const body = {
           model: modelSelect.value,
@@ -1859,58 +1863,79 @@ let proposalPreview = null;
             && unit.scope.editableIds.includes(item.id));
           const hasSummaryContent = (unit) => hasEditableTargetClasses(unit)
             || (scope.allowHierarchyEdits && hasEditableHierarchyClasses(unit));
-          const buildSynthesisInput = (maxTextLength, maxProposalsPerChunk) => shortenInputIds(JSON.stringify({
+          const chunkAssessments = chunkResults.flatMap((part, index) => {
+            const task = splitTasks[index];
+            if (!part?.message || !hasSummaryContent(task)) return [];
+            const taskScope = task.scope;
+            const classById = new Map(taskScope.classes.map((item) => [item.id, item]));
+            const rootIds = task.topClassId ? [task.topClassId] : (taskScope.selectionRoots || taskScope.selectedIds || []);
+            const scopeLabel = rootIds.map((id) => classById.get(id)?.label).filter(Boolean).join('・');
+            return [{ chunk: index + 1, scope: scopeLabel || `分割 ${index + 1}`, message: String(part.message) }];
+          });
+          const buildSynthesisInput = (entries, round) => JSON.stringify({
             request: userText,
             scopeCoverage: 'chunk_synthesis',
             sourceScopeCoverage: scope.scopeCoverage,
-            coverageChunk: { total: splitTasks.length },
-            chunkAssessments: chunkResults.flatMap((part, index) => hasSummaryContent(splitTasks[index]) ? [{
-              chunk: index + 1,
-              message: String(part?.message || '').slice(0, maxTextLength),
-              proposals: (part?.proposals || []).slice(0, maxProposalsPerChunk).map((proposal) => ({
-                title: String(proposal.title || '').slice(0, 100),
-                summary: String(proposal.summary || '').slice(0, maxTextLength),
-                reason: String(proposal.reason || '').slice(0, maxTextLength)
-              }))
-            }] : []),
-            instruction: '分割結果の共通傾向を最大3文で要約してください。提案・操作・質問は作らず、チャンクに書かれた結果だけを根拠にします。各チャンクは個別評価であり、全体整合性の確認ができていない場合は明記してください。',
-            responsePolicy: 'mキーに短い全体要約だけを返してください。新しい提案・操作・質問は返しません。'
-          }));
-          let maxTextLength = 220;
-          let maxProposalsPerChunk = 3;
-          let synthesisInput = buildSynthesisInput(maxTextLength, maxProposalsPerChunk);
-          while (synthesisInput.length > MAX_REQUEST_CHARACTERS) {
-            if (maxTextLength > 120) maxTextLength = Math.floor(maxTextLength * 0.6);
-            else if (maxProposalsPerChunk > 1) maxProposalsPerChunk = Math.max(1, Math.floor(maxProposalsPerChunk / 2));
-            else break;
-            synthesisInput = buildSynthesisInput(maxTextLength, maxProposalsPerChunk);
+            synthesisRound: round,
+            results: entries
+          });
+          const packSynthesisInputs = (entries, round) => {
+            const batches = [];
+            let current = [];
+            for (const entry of entries) {
+              const candidate = [...current, entry];
+              if (buildSynthesisInput(candidate, round).length <= MAX_REQUEST_CHARACTERS) current = candidate;
+              else {
+                if (!current.length) return null;
+                batches.push(current);
+                current = [entry];
+                if (buildSynthesisInput(current, round).length > MAX_REQUEST_CHARACTERS) return null;
+              }
+            }
+            if (current.length) batches.push(current);
+            return batches;
+          };
+          const synthesisPrompt = await synthesisPromptPromise;
+          let synthesisEntries = chunkAssessments;
+          let synthesisInput = synthesisPrompt && synthesisEntries.length
+            ? buildSynthesisInput(synthesisEntries, 1) : '';
+          let synthesisRound = 1;
+          let synthesisReady = Boolean(synthesisInput) && synthesisInput.length <= MAX_REQUEST_CHARACTERS;
+          if (!synthesisReady && synthesisPrompt && synthesisEntries.length) {
+            const batches = packSynthesisInputs(synthesisEntries, 1);
+            synthesisReady = Boolean(batches);
           }
-          if (synthesisInput.length <= MAX_REQUEST_CHARACTERS) {
+          if (synthesisReady) {
             setThinkingStage(conversation, '結果を統合中', '');
             try {
-              const synthesis = await sendApiRequest(synthesisInput, '', SYNTHESIS_OUTPUT_TOKENS, '結果を統合中', false, true);
-              const summary = String(synthesis.result.message || '').trim();
-              if (summary) result.message = [summary, ...splitWarnings].filter(Boolean).join('\n');
-              else result.message = [result.message, '全体の統合結果を作成できなかったため、以下は分割ごとの回答です。']
-                .filter(Boolean).join('\n');
+              while (true) {
+                const batches = packSynthesisInputs(synthesisEntries, synthesisRound);
+                if (!batches) throw new Error('分割回答の全文を統合入力に収められません。');
+                const merged = [];
+                for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+                  setThinkingStage(conversation, '結果を統合中', batches.length > 1 ? `${batchIndex + 1}/${batches.length}統合単位` : '');
+                  const payload = buildSynthesisInput(batches[batchIndex], synthesisRound);
+                  const synthesis = await sendApiRequest(payload, '', SYNTHESIS_OUTPUT_TOKENS, '結果を統合中', false, true, synthesisPrompt);
+                  const text = String(synthesis.result.message || '').trim();
+                  if (!text) throw new Error('統合AIから文章が返りませんでした。');
+                  merged.push({ scope: batches.length > 1 ? `統合結果 ${batchIndex + 1}` : '統合結果', message: text });
+                }
+                if (merged.length === 1) {
+                  result.message = [merged[0].message, ...splitWarnings].filter(Boolean).join('\n');
+                  break;
+                }
+                synthesisEntries = merged;
+                synthesisRound += 1;
+              }
             } catch (error) {
               logAiProblem('分割結果の全体統合', error, 'warn');
               result.message = scope.scopeCoverage === 'all_classes'
-                ? '全体を分割して評価しましたが、分割結果の統合に失敗しました。表示中の変更案は各範囲の個別評価です。全体を横断した整合性確認は完了していません。'
-                : [result.message, '全体の統合処理に失敗したため、以下は分割ごとの回答です。']
+                ? '全体を分割して評価しましたが、分割回答の統合に失敗しました。以下に分割ごとの回答を表示します。全体を横断した整合性確認は完了していません。'
+                : [result.message, '分割回答の統合に失敗したため、以下は分割ごとの回答です。']
                   .filter(Boolean).join('\n');
             }
           } else {
-            const chunkProposalCount = chunkResults.reduce((sum, part) => sum + (part?.proposals?.length || 0), 0);
-            logAiProblem('分割結果を構造情報付きで統合できません', new Error('クラス構造を保持した統合入力が上限を超えました。構造を省いて統合することはせず、分割別の結果を保持します。'), 'warn', {
-              taskCount: splitTasks.length,
-              chunkProposalCount,
-              synthesisInputCharacters: synthesisInput.length,
-              maximumCharacters: MAX_REQUEST_CHARACTERS
-            });
-            result.message = scope.scopeCoverage === 'all_classes'
-              ? '全体の分割評価は完了しましたが、構造情報を保った統合入力が上限を超えたため、結果を統合できませんでした。表示中の変更案は各範囲の個別評価で、全体を横断した整合性確認は完了していません。'
-              : [result.message, '全体統合は構造情報を保ったままでは送信上限に収まらなかったため行わず、各分割範囲で検証した結果を個別に表示します。']
+            result.message = [result.message, '分割回答の全文を統合入力に収められなかったため、以下は分割ごとの回答です。']
                 .filter(Boolean).join('\n');
           }
         }

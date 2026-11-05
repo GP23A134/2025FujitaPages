@@ -207,13 +207,56 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
     });
   };
   const removeOperationsWithoutEditableScope = (result, scope) => {
-    if (scope.editableIds.length) return;
-    const removedCount = result.proposals.reduce((count, proposal) => count + proposal.operations.length, 0);
-    if (!removedCount) return;
-    result.proposals.forEach((proposal) => { proposal.operations = []; });
-    result.proposals = result.proposals.filter((proposal) => proposal.questions.length);
-    result.message = [result.message, '変更できるクラスが選択されていないため、変更操作は除外しました。変更案が必要な場合は対象クラスを選択してください。']
-      .filter(Boolean).join('\n\n');
+    const currentRelations = editor.getState()?.relations || scope.relations || [];
+    result.proposals.forEach((proposal) => {
+      const editable = new Set(scope.editableIds || []);
+      const parentByChild = new Map(currentRelations.map(({ child, parent }) => [child, parent]));
+      let removedCount = 0;
+      proposal.operations = proposal.operations.filter((operation) => {
+        if (operation.type === 'addClass') {
+          if (operation.temporaryId) editable.add(operation.temporaryId);
+          if (operation.classType === 'middle' && operation.temporaryId && operation.parentId) {
+            parentByChild.set(operation.temporaryId, operation.parentId);
+          }
+          return true;
+        }
+        if (!['renameClass', 'moveClass', 'moveChildren', 'deleteClass'].includes(operation.type)) return true;
+        const sourceId = operation.classId || operation.from;
+        if (!editable.has(sourceId)) {
+          removedCount += 1;
+          return false;
+        }
+        if (operation.type === 'moveClass') {
+          parentByChild.set(operation.classId, operation.destinationId);
+        } else if (operation.type === 'moveChildren') {
+          const children = [...parentByChild]
+            .filter(([, parent]) => parent === operation.from)
+            .map(([child]) => child);
+          if (children.some((child) => !editable.has(child))) {
+            removedCount += 1;
+            return false;
+          }
+          children.forEach((child) => parentByChild.set(child, operation.to));
+        } else if (operation.type === 'deleteClass') {
+          parentByChild.delete(operation.classId);
+        }
+        return true;
+      });
+      if (removedCount && proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal) {
+        const warning = '選択範囲外のクラスを変更する操作は除外しました。';
+        if (!proposal.uncertainties.includes(warning)) proposal.uncertainties.push(warning);
+      }
+    });
+    const removedProposals = result.proposals.filter((proposal) => !proposal.operations.length && !proposal.questions.length);
+    result.proposals = result.proposals.filter((proposal) => proposal.operations.length || proposal.questions.length);
+    if (removedProposals.length) {
+      result.message = [result.message, '選択範囲外のクラスを変更する提案は適用できないため、該当する操作を除外しました。']
+        .filter(Boolean).join('\n\n');
+    }
+    if (!editable.size && !result.proposals.some((proposal) => proposal.operations.length)) {
+      result.message = [result.message, '変更できるクラスが選択されていません。変更案が必要な場合は対象クラスを選択してください。']
+        .filter(Boolean).join('\n\n');
+    }
   };
   const resolveDataRequests = (requests, scope) => {
     const state = editor.getState();
