@@ -214,9 +214,12 @@ export const createProposalPreview = ({
     const svg = document.getElementById('ai-preview-direction');
     const columns = document.querySelector('.ai-preview-columns');
     const addOrigin = document.getElementById('ai-preview-add-origin');
+    const deleteTarget = document.getElementById('ai-preview-delete-target');
     if (!svg || !columns) return;
     const hasAdditions = arrows.some((arrow) => arrow.kind === 'is-add' && !arrow.from);
+    const hasDeletions = arrows.some((arrow) => arrow.kind === 'is-delete' && !arrow.to);
     if (addOrigin) addOrigin.hidden = svg.hidden || !hasAdditions;
+    if (deleteTarget) deleteTarget.hidden = svg.hidden || !hasDeletions;
     if (svg.hidden) return;
     const bounds = svg.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
@@ -262,6 +265,7 @@ export const createProposalPreview = ({
       addOrigin.style.top = `${beforeBounds.top - columnsBounds.top}px`;
     }
     const addOriginBounds = hasAdditions ? addOrigin?.getBoundingClientRect() : null;
+    const deleteTargetBounds = hasDeletions ? deleteTarget?.getBoundingClientRect() : null;
     const gutterLeft = beforeBounds.right - bounds.left;
     const gutterRight = afterBounds.left - bounds.left;
     const routes = arrows.map((arrow) => {
@@ -269,7 +273,8 @@ export const createProposalPreview = ({
       if (!color) return null;
       const source = arrow.kind === 'is-add' && !arrow.from
         ? addOriginBounds : previewNodeRow(before, arrow.from)?.getBoundingClientRect();
-      const target = previewNodeRow(after, arrow.to)?.getBoundingClientRect();
+      const target = arrow.kind === 'is-delete' && !arrow.to
+        ? deleteTargetBounds : previewNodeRow(after, arrow.to)?.getBoundingClientRect();
       if (!source && !target) return null;
       return { arrow, color, source, target };
     }).filter(Boolean).sort((left, right) => {
@@ -312,10 +317,14 @@ export const createProposalPreview = ({
       const endY = routes[index].endY ?? (source ? source.top + source.height / 2 - bounds.top : channelY);
       const path = document.createElementNS(namespace, 'path');
       const commands = [];
-      if (source) commands.push(`M ${startX} ${startY} H ${laneX}`);
-      else commands.push(`M ${laneX} ${channelY}`);
-      if (target) commands.push(`V ${endY} H ${endX}`);
-      else commands.push(`V ${channelY}`);
+      if (isAddition && source && target) {
+        commands.push(`M ${startX} ${startY} V ${endY} H ${endX}`);
+      } else {
+        if (source) commands.push(`M ${startX} ${startY} H ${laneX}`);
+        else commands.push(`M ${laneX} ${channelY}`);
+        if (target) commands.push(`V ${endY} H ${endX}`);
+        else commands.push(`V ${channelY}`);
+      }
       path.setAttribute('d', commands.join(' '));
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke', color);
@@ -334,6 +343,7 @@ export const createProposalPreview = ({
     document.querySelectorAll('#ai-preview-direction .is-ai-preview-arrow-hovered')
       .forEach((path) => path.classList.remove('is-ai-preview-arrow-hovered'));
     document.getElementById('ai-preview-add-origin')?.classList.remove('is-ai-preview-hover-related');
+    document.getElementById('ai-preview-delete-target')?.classList.remove('is-ai-preview-hover-related');
   };
   const highlightPreviewTarget = (target) => {
     clearPreviewHover();
@@ -347,6 +357,7 @@ export const createProposalPreview = ({
       const source = previewNodeRow(sourceHost, arrow.from);
       source?.classList.add('is-ai-preview-hover-related');
       if (!arrow.from && arrow.kind === 'is-add') document.getElementById('ai-preview-add-origin')?.classList.add('is-ai-preview-hover-related');
+      if (arrow.kind === 'is-delete' && !arrow.to) document.getElementById('ai-preview-delete-target')?.classList.add('is-ai-preview-hover-related');
       arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
         .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
     });
@@ -361,6 +372,7 @@ export const createProposalPreview = ({
     const arrowSvg = document.getElementById('ai-preview-direction');
     matchingArrows.forEach((arrow) => {
       previewNodeRow(afterHost, arrow.to)?.classList.add('is-ai-preview-hover-related');
+      if (arrow.kind === 'is-delete' && !arrow.to) document.getElementById('ai-preview-delete-target')?.classList.add('is-ai-preview-hover-related');
       arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
         .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
     });
@@ -379,9 +391,26 @@ export const createProposalPreview = ({
         .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
     });
   };
+  const highlightPreviewDeletions = () => {
+    clearPreviewHover();
+    const deleteTarget = document.getElementById('ai-preview-delete-target');
+    const beforeHost = document.getElementById('ai-preview-before');
+    const arrowSvg = document.getElementById('ai-preview-direction');
+    const deletions = (previewPlan?.arrows || []).filter((arrow) => arrow.kind === 'is-delete' && !arrow.to);
+    if (!deleteTarget || !deletions.length) return;
+    deleteTarget.classList.add('is-ai-preview-hover-related');
+    deletions.forEach((arrow) => {
+      previewNodeRow(beforeHost, arrow.from)?.classList.add('is-ai-preview-hover-related');
+      arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
+        .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
+    });
+  };
   const addOrigin = document.getElementById('ai-preview-add-origin');
   addOrigin?.addEventListener('pointerenter', highlightPreviewAdditions);
   addOrigin?.addEventListener('pointerleave', clearPreviewHover);
+  const deleteTarget = document.getElementById('ai-preview-delete-target');
+  deleteTarget?.addEventListener('pointerenter', highlightPreviewDeletions);
+  deleteTarget?.addEventListener('pointerleave', clearPreviewHover);
   const beforeTree = document.getElementById('ai-preview-before');
   beforeTree.addEventListener('pointerover', (event) => {
     const target = event.target.closest('.ai-preview-class[data-class-id]');
@@ -619,6 +648,8 @@ export const createProposalPreview = ({
     if (index >= 0 && groupItems.length) groupItems[0].proposalPageIndex = index;
   };
   const showPreview = async (proposalItem, applyRequested = false, fastUpdate = false) => {
+    const previewColumns = document.querySelector('.ai-preview-columns');
+    previewColumns?.classList.add('is-loading');
     syncProposalPage(proposalItem);
     if (hasUnsubmittedQuestions(proposalItem.responseGroupId)) {
       if (previewDialog.open) closePreview();
@@ -905,6 +936,7 @@ export const createProposalPreview = ({
     document.getElementById('ai-preview-group-include').hidden = isApplied;
     document.getElementById('ai-preview-group-exclude').hidden = isApplied;
     previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), arrows: previewArrows, candidate, expectedFingerprint, expectedBaseHash, readOnly: isApplied };
+    previewColumns?.classList.remove('is-loading');
     requestAnimationFrame(() => renderPreviewArrows(previewArrows));
     applyButton.disabled = isApplied || activeOperations.length === 0;
     if (applyRequested && activeOperations.length) applyButton.focus();
