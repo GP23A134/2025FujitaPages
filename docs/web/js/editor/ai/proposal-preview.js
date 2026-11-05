@@ -353,30 +353,29 @@ export const createProposalPreview = ({
     const laneGroups = [];
     routes.forEach((route, index) => {
       if (route.arrow.kind !== 'is-move') {
-        laneGroups.push({ routes: [route], firstIndex: index, parentY: null });
+        laneGroups.push({ routes: [route], firstIndex: index, sourceY: null });
         return;
       }
       const parentId = previewPlan?.afterParents?.get(route.arrow.to) ?? null;
       const key = parentId;
       let group = moveLaneGroups.get(key);
       if (!group) {
-        const parentRect = parentId
-          ? previewNodeRow(after, parentId)?.getBoundingClientRect() : null;
         group = {
           routes: [],
           firstIndex: index,
-          parentY: parentRect ? parentRect.top + parentRect.height / 2 : Number.POSITIVE_INFINITY,
+          sourceY: route.source ? route.source.top + route.source.height / 2 : Number.POSITIVE_INFINITY,
         };
         moveLaneGroups.set(key, group);
         laneGroups.push(group);
       }
       group.routes.push(route);
       group.firstIndex = Math.min(group.firstIndex, index);
+      if (route.source) group.sourceY = Math.min(group.sourceY, route.source.top + route.source.height / 2);
     });
     laneGroups.sort((left, right) => {
-      if (left.parentY !== null && right.parentY !== null) return left.parentY - right.parentY;
-      if (left.parentY !== null) return -1;
-      if (right.parentY !== null) return 1;
+      if (left.sourceY !== null && right.sourceY !== null) return left.sourceY - right.sourceY;
+      if (left.sourceY !== null) return -1;
+      if (right.sourceY !== null) return 1;
       return left.firstIndex - right.firstIndex;
     });
     let nextLaneIndex = 0;
@@ -440,9 +439,7 @@ export const createProposalPreview = ({
         : routes[index].startY ?? (target ? target.top + target.height / 2 - bounds.top : channelY);
       const endY = routes[index].endY ?? (source ? source.top + source.height / 2 - bounds.top : channelY);
       if (arrow.kind === 'is-move' && source && target) {
-        const sourceToBendLength = Math.max(0, bendX - startX);
-        const shortenedEndX = Math.max(bendX, endX - sourceToBendLength);
-        appendRoutePath({ commands: [`M ${startX} ${startY} H ${bendX} V ${endY} H ${shortenedEndX}`], arrow, color });
+        appendRoutePath({ commands: [`M ${startX} ${startY} H ${bendX} V ${endY} H ${endX}`], arrow, color });
         return;
       }
       const commands = [];
