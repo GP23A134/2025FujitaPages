@@ -110,8 +110,8 @@ export const createProposalPreview = ({
         host.append(badge);
       });
     };
-    const makeToggle = (id, label) => {
-      const indexes = indexesFor(id);
+    const makeToggle = (id, label, explicitIndexes = null) => {
+      const indexes = explicitIndexes || indexesFor(id);
       if (!options.selectable || !indexes.length) return null;
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
@@ -139,7 +139,10 @@ export const createProposalPreview = ({
           summary.classList.add(indexes.some((index) => options.excludedOperationIndexes.has(index))
             ? 'is-ai-preview-excluded' : 'is-ai-preview-changed');
         }
-        const checkbox = node.type === 'middle' ? null : makeToggle(node.id, node.label);
+        const addedIndexes = options.addedOperationIndexesByClass?.get(node.id);
+        const checkbox = node.type === 'middle'
+          ? (addedIndexes?.length ? makeToggle(node.id, node.label, addedIndexes) : null)
+          : makeToggle(node.id, node.label);
         if (checkbox) summary.prepend(checkbox);
         appendTypeBadges(summary, indexesFor(node.id));
         if (node.previewDeleted) {
@@ -254,6 +257,10 @@ export const createProposalPreview = ({
     const after = document.getElementById('ai-preview-after');
     const beforeBounds = before.getBoundingClientRect();
     const afterBounds = after.getBoundingClientRect();
+    if (addOrigin) {
+      const columnsBounds = columns.getBoundingClientRect();
+      addOrigin.style.top = `${beforeBounds.top - columnsBounds.top}px`;
+    }
     const addOriginBounds = hasAdditions ? addOrigin?.getBoundingClientRect() : null;
     const gutterLeft = beforeBounds.right - bounds.left;
     const gutterRight = afterBounds.left - bounds.left;
@@ -296,9 +303,12 @@ export const createProposalPreview = ({
     routes.forEach(({ arrow, color, source, target }, index) => {
       const laneX = gutterLeft + trackBankInset + (index + 0.5) * trackGap;
       const channelY = height * (index + 1) / (routes.length + 1);
-      const startX = source ? source.right - bounds.left : laneX;
+      const isAddition = arrow.kind === 'is-add' && !arrow.from;
+      const startX = source ? (isAddition ? source.left + source.width / 2 : source.right) - bounds.left : laneX;
       const endX = target ? target.left - bounds.left : laneX;
-      const startY = routes[index].startY ?? (target ? target.top + target.height / 2 - bounds.top : channelY);
+      const startY = isAddition && source
+        ? source.bottom - bounds.top
+        : routes[index].startY ?? (target ? target.top + target.height / 2 - bounds.top : channelY);
       const endY = routes[index].endY ?? (source ? source.top + source.height / 2 - bounds.top : channelY);
       const path = document.createElementNS(namespace, 'path');
       const commands = [];
@@ -341,6 +351,50 @@ export const createProposalPreview = ({
         .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
     });
   };
+  const highlightPreviewSource = (sourceTarget) => {
+    clearPreviewHover();
+    if (!sourceTarget) return;
+    const matchingArrows = (previewPlan?.arrows || []).filter((arrow) => arrow.from === sourceTarget.dataset.classId);
+    if (!matchingArrows.length) return;
+    sourceTarget.classList.add('is-ai-preview-hover-related');
+    const afterHost = document.getElementById('ai-preview-after');
+    const arrowSvg = document.getElementById('ai-preview-direction');
+    matchingArrows.forEach((arrow) => {
+      previewNodeRow(afterHost, arrow.to)?.classList.add('is-ai-preview-hover-related');
+      arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
+        .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
+    });
+  };
+  const highlightPreviewAdditions = () => {
+    clearPreviewHover();
+    const addOrigin = document.getElementById('ai-preview-add-origin');
+    const afterHost = document.getElementById('ai-preview-after');
+    const arrowSvg = document.getElementById('ai-preview-direction');
+    const additions = (previewPlan?.arrows || []).filter((arrow) => arrow.kind === 'is-add' && !arrow.from);
+    if (!addOrigin || !additions.length) return;
+    addOrigin.classList.add('is-ai-preview-hover-related');
+    additions.forEach((arrow) => {
+      previewNodeRow(afterHost, arrow.to)?.classList.add('is-ai-preview-hover-related');
+      arrowSvg.querySelectorAll(`[data-operation-index="${arrow.operationIndex}"]`)
+        .forEach((path) => path.classList.add('is-ai-preview-arrow-hovered'));
+    });
+  };
+  const addOrigin = document.getElementById('ai-preview-add-origin');
+  addOrigin?.addEventListener('pointerenter', highlightPreviewAdditions);
+  addOrigin?.addEventListener('pointerleave', clearPreviewHover);
+  const beforeTree = document.getElementById('ai-preview-before');
+  beforeTree.addEventListener('pointerover', (event) => {
+    const target = event.target.closest('.ai-preview-class[data-class-id]');
+    if (!target || !beforeTree.contains(target)) return;
+    if (event.relatedTarget instanceof Node && target.contains(event.relatedTarget)) return;
+    highlightPreviewSource(target);
+  });
+  beforeTree.addEventListener('pointerout', (event) => {
+    const target = event.target.closest('.ai-preview-class[data-class-id]');
+    if (!target || !beforeTree.contains(target)) return;
+    if (event.relatedTarget instanceof Node && target.contains(event.relatedTarget)) return;
+    clearPreviewHover();
+  });
   const afterTree = document.getElementById('ai-preview-after');
   afterTree.addEventListener('pointerover', (event) => {
     const target = event.target.closest('.ai-preview-class[data-class-id]');
@@ -653,6 +707,32 @@ export const createProposalPreview = ({
       return proposedCandidate.classes.find((item) => !beforeIds.has(item.id)
         && item.type === addition.classType && item.label === String(addition.label || '').trim()) || null;
     };
+    const addedOperationIndexesByClass = new Map();
+    operations.forEach((operation, operationIndex) => {
+      if (operation.type !== 'addClass') return;
+      const added = addedClassForReference(operation.temporaryId);
+      if (!added) return;
+      const relatedIndexes = new Set([operationIndex]);
+      const references = new Set([operation.temporaryId, `${proposalItem.proposal.id}/${operation.temporaryId}`, added.id]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        operations.forEach((candidateOperation, candidateIndex) => {
+          if (relatedIndexes.has(candidateIndex)) return;
+          const refs = ['temporaryId', 'parentId', 'classId', 'destinationId', 'from', 'to']
+            .map((key) => candidateOperation[key]).filter(Boolean);
+          if (!refs.some((reference) => references.has(reference))) return;
+          relatedIndexes.add(candidateIndex);
+          if (candidateOperation.type === 'addClass' && candidateOperation.temporaryId
+            && !references.has(candidateOperation.temporaryId)) {
+            references.add(candidateOperation.temporaryId);
+            references.add(`${proposalItem.proposal.id}/${candidateOperation.temporaryId}`);
+          }
+          changed = true;
+        });
+      }
+      addedOperationIndexesByClass.set(added.id, [...relatedIndexes]);
+    });
     const resolveProposedId = (reference) => proposedIds.has(reference) || beforeIds.has(reference)
       ? proposedCandidate.idRemaps?.get(reference) || reference
       : addedClassForReference(reference)?.id || proposedCandidate.idRemaps?.get(reference) || reference;
@@ -797,13 +877,13 @@ export const createProposalPreview = ({
       const groupPreviewState = (state) => previewState(state, groupAffectedIds);
       appendTree(before, groupPreviewState(beforeState), groupAffectedIds, {
         countLabelFor: hierarchyCountLabel(beforeHierarchyCounts),
-        operationIndexesByClass, operations, deletionOperationByClass,
+        operationIndexesByClass, addedOperationIndexesByClass, operations, deletionOperationByClass,
         excludedOperationIndexes: proposalItem.excludedOperationIndexes
       });
       appendTree(after, groupPreviewState(proposedDisplayState), groupAffectedIds, {
         selectable: !isApplied,
         countLabelFor: hierarchyCountLabel(afterHierarchyCounts),
-        operationIndexesByClass, operations,
+        operationIndexesByClass, addedOperationIndexesByClass, operations,
         deletionOperationByClass,
         excludedOperationIndexes: proposalItem.excludedOperationIndexes,
         onToggle: (indexes, include) => {
