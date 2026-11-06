@@ -171,8 +171,8 @@ export const createConversationView = ({
         splitStatus.className = 'ai-split-state';
         splitStatus.setAttribute('role', 'status');
         splitStatus.textContent = splitState.synthesisStatus === 'completed'
-          ? '分割結果を統合しました'
-          : '個別結果を表示中。全体統合は未完了です';
+          ? '確認結果をまとめました'
+          : '個別の確認結果を表示中です。全体の整理は完了していません';
         const categoryLabels = {
           duplicates: '重複候補', imbalance: '分類の偏り', gaps: '分類漏れ・孤立', other: 'その他'
         };
@@ -181,7 +181,7 @@ export const createConversationView = ({
           .map(([key]) => categoryLabels[key] || key);
         if (heldCategories.length) {
           const comparisonStatus = document.createElement('span');
-          comparisonStatus.textContent = `一部の横断比較は保留されています（${heldCategories.join('・')}）`;
+          comparisonStatus.textContent = `全範囲では判断できていない項目があります（${heldCategories.join('・')}）`;
           splitStatus.append(comparisonStatus);
         }
         if (splitState.unassessedScopeIds?.length) {
@@ -190,9 +190,9 @@ export const createConversationView = ({
           splitStatus.append(partialStatus);
         }
         const crossOperationLabels = {
-          completed: '全階層を使った横断操作の検討が完了しました',
-          incomplete: '全階層を使った横断操作の検討は未完了です',
-          failed: '全階層を使った横断操作の生成・検証に失敗しました'
+          completed: '選択対象と階層全体の確認が完了しました',
+          incomplete: '選択対象と階層全体の確認は完了していません',
+          failed: '選択対象と階層全体の確認に失敗しました'
         };
         if (crossOperationLabels[splitState.crossScopeOperationStatus]) {
           const crossOperationStatus = document.createElement('span');

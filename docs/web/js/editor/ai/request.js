@@ -10,7 +10,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     const scopeInstruction = activeScope.scopeCoverage === 'all_classes'
       ? '全体構造が入力されています。'
       : activeScope.scopeCoverage === 'all_classes_chunk'
-        ? '全体構造を分割処理中です。今回の範囲だけを評価し、全体評価を終えたと断定しないでください。'
+        ? '今回入力された対象範囲だけを評価し、未提示範囲まで判断を広げないでください。利用者向け返答では内部処理の「チャンク」「分割」「統合」という語を使わず、対象の上位クラス名や範囲名で説明してください。'
         : '入力範囲外のクラス情報を推測しません。結論に必要な情報が範囲外なら、不足している階層・クラス情報を回答文で説明し、その範囲を選択して再依頼するよう案内してください。追加共有の候補検索は行いません。';
     const instruction = options.instruction || (activeScope.mode === 'hierarchy_scope'
       ? '階層クラスだけの範囲です。上位・中間クラスの追加・改名・移動・削除と、選択済み中間クラスの上位化を提案できますが、対象クラスの操作は禁止です。階層の変換では配下の親子関係を保ってください。'
@@ -576,7 +576,36 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS }) => {
       }];
     }));
 
-    let entries = assessments;
+    const truncate = (value, limit) => String(value || '').slice(0, limit);
+    const compactAssessments = assessments.map((entry) => {
+      const operations = Array.isArray(entry.operations) ? entry.operations : [];
+      const operationExamples = operations.slice(0, 12).map(({ type, classId, destinationId }) => ({ type, classId, destinationId }));
+      const referencedClassIds = new Set(operationExamples.flatMap((operation) => [operation.classId, operation.destinationId]).filter(Boolean));
+      const comparisonSummary = entry.comparisonSummary && Object.fromEntries(categoryKeys.map((key) => {
+        const category = entry.comparisonSummary[key] || {};
+        const findings = (category.findings || []).map((finding) => {
+          (finding.classes || []).forEach((item) => referencedClassIds.add(item.id));
+          return { ...finding, text: truncate(finding.text, 500), evidence: truncate(finding.evidence, 500), limitations: truncate(finding.limitations, 300) };
+        });
+        return [key, { ...category, findings, limitation: truncate(category.limitation, 300) }];
+      }));
+      const evidenceClasses = (entry.scopeEvidence?.classes || []).filter((item) => referencedClassIds.has(item.id)
+        || referencedClassIds.has(item.parentId));
+      const operationsByType = operations.reduce((counts, operation) => {
+        counts[operation.type] = (counts[operation.type] || 0) + 1;
+        return counts;
+      }, {});
+      return {
+        chunk: entry.chunk, scopeId: entry.scopeId, requiredScopeIds: entry.requiredScopeIds,
+        scope: truncate(entry.scope, 160),
+        scopeEvidence: { upperClasses: entry.scopeEvidence?.upperClasses || [],
+          targetClassCounts: entry.scopeEvidence?.targetClassCounts || {}, classes: evidenceClasses },
+        comparisonSummary,
+        message: truncate(entry.message, 2400),
+        ...(operations.length ? { operationSummary: { total: operations.length, byType: operationsByType }, operations: operationExamples } : {})
+      };
+    });
+    let entries = compactAssessments;
     let round = 1;
     const maxRounds = 8;
     const initialInput = prompt && entries.length ? buildInput(request, sourceScopeCoverage, entries, round, expectedScopes, requiredScopesByCategory) : '';
@@ -584,8 +613,8 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS }) => {
     if (!ready && prompt && entries.length) ready = Boolean(packInputs(entries, round, request, sourceScopeCoverage, payloadLimit, expectedScopes, requiredScopesByCategory));
 
     if (!ready) {
-      return failureResult([initialMessage, '分割回答または比較根拠を統合入力に収められません。個別結果を表示します。']
-        .filter(Boolean).join('\n'));
+      onError(new Error('個別範囲の根拠を圧縮しても統合入力上限に収まりませんでした。'));
+      return failureResult(initialMessage || '確認できた範囲の結果を表示しています。');
     }
 
     try {
@@ -626,8 +655,7 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS }) => {
       }
     } catch (error) {
       onError(error);
-      return failureResult([initialMessage, '個別結果を表示中。全体統合は未完了です。']
-        .filter(Boolean).join('\n'));
+      return failureResult(initialMessage || '確認できた範囲の結果を表示しています。');
     }
   };
 

@@ -2018,8 +2018,9 @@ let proposalPreview = null;
         }
         result.message = messagesFromParts.join('\n');
         const splitWarnings = discardedOperationTotal
-          ? [`分割範囲の検証で操作を${discardedOperationTotal}件除外しました。${[...new Set(discardedOperationDetails)].join(' ')}`]
+          ? [`安全に適用できると確認できない変更案を${discardedOperationTotal}件除外しました。`]
           : [];
+        if (discardedOperationTotal) console.warn('[AIチャット] 一部の変更案を安全性検証で除外しました', [...new Set(discardedOperationDetails)]);
         if (splitWarnings.length) result.message = [result.message, ...splitWarnings].filter(Boolean).join('\n');
         if (result.dataRequests.length) {
           // Keep the normal local sharing-confirmation flow when the selected scope is incomplete.
@@ -2032,11 +2033,9 @@ let proposalPreview = null;
             unassessedScopeIds: splitTasks.map((_, index) => `chunk_${index + 1}`),
             crossScopeOperationStatus: responseMode === 'proposal' ? 'incomplete' : 'not_requested'
           };
-          result.message = [result.message, '必要な共有範囲が揃っていないため、分割統合と全範囲の横断操作検討は未完了です。']
-            .filter(Boolean).join('\n\n');
         } else {
           if (splitRepairFailed) {
-            result.message = [result.message, '分割範囲の一部で回答を作成できなかったため、以下は部分的な結果です。']
+            result.message = [result.message, '一部の対象について結果を作成できなかったため、以下は部分的な内容です。']
               .filter(Boolean).join('\n');
           }
           const hasEditableHierarchyClasses = (unit) => unit.scope.classes.some((item) => ['top', 'middle'].includes(item.type)
@@ -2189,9 +2188,12 @@ let proposalPreview = null;
                   });
                   result.questions.push(...crossResult.questions,
                     ...crossResult.proposals.flatMap((proposal) => proposal.questions || []));
-                  result.message = [result.message, crossResult.message ? `全範囲の横断確認: ${crossResult.message}` : '',
-                    discardedCrossOperations ? `安全性検証で横断操作を${discardedCrossOperations}件除外しました。` : '',
-                    ...crossOperationWarnings].filter(Boolean).join('\n\n');
+                  if (discardedCrossOperations || crossOperationWarnings.length) {
+                    console.warn('[AIチャット] 一部の横断変更案を安全性検証で除外しました', {
+                      discardedCrossOperations, warnings: crossOperationWarnings
+                    });
+                  }
+                  result.message = [result.message, crossResult.message].filter(Boolean).join('\n\n');
                   crossScopeOperationStatus = 'completed';
                 } catch (error) {
                   logAiProblem('全範囲の横断操作検証', error, 'warn');
@@ -2201,14 +2203,10 @@ let proposalPreview = null;
                 logAiProblem('全範囲の横断操作生成', crossScopeOperation.error, 'warn');
                 crossScopeOperationStatus = 'failed';
               } else crossScopeOperationStatus = 'incomplete';
+              if (crossScopeOperation.status === 'incomplete' && crossScopeOperation.message) {
+                logAiProblem('横断確認の範囲検証', new Error(crossScopeOperation.message), 'warn');
+              }
             }
-          }
-          if (crossScopeOperationStatus === 'incomplete') {
-            result.message = [result.message, '全範囲の横断操作検討は未完了です。表示中の個別提案は横断確認済みではありません。']
-              .filter(Boolean).join('\n\n');
-          } else if (crossScopeOperationStatus === 'failed') {
-            result.message = [result.message, '全範囲の横断操作検討に失敗しました。表示中の個別提案は横断確認済みではありません。']
-              .filter(Boolean).join('\n\n');
           }
           splitState = {
             synthesisStatus: synthesis.synthesisStatus,
