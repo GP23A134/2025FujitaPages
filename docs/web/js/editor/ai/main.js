@@ -1,10 +1,10 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261106-scope-aware-synthesis-v3';
-import { createResponseHandler, createOperationPolicy } from './proposal-engine.js?v=20261106-response-modes-v1';
+import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261106-cross-scope-proposals-v4';
+import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261106-cross-scope-proposals-v4';
 import { createConversationStore, createConversationView } from './chat.js?v=20261106-split-state-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261106-ai-audit-v1';
-import { createAIClient } from './ai-client.js?v=20261106-scope-aware-synthesis-v3';
+import { createProposalPreview } from './proposal-preview.js?v=20261106-cross-scope-proposals-v4';
+import { createAIClient } from './ai-client.js?v=20261106-cross-scope-proposals-v4';
 
 (() => {
   const editor = window.classEditorAI;
@@ -33,6 +33,7 @@ import { createAIClient } from './ai-client.js?v=20261106-scope-aware-synthesis-
   const MAX_OUTPUT_TOKENS = 5000;
   const CHUNK_OUTPUT_TOKENS = 3000;
   const SYNTHESIS_OUTPUT_TOKENS = 4500;
+  const CROSS_SCOPE_OUTPUT_TOKENS = 4000;
   const MAX_CACHED_SPLIT_SUMMARY_CHARACTERS = 24000;
   const MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS = 8000;
   const MAX_CACHED_SPLIT_CHUNK_CHARACTERS = 450000;
@@ -888,6 +889,7 @@ let proposalPreview = null;
     };
   };
   const chunkSynthesizer = createChunkSynthesizer({ MAX_REQUEST_CHARACTERS });
+  const crossScopeProposalSynthesizer = createCrossScopeProposalSynthesizer({ MAX_REQUEST_CHARACTERS });
   const diffScope = (before, after) => {
     const current = compactScope(after);
     if (!before) return { kind: 'initial_snapshot', data: current };
@@ -1071,6 +1073,20 @@ let proposalPreview = null;
   const renderProposalCard = (item) => {
     const proposal = item.proposal;
     const card = document.createElement('article'); card.className = `ai-proposal-card is-${item.status}`;
+    if (['chunk', 'cross_scope', 'combined'].includes(item.sourceType)) {
+      const sourceLabel = document.createElement('span');
+      sourceLabel.className = 'ai-proposal-source';
+      sourceLabel.textContent = item.sourceType === 'combined' ? '個別案と横断案を統合'
+        : item.sourceType === 'chunk' ? '個別チャンク案' : '全範囲の横断提案';
+      card.append(sourceLabel);
+    }
+    if (item.alternativeGroupId) {
+      const alternativeNotice = document.createElement('p');
+      alternativeNotice.className = 'ai-proposal-alternative';
+      const alternativeNumber = item.alternativeGroupId.replace(/^split_alternative_/, '');
+      alternativeNotice.textContent = `代替案グループ${alternativeNumber}です。他の同グループ案とは同時適用できず、適用後は無効になります。`;
+      card.append(alternativeNotice);
+    }
     const contentLabel = document.createElement('strong'); contentLabel.className = 'ai-proposal-label'; contentLabel.textContent = '変更内容';
     const summary = document.createElement('p'); summary.className = 'ai-proposal-summary'; summary.textContent = excerpt(proposal.summary || proposal.title);
     card.append(contentLabel, summary);
@@ -1078,9 +1094,9 @@ let proposalPreview = null;
     const actions = document.createElement('div'); actions.className = 'ai-proposal-actions';
     const preview = document.createElement('button'); preview.type = 'button'; preview.className = 'ai-proposal-preview'; preview.textContent = 'プレビュー';
     const statusLabel = document.createElement('span'); statusLabel.className = 'ai-proposal-status';
-    const statusText = { pending: '', previewed: '確認済み', stale: '適用後の状態で再確認が必要', applied: '適用済み', 'awaiting-answers': '確認事項への回答待ち', superseded: '回答を送信済み。更新後の案を確認してください。' };
+    const statusText = { pending: '', previewed: '確認済み', stale: '適用後の状態で再確認が必要', applied: '適用済み', 'awaiting-answers': '確認事項への回答待ち', superseded: '回答を送信済み。更新後の案を確認してください。', 'alternative-rejected': '別の代替案を適用済み' };
     statusLabel.textContent = statusText[item.status] || '';
-    const unavailable = ['awaiting-answers', 'superseded'].includes(item.status);
+    const unavailable = ['awaiting-answers', 'superseded', 'alternative-rejected'].includes(item.status);
     preview.disabled = unavailable || item.status === 'invalid';
     const updateStatus = () => {
       statusLabel.textContent = item.status === 'previewed' ? '確認済み' : item.status === 'stale' ? '適用後の状態で再確認が必要' : '';
@@ -1104,13 +1120,15 @@ let proposalPreview = null;
       else if (item.status === 'previewed') summary.reviewed += 1;
       else if (item.status === 'awaiting-answers') summary.awaiting += 1;
       else if (item.status === 'superseded') summary.answered += 1;
+      else if (item.status === 'alternative-rejected') summary.alternatives += 1;
       else if (item.status !== 'invalid') summary.pending += 1;
       return summary;
-    }, { pending: 0, reviewed: 0, applied: 0, awaiting: 0, answered: 0 });
+    }, { pending: 0, reviewed: 0, applied: 0, awaiting: 0, answered: 0, alternatives: 0 });
     const summary = document.createElement('summary');
     const statusParts = [`保留${counts.pending}件`, `確認済み${counts.reviewed}件`, `適用済み${counts.applied}件`];
     if (counts.awaiting) statusParts.push(`回答待ち${counts.awaiting}件`);
     if (counts.answered) statusParts.push(`回答済み${counts.answered}件`);
+    if (counts.alternatives) statusParts.push(`代替案から除外${counts.alternatives}件`);
     const title = document.createElement('span');
     title.className = 'ai-proposal-queue-title';
     title.textContent = `変更案（${items.length}件・${statusParts.join('・')}）`;
@@ -1749,11 +1767,34 @@ let proposalPreview = null;
       setStatus('階層情報と対象クラスの分割入力を同じ送信上限内に収められません。選択範囲を小さくして再依頼してください。', 'error');
       return;
     }
+    const crossScopeParentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
+    const crossScopeClassesById = new Map(scope.classes.map((item) => [item.id, item]));
+    const crossScopeStructure = splitTasks && responseMode === 'proposal' && scope.scopeCoverage === 'all_classes'
+      ? {
+        selectedEditableIds: [...scope.editableIds],
+        selectedRoots: [...(scope.selectionRoots || scope.selectedIds || [])],
+        classes: scope.classes.map(({ id, type, label, parentId, parentLabel }) => {
+          const resolvedParentId = parentId || crossScopeParentByChild.get(id) || null;
+          return {
+            id, type, label, parentId: resolvedParentId,
+            parentLabel: parentLabel || crossScopeClassesById.get(resolvedParentId)?.label || null
+          };
+        }),
+        relations: scope.relations.map(({ child, parent }) => ({ child, parent })),
+        targetClassCounts: Object.fromEntries(Object.entries(scope.counts || {})),
+        allowHierarchyEdits: Boolean(scope.allowHierarchyEdits),
+        allowProposals: Boolean(scope.allowProposals)
+      }
+      : null;
+    const crossScopePreflightInput = crossScopeStructure
+      ? JSON.stringify({ request: userText, conversationContext: conversation.localContext || undefined,
+        scopeCoverage: 'cross_scope_operation_synthesis', scope: crossScopeStructure }) : '';
     // The previous response is charged again in each continuation, so include
     // the shared hierarchy in the preflight estimate for every sent batch.
-    const requestInputs = splitTasks
-      ? [hierarchyReferenceInput, ...splitBatches.map((task) => hierarchyReferenceInput + task.input)].filter(Boolean)
-      : [userContent];
+    const requestInputs = [
+      ...(splitTasks ? [hierarchyReferenceInput, ...splitBatches.map((task) => hierarchyReferenceInput + task.input)] : [userContent]),
+      crossScopePreflightInput
+    ].filter(Boolean);
     const sendingDelta = Boolean(!usesAnalysisMemory && !splitTasks && conversation.responseId
       && conversation.initialSnapshotSent && !selectionChanged && !scopeModeChanged);
     const splitDisplayScope = splitTasks ? (() => {
@@ -1773,24 +1814,29 @@ let proposalPreview = null;
         removedClassIds: []
       };
     })() : null;
-    const displayScope = splitTasks
-      ? splitDisplayScope
-      : sendingDelta ? scopeDeltaForDisplay(conversation.previousScope, scope) || scope : scope;
+    const displayScope = crossScopeStructure
+      ? scope
+      : splitTasks ? splitDisplayScope
+        : sendingDelta ? scopeDeltaForDisplay(conversation.previousScope, scope) || scope : scope;
     const sendingSplit = Boolean(splitTasks);
     const userMessageCount = conversation.items.filter((item) => item.type === 'message' && item.role === 'user').length;
     const longConversationNote = !usesAnalysisMemory && userMessageCount >= 7
       ? '会話が長くなっています。前のやりとりも利用量に影響するため、必要なら「＋」から新しい相談を始めてください。'
       : '';
     const outputTokenBudget = splitTasks
-      ? unsentSplitTasks.length * CHUNK_OUTPUT_TOKENS + SYNTHESIS_OUTPUT_TOKENS + (splitBatches.length ? 128 : 0)
+      ? unsentSplitTasks.length * CHUNK_OUTPUT_TOKENS + SYNTHESIS_OUTPUT_TOKENS
+        + (splitBatches.length ? 128 : 0) + (crossScopeStructure ? CROSS_SCOPE_OUTPUT_TOKENS : 0)
       : MAX_OUTPUT_TOKENS;
     const cacheReuseNote = splitTasks && cachedChunkCount
-      ? `上位クラスごとの保存済み評価 ${cachedChunkCount}件を再利用し、変更のある単位 ${unsentSplitTasks.length}件だけを送信単位にまとめて再分析します。最後に評価結果を統合します。`
+      ? `上位クラスごとの保存済み評価 ${cachedChunkCount}件を再利用し、変更のある単位 ${unsentSplitTasks.length}件だけを送信単位にまとめて再分析します。最後に結果を統合${crossScopeStructure ? 'し、全階層で横断操作を検討' : ''}します。`
       : '';
     const modeNote = responseMode === 'proposal'
       ? '回答モード：改善提案（全種類の操作を許可。削除を含む変更はプレビューで確認してから適用します）'
       : '回答モード：評価（変更案・確認質問なし）';
-    const preflightNote = [modeNote, cacheReuseNote, estimateRequestCost(requestInputs, systemPrompt, outputTokenBudget), longConversationNote].filter(Boolean).join('\n\n');
+    const crossScopeNote = crossScopeStructure
+      ? '分割回答の後、全選択対象と全階層を使う追加の横断操作検討を行います。追加送信と出力料金が発生します。概算は最終チャンク回答の転送量を含まないため実額と異なる場合があります。全範囲が揃わない場合は横断案を作成しません。' : '';
+    const preflightNote = [modeNote, cacheReuseNote, crossScopeNote,
+      estimateRequestCost(requestInputs, systemPrompt, outputTokenBudget), longConversationNote].filter(Boolean).join('\n\n');
     updateUsageSummary();
     activePreparationLabel = '送信内容の確認待ち';
     preparationIndicator.textContent = `${activePreparationLabel}…（${formatElapsedTime((Date.now() - requestStartedAt) / 1000)}）`;
@@ -1966,6 +2012,17 @@ let proposalPreview = null;
         if (splitWarnings.length) result.message = [result.message, ...splitWarnings].filter(Boolean).join('\n');
         if (result.dataRequests.length) {
           // Keep the normal local sharing-confirmation flow when the selected scope is incomplete.
+          splitState = {
+            synthesisStatus: 'failed',
+            comparison: Object.fromEntries(['duplicates', 'imbalance', 'gaps', 'other'].map((key) => [key, {
+              status: 'insufficient', requiredScopes: [], assessedScopes: [], unassessedScopes: [], findings: [],
+              limitation: '必要な分割範囲の処理が完了していません。'
+            }])),
+            unassessedScopeIds: splitTasks.map((_, index) => `chunk_${index + 1}`),
+            crossScopeOperationStatus: responseMode === 'proposal' ? 'incomplete' : 'not_requested'
+          };
+          result.message = [result.message, '必要な共有範囲が揃っていないため、分割統合と全範囲の横断操作検討は未完了です。']
+            .filter(Boolean).join('\n\n');
         } else {
           if (splitRepairFailed) {
             result.message = [result.message, '分割範囲の一部で回答を作成できなかったため、以下は部分的な結果です。']
@@ -2061,12 +2118,118 @@ let proposalPreview = null;
             onProgress: (current, total) => setThinkingStage(conversation, '結果を統合中', total > 1 ? `${current}/${total}統合単位` : ''),
             onError: (error) => logAiProblem('分割結果の全体統合', error, 'warn')
           });
+          result.message = synthesis.message;
+          let crossScopeOperationStatus = 'not_requested';
+          if (responseMode === 'proposal') {
+            const allChunksCompleted = splitTasks.every((_, index) => chunkResults[index] && !incompleteChunkIndices.has(index));
+            if (!crossScopeStructure) {
+              crossScopeOperationStatus = 'incomplete';
+            } else if (!allChunksCompleted || result.dataRequests.length) {
+              crossScopeOperationStatus = 'incomplete';
+            } else {
+              const crossScopeChunks = splitTasks.map((task, index) => {
+                const part = chunkResults[index];
+                const rootId = task.topClassId || task.scope.selectionRoots?.[0] || task.scope.selectedIds?.[0];
+                const root = scope.classes.find((item) => item.id === rootId);
+                return {
+                  scopeId: `chunk_${index + 1}`,
+                  upperClass: root ? { id: root.id, name: root.label } : null,
+                  message: String(part.message || '').slice(0, 2400),
+                  comparisonSummary: part.comparison || null
+                };
+              });
+              const existingProposals = result.proposals.map(({ id, title, summary, reason, operations, uncertainties }) => ({
+                id, title, summary, reason, operations, uncertainties,
+                sourceScopeId: /^part(\d+)_/.test(id) ? `chunk_${id.match(/^part(\d+)_/)[1]}` : ''
+              }));
+              const crossScopeOperation = await crossScopeProposalSynthesizer.synthesize({
+                request: userText,
+                conversationContext: conversation.localContext || '',
+                scope: crossScopeStructure,
+                chunkResults: crossScopeChunks,
+                existingProposals,
+                fixedPromptCharacters: systemPrompt.length + compactResponseInstructions.length
+                  + responseFormat.crossScopeOperationInstructions.length + responseModeInstruction(responseMode).length + 1200,
+                send: (payload) => sendApiRequest(payload, '', CROSS_SCOPE_OUTPUT_TOKENS, '全範囲の横断操作を検討中')
+              });
+              if (crossScopeOperation.status === 'completed') {
+                try {
+                  const crossResult = crossScopeOperation.result;
+                  if (stateFingerprint() !== fingerprintBeforeRequest) {
+                    throw new Error('横断判断中に編集データが変わりました。最新状態で再依頼してください。');
+                  }
+                  const coverage = crossResult.crossScopeCoverage;
+                  const sameIds = (actual, expected) => Array.isArray(actual) && actual.length === expected.length
+                    && new Set(actual).size === actual.length && expected.every((id) => actual.includes(id));
+                  const expectedEditableIds = crossScopeStructure.selectedEditableIds;
+                  const expectedHierarchyIds = crossScopeStructure.classes
+                    .filter((item) => ['top', 'middle'].includes(item.type)).map((item) => item.id);
+                  if (!coverage || !sameIds(coverage.evaluatedEditableIds, expectedEditableIds)
+                    || !sameIds(coverage.reviewedHierarchyIds, expectedHierarchyIds)
+                    || !Array.isArray(coverage.unassessedEditableIds) || coverage.unassessedEditableIds.length) {
+                    const incompleteCoverageError = new Error('選択対象または全階層の横断評価範囲を完全に確認できませんでした。');
+                    incompleteCoverageError.name = 'IncompleteCoverageError';
+                    throw incompleteCoverageError;
+                  }
+                  responseHandler.validatePayload(crossResult, baseDataHash);
+                  const availableClassIds = scope.classes.map((item) => item.id);
+                  const crossScopeEditScope = {
+                    ...scope,
+                    editableIds: scope.editableIds.filter((id) => scope.allowHierarchyEdits
+                      || scope.classes.find((item) => item.id === id)?.type === 'class')
+                  };
+                  responseHandler.normalizeDuplicateClassOperations(crossResult, availableClassIds);
+                  const crossOperationPolicy = createOperationPolicy({ allowProposals: true, taskKind: 'selected_scope', scope: crossScopeEditScope });
+                  const discardedCrossOperations = responseHandler.enforceOperationPolicy(crossResult, crossScopeEditScope, crossOperationPolicy);
+                  responseHandler.suppressNoopMoveOperations(crossResult, crossScopeEditScope);
+                  const crossOperationWarnings = [];
+                  crossResult.proposals.forEach((proposal) => {
+                    if (!proposal.operations.length) return;
+                    try {
+                      editor.applyOperations(proposal.operations, fingerprintBeforeRequest, crossScopeEditScope.editableIds, availableClassIds, crossOperationPolicy);
+                    } catch (error) {
+                      logAiProblem('横断操作案の検証', error, 'warn');
+                      proposal.operations = [];
+                      crossOperationWarnings.push(`横断操作案を安全に適用できると確認できませんでした。${error.message}`);
+                    }
+                  });
+                  const crossProposals = crossResult.proposals.filter((proposal) => proposal.operations.length);
+                  result.proposals = reconcileSplitProposals(result.proposals, crossProposals, scope.classes, scope.relations);
+                  result.proposals.filter((proposal) => proposal.sourceType === 'cross_scope').forEach((proposal) => {
+                    proposalScopes.set(proposal.id, [...crossScopeEditScope.editableIds]);
+                    proposalPreviewScopes.set(proposal.id, availableClassIds);
+                    proposalAvailableScopes.set(proposal.id, availableClassIds);
+                    proposalOperationPolicies.set(proposal.id, crossOperationPolicy);
+                  });
+                  result.questions.push(...crossResult.questions,
+                    ...crossResult.proposals.flatMap((proposal) => proposal.questions || []));
+                  result.message = [result.message, crossResult.message ? `全範囲の横断確認: ${crossResult.message}` : '',
+                    discardedCrossOperations ? `安全性検証で横断操作を${discardedCrossOperations}件除外しました。` : '',
+                    ...crossOperationWarnings].filter(Boolean).join('\n\n');
+                  crossScopeOperationStatus = 'completed';
+                } catch (error) {
+                  logAiProblem('全範囲の横断操作検証', error, 'warn');
+                  crossScopeOperationStatus = error?.name === 'IncompleteCoverageError' ? 'incomplete' : 'failed';
+                }
+              } else if (crossScopeOperation.status === 'failed') {
+                logAiProblem('全範囲の横断操作生成', crossScopeOperation.error, 'warn');
+                crossScopeOperationStatus = 'failed';
+              } else crossScopeOperationStatus = 'incomplete';
+            }
+          }
+          if (crossScopeOperationStatus === 'incomplete') {
+            result.message = [result.message, '全範囲の横断操作検討は未完了です。表示中の個別提案は横断確認済みではありません。']
+              .filter(Boolean).join('\n\n');
+          } else if (crossScopeOperationStatus === 'failed') {
+            result.message = [result.message, '全範囲の横断操作検討に失敗しました。表示中の個別提案は横断確認済みではありません。']
+              .filter(Boolean).join('\n\n');
+          }
           splitState = {
             synthesisStatus: synthesis.synthesisStatus,
             comparison: synthesis.comparison,
-            unassessedScopeIds: comparisonScopeIds.filter((scopeId) => !completedScopeIds.includes(scopeId))
+            unassessedScopeIds: comparisonScopeIds.filter((scopeId) => !completedScopeIds.includes(scopeId)),
+            crossScopeOperationStatus
           };
-          result.message = synthesis.message;
         }
         conversation.splitMemory = result.dataRequests.length || splitRepairFailed
           ? null : buildAnalysisMemory(scope, splitTasks, chunkResults, result, baseDataHash,
@@ -2198,6 +2361,8 @@ let proposalPreview = null;
           type: 'proposal',
           responseGroupId,
           proposal,
+          sourceType: proposal.sourceType || (splitTasks ? 'chunk' : 'single'),
+          alternativeGroupId: proposal.alternativeGroupId || '',
           editableIds: proposalScopes.get(proposal.id) || [...scope.editableIds],
           availableIds: proposalAvailableScopes.get(proposal.id) || scope.classes.map((item) => item.id),
           previewClassIds: proposalPreviewScopes.get(proposal.id) || scope.classes.map((item) => item.id),

@@ -307,6 +307,8 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-audit-list ul { padding-left: 1rem; }
 .ai-settings-inline-link { padding: 0; border: 0; background: none; color: #1d4ed8; font: inherit; text-decoration: underline; cursor: pointer; }
 .ai-proposal-card { flex: 0 0 auto; padding: 0.7rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #f8fbff; font-size: 0.84rem; }
+.ai-proposal-source { display: inline-block; margin-bottom: 0.35rem; color: #475569; font-size: 0.72rem; font-weight: 600; }
+.ai-proposal-alternative { padding: 0.35rem 0.5rem; border-radius: 6px; background: #fff7ed; color: #9a3412; font-size: 0.74rem; }
 .ai-proposal-card.is-stale { border-color: #fbbf24; background: #fffbeb; }
 .ai-proposal-card.is-applied { border-color: #86efac; background: #f0fdf4; }
 .ai-proposal-label { display: block; margin-top: 0.35rem; color: #334155; font-size: 0.76rem; }

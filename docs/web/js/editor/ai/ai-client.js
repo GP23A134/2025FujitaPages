@@ -120,6 +120,20 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     },
     required: ['m', 'p', 'q']
   };
+  const crossScopeCoverageSchema = {
+    type: 'object', additionalProperties: false,
+    properties: {
+      evaluatedEditableIds: { type: 'array', items: { type: 'string' }, maxItems: 500 },
+      reviewedHierarchyIds: { type: 'array', items: { type: 'string' }, maxItems: 500 },
+      unassessedEditableIds: { type: 'array', items: { type: 'string' }, maxItems: 500 }
+    },
+    required: ['evaluatedEditableIds', 'reviewedHierarchyIds', 'unassessedEditableIds']
+  };
+  const crossScopeResponseSchema = {
+    ...responseSchema,
+    properties: { ...responseSchema.properties, x: crossScopeCoverageSchema },
+    required: [...responseSchema.required, 'x']
+  };
   const compactResponseInstructions = '応答は短縮キーのJSON形式です。トップレベルはm=回答文、p=提案配列、q=確認質問配列です。提案はi=id,t=題名,s=要約,r=理由,q=質問,u=不確実点,o=操作配列。操作キーはt=操作種別コード(a=addClass,r=renameClass,m=moveClass,mc=moveChildren,p=promoteClass,d=deleteClass)、ct=classType,tmp=temporaryId,l=label,p=parentId,c=classId,dst=destinationId,f=from,to=toです。スキーマにある全キーを必ず出力し、使わない値はnullにしてください。';
   const groupedResponseSchema = {
     type: 'object', additionalProperties: false,
@@ -264,7 +278,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
       dataRequests: []
     };
   };
-  const parseAIResponse = (response, grouped = false, summaryOnly = false, chunked = false, comparisonSynthesis = false) => {
+  const parseAIResponse = (response, grouped = false, summaryOnly = false, chunked = false, comparisonSynthesis = false, crossScopeOperation = false) => {
     if (response.status === 'incomplete') {
       const reason = response.incomplete_details?.reason;
       if (reason === 'max_output_tokens') {
@@ -281,6 +295,10 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
       if (chunked && (grouped ? wire.g.some((item) => !item.c) : !wire.c)) {
         throw new Error('分割評価のカテゴリ別判定が不足しています。');
       }
+      if (crossScopeOperation) {
+        if (!wire.x) throw new Error('横断操作の評価範囲情報が不足しています。');
+        return { ...expandCompactResponse(wire), crossScopeCoverage: wire.x };
+      }
       return grouped
         ? { groups: wire.g.map((item) => ({ key: item.k, ...expandCompactResponse({ m: item.m, p: item.p, q: item.q, c: item.c }) })) }
         : expandCompactResponse(wire);
@@ -295,6 +313,8 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
   return {
     responseSchema,
     responseWithChunkComparisonSchema,
+    crossScopeResponseSchema,
+    crossScopeOperationInstructions: '横断操作ステージです。応答トップレベルのx.evaluatedEditableIdsにはselectedScope.data.editableIdsの全IDを含めてください。x.reviewedHierarchyIdsにはselectedScope.data.classesの全top/middle IDを含めてください。完了して評価できない対象はx.unassessedEditableIdsに列挙し、可能なら操作案を返さず、アプリ側の全範囲検証に任せてください。各IDは入力の実値または短縮IDを正確に使ってください。',
     groupedResponseSchema,
     chunkGroupedResponseSchema,
     summaryResponseSchema,
@@ -327,6 +347,7 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
   }) {
     const requestPayload = JSON.parse(input);
     const chunked = requestPayload.scopeCoverage === 'all_classes_chunk' || requestPayload.chunkedAnalysis === true;
+    const crossScopeOperation = requestPayload.operationStage === 'cross_scope_operation_synthesis';
     const requestPolicies = ['instruction', 'proposalPolicy', 'responsePolicy']
       .map((key) => typeof requestPayload[key] === 'string' ? requestPayload[key].trim() : '')
       .filter(Boolean);
@@ -336,9 +357,11 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
       ? comparisonSynthesis
         ? 'JSON形式でmに統合回答、cにカテゴリ別の横断比較を返してください。入力のcomparisonRequirementsにある各カテゴリの必須範囲をrequiredScopesに正確に反映し、実際に判定できた範囲をassessedScopes、未判定範囲をunassessedScopesに分けます。cはduplicates=重複候補、imbalance=分類の偏り、gaps=分類漏れ・孤立、other=その他です。各カテゴリはstatus=comparableまたはinsufficient、requiredScopes、assessedScopes、unassessedScopes、findings、limitationを返します。所見ごとにもrequiredScopesとassessedScopesを分け、必要なチャンクが不足しても、必要・判定済み範囲が揃った局所所見は残します。所見がない場合findingsは空配列にし、判断できない場合はinsufficientとして理由を記します。所見ごとにクラスID・名称、根拠、限界を返してください。各カテゴリの所見は重要なものを最大8件に絞り、入力にない事実や確信度を作らないでください。'
         : 'JSON形式でmキーに受領確認などの短い返答だけを返してください。'
-      : chunked
-        ? `${grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions} ${responseFormat.chunkComparisonInstructions}`
-        : grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions;
+      : crossScopeOperation
+        ? `${responseFormat.compactResponseInstructions} ${responseFormat.crossScopeOperationInstructions}`
+        : chunked
+          ? `${grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions} ${responseFormat.chunkComparisonInstructions}`
+          : grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions;
     const instructions = [promptOverride || systemPrompt, formatInstructions, ...requestPolicies].join('\n\n');
     const inputCharacterCount = instructions.length + apiInput.length;
     if (inputCharacterCount > maxInputCharacters) {
@@ -352,10 +375,11 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
       input: apiInput,
       text: { format: {
         type: 'json_schema',
-        name: summaryOnly ? comparisonSynthesis ? 'class_edit_comparison_summary' : 'class_edit_summary' : chunked ? 'class_edit_chunk_results' : grouped ? 'class_edit_group_results' : 'class_edit_proposals',
+        name: summaryOnly ? comparisonSynthesis ? 'class_edit_comparison_summary' : 'class_edit_summary' : crossScopeOperation ? 'class_edit_cross_scope_operations' : chunked ? 'class_edit_chunk_results' : grouped ? 'class_edit_group_results' : 'class_edit_proposals',
         strict: true,
         schema: summaryOnly
           ? comparisonSynthesis ? responseFormat.comparisonSummaryResponseSchema : responseFormat.summaryResponseSchema
+          : crossScopeOperation ? responseFormat.crossScopeResponseSchema
           : chunked && grouped ? responseFormat.chunkGroupedResponseSchema
           : chunked ? responseFormat.responseWithChunkComparisonSchema
           : grouped ? responseFormat.groupedResponseSchema : responseFormat.responseSchema
@@ -371,7 +395,7 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
     onUsage(responseBody);
     onStage('結果を処理中');
     await new Promise((resolve) => requestAnimationFrame(resolve));
-    const result = responseFormat.parseAIResponse(responseBody, grouped, summaryOnly, chunked, comparisonSynthesis);
+    const result = responseFormat.parseAIResponse(responseBody, grouped, summaryOnly, chunked, comparisonSynthesis, crossScopeOperation);
     const restoreId = createIdCodec().restore;
     const responseGroups = grouped ? result.groups : [result];
     responseGroups.forEach((group) => {
@@ -379,6 +403,11 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
       Object.values(group.comparison || {}).forEach((category) => (category.findings || []).forEach((finding) => {
         (finding.classes || []).forEach((item) => { if (item.id) item.id = restoreId(item.id); });
       }));
+      if (group.crossScopeCoverage) {
+        ['evaluatedEditableIds', 'reviewedHierarchyIds', 'unassessedEditableIds'].forEach((key) => {
+          group.crossScopeCoverage[key] = (group.crossScopeCoverage[key] || []).map(restoreId);
+        });
+      }
       group.proposals.forEach((proposal) => proposal.operations.forEach((operation) => {
         ['parentId', 'classId', 'destinationId', 'from', 'to'].forEach((key) => {
           if (operation[key]) operation[key] = restoreId(operation[key]);

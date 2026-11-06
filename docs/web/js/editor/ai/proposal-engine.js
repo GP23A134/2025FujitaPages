@@ -46,7 +46,16 @@ export const operationAllowedByPolicy = (operation, policy, classesById, editabl
   }
   if (!policy?.allowedTypes?.includes(operation.type)) return false;
   if (operation.type === 'addClass') return policy.addClassTypes.includes(operation.classType);
-  if (operation.type === 'deleteClass' && !policy.allowDelete) return false;
+  if (operation.type === 'deleteClass') {
+    const sourceType = classesById.get(operation.classId)?.type;
+    return policy.allowDelete && editableIds.has(operation.classId)
+      && ['top', 'middle'].includes(sourceType) && policy.moveSourceTypes.includes(sourceType);
+  }
+  if (operation.type === 'renameClass') {
+    const sourceType = classesById.get(operation.classId)?.type;
+    return editableIds.has(operation.classId)
+      && ['top', 'middle'].includes(sourceType) && policy.moveSourceTypes.includes(sourceType);
+  }
   if (operation.type === 'promoteClass') return editableIds.has(operation.classId)
     && classesById.get(operation.classId)?.type === 'middle' && policy.moveSourceTypes.includes('middle');
   if (operation.type === 'moveClass') {
@@ -56,12 +65,137 @@ export const operationAllowedByPolicy = (operation, policy, classesById, editabl
   if (operation.type === 'moveChildren') return editableIds.has(operation.from)
     && classesById.get(operation.from)?.type === 'middle'
     && policy.moveSourceTypes.includes('middle');
-  if (['renameClass', 'deleteClass'].includes(operation.type)) {
-    return editableIds.has(operation.classId) && policy.moveSourceTypes.includes(classesById.get(operation.classId)?.type);
-  }
   return true;
 };
 
+const normalizeOperationSequence = (operations = []) => {
+  const aliases = new Map();
+  let nextAlias = 0;
+  const normalizeId = (id) => aliases.get(id) || id || null;
+  return operations.map((operation) => {
+    if (operation.temporaryId && !aliases.has(operation.temporaryId)) {
+      aliases.set(operation.temporaryId, `temporary_${++nextAlias}`);
+    }
+    return {
+      type: operation.type || null,
+      classType: operation.classType || null,
+      temporaryId: operation.temporaryId ? normalizeId(operation.temporaryId) : null,
+      label: operation.label || null,
+      parentId: normalizeId(operation.parentId),
+      classId: normalizeId(operation.classId),
+      destinationId: normalizeId(operation.destinationId),
+      from: normalizeId(operation.from),
+      to: normalizeId(operation.to)
+    };
+  });
+};
+
+const affectedClassIds = (operation, classesById, childrenByParent) => {
+  const sourceId = operation.classId || operation.from || '';
+  const affected = new Set(sourceId ? [sourceId] : []);
+  if (operation.type === 'moveChildren') {
+    (childrenByParent.get(operation.from) || []).forEach((id) => affected.add(id));
+  }
+  if (['moveClass', 'promoteClass', 'deleteClass'].includes(operation.type)
+    && ['top', 'middle'].includes(classesById.get(sourceId)?.type)) {
+    const pending = [...(childrenByParent.get(sourceId) || [])];
+    while (pending.length) {
+      const childId = pending.pop();
+      if (affected.has(childId)) continue;
+      affected.add(childId);
+      pending.push(...(childrenByParent.get(childId) || []));
+    }
+  }
+  if (operation.type === 'addClass') {
+    const parent = operation.parentId || '';
+    affected.add(`new:${operation.classType || ''}:${parent}:${operation.label || ''}`);
+  }
+  return affected;
+};
+
+const proposalChangesByClass = (proposal, relations, classesById) => {
+  const childrenByParent = new Map();
+  relations.forEach(({ child, parent }) => {
+    if (!childrenByParent.has(parent)) childrenByParent.set(parent, []);
+    childrenByParent.get(parent).push(child);
+  });
+  const normalized = normalizeOperationSequence(proposal.operations);
+  const changes = new Map();
+  normalized.forEach((operation, index) => {
+    const original = proposal.operations[index];
+    affectedClassIds(original, classesById, childrenByParent).forEach((classId) => {
+      if (!changes.has(classId)) changes.set(classId, []);
+      changes.get(classId).push(operation);
+    });
+  });
+  return changes;
+};
+
+const mergeProposalRationale = (target, source) => {
+  const additionalReason = String(source.reason || source.summary || '').trim();
+  const reasonLabel = source.sourceType === 'cross_scope' ? '横断確認' : '別範囲確認';
+  if (additionalReason && !String(target.reason || '').includes(additionalReason)) {
+    target.reason = [target.reason, `${reasonLabel}: ${additionalReason}`].filter(Boolean).join('\n\n');
+  }
+  target.uncertainties = [...new Set([...(target.uncertainties || []), ...(source.uncertainties || [])])];
+  target.questions = [...new Set([...(target.questions || []), ...(source.questions || [])])];
+  if (target.sourceType !== source.sourceType
+    && [target.sourceType, source.sourceType].includes('cross_scope')) target.sourceType = 'combined';
+};
+
+export const reconcileSplitProposals = (chunkProposals, crossScopeProposals, classes, relations) => {
+  const result = [];
+  const canonical = new Map();
+  const addOrMerge = (proposal, sourceType) => {
+    proposal.sourceType = sourceType;
+    const key = JSON.stringify(normalizeOperationSequence(proposal.operations));
+    const duplicate = canonical.get(key);
+    if (duplicate) {
+      mergeProposalRationale(duplicate, proposal);
+      return;
+    }
+    canonical.set(key, proposal);
+    result.push(proposal);
+  };
+  chunkProposals.forEach((proposal) => {
+    if (proposal.operations?.length) addOrMerge(proposal, 'chunk');
+    else { proposal.sourceType = 'chunk'; result.push(proposal); }
+  });
+  crossScopeProposals.filter((proposal) => proposal.operations?.length).forEach((proposal, index) => {
+    proposal.id = `cross_scope_proposal_${index + 1}`;
+    addOrMerge(proposal, 'cross_scope');
+  });
+
+  const classesById = new Map(classes.map((item) => [item.id, item]));
+  const changesByProposal = result.map((proposal) => proposalChangesByClass(proposal, relations, classesById));
+  const parentByIndex = result.map((_, index) => index);
+  const find = (index) => {
+    if (parentByIndex[index] !== index) parentByIndex[index] = find(parentByIndex[index]);
+    return parentByIndex[index];
+  };
+  const union = (left, right) => { parentByIndex[find(right)] = find(left); };
+  for (let left = 0; left < result.length; left += 1) {
+    for (let right = left + 1; right < result.length; right += 1) {
+      const leftChanges = changesByProposal[left];
+      const rightChanges = changesByProposal[right];
+      const hasOverlappingChange = [...leftChanges.keys()].some((classId) => rightChanges.has(classId));
+      if (hasOverlappingChange) union(left, right);
+    }
+  }
+  const groups = new Map();
+  result.forEach((proposal, index) => {
+    const root = find(index);
+    if (!groups.has(root)) groups.set(root, []);
+    groups.get(root).push(proposal);
+  });
+  let alternativeIndex = 0;
+  groups.forEach((proposals) => {
+    if (proposals.length < 2) return;
+    const alternativeGroupId = `split_alternative_${++alternativeIndex}`;
+    proposals.forEach((proposal) => { proposal.alternativeGroupId = alternativeGroupId; });
+  });
+  return result;
+};
 
 // AI応答を内部形式で検証し、操作の安全性を確認します。
 // モデルの出力は検証が完了するまで編集データへ適用しません。

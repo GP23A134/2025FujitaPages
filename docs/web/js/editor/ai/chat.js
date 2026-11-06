@@ -189,6 +189,16 @@ export const createConversationView = ({
           partialStatus.textContent = '一部の分割範囲は未評価です';
           splitStatus.append(partialStatus);
         }
+        const crossOperationLabels = {
+          completed: '全階層を使った横断操作の検討が完了しました',
+          incomplete: '全階層を使った横断操作の検討は未完了です',
+          failed: '全階層を使った横断操作の生成・検証に失敗しました'
+        };
+        if (crossOperationLabels[splitState.crossScopeOperationStatus]) {
+          const crossOperationStatus = document.createElement('span');
+          crossOperationStatus.textContent = crossOperationLabels[splitState.crossScopeOperationStatus];
+          splitStatus.append(crossOperationStatus);
+        }
       }
       bubble.append(title);
       if (splitStatus) bubble.append(splitStatus);

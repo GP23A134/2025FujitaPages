@@ -837,7 +837,7 @@ export const createProposalPreview = ({
   };
   const previewableProposals = () => getCurrentConversation().items.filter((item) => item.type === 'proposal'
     && item.proposal.operations.length
-    && !['awaiting-answers', 'superseded', 'invalid'].includes(item.status));
+    && !['awaiting-answers', 'superseded', 'alternative-rejected', 'invalid'].includes(item.status));
   const hasUnsubmittedQuestions = (responseGroupId) => getCurrentConversation().items.some((item) =>
     item.type === 'questions' && !item.submitted && item.responseGroupId === responseGroupId);
   const updatePreviewNavigation = (proposalItem) => {
@@ -855,7 +855,7 @@ export const createProposalPreview = ({
     const operationsCount = proposalItem.proposal.operations.length;
     const statusLabels = {
       pending: '保留中', previewed: '確認済み', stale: '再確認待ち', applied: '適用済み',
-      'awaiting-answers': '回答待ち', superseded: '回答済み', invalid: '無効'
+      'awaiting-answers': '回答待ち', superseded: '回答済み', 'alternative-rejected': '別の代替案を適用済み', invalid: '無効'
     };
     const status = statusLabels[proposalItem.status] || '保留中';
     const questionCount = proposalItem.proposal.questions?.length || 0;
@@ -1207,7 +1207,7 @@ export const createProposalPreview = ({
   };
   const applyCurrentProposal = async () => {
     const plan = previewPlan;
-    if (!plan || plan.readOnly || plan.proposalItem.status === 'applied') return null;
+    if (!plan || plan.readOnly || ['applied', 'alternative-rejected', 'superseded', 'invalid'].includes(plan.proposalItem.status)) return null;
     if (hasUnsubmittedQuestions(plan.proposalItem.responseGroupId)) {
       closePreview();
       return null;
@@ -1242,8 +1242,14 @@ export const createProposalPreview = ({
         ? item.responseGroupId === currentProposal.responseGroupId
         : item === currentProposal));
     if (proposalGroup) proposalGroup.proposalsOpen = false;
-    getCurrentConversation().items.filter((item) => item.type === 'proposal' && item !== currentProposal && item.status !== 'applied')
-      .forEach((item) => { item.status = 'stale'; });
+    const conversationItems = getCurrentConversation().items;
+    conversationItems.filter((item) => item.type === 'proposal' && item !== currentProposal && item.status !== 'applied')
+      .forEach((item) => {
+        const alternativeAlreadyChosen = item.alternativeGroupId && conversationItems.some((other) =>
+          other.type === 'proposal' && other.alternativeGroupId === item.alternativeGroupId && other.status === 'applied');
+        item.status = item.alternativeGroupId && (item.alternativeGroupId === currentProposal.alternativeGroupId || alternativeAlreadyChosen)
+          ? 'alternative-rejected' : 'stale';
+      });
     return { currentProposal, nextProposal };
   };
     return {
