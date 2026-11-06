@@ -164,44 +164,7 @@ export const createConversationView = ({
       body.className = 'ai-message-body';
       if (item.role === 'assistant') renderAssistantText(body, item.text);
       else body.textContent = item.text;
-      const splitState = item.role === 'assistant' ? item.splitState : null;
-      let splitStatus = null;
-      if (splitState) {
-        splitStatus = document.createElement('div');
-        splitStatus.className = 'ai-split-state';
-        splitStatus.setAttribute('role', 'status');
-        splitStatus.textContent = splitState.synthesisStatus === 'completed'
-          ? '確認結果をまとめました'
-          : '個別の確認結果を表示中です。全体の整理は完了していません';
-        const categoryLabels = {
-          duplicates: '重複候補', imbalance: '分類の偏り', gaps: '分類漏れ・孤立', other: 'その他'
-        };
-        const heldCategories = Object.entries(splitState.comparison || {})
-          .filter(([, item]) => item?.status === 'insufficient')
-          .map(([key]) => categoryLabels[key] || key);
-        if (heldCategories.length) {
-          const comparisonStatus = document.createElement('span');
-          comparisonStatus.textContent = `全範囲では判断できていない項目があります（${heldCategories.join('・')}）`;
-          splitStatus.append(comparisonStatus);
-        }
-        if (splitState.unassessedScopeIds?.length) {
-          const partialStatus = document.createElement('span');
-          partialStatus.textContent = '一部の分割範囲は未評価です';
-          splitStatus.append(partialStatus);
-        }
-        const crossOperationLabels = {
-          completed: '選択対象と階層全体の確認が完了しました',
-          incomplete: '選択対象と階層全体の確認は完了していません',
-          failed: '選択対象と階層全体の確認に失敗しました'
-        };
-        if (crossOperationLabels[splitState.crossScopeOperationStatus]) {
-          const crossOperationStatus = document.createElement('span');
-          crossOperationStatus.textContent = crossOperationLabels[splitState.crossScopeOperationStatus];
-          splitStatus.append(crossOperationStatus);
-        }
-      }
       bubble.append(title);
-      if (splitStatus) bubble.append(splitStatus);
       bubble.append(body);
       messages.append(bubble);
     };

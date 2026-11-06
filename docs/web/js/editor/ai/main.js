@@ -1,9 +1,9 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261106-cross-scope-proposals-v4';
+import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261106-hierarchical-candidates-v6';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261106-cross-scope-proposals-v4';
-import { createConversationStore, createConversationView } from './chat.js?v=20261106-split-state-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261106-cross-scope-proposals-v4';
+import { createConversationStore, createConversationView } from './chat.js?v=20261106-split-state-v2-user-facing-status';
+import { createProposalPreview } from './proposal-preview.js?v=20261106-ai-audit-undo-v5';
 import { createAIClient } from './ai-client.js?v=20261106-cross-scope-proposals-v4';
 
 (() => {
@@ -55,6 +55,21 @@ import { createAIClient } from './ai-client.js?v=20261106-cross-scope-proposals-
   const keyInput = document.getElementById('ai-api-key');
   const fullGraphScopeToggle = document.getElementById('ai-full-graph-scope');
   const settingsDialog = document.getElementById('edit-settings-dialog');
+  const crossScopeStrategySelect = document.getElementById('ai-cross-scope-strategy');
+  const crossScopeStrategyStorageKey = 'classEditorAiCrossScopeStrategy';
+  const crossScopeStrategies = new Set(['exhaustive', 'hierarchical']);
+  let crossScopeStrategy = 'exhaustive';
+  try {
+    const savedStrategy = localStorage.getItem(crossScopeStrategyStorageKey);
+    if (crossScopeStrategies.has(savedStrategy)) crossScopeStrategy = savedStrategy;
+  } catch {}
+  crossScopeStrategySelect.value = crossScopeStrategy;
+  crossScopeStrategySelect.addEventListener('change', () => {
+    crossScopeStrategy = crossScopeStrategies.has(crossScopeStrategySelect.value)
+      ? crossScopeStrategySelect.value : 'exhaustive';
+    crossScopeStrategySelect.value = crossScopeStrategy;
+    try { localStorage.setItem(crossScopeStrategyStorageKey, crossScopeStrategy); } catch {}
+  });
   const keyGuidance = document.getElementById('ai-key-guidance');
   const updateKeyGuidance = () => { keyGuidance.hidden = Boolean(keyInput.value.trim()); };
   updateKeyGuidance();
@@ -300,116 +315,10 @@ import { createAIClient } from './ai-client.js?v=20261106-cross-scope-proposals-
   conversations.push(...conversationStore.restoreSavedConversations());
   const persistSavedConversations = () => conversationStore.persistSavedConversations();
   const sessionUsage = { requests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, costKnown: true };
-  const auditLogStorageKey = 'fujita.ai-audit-log-v1';
-  const auditActorStorageKey = 'fujita.ai-audit-actor-v1';
-  const auditActorInput = document.getElementById('ai-audit-actor');
-  const loadAuditLog = () => {
-    try {
-      const value = JSON.parse(localStorage.getItem(auditLogStorageKey) || '[]');
-      return Array.isArray(value) ? value.filter((item) => item && typeof item.id === 'string') : [];
-    } catch (error) {
-      logAiProblem('AI監査記録の読み込み', error, 'warn');
-      return [];
-    }
-  };
-  let aiAuditLog = loadAuditLog();
-  try { auditActorInput.value = localStorage.getItem(auditActorStorageKey) || ''; } catch {}
-  const renderAiAuditLog = () => {
-    document.getElementById('ai-audit-summary').textContent = `AI提案の適用記録（${aiAuditLog.length}件）`;
-    const list = document.getElementById('ai-audit-list');
-    const entries = [...aiAuditLog].reverse().map((record) => {
-      const item = document.createElement('li');
-      const heading = document.createElement('strong');
-      const date = new Date(record.appliedAt);
-      heading.textContent = `${Number.isNaN(date.getTime()) ? record.appliedAt : date.toLocaleString('ja-JP')} — ${record.actor || '記録者未設定'} — ${record.proposal?.title || '提案'}`;
-      item.append(heading);
-      if (record.proposal?.summary) {
-        const summary = document.createElement('p');
-        summary.textContent = record.proposal.summary;
-        item.append(summary);
-      }
-      const renderOperations = (label, values) => {
-        const section = document.createElement('div');
-        const subheading = document.createElement('strong');
-        subheading.textContent = `${label}（${values.length}件）`;
-        const operations = document.createElement('ul');
-        const operationNames = { addClass: '追加', renameClass: '改名', moveClass: '移動', moveChildren: '配下一括移動', promoteClass: '上位化', deleteClass: '削除' };
-        values.forEach((operation) => {
-          const row = document.createElement('li');
-          row.textContent = `${operationNames[operation.type] || operation.type}: ${JSON.stringify(operation)}`;
-          operations.append(row);
-        });
-        section.append(subheading, operations);
-        return section;
-      };
-      item.append(renderOperations('AIの提案', record.proposedOperations || []));
-      item.append(renderOperations('実際に適用', record.appliedOperations || []));
-      (record.changes || []).forEach((change) => {
-        const row = document.createElement('p');
-        const before = change.before ? `${change.before.path} (${change.id})` : '新規';
-        const after = change.after ? `${change.after.path} (${change.id})` : '削除';
-        row.textContent = `変更: ${before} → ${after}`;
-        item.append(row);
-      });
-      return item;
-    });
-    list.replaceChildren(...entries);
-  };
-  renderAiAuditLog();
-  auditActorInput.addEventListener('change', () => {
-    try { localStorage.setItem(auditActorStorageKey, auditActorInput.value.trim().slice(0, 100)); } catch {}
-  });
-  const parentPaths = (state) => {
-    const classesById = new Map(state.classes.map((item) => [item.id, item]));
-    const parentByChild = new Map(state.relations.map(({ child, parent }) => [child, parent]));
-    const pathFor = (id) => {
-      const path = [];
-      const seen = new Set();
-      let current = id;
-      while (current && !seen.has(current)) {
-        seen.add(current);
-        const item = classesById.get(current);
-        if (!item) break;
-        path.unshift(item.label || item.id);
-        current = parentByChild.get(current);
-      }
-      return path.join(' › ');
-    };
-    return { classesById, parentByChild, pathFor };
-  };
-  const buildAuditChanges = (before, after) => {
-    const oldGraph = parentPaths(before);
-    const newGraph = parentPaths(after);
-    const ids = new Set([...oldGraph.classesById.keys(), ...newGraph.classesById.keys()]);
-    return [...ids].flatMap((id) => {
-      const oldItem = oldGraph.classesById.get(id);
-      const newItem = newGraph.classesById.get(id);
-      const oldParentId = oldGraph.parentByChild.get(id) || null;
-      const newParentId = newGraph.parentByChild.get(id) || null;
-      if (oldItem && newItem && oldItem.type === newItem.type && oldItem.label === newItem.label && oldParentId === newParentId) return [];
-      return [{
-        id,
-        before: oldItem ? { type: oldItem.type, label: oldItem.label, parentId: oldParentId, path: oldGraph.pathFor(id) } : null,
-        after: newItem ? { type: newItem.type, label: newItem.label, parentId: newParentId, path: newGraph.pathFor(id) } : null
-      }];
-    });
-  };
-  const recordAiProposalApplication = ({ proposal, operations, before, after }) => {
-    const record = {
-      id: `ai-audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      appliedAt: new Date().toISOString(),
-      actor: auditActorInput.value.trim().slice(0, 100) || null,
-      source: 'AI提案',
-      proposal: { title: proposal.title || '', summary: proposal.summary || '', reason: proposal.reason || '' },
-      proposedOperations: (proposal.operations || []).map((item) => ({ ...item })),
-      appliedOperations: operations.map((item) => ({ ...item })),
-      changes: buildAuditChanges(before, after)
-    };
-    aiAuditLog = [...aiAuditLog, record].slice(-100);
-    try { localStorage.setItem(auditLogStorageKey, JSON.stringify(aiAuditLog)); }
-    catch (error) { logAiProblem('AI監査記録の保存', error, 'warn'); }
-    renderAiAuditLog();
-  };
+  try {
+    localStorage.removeItem('fujita.ai-audit-log-v1');
+    localStorage.removeItem('fujita.ai-audit-actor-v1');
+  } catch {}
   let currentConversation = null;
 let proposalPreview = null;
   let sourceDataVersion = '';
@@ -1437,8 +1346,7 @@ let proposalPreview = null;
     currentDataHash,
     verifyLoadedDataVersion,
     renderConversation,
-    setStatus,
-    onApplied: recordAiProposalApplication
+    setStatus
   });
   const createLocalConversationContext = (userText) =>
     `利用者の依頼・方針: ${String(userText || '').slice(0, 500)}`;
@@ -1795,7 +1703,7 @@ let proposalPreview = null;
       + responseFormat.crossScopeOperationInstructions.length + responseModeInstruction(responseMode).length + 1200;
     const crossScopePlan = crossScopeStructure
       ? crossScopeProposalSynthesizer.plan({ request: userText, conversationContext: conversation.localContext || '',
-        scope: crossScopeStructure, fixedPromptCharacters: crossScopeFixedPromptCharacters })
+        scope: crossScopeStructure, fixedPromptCharacters: crossScopeFixedPromptCharacters, strategy: crossScopeStrategy })
       : null;
     const crossScopePreflightInputs = crossScopePlan?.status === 'completed'
       ? crossScopePlan.batches.map((batch) => batch.input) : [];
@@ -2210,7 +2118,6 @@ let proposalPreview = null;
                       discardedCrossOperations, warnings: crossOperationWarnings
                     });
                   }
-                  result.message = [result.message, crossResult.message].filter(Boolean).join('\n\n');
                   crossScopeOperationStatus = 'completed';
                 } catch (error) {
                   logAiProblem('全範囲の横断操作検証', error, 'warn');
@@ -2231,6 +2138,21 @@ let proposalPreview = null;
             unassessedScopeIds: comparisonScopeIds.filter((scopeId) => !completedScopeIds.includes(scopeId)),
             crossScopeOperationStatus
           };
+          const userFacingLimitations = [];
+          if (splitState.unassessedScopeIds.length) {
+            userFacingLimitations.push('一部の対象範囲を確認できていないため、以下は確認できた範囲の結果です。');
+          } else if (splitState.synthesisStatus !== 'completed') {
+            userFacingLimitations.push('確認結果を全体としてまとめられなかったため、以下は確認できた範囲ごとの内容です。');
+          }
+          if (crossScopeStrategy === 'hierarchical' && crossScopeOperationStatus === 'completed') {
+            userFacingLimitations.push('移動先候補は現在の階層と名称の類似から絞っており、すべての分類先を網羅して比較した結果ではありません。');
+          }
+          if (crossScopeOperationStatus === 'incomplete' || crossScopeOperationStatus === 'failed') {
+            userFacingLimitations.push('階層をまたぐ移動先の確認が完了していないため、以下の変更案は確認できた範囲に限られます。');
+          }
+          if (userFacingLimitations.length) {
+            result.message = [result.message, ...userFacingLimitations].filter(Boolean).join('\n\n');
+          }
         }
         conversation.splitMemory = result.dataRequests.length || splitRepairFailed
           ? null : buildAnalysisMemory(scope, splitTasks, chunkResults, result, baseDataHash,
@@ -2239,9 +2161,6 @@ let proposalPreview = null;
         conversation.initialSnapshotSent = false;
         conversation.previousScope = null;
         conversation.localContext = createLocalConversationContext(userText);
-        if (cachedChunkCount) {
-          result.message = [`分割結果のうち${cachedChunkCount}件は、入力データと依頼内容が一致した保存済み評価を再利用しました。変更のあった範囲のみ再評価しています。`, result.message].filter(Boolean).join('\n\n');
-        }
       } else {
         let response = await sendApiRequest(userContent, usesAnalysisMemory ? '' : conversation.responseId);
         if (!usesAnalysisMemory) response = await retryCompleteScopeDataRequest(response);

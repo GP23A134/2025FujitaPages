@@ -664,7 +664,7 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS }) => {
 
 // 完了済み分割結果と全階層を使い、横断操作案だけを生成します。
 export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, shortenInputIds, createIdCodec }) => {
-  const plan = ({ request, conversationContext = '', scope, fixedPromptCharacters = 0 }) => {
+  const plan = ({ request, conversationContext = '', scope, fixedPromptCharacters = 0, strategy = 'exhaustive' }) => {
     const classById = new Map((scope.classes || []).map((item) => [item.id, item]));
     const rawEditableIds = scope.selectedEditableIds || [];
     if (new Set(rawEditableIds).size !== rawEditableIds.length) {
@@ -677,8 +677,72 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, sh
     }
     const roots = new Set(scope.selectedRoots || []);
     const parentByChild = new Map((scope.relations || []).map(({ child, parent }) => [child, parent]));
+    const hierarchyById = new Map(hierarchyItems.map((item) => [item.id, item]));
+    const topAncestorFor = (id) => {
+      let currentId = id;
+      const seen = new Set();
+      while (currentId && !seen.has(currentId)) {
+        seen.add(currentId);
+        if (hierarchyById.get(currentId)?.type === 'top') return currentId;
+        currentId = parentByChild.get(currentId);
+      }
+      return '';
+    };
+    const candidateHierarchyIdsByTarget = new Map();
+    if (strategy === 'hierarchical') {
+      const topItems = hierarchyItems.filter((item) => item.type === 'top');
+      const middleItems = hierarchyItems.filter((item) => item.type === 'middle');
+      const bigrams = (value) => {
+        const chars = [...String(value || '').normalize('NFKC').toLocaleLowerCase().replace(/[\p{P}\p{Z}\p{S}]/gu, '')];
+        if (chars.length < 2) return new Set(chars);
+        return new Set(chars.slice(0, -1).map((char, index) => `${char}${chars[index + 1]}`));
+      };
+      const hierarchyTerms = new Map(hierarchyItems.map((item) => [item.id, bigrams(item.label)]));
+      const similarity = (leftTerms, rightTerms) => {
+        if (!leftTerms.size || !rightTerms.size) return 0;
+        let shared = 0;
+        leftTerms.forEach((term) => { if (rightTerms.has(term)) shared += 1; });
+        return (2 * shared) / (leftTerms.size + rightTerms.size);
+      };
+      const middleByTop = new Map();
+      middleItems.forEach((item) => {
+        const topId = topAncestorFor(item.id);
+        if (!middleByTop.has(topId)) middleByTop.set(topId, []);
+        middleByTop.get(topId).push(item);
+      });
+      editableItems.forEach((target) => {
+        const targetTerms = bigrams(target.label);
+        const currentParentId = target.parentId || parentByChild.get(target.id);
+        const currentTopId = topAncestorFor(target.id);
+        const branchScores = topItems.map((top) => ({
+          top,
+          score: Math.max(similarity(targetTerms, hierarchyTerms.get(top.id)),
+            ...(middleByTop.get(top.id) || []).map((item) => similarity(targetTerms, hierarchyTerms.get(item.id))))
+        }));
+        const candidateTopIds = new Set(currentTopId ? [currentTopId] : []);
+        branchScores
+          .filter(({ top, score }) => top.id !== currentTopId && score > 0)
+          .sort((left, right) => right.score - left.score || String(left.top.id).localeCompare(String(right.top.id)))
+          .slice(0, 4)
+          .forEach(({ top }) => candidateTopIds.add(top.id));
+        const candidates = new Set(candidateTopIds);
+        candidateTopIds.forEach((topId) => {
+          const branchMiddles = middleByTop.get(topId) || [];
+          const currentParent = hierarchyById.get(currentParentId);
+          if (currentParent?.type === 'middle' && topAncestorFor(currentParent.id) === topId) candidates.add(currentParent.id);
+          branchMiddles
+            .map((item) => ({ item, score: similarity(targetTerms, hierarchyTerms.get(item.id)) }))
+            .filter(({ score }) => score > 0)
+            .sort((left, right) => right.score - left.score || String(left.item.id).localeCompare(String(right.item.id)))
+            .slice(0, 5)
+            .forEach(({ item }) => candidates.add(item.id));
+        });
+        if (hierarchyById.has(currentParentId)) candidates.add(currentParentId);
+        candidateHierarchyIdsByTarget.set(target.id, [...candidates]);
+      });
+    }
     const shortenInput = createIdCodec ? createIdCodec().shortenText : shortenInputIds;
-    const batchInput = (batchId, targets, hierarchy) => {
+    const batchInput = (batchId, targets, hierarchy, targetCandidates = null) => {
       const included = new Map();
       const add = (item, role) => {
         if (!item) return;
@@ -700,7 +764,16 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, sh
         conversationContext: conversationContext || undefined,
         scopeCoverage: 'cross_scope_operation_batch',
         operationStage: 'cross_scope_operation_synthesis',
-        crossScopeBatch: { id: batchId, expectedEditableCount: targets.length, expectedHierarchyCount: hierarchy.length },
+        crossScopeBatch: {
+          id: batchId,
+          expectedEditableCount: targets.length,
+          expectedHierarchyCount: hierarchy.length,
+          ...(targetCandidates ? { targetCandidates: targets.map((item) => ({
+            editableId: item.id,
+            topIds: (targetCandidates.get(item.id) || []).filter((id) => hierarchyById.get(id)?.type === 'top'),
+            middleIds: (targetCandidates.get(item.id) || []).filter((id) => hierarchyById.get(id)?.type === 'middle')
+          })) } : {})
+        },
         selectedScope: { kind: 'initial_snapshot', data: {
           mode: 'selected_scope', scopeCoverage: 'all_classes', selectedIds,
           selectionRoots: [...roots].filter((id) => includedIds.has(id)),
@@ -709,10 +782,14 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, sh
           counts: Object.fromEntries(Object.entries(scope.targetClassCounts || {}).filter(([id]) => includedIds.has(id))),
           allowHierarchyEdits: Boolean(scope.allowHierarchyEdits), allowProposals: Boolean(scope.allowProposals)
         } },
-        instruction: '全体の横断操作検討です。このバッチに含まれるeditableIdsをすべて確認し、selectedScope.data.classesのrole=hで示された全top/middleを候補として比較してください。role=cは親や選択ルートの文脈であり、このバッチの判定対象数には含めません。アプリは全対象と全階層の組み合わせを漏れなくバッチ化しています。入力にない移動先や関係は推測しません。根拠がある場合だけ操作案を作ります。変更元はeditableIdsのクラスだけにし、移動先は入力中の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。削除は配下全体を安全に編集できる場合だけにします。質問は出さず、mに簡潔な判断、pにこのバッチの操作案、xにバッチIDと実際に確認した件数を返してください。'
+        instruction: strategy === 'hierarchical'
+          ? '階層を使った移動先候補の検索です。各editableIdについてcrossScopeBatch.targetCandidatesのtopIdsとmiddleIdsだけを移動先候補として比較してください。候補外の階層を網羅的に確認したとは扱いません。role=cは親や選択ルートの文脈です。入力にない移動先や関係は推測しません。根拠が明確な場合だけ操作案を作ります。変更元はeditableIdsのクラスだけにし、移動先はその対象に指定されたtopIdsまたはmiddleIds内の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。質問は出さず、mに候補検索の限界を含む簡潔な判断、pに操作案、xにバッチIDと確認件数を返してください。'
+          : '全体の横断操作検討です。このバッチに含まれるeditableIdsをすべて確認し、selectedScope.data.classesのrole=hで示された全top/middleを候補として比較してください。role=cは親や選択ルートの文脈であり、このバッチの判定対象数には含めません。アプリは全対象と全階層の組み合わせを漏れなくバッチ化しています。入力にない移動先や関係は推測しません。根拠がある場合だけ操作案を作ります。変更元はeditableIdsのクラスだけにし、移動先は入力中の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。削除は配下全体を安全に編集できる場合だけにします。質問は出さず、mに簡潔な判断、pにこのバッチの操作案、xにバッチIDと実際に確認した件数を返してください。'
       });
     };
-    const fits = (batchId, targets, hierarchy) => shortenInput(batchInput(batchId, targets, hierarchy)).length
+    const candidateIdsFor = (targets) => [...new Set(targets.flatMap((item) => candidateHierarchyIdsByTarget.get(item.id) || []))];
+    const candidateItemsFor = (targets) => candidateIdsFor(targets).map((id) => hierarchyById.get(id)).filter(Boolean);
+    const fits = (batchId, targets, hierarchy, targetCandidates = null) => shortenInput(batchInput(batchId, targets, hierarchy, targetCandidates)).length
       + fixedPromptCharacters <= MAX_REQUEST_CHARACTERS;
     const pack = (items, canFit) => {
       const groups = [];
@@ -731,20 +808,26 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, sh
     };
     const longestTarget = editableItems.reduce((longest, item) => JSON.stringify(item).length > JSON.stringify(longest || {}).length ? item : longest, null);
     const planningBatchId = 'cross_batch_999999';
-    const hierarchyGroups = hierarchyItems.length
-      ? pack(hierarchyItems, (group) => fits(planningBatchId, longestTarget ? [longestTarget] : [], group))
-      : [[]];
+    const hierarchyGroups = strategy === 'hierarchical'
+      ? [null]
+      : hierarchyItems.length
+        ? pack(hierarchyItems, (group) => fits(planningBatchId, longestTarget ? [longestTarget] : [], group))
+        : [[]];
     if (!hierarchyGroups) return { status: 'incomplete', message: '階層情報の一部を横断確認用の送信範囲に収められませんでした。' };
     const batches = [];
     let expectedPairs = 0;
     const expectedEditableIdSet = new Set(editableItems.map((item) => item.id));
     const coveredHierarchyIds = new Set();
-    for (const hierarchy of hierarchyGroups) {
+    for (const hierarchyGroup of hierarchyGroups) {
+      const hierarchy = hierarchyGroup || [];
+      const isCandidateSearch = strategy === 'hierarchical';
       if (hierarchy.some((item) => coveredHierarchyIds.has(item.id))) {
         return { status: 'incomplete', message: '階層範囲が複数の横断確認バッチに重複しています。' };
       }
       hierarchy.forEach((item) => coveredHierarchyIds.add(item.id));
-      const targetGroups = pack(editableItems, (group) => fits(planningBatchId, group, hierarchy));
+      const hierarchyForTargets = (targets) => isCandidateSearch ? candidateItemsFor(targets) : hierarchy;
+      const targetGroups = pack(editableItems, (group) => fits(planningBatchId, group, hierarchyForTargets(group),
+        isCandidateSearch ? candidateHierarchyIdsByTarget : null));
       if (!targetGroups) return { status: 'incomplete', message: '選択対象を横断確認用の送信範囲に収められませんでした。' };
       const coveredEditableIds = new Set();
       for (const targets of targetGroups) {
@@ -753,26 +836,42 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, sh
         }
         targets.forEach((item) => coveredEditableIds.add(item.id));
         const batchId = `cross_${batches.length + 1}`;
-        if (!fits(batchId, targets, hierarchy)) return { status: 'incomplete', message: '横断確認用の送信範囲を上限内に分割できませんでした。' };
-        expectedPairs += targets.length * hierarchy.length;
-        batches.push({ id: batchId, expectedEditableCount: targets.length, expectedHierarchyCount: hierarchy.length,
-          editableIds: targets.map((item) => item.id), hierarchyIds: hierarchy.map((item) => item.id),
-          input: batchInput(batchId, targets, hierarchy) });
+        const batchHierarchy = hierarchyForTargets(targets);
+        if (!fits(batchId, targets, batchHierarchy, isCandidateSearch ? candidateHierarchyIdsByTarget : null)) {
+          return { status: 'incomplete', message: '横断確認用の送信範囲を上限内に分割できませんでした。' };
+        }
+        const pairCount = isCandidateSearch
+          ? targets.reduce((total, item) => total + (candidateHierarchyIdsByTarget.get(item.id) || []).length, 0)
+          : targets.length * batchHierarchy.length;
+        expectedPairs += pairCount;
+        batches.push({ id: batchId, expectedEditableCount: targets.length, expectedHierarchyCount: batchHierarchy.length,
+          expectedPairCount: pairCount,
+          editableIds: targets.map((item) => item.id), hierarchyIds: batchHierarchy.map((item) => item.id),
+          ...(isCandidateSearch ? { candidateHierarchyIdsByEditable: Object.fromEntries(targets.map((item) => [
+            item.id, candidateHierarchyIdsByTarget.get(item.id) || []
+          ])) } : {}),
+          input: batchInput(batchId, targets, batchHierarchy, isCandidateSearch ? candidateHierarchyIdsByTarget : null) });
       }
       if (coveredEditableIds.size !== expectedEditableIdSet.size
         || [...expectedEditableIdSet].some((id) => !coveredEditableIds.has(id))) {
         return { status: 'incomplete', message: '選択対象の横断確認範囲に不足があります。' };
       }
     }
-    const expectedTotalPairs = editableItems.length * hierarchyItems.length;
+    const expectedTotalPairs = strategy === 'hierarchical'
+      ? editableItems.reduce((total, item) => total + (candidateHierarchyIdsByTarget.get(item.id) || []).length, 0)
+      : editableItems.length * hierarchyItems.length;
+    const expectedHierarchyCount = strategy === 'hierarchical'
+      ? new Set([...candidateHierarchyIdsByTarget.values()].flat()).size
+      : hierarchyItems.length;
     const assignedEditableIds = new Set(editableItems.map((item) => item.id));
-    if (assignedEditableIds.size !== editableItems.length || coveredHierarchyIds.size !== hierarchyItems.length
-      || hierarchyItems.some((item) => !coveredHierarchyIds.has(item.id))
+    if (assignedEditableIds.size !== editableItems.length
+      || (strategy !== 'hierarchical' && (coveredHierarchyIds.size !== hierarchyItems.length
+        || hierarchyItems.some((item) => !coveredHierarchyIds.has(item.id))))
       || expectedPairs !== expectedTotalPairs || batches.some((batch) => new Set(batch.editableIds).size !== batch.editableIds.length
         || new Set(batch.hierarchyIds).size !== batch.hierarchyIds.length)) {
       return { status: 'incomplete', message: '横断確認バッチの範囲に重複または不足があります。' };
     }
-    return { status: 'completed', batches, expectedEditableCount: editableItems.length, expectedHierarchyCount: hierarchyItems.length,
+    return { status: 'completed', strategy, batches, expectedEditableCount: editableItems.length, expectedHierarchyCount,
       expectedPairCount: expectedTotalPairs };
   };
   const synthesize = async ({ plan: batchPlan, send }) => {
@@ -783,37 +882,65 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, sh
     if (expectedBatchIds.size !== batchPlan.batches.length) {
       return { status: 'incomplete', message: '横断確認バッチIDに重複があります。' };
     }
+    const batchResults = new Array(batchPlan.batches.length);
+    let nextBatchIndex = 0;
+    let failure = null;
+    const processNextBatch = async () => {
+      while (!failure) {
+        const index = nextBatchIndex;
+        nextBatchIndex += 1;
+        if (index >= batchPlan.batches.length) return;
+        const batch = batchPlan.batches[index];
+        try {
+          const response = await send(batch.input, batch.id, batchPlan.batches.length);
+          const result = response.result;
+          const coverage = result?.crossScopeCoverage;
+          if (!coverage || coverage.batchId !== batch.id
+            || coverage.evaluatedEditableCount !== batch.expectedEditableCount
+            || coverage.reviewedHierarchyCount !== batch.expectedHierarchyCount
+            || coverage.unassessedEditableCount !== 0) {
+            failure = { status: 'incomplete', message: '一部の横断確認バッチで対象件数または完了状態を照合できませんでした。' };
+            return;
+          }
+          if (batchPlan.strategy === 'hierarchical') {
+            result.proposals.forEach((proposal) => {
+              proposal.operations = proposal.operations.filter((operation) => operation.type !== 'moveClass'
+                || (batch.candidateHierarchyIdsByEditable[operation.classId] || []).includes(operation.destinationId));
+            });
+          }
+          batchResults[index] = result;
+        } catch (error) {
+          if (error?.name === 'AbortError') failure = { error };
+          else if (/送信入力が上限を超えました/.test(error?.message || '')) {
+            failure = { status: 'incomplete', message: '一部の横断確認バッチが実際の送信上限を超えました。' };
+          } else failure = { status: 'failed', error };
+          return;
+        }
+      }
+    };
+    const concurrency = Math.min(2, batchPlan.batches.length);
+    await Promise.all(Array.from({ length: concurrency }, () => processNextBatch()));
+    if (failure?.error?.name === 'AbortError') throw failure.error;
+    if (failure) return failure;
+
     const completedBatchIds = new Set();
     const proposals = [];
     let completedPairCount = 0;
-    for (const batch of batchPlan.batches) {
-      try {
-        const response = await send(batch.input, batch.id, batchPlan.batches.length);
-        const result = response.result;
-        const coverage = result?.crossScopeCoverage;
-        if (completedBatchIds.has(batch.id) || !coverage || coverage.batchId !== batch.id
-          || coverage.evaluatedEditableCount !== batch.expectedEditableCount
-          || coverage.reviewedHierarchyCount !== batch.expectedHierarchyCount
-          || coverage.unassessedEditableCount !== 0) {
-          return { status: 'incomplete', message: '一部の横断確認バッチで対象件数または完了状態を照合できませんでした。' };
-        }
-        completedBatchIds.add(batch.id);
-        completedPairCount += batch.expectedEditableCount * batch.expectedHierarchyCount;
-        result.proposals.forEach((proposal, index) => proposals.push({ ...proposal,
-          id: `${batch.id}_${index + 1}_${proposal.id}` }));
-      } catch (error) {
-        if (error?.name === 'AbortError') throw error;
-        if (/送信入力が上限を超えました/.test(error?.message || '')) {
-          return { status: 'incomplete', message: '一部の横断確認バッチが実際の送信上限を超えました。' };
-        }
-        return { status: 'failed', error };
-      }
-    }
+    batchPlan.batches.forEach((batch, index) => {
+      if (!batchResults[index] || completedBatchIds.has(batch.id)) return;
+      completedBatchIds.add(batch.id);
+      completedPairCount += Number.isInteger(batch.expectedPairCount)
+        ? batch.expectedPairCount : batch.expectedEditableCount * batch.expectedHierarchyCount;
+      batchResults[index].proposals.forEach((proposal, proposalIndex) => proposals.push({ ...proposal,
+        id: `${batch.id}_${proposalIndex + 1}_${proposal.id}` }));
+    });
     if (completedBatchIds.size !== expectedBatchIds.size || completedPairCount !== batchPlan.expectedPairCount) {
       return { status: 'incomplete', message: '必要な横断確認バッチがすべて完了していません。' };
     }
     return { status: 'completed', result: {
-      message: `選択対象${batchPlan.expectedEditableCount}件と階層${batchPlan.expectedHierarchyCount}件の全組み合わせを横断確認しました。`,
+      message: batchPlan.strategy === 'hierarchical'
+        ? `対象${batchPlan.expectedEditableCount}件について、階層構造と名称から選んだ移動先候補を確認しました。候補を網羅する比較ではありません。`
+        : `選択対象${batchPlan.expectedEditableCount}件と階層${batchPlan.expectedHierarchyCount}件の全組み合わせを横断確認しました。`,
       proposals, questions: [], dataRequests: [],
       crossScopeCoverage: { evaluatedEditableCount: batchPlan.expectedEditableCount,
         reviewedHierarchyCount: batchPlan.expectedHierarchyCount, unassessedEditableCount: 0 }
