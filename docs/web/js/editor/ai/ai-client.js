@@ -212,8 +212,8 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
   };
   const responseWithChunkComparisonSchema = {
     ...responseSchema,
-    properties: { ...responseSchema.properties, c: chunkComparisonSchema },
-    required: [...responseSchema.required, 'c']
+    properties: { ...responseSchema.properties, c: chunkComparisonSchema, h: { type: 'array', items: { type: 'string' }, maxItems: 100 } },
+    required: [...responseSchema.required, 'c', 'h']
   };
   const comparisonSummaryResponseSchema = {
     type: 'object', additionalProperties: false,
@@ -244,8 +244,9 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
         ...groupedResponseSchema.properties.g,
         items: {
           ...groupedResponseSchema.properties.g.items,
-          properties: { ...groupedResponseSchema.properties.g.items.properties, c: chunkComparisonSchema },
-          required: [...groupedResponseSchema.properties.g.items.required, 'c']
+          properties: { ...groupedResponseSchema.properties.g.items.properties, c: chunkComparisonSchema,
+            h: { type: 'array', items: { type: 'string' }, maxItems: 100 } },
+          required: [...groupedResponseSchema.properties.g.items.required, 'c', 'h']
         }
       }
     }
@@ -276,6 +277,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
       })),
       questions: wire.q,
       comparison: wire.c,
+      crossScopeCandidateIds: Array.isArray(wire.h) ? wire.h : [],
       dataRequests: []
     };
   };
@@ -293,7 +295,8 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
         if (comparisonSynthesis && !wire.c) throw new Error('統合結果のカテゴリ別比較が不足しています。');
         return { message: wire.m, comparison: wire.c, proposals: [], questions: [], dataRequests: [] };
       }
-      if (chunked && (grouped ? wire.g.some((item) => !item.c) : !wire.c)) {
+      if (chunked && (grouped ? wire.g.some((item) => !item.c || !Array.isArray(item.h))
+        : !wire.c || !Array.isArray(wire.h))) {
         throw new Error('分割評価のカテゴリ別判定が不足しています。');
       }
       if (crossScopeOperation) {
@@ -301,7 +304,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
         return { ...expandCompactResponse(wire), crossScopeCoverage: wire.x };
       }
       return grouped
-        ? { groups: wire.g.map((item) => ({ key: item.k, ...expandCompactResponse({ m: item.m, p: item.p, q: item.q, c: item.c }) })) }
+        ? { groups: wire.g.map((item) => ({ key: item.k, ...expandCompactResponse({ m: item.m, p: item.p, q: item.q, c: item.c, h: item.h }) })) }
         : expandCompactResponse(wire);
     } catch (error) {
       if (error instanceof SyntaxError) {
@@ -320,7 +323,8 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     chunkGroupedResponseSchema,
     summaryResponseSchema,
     comparisonSummaryResponseSchema,
-    chunkComparisonInstructions: '分割評価では通常応答のトップレベル、analysisGroups応答では各g要素のcキーにduplicates、imbalance、gaps、otherの全カテゴリを必ず出してください。各statusはfindings（所見あり）、none（十分に確認して所見なし）、insufficient（情報不足）です。未記入や形式不正をnoneにせず、各所見には少なくとも一つの入力済みクラスID・名称と具体的な根拠を示し、各カテゴリ最大3件に絞ってください。件数が入力されていない偏りは判断不能としてください。',
+    chunkComparisonInstructions: '分割評価では通常応答のトップレベル、analysisGroups応答では各g要素にcとhを必ず出してください。cにはduplicates、imbalance、gaps、otherの全カテゴリを含めます。各statusはfindings（所見あり）、none（十分に確認して所見なし）、insufficient（情報不足）です。未記入や形式不正をnoneにせず、各所見には少なくとも一つの入力済みクラスID・名称と具体的な根拠を示し、各カテゴリ最大3件に絞ってください。件数が入力されていない偏りは判断不能としてください。hは追加の横断確認候補IDの配列です。入力指示で候補抽出を求められていない場合は空配列にします。',
+    chunkCrossScopeCandidateInstructions: '通常応答ではトップレベル、analysisGroups応答では各g要素のhに、今回の入力範囲で変更可能な対象クラスのIDだけを入れてください。別上位クラス配下への所属変更を追加確認する候補を求められている場合は、現在の上位クラス内に明確な受け皿が見つからない、または分類上のずれがあり、別上位クラスにも適合する可能性がある対象だけを選びます。単に判断不能な対象を全て入れず、候補IDは重要度の高い順にし、最大100件までとします。候補抽出を求められていない場合や評価モードでは空配列を返してください。',
     compactResponseInstructions,
     compactGroupedResponseInstructions,
     parseAIResponse
@@ -348,11 +352,12 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
   }) {
     const requestPayload = JSON.parse(input);
     const chunked = requestPayload.scopeCoverage === 'all_classes_chunk' || requestPayload.chunkedAnalysis === true;
+    const crossScopeCandidateMode = requestPayload.crossScopeCandidateMode === true;
     const crossScopeOperation = requestPayload.operationStage === 'cross_scope_operation_synthesis';
     const requestPolicies = ['instruction', 'proposalPolicy', 'responsePolicy']
       .map((key) => typeof requestPayload[key] === 'string' ? requestPayload[key].trim() : '')
       .filter(Boolean);
-    ['instruction', 'proposalPolicy', 'responsePolicy'].forEach((key) => { delete requestPayload[key]; });
+    ['instruction', 'proposalPolicy', 'responsePolicy', 'crossScopeCandidateMode'].forEach((key) => { delete requestPayload[key]; });
     const apiInput = summaryOnly ? JSON.stringify(requestPayload) : shortenInputIds(JSON.stringify(requestPayload));
     const formatInstructions = summaryOnly
       ? comparisonSynthesis
@@ -361,7 +366,7 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
       : crossScopeOperation
         ? `${responseFormat.compactResponseInstructions} ${responseFormat.crossScopeOperationInstructions}`
         : chunked
-          ? `${grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions} ${responseFormat.chunkComparisonInstructions}`
+          ? `${grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions} ${responseFormat.chunkComparisonInstructions}${crossScopeCandidateMode ? ` ${responseFormat.chunkCrossScopeCandidateInstructions}` : ''}`
           : grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions;
     const instructions = [promptOverride || systemPrompt, formatInstructions, ...requestPolicies].join('\n\n');
     const inputCharacterCount = instructions.length + apiInput.length;
@@ -404,6 +409,7 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
       Object.values(group.comparison || {}).forEach((category) => (category.findings || []).forEach((finding) => {
         (finding.classes || []).forEach((item) => { if (item.id) item.id = restoreId(item.id); });
       }));
+      group.crossScopeCandidateIds = (group.crossScopeCandidateIds || []).map(restoreId);
       if (group.crossScopeCoverage) {
         if (typeof group.crossScopeCoverage.batchId === 'string') {
           group.crossScopeCoverage.batchId = restoreId(group.crossScopeCoverage.batchId);

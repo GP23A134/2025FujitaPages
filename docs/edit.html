@@ -211,7 +211,7 @@
         <option value="exhaustive">全階層を比較（現行方式）</option>
         <option value="hierarchical">階層から候補を検索（高速化を試す）</option>
       </select>
-      <p id="ai-cross-scope-strategy-description" class="edit-settings-note">候補検索では現在の枝を含む名称が近い上位クラス（最大5件）と、その配下で名称が近い中間クラス（各最大5件）を候補にします。候補を網羅する方式ではありません。いつでも全階層比較に戻せます。</p>
+      <p id="ai-cross-scope-strategy-description" class="edit-settings-note">候補検索では、上位クラス内の評価で追加確認が必要とされた対象だけを横断確認します。各対象について名称が近い別の上位クラス（最大2件）と、その配下の中間クラス（各最大5件）を候補にします。候補を網羅する方式ではありません。いつでも全階層比較に戻せます。</p>
       <p id="ai-settings-status" class="ai-status" role="status" aria-live="polite"></p>
     </section>
     <section class="edit-settings-section" aria-labelledby="edit-display-settings-title">
@@ -340,6 +340,6 @@
       <button type="button" id="edit-validation-export" class="search-button" hidden>警告を確認して出力</button>
     </div>
   </dialog>
-  <script type="module" src="web/js/editor/ai/main.js?v=20261106-audit-undo-v11"></script>
+  <script type="module" src="web/js/editor/ai/main.js?v=20261106-cross-scope-candidate-filter-v13"></script>
 </body>
 </html>

@@ -1,10 +1,10 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261106-hierarchical-candidates-v6';
+import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261106-cross-scope-candidate-filter-v8';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261106-cross-scope-proposals-v4';
 import { createConversationStore, createConversationView } from './chat.js?v=20261106-split-state-v2-user-facing-status';
 import { createProposalPreview } from './proposal-preview.js?v=20261106-ai-audit-undo-v5';
-import { createAIClient } from './ai-client.js?v=20261106-cross-scope-proposals-v4';
+import { createAIClient } from './ai-client.js?v=20261106-cross-scope-candidate-filter-v5';
 
 (() => {
   const editor = window.classEditorAI;
@@ -1421,7 +1421,7 @@ let proposalPreview = null;
   const splitTaskCacheKey = async (task, userText, systemPrompt, conversation) => digest(JSON.stringify({
     sourceDataVersion,
     model: modelSelect.value,
-    systemPrompt: `${systemPrompt}\n${compactResponseInstructions}\n${compactGroupedResponseInstructions}\n${responseFormat.chunkComparisonInstructions}`,
+    systemPrompt: `${systemPrompt}\n${compactResponseInstructions}\n${compactGroupedResponseInstructions}\n${responseFormat.chunkComparisonInstructions}\n${responseFormat.chunkCrossScopeCandidateInstructions}`,
     responseSchema,
     responseWithChunkComparisonSchema: responseFormat.responseWithChunkComparisonSchema,
     groupedResponseSchema,
@@ -1441,6 +1441,7 @@ let proposalPreview = null;
     })(),
     instruction: JSON.parse(task.input || '{}').instruction || task.instruction || '',
     proposalPolicy: JSON.parse(task.input || '{}').proposalPolicy || '',
+    crossScopeCandidateMode: Boolean(JSON.parse(task.input || '{}').crossScopeCandidateMode),
     responseMode: conversation.responseMode || 'proposal',
     scope: {
       mode: task.scope.mode,
@@ -1612,6 +1613,9 @@ let proposalPreview = null;
     // 小さな全体スナップショットより要約の方が長い場合は、トークンを増やさないよう全体データを送ります。
     const usesAnalysisMemory = Boolean(analysisMemoryContent && analysisMemoryContent.length < fullScopeContent.length);
     const userContent = usesAnalysisMemory ? analysisMemoryContent : fullScopeContent;
+    const crossScopeCandidateMode = responseMode === 'proposal' && crossScopeStrategy === 'hierarchical'
+      && scope.scopeCoverage === 'all_classes'
+      && scope.classes.some((item) => item.type === 'class' && scope.editableIds.includes(item.id));
     let splitTasks = null;
     let splitUsesUpperUnits = false;
     const editableScopeIdSet = new Set(scope.editableIds);
@@ -1632,6 +1636,7 @@ let proposalPreview = null;
       splitTasks.forEach((task) => {
         const payload = JSON.parse(addResponseModeToInput(task.input, responseMode));
         payload.chunkedAnalysis = true;
+        if (crossScopeCandidateMode) payload.crossScopeCandidateMode = true;
         task.input = JSON.stringify(payload);
       });
       splitUsesUpperUnits = Boolean(splitTasks?.length && splitTasks.every((task) => task.kind === 'upper_class_unit'));
@@ -1701,7 +1706,7 @@ let proposalPreview = null;
       : null;
     const crossScopeFixedPromptCharacters = systemPrompt.length + compactResponseInstructions.length
       + responseFormat.crossScopeOperationInstructions.length + responseModeInstruction(responseMode).length + 1200;
-    const crossScopePlan = crossScopeStructure
+    const crossScopePlan = crossScopeStructure && !crossScopeCandidateMode
       ? crossScopeProposalSynthesizer.plan({ request: userText, conversationContext: conversation.localContext || '',
         scope: crossScopeStructure, fixedPromptCharacters: crossScopeFixedPromptCharacters, strategy: crossScopeStrategy })
       : null;
@@ -1747,15 +1752,17 @@ let proposalPreview = null;
           ? crossScopePlan.batches.length * CROSS_SCOPE_OUTPUT_TOKENS : 0)
       : MAX_OUTPUT_TOKENS;
     const cacheReuseNote = splitTasks && cachedChunkCount
-      ? `上位クラスごとの保存済み評価 ${cachedChunkCount}件を再利用し、変更のある単位 ${unsentSplitTasks.length}件だけを送信単位にまとめて再分析します。最後に結果を統合${crossScopeStructure ? 'し、全階層で横断操作を検討' : ''}します。`
+      ? `上位クラスごとの保存済み評価 ${cachedChunkCount}件を再利用し、変更のある単位 ${unsentSplitTasks.length}件だけを送信単位にまとめて再分析します。最後に結果を統合${crossScopeStructure ? (crossScopeCandidateMode ? 'し、横断確認が必要な候補を絞ります' : 'し、全階層で横断操作を検討') : ''}します。`
       : '';
     const modeNote = responseMode === 'proposal'
       ? '回答モード：改善提案（全種類の操作を許可。削除を含む変更はプレビューで確認してから適用します）'
       : '回答モード：評価（変更案・確認質問なし）';
     const crossScopeNote = crossScopeStructure
-      ? crossScopePlan?.status === 'completed'
-        ? `分割回答の後、全選択対象と全階層の組み合わせを${crossScopePlan.batches.length}件の送信単位で横断確認します。全バッチが完了した場合だけ横断操作案を確定します。追加送信と出力料金が発生します。`
-        : '横断確認の全範囲を送信単位に分割できませんでした。個別評価は行いますが、横断操作案は未完了として表示します。'
+      ? crossScopeCandidateMode
+        ? '分割評価で横断確認が必要とされた対象だけを後段で確認します。候補数が事前に確定しないため、この事前費用目安には横断工程の追加分を含みません。'
+        : crossScopePlan?.status === 'completed'
+          ? `分割回答の後、全選択対象と全階層の組み合わせを${crossScopePlan.batches.length}件の送信単位で横断確認します。全バッチが完了した場合だけ横断操作案を確定します。追加送信と出力料金が発生します。`
+          : '横断確認の全範囲を送信単位に分割できませんでした。個別評価は行いますが、横断操作案は未完了として表示します。'
       : '';
     const preflightNote = [modeNote, cacheReuseNote, crossScopeNote,
       estimateRequestCost(requestInputs, systemPrompt, outputTokenBudget), longConversationNote].filter(Boolean).join('\n\n');
@@ -1828,6 +1835,7 @@ let proposalPreview = null;
         const messagesFromParts = [];
         const chunkResults = new Array(splitTasks.length);
         const incompleteChunkIndices = new Set();
+        const crossScopeCandidateIds = new Set();
         const nextChunkCache = [];
         // 一致したチャンクはAPIへ再送せず、未変更の範囲だけを再評価します。
         const chunkKeys = splitChunkKeys;
@@ -1842,6 +1850,19 @@ let proposalPreview = null;
           const validationScope = { ...scope, editableIds: unit.scope.editableIds };
           const availableClassIds = scope.classes.map((item) => item.id);
           responseHandler.validatePayload(unitResult, baseDataHash);
+          if (crossScopeCandidateMode) {
+            const editableTargets = new Set(unit.scope.classes
+              .filter((item) => item.type === 'class' && unit.scope.editableIds.includes(item.id))
+              .map((item) => item.id));
+            const reportedCandidates = Array.isArray(unitResult.crossScopeCandidateIds) ? unitResult.crossScopeCandidateIds : [];
+            const validCandidates = [...new Set(reportedCandidates)].filter((id) => editableTargets.has(id));
+            validCandidates.forEach((id) => crossScopeCandidateIds.add(id));
+            if (validCandidates.length !== reportedCandidates.length) {
+              console.warn('[AIチャット] 分割結果に含まれる横断候補IDを除外しました', {
+                invalidCandidateCount: reportedCandidates.length - validCandidates.length
+              });
+            }
+          }
           responseHandler.normalizeDuplicateClassOperations(unitResult, availableClassIds);
           const operationPolicy = createOperationPolicy({ allowProposals: responseMode === 'proposal', taskKind: unit.kind, scope: unit.scope });
           const cacheResult = structuredClone(unitResult);
@@ -2043,6 +2064,9 @@ let proposalPreview = null;
           let crossScopeOperationStatus = 'not_requested';
           if (responseMode === 'proposal') {
             const allChunksCompleted = splitTasks.every((_, index) => chunkResults[index] && !incompleteChunkIndices.has(index));
+            const crossScopeTargetIds = crossScopeCandidateMode
+              ? crossScopeEditableTargets.filter((id) => crossScopeCandidateIds.has(id))
+              : crossScopeEditableTargets;
             if (!crossScopeStructure) {
               crossScopeOperationStatus = 'incomplete';
               logAiProblem('横断確認を開始できません', new Error('全階層確認の対象を構成できませんでした。'), 'warn', {
@@ -2061,9 +2085,27 @@ let proposalPreview = null;
                 completedTaskCount: splitTasks.length - incompleteTaskIndices.length,
                 taskCount: splitTasks.length
               });
+            } else if (crossScopeCandidateMode && !crossScopeTargetIds.length) {
+              crossScopeOperationStatus = 'completed';
+              console.info('[AIチャット] 横断確認候補はありません', {
+                editableTargetCount: crossScopeEditableTargets.length,
+                candidateTargetCount: 0
+              });
             } else {
+              const executionScope = crossScopeCandidateMode
+                ? { ...crossScopeStructure, selectedEditableIds: crossScopeTargetIds }
+                : crossScopeStructure;
+              const executionPlan = crossScopeCandidateMode
+                ? crossScopeProposalSynthesizer.plan({ request: userText, conversationContext: conversation.localContext || '',
+                  scope: executionScope, fixedPromptCharacters: crossScopeFixedPromptCharacters, strategy: crossScopeStrategy })
+                : crossScopePlan;
+              if (crossScopeCandidateMode) console.info('[AIチャット] 横断確認候補を絞り込みました', {
+                editableTargetCount: crossScopeEditableTargets.length,
+                candidateTargetCount: crossScopeTargetIds.length,
+                candidateUpperClassLimit: 2
+              });
               const crossScopeOperation = await crossScopeProposalSynthesizer.synthesize({
-                plan: crossScopePlan,
+                plan: executionPlan,
                 send: (payload, batchId, batchCount) => sendApiRequest(payload, '', CROSS_SCOPE_OUTPUT_TOKENS,
                   `全範囲の横断確認中（${batchId}/${batchCount}）`)
               });
@@ -2074,8 +2116,8 @@ let proposalPreview = null;
                     throw new Error('横断判断中に編集データが変わりました。最新状態で再依頼してください。');
                   }
                   const coverage = crossResult.crossScopeCoverage;
-                  if (!coverage || coverage.evaluatedEditableCount !== crossScopePlan.expectedEditableCount
-                    || coverage.reviewedHierarchyCount !== crossScopePlan.expectedHierarchyCount
+                  if (!coverage || coverage.evaluatedEditableCount !== executionPlan.expectedEditableCount
+                    || coverage.reviewedHierarchyCount !== executionPlan.expectedHierarchyCount
                     || coverage.unassessedEditableCount !== 0) {
                     const incompleteCoverageError = new Error('選択対象または全階層の横断評価範囲を完全に確認できませんでした。');
                     incompleteCoverageError.name = 'IncompleteCoverageError';
@@ -2085,7 +2127,7 @@ let proposalPreview = null;
                   const availableClassIds = scope.classes.map((item) => item.id);
                   const crossScopeEditScope = {
                     ...scope,
-                    editableIds: crossScopeEditableTargets,
+                    editableIds: crossScopeTargetIds,
                     allowHierarchyEdits: false
                   };
                   responseHandler.normalizeDuplicateClassOperations(crossResult, availableClassIds);
@@ -2145,7 +2187,9 @@ let proposalPreview = null;
             userFacingLimitations.push('確認結果を全体としてまとめられなかったため、以下は確認できた範囲ごとの内容です。');
           }
           if (crossScopeStrategy === 'hierarchical' && crossScopeOperationStatus === 'completed') {
-            userFacingLimitations.push('移動先候補は現在の階層と名称の類似から絞っており、すべての分類先を網羅して比較した結果ではありません。');
+            const candidateCount = crossScopeCandidateMode
+              ? crossScopeEditableTargets.filter((id) => crossScopeCandidateIds.has(id)).length : crossScopeEditableTargets.length;
+            userFacingLimitations.push(`別上位クラスへの移動確認は、候補となった対象${candidateCount}件に限っています。各対象の移動先候補も名称の類似から絞っており、全対象・全分類先の網羅確認ではありません。`);
           }
           if (crossScopeOperationStatus === 'incomplete' || crossScopeOperationStatus === 'failed') {
             userFacingLimitations.push('階層をまたぐ移動先の確認が完了していないため、以下の変更案は確認できた範囲に限られます。');
