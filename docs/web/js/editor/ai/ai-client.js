@@ -123,11 +123,12 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
   const crossScopeCoverageSchema = {
     type: 'object', additionalProperties: false,
     properties: {
-      evaluatedEditableIds: { type: 'array', items: { type: 'string' }, maxItems: 500 },
-      reviewedHierarchyIds: { type: 'array', items: { type: 'string' }, maxItems: 500 },
-      unassessedEditableIds: { type: 'array', items: { type: 'string' }, maxItems: 500 }
+      batchId: { type: 'string' },
+      evaluatedEditableCount: { type: 'integer', minimum: 0 },
+      reviewedHierarchyCount: { type: 'integer', minimum: 0 },
+      unassessedEditableCount: { type: 'integer', minimum: 0 }
     },
-    required: ['evaluatedEditableIds', 'reviewedHierarchyIds', 'unassessedEditableIds']
+    required: ['batchId', 'evaluatedEditableCount', 'reviewedHierarchyCount', 'unassessedEditableCount']
   };
   const crossScopeResponseSchema = {
     ...responseSchema,
@@ -314,7 +315,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     responseSchema,
     responseWithChunkComparisonSchema,
     crossScopeResponseSchema,
-    crossScopeOperationInstructions: '横断操作ステージです。応答トップレベルのx.evaluatedEditableIdsにはselectedScope.data.editableIdsの全IDを含めてください。x.reviewedHierarchyIdsにはselectedScope.data.classesの全top/middle IDを含めてください。完了して評価できない対象はx.unassessedEditableIdsに列挙し、可能なら操作案を返さず、アプリ側の全範囲検証に任せてください。各IDは入力の実値または短縮IDを正確に使ってください。',
+    crossScopeOperationInstructions: '横断操作ステージです。応答トップレベルx.batchIdには入力crossScopeBatch.idをそのまま返してください。evaluatedEditableCountにはcrossScopeBatch.expectedEditableCount、reviewedHierarchyCountにはcrossScopeBatch.expectedHierarchyCountと一致する確認件数、unassessedEditableCountには未確認対象の件数を整数で返してください。ID一覧は返しません。',
     groupedResponseSchema,
     chunkGroupedResponseSchema,
     summaryResponseSchema,
@@ -404,9 +405,9 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
         (finding.classes || []).forEach((item) => { if (item.id) item.id = restoreId(item.id); });
       }));
       if (group.crossScopeCoverage) {
-        ['evaluatedEditableIds', 'reviewedHierarchyIds', 'unassessedEditableIds'].forEach((key) => {
-          group.crossScopeCoverage[key] = (group.crossScopeCoverage[key] || []).map(restoreId);
-        });
+        if (typeof group.crossScopeCoverage.batchId === 'string') {
+          group.crossScopeCoverage.batchId = restoreId(group.crossScopeCoverage.batchId);
+        }
       }
       group.proposals.forEach((proposal) => proposal.operations.forEach((operation) => {
         ['parentId', 'classId', 'destinationId', 'from', 'to'].forEach((key) => {

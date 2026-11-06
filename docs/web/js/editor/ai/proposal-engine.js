@@ -16,6 +16,15 @@ export const createOperationPolicy = ({ allowProposals = true, taskKind = 'selec
   } else if (taskKind === 'hierarchy') {
     moveSourceTypes = ['top', 'middle'];
     allowedTypes = allowedTypes.filter((type) => type !== 'deleteClass' || allowDelete);
+  } else if (taskKind === 'cross_scope') {
+    if (!scope.allowHierarchyEdits) {
+      // Cross-scope synthesis explicitly must not change hierarchy nodes when
+      // hierarchy editing is outside the selected scope.
+      allowedTypes = allowedTypes.filter((type) => type === 'moveClass');
+      addClassTypes = [];
+      moveSourceTypes = ['class'];
+      allowDelete = false;
+    }
   } else {
     allowedTypes = allowedTypes.filter((type) => type !== 'deleteClass' || allowDelete);
   }
@@ -69,13 +78,10 @@ export const operationAllowedByPolicy = (operation, policy, classesById, editabl
 };
 
 const normalizeOperationSequence = (operations = []) => {
-  const aliases = new Map();
-  let nextAlias = 0;
+  const aliases = new Map(operations.filter((operation) => operation.type === 'addClass' && operation.temporaryId)
+    .map((operation, index) => [operation.temporaryId, `temporary_${index + 1}`]));
   const normalizeId = (id) => aliases.get(id) || id || null;
   return operations.map((operation) => {
-    if (operation.temporaryId && !aliases.has(operation.temporaryId)) {
-      aliases.set(operation.temporaryId, `temporary_${++nextAlias}`);
-    }
     return {
       type: operation.type || null,
       classType: operation.classType || null,
@@ -88,6 +94,24 @@ const normalizeOperationSequence = (operations = []) => {
       to: normalizeId(operation.to)
     };
   });
+};
+
+const proposalDeletionDependencies = (proposal) => {
+  const temporaryIds = new Set((proposal.operations || [])
+    .filter((operation) => operation.type === 'addClass' && operation.temporaryId)
+    .map((operation) => operation.temporaryId));
+  const normalizeReference = (id) => !id ? ''
+    : temporaryIds.has(id) ? `temporary:${proposal.id}:${id}` : id;
+  const deletedIds = new Set();
+  const referencedIds = new Set();
+  (proposal.operations || []).forEach((operation) => {
+    if (operation.type === 'deleteClass' && operation.classId) deletedIds.add(normalizeReference(operation.classId));
+    ['classId', 'from', 'to', 'destinationId', 'parentId'].forEach((key) => {
+      const id = operation[key];
+      if (id && !(operation.type === 'deleteClass' && key === 'classId')) referencedIds.add(normalizeReference(id));
+    });
+  });
+  return { deletedIds, referencedIds };
 };
 
 const affectedClassIds = (operation, classesById, childrenByParent) => {
@@ -168,6 +192,7 @@ export const reconcileSplitProposals = (chunkProposals, crossScopeProposals, cla
 
   const classesById = new Map(classes.map((item) => [item.id, item]));
   const changesByProposal = result.map((proposal) => proposalChangesByClass(proposal, relations, classesById));
+  const dependenciesByProposal = result.map(proposalDeletionDependencies);
   const parentByIndex = result.map((_, index) => index);
   const find = (index) => {
     if (parentByIndex[index] !== index) parentByIndex[index] = find(parentByIndex[index]);
@@ -179,7 +204,11 @@ export const reconcileSplitProposals = (chunkProposals, crossScopeProposals, cla
       const leftChanges = changesByProposal[left];
       const rightChanges = changesByProposal[right];
       const hasOverlappingChange = [...leftChanges.keys()].some((classId) => rightChanges.has(classId));
-      if (hasOverlappingChange) union(left, right);
+      const leftDependencies = dependenciesByProposal[left];
+      const rightDependencies = dependenciesByProposal[right];
+      const hasDeletionDependency = [...leftDependencies.deletedIds].some((id) => rightDependencies.referencedIds.has(id))
+        || [...rightDependencies.deletedIds].some((id) => leftDependencies.referencedIds.has(id));
+      if (hasOverlappingChange || hasDeletionDependency) union(left, right);
     }
   }
   const groups = new Map();

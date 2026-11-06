@@ -889,7 +889,7 @@ let proposalPreview = null;
     };
   };
   const chunkSynthesizer = createChunkSynthesizer({ MAX_REQUEST_CHARACTERS });
-  const crossScopeProposalSynthesizer = createCrossScopeProposalSynthesizer({ MAX_REQUEST_CHARACTERS });
+  const crossScopeProposalSynthesizer = createCrossScopeProposalSynthesizer({ MAX_REQUEST_CHARACTERS, shortenInputIds, createIdCodec });
   const diffScope = (before, after) => {
     const current = compactScope(after);
     if (!before) return { kind: 'initial_snapshot', data: current };
@@ -1769,9 +1769,11 @@ let proposalPreview = null;
     }
     const crossScopeParentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
     const crossScopeClassesById = new Map(scope.classes.map((item) => [item.id, item]));
+    const crossScopeEditableTargets = scope.editableIds.filter((id) => crossScopeClassesById.get(id)?.type === 'class');
     const crossScopeStructure = splitTasks && responseMode === 'proposal' && scope.scopeCoverage === 'all_classes'
+      && crossScopeEditableTargets.length > 0 && crossScopeEditableTargets.length === scope.editableIds.length
       ? {
-        selectedEditableIds: [...scope.editableIds],
+        selectedEditableIds: crossScopeEditableTargets,
         selectedRoots: [...(scope.selectionRoots || scope.selectedIds || [])],
         classes: scope.classes.map(({ id, type, label, parentId, parentLabel }) => {
           const resolvedParentId = parentId || crossScopeParentByChild.get(id) || null;
@@ -1786,14 +1788,19 @@ let proposalPreview = null;
         allowProposals: Boolean(scope.allowProposals)
       }
       : null;
-    const crossScopePreflightInput = crossScopeStructure
-      ? JSON.stringify({ request: userText, conversationContext: conversation.localContext || undefined,
-        scopeCoverage: 'cross_scope_operation_synthesis', scope: crossScopeStructure }) : '';
+    const crossScopeFixedPromptCharacters = systemPrompt.length + compactResponseInstructions.length
+      + responseFormat.crossScopeOperationInstructions.length + responseModeInstruction(responseMode).length + 1200;
+    const crossScopePlan = crossScopeStructure
+      ? crossScopeProposalSynthesizer.plan({ request: userText, conversationContext: conversation.localContext || '',
+        scope: crossScopeStructure, fixedPromptCharacters: crossScopeFixedPromptCharacters })
+      : null;
+    const crossScopePreflightInputs = crossScopePlan?.status === 'completed'
+      ? crossScopePlan.batches.map((batch) => batch.input) : [];
     // The previous response is charged again in each continuation, so include
     // the shared hierarchy in the preflight estimate for every sent batch.
     const requestInputs = [
       ...(splitTasks ? [hierarchyReferenceInput, ...splitBatches.map((task) => hierarchyReferenceInput + task.input)] : [userContent]),
-      crossScopePreflightInput
+      ...crossScopePreflightInputs
     ].filter(Boolean);
     const sendingDelta = Boolean(!usesAnalysisMemory && !splitTasks && conversation.responseId
       && conversation.initialSnapshotSent && !selectionChanged && !scopeModeChanged);
@@ -1825,7 +1832,8 @@ let proposalPreview = null;
       : '';
     const outputTokenBudget = splitTasks
       ? unsentSplitTasks.length * CHUNK_OUTPUT_TOKENS + SYNTHESIS_OUTPUT_TOKENS
-        + (splitBatches.length ? 128 : 0) + (crossScopeStructure ? CROSS_SCOPE_OUTPUT_TOKENS : 0)
+        + (splitBatches.length ? 128 : 0) + (crossScopePlan?.status === 'completed'
+          ? crossScopePlan.batches.length * CROSS_SCOPE_OUTPUT_TOKENS : 0)
       : MAX_OUTPUT_TOKENS;
     const cacheReuseNote = splitTasks && cachedChunkCount
       ? `上位クラスごとの保存済み評価 ${cachedChunkCount}件を再利用し、変更のある単位 ${unsentSplitTasks.length}件だけを送信単位にまとめて再分析します。最後に結果を統合${crossScopeStructure ? 'し、全階層で横断操作を検討' : ''}します。`
@@ -1834,7 +1842,10 @@ let proposalPreview = null;
       ? '回答モード：改善提案（全種類の操作を許可。削除を含む変更はプレビューで確認してから適用します）'
       : '回答モード：評価（変更案・確認質問なし）';
     const crossScopeNote = crossScopeStructure
-      ? '分割回答の後、全選択対象と全階層を使う追加の横断操作検討を行います。追加送信と出力料金が発生します。概算は最終チャンク回答の転送量を含まないため実額と異なる場合があります。全範囲が揃わない場合は横断案を作成しません。' : '';
+      ? crossScopePlan?.status === 'completed'
+        ? `分割回答の後、全選択対象と全階層の組み合わせを${crossScopePlan.batches.length}件の送信単位で横断確認します。全バッチが完了した場合だけ横断操作案を確定します。追加送信と出力料金が発生します。`
+        : '横断確認の全範囲を送信単位に分割できませんでした。個別評価は行いますが、横断操作案は未完了として表示します。'
+      : '';
     const preflightNote = [modeNote, cacheReuseNote, crossScopeNote,
       estimateRequestCost(requestInputs, systemPrompt, outputTokenBudget), longConversationNote].filter(Boolean).join('\n\n');
     updateUsageSummary();
@@ -2127,30 +2138,10 @@ let proposalPreview = null;
             } else if (!allChunksCompleted || result.dataRequests.length) {
               crossScopeOperationStatus = 'incomplete';
             } else {
-              const crossScopeChunks = splitTasks.map((task, index) => {
-                const part = chunkResults[index];
-                const rootId = task.topClassId || task.scope.selectionRoots?.[0] || task.scope.selectedIds?.[0];
-                const root = scope.classes.find((item) => item.id === rootId);
-                return {
-                  scopeId: `chunk_${index + 1}`,
-                  upperClass: root ? { id: root.id, name: root.label } : null,
-                  message: String(part.message || '').slice(0, 2400),
-                  comparisonSummary: part.comparison || null
-                };
-              });
-              const existingProposals = result.proposals.map(({ id, title, summary, reason, operations, uncertainties }) => ({
-                id, title, summary, reason, operations, uncertainties,
-                sourceScopeId: /^part(\d+)_/.test(id) ? `chunk_${id.match(/^part(\d+)_/)[1]}` : ''
-              }));
               const crossScopeOperation = await crossScopeProposalSynthesizer.synthesize({
-                request: userText,
-                conversationContext: conversation.localContext || '',
-                scope: crossScopeStructure,
-                chunkResults: crossScopeChunks,
-                existingProposals,
-                fixedPromptCharacters: systemPrompt.length + compactResponseInstructions.length
-                  + responseFormat.crossScopeOperationInstructions.length + responseModeInstruction(responseMode).length + 1200,
-                send: (payload) => sendApiRequest(payload, '', CROSS_SCOPE_OUTPUT_TOKENS, '全範囲の横断操作を検討中')
+                plan: crossScopePlan,
+                send: (payload, batchId, batchCount) => sendApiRequest(payload, '', CROSS_SCOPE_OUTPUT_TOKENS,
+                  `全範囲の横断確認中（${batchId}/${batchCount}）`)
               });
               if (crossScopeOperation.status === 'completed') {
                 try {
@@ -2159,14 +2150,9 @@ let proposalPreview = null;
                     throw new Error('横断判断中に編集データが変わりました。最新状態で再依頼してください。');
                   }
                   const coverage = crossResult.crossScopeCoverage;
-                  const sameIds = (actual, expected) => Array.isArray(actual) && actual.length === expected.length
-                    && new Set(actual).size === actual.length && expected.every((id) => actual.includes(id));
-                  const expectedEditableIds = crossScopeStructure.selectedEditableIds;
-                  const expectedHierarchyIds = crossScopeStructure.classes
-                    .filter((item) => ['top', 'middle'].includes(item.type)).map((item) => item.id);
-                  if (!coverage || !sameIds(coverage.evaluatedEditableIds, expectedEditableIds)
-                    || !sameIds(coverage.reviewedHierarchyIds, expectedHierarchyIds)
-                    || !Array.isArray(coverage.unassessedEditableIds) || coverage.unassessedEditableIds.length) {
+                  if (!coverage || coverage.evaluatedEditableCount !== crossScopePlan.expectedEditableCount
+                    || coverage.reviewedHierarchyCount !== crossScopePlan.expectedHierarchyCount
+                    || coverage.unassessedEditableCount !== 0) {
                     const incompleteCoverageError = new Error('選択対象または全階層の横断評価範囲を完全に確認できませんでした。');
                     incompleteCoverageError.name = 'IncompleteCoverageError';
                     throw incompleteCoverageError;
@@ -2179,7 +2165,7 @@ let proposalPreview = null;
                       || scope.classes.find((item) => item.id === id)?.type === 'class')
                   };
                   responseHandler.normalizeDuplicateClassOperations(crossResult, availableClassIds);
-                  const crossOperationPolicy = createOperationPolicy({ allowProposals: true, taskKind: 'selected_scope', scope: crossScopeEditScope });
+                  const crossOperationPolicy = createOperationPolicy({ allowProposals: true, taskKind: 'cross_scope', scope: crossScopeEditScope });
                   const discardedCrossOperations = responseHandler.enforceOperationPolicy(crossResult, crossScopeEditScope, crossOperationPolicy);
                   responseHandler.suppressNoopMoveOperations(crossResult, crossScopeEditScope);
                   const crossOperationWarnings = [];
