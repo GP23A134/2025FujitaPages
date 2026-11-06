@@ -3,7 +3,7 @@
 import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261106-cross-scope-candidate-filter-v9';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261106-cross-scope-proposals-v4';
 import { createConversationStore, createConversationView } from './chat.js?v=20261106-split-state-v2-user-facing-status';
-import { createProposalPreview } from './proposal-preview.js?v=20261106-ai-audit-undo-v5';
+import { createProposalPreview } from './proposal-preview.js?v=20261106-proposal-list-v1';
 import { createAIClient } from './ai-client.js?v=20261106-cross-scope-candidate-filter-v6';
 
 (() => {
@@ -159,6 +159,26 @@ import { createAIClient } from './ai-client.js?v=20261106-cross-scope-candidate-
   const promptExamplesList = document.getElementById('ai-prompt-examples-list');
   const promptExamplesById = new Map();
   const responseModeToggle = document.getElementById('ai-response-mode-toggle');
+  const proposalViewToggle = document.getElementById('ai-proposal-view-toggle');
+  const proposalViewStorageKey = 'classEditorAiProposalView';
+  let proposalViewMode = 'compact';
+  try {
+    if (localStorage.getItem(proposalViewStorageKey) === 'legacy') proposalViewMode = 'legacy';
+  } catch {}
+  const renderProposalViewToggle = () => {
+    const isCompact = proposalViewMode === 'compact';
+    proposalViewToggle.textContent = isCompact ? '従来表示' : '新表示';
+    proposalViewToggle.setAttribute('aria-pressed', String(isCompact));
+    proposalViewToggle.setAttribute('aria-label', `変更案表示：${isCompact ? '新しい一覧' : '従来表示'}。クリックで切り替え`);
+    proposalViewToggle.title = `変更案表示を${isCompact ? '従来表示' : '新しい一覧'}に切り替えます`;
+  };
+  proposalViewToggle.addEventListener('click', () => {
+    proposalViewMode = proposalViewMode === 'compact' ? 'legacy' : 'compact';
+    try { localStorage.setItem(proposalViewStorageKey, proposalViewMode); } catch {}
+    renderProposalViewToggle();
+    if (currentConversation) renderConversation();
+  });
+  renderProposalViewToggle();
   let currentResponseMode = 'proposal';
   const renderResponseMode = () => {
     const isProposalMode = currentResponseMode === 'proposal';
@@ -943,9 +963,9 @@ let proposalPreview = null;
     });
     return counts;
   };
-  const renderOperationCountBadges = (operations, className) => {
+  const renderOperationCountBadges = (operations, className, { hideZero = false } = {}) => {
     const counts = countOperationTypes(operations);
-    return operationLegendCategories.map(({ key, label, className: categoryClass }) => {
+    return operationLegendCategories.filter(({ key }) => !hideZero || counts.get(key) > 0).map(({ key, label, className: categoryClass }) => {
       const badge = document.createElement('span');
       badge.className = `${className} ${categoryClass}`;
       badge.textContent = `${label}（${counts.get(key)}件）`;
@@ -979,7 +999,7 @@ let proposalPreview = null;
       document.getElementById('ai-apply-proposal').disabled = true;
     }
   };
-  const renderProposalCard = (item) => {
+  const renderProposalCardLegacy = (item) => {
     const proposal = item.proposal;
     const card = document.createElement('article'); card.className = `ai-proposal-card is-${item.status}`;
     if (['chunk', 'cross_scope', 'combined'].includes(item.sourceType)) {
@@ -1003,12 +1023,12 @@ let proposalPreview = null;
     const actions = document.createElement('div'); actions.className = 'ai-proposal-actions';
     const preview = document.createElement('button'); preview.type = 'button'; preview.className = 'ai-proposal-preview'; preview.textContent = 'プレビュー';
     const statusLabel = document.createElement('span'); statusLabel.className = 'ai-proposal-status';
-    const statusText = { pending: '', previewed: '確認済み', stale: '適用後の状態で再確認が必要', applied: '適用済み', 'awaiting-answers': '確認事項への回答待ち', superseded: '回答を送信済み。更新後の案を確認してください。', 'alternative-rejected': '別の代替案を適用済み' };
+    const statusText = { pending: '未判断', previewed: '未判断', stale: '再確認が必要', applied: '適用済み', dismissed: '見送り', 'awaiting-answers': '確認事項への回答待ち', superseded: '回答を送信済み。更新後の案を確認してください。', 'alternative-rejected': '別の代替案を適用済み' };
     statusLabel.textContent = statusText[item.status] || '';
     const unavailable = ['awaiting-answers', 'superseded', 'alternative-rejected'].includes(item.status);
     preview.disabled = unavailable || item.status === 'invalid';
     const updateStatus = () => {
-      statusLabel.textContent = item.status === 'previewed' ? '確認済み' : item.status === 'stale' ? '適用後の状態で再確認が必要' : '';
+      statusLabel.textContent = statusText[item.status] || '';
       card.className = `ai-proposal-card is-${item.status}`;
     };
     preview.addEventListener('click', () => {
@@ -1018,7 +1038,7 @@ let proposalPreview = null;
     card.append(actions);
     return card;
   };
-  const renderProposalQueue = (items, host = messages) => {
+  const renderProposalQueueLegacy = (items, host = messages) => {
     const proposalGroup = items[0];
     const details = document.createElement('details');
     details.className = 'ai-proposal-queue';
@@ -1026,15 +1046,16 @@ let proposalPreview = null;
     details.addEventListener('toggle', () => { proposalGroup.proposalsOpen = details.open; });
     const counts = items.reduce((summary, item) => {
       if (item.status === 'applied') summary.applied += 1;
-      else if (item.status === 'previewed') summary.reviewed += 1;
+      else if (item.status === 'dismissed') summary.dismissed += 1;
+      else if (item.status === 'alternative-rejected') { summary.dismissed += 1; summary.alternatives += 1; }
+      else if (item.status === 'previewed') summary.pending += 1;
       else if (item.status === 'awaiting-answers') summary.awaiting += 1;
       else if (item.status === 'superseded') summary.answered += 1;
-      else if (item.status === 'alternative-rejected') summary.alternatives += 1;
       else if (item.status !== 'invalid') summary.pending += 1;
       return summary;
-    }, { pending: 0, reviewed: 0, applied: 0, awaiting: 0, answered: 0, alternatives: 0 });
+    }, { pending: 0, applied: 0, dismissed: 0, awaiting: 0, answered: 0, alternatives: 0 });
     const summary = document.createElement('summary');
-    const statusParts = [`保留${counts.pending}件`, `確認済み${counts.reviewed}件`, `適用済み${counts.applied}件`];
+    const statusParts = [`未判断${counts.pending}件`, `適用済み${counts.applied}件`, `見送り${counts.dismissed}件`];
     if (counts.awaiting) statusParts.push(`回答待ち${counts.awaiting}件`);
     if (counts.answered) statusParts.push(`回答済み${counts.answered}件`);
     if (counts.alternatives) statusParts.push(`代替案から除外${counts.alternatives}件`);
@@ -1058,8 +1079,127 @@ let proposalPreview = null;
     next.addEventListener('click', () => { proposalGroup.proposalPageIndex = pageIndex + 1; renderConversation(); });
     navigation.append(previous, position, next);
     navigation.hidden = items.length < 2;
-    details.append(summary, renderProposalCard(items[pageIndex]), navigation);
+    details.append(summary, renderProposalCardLegacy(items[pageIndex]), navigation);
     host.append(details);
+  };
+  const proposalDisplayState = (item) => {
+    if (item.status === 'applied') return { key: 'applied', label: '適用済み' };
+    if (item.status === 'dismissed' || item.status === 'alternative-rejected') return { key: 'dismissed', label: '見送り' };
+    if (item.status === 'awaiting-answers') return { key: 'unjudged', label: '回答待ち' };
+    if (item.status === 'stale') return { key: 'unjudged', label: '再確認が必要' };
+    if (item.status === 'superseded') return { key: 'unjudged', label: '更新待ち' };
+    if (item.status === 'invalid') return { key: 'unjudged', label: '適用不可' };
+    return { key: 'unjudged', label: '未判断' };
+  };
+  const renderProposalQueueCompact = (items, host = messages) => {
+    const proposalGroup = items[0];
+    const queue = document.createElement('section');
+    queue.className = 'ai-proposal-queue ai-proposal-queue-compact';
+    const heading = document.createElement('div');
+    heading.className = 'ai-proposal-queue-heading';
+    const disclosure = document.createElement('details');
+    disclosure.className = 'ai-proposal-queue-disclosure';
+    disclosure.open = proposalGroup.proposalListOpen === true;
+    disclosure.addEventListener('toggle', () => { proposalGroup.proposalListOpen = disclosure.open; });
+    const summary = document.createElement('summary');
+    const title = document.createElement('span');
+    title.className = 'ai-proposal-queue-title';
+    title.textContent = `変更案 ${items.length}件`;
+    const statusCounts = items.reduce((counts, item) => {
+      const state = proposalDisplayState(item).key;
+      counts[state] += 1;
+      return counts;
+    }, { unjudged: 0, applied: 0, dismissed: 0 });
+    const statusBadges = document.createElement('span');
+    statusBadges.className = 'ai-proposal-queue-status-counts';
+    [
+      ['unjudged', '未判断', statusCounts.unjudged],
+      ['applied', '適用済み', statusCounts.applied],
+      ['dismissed', '見送り', statusCounts.dismissed]
+    ].forEach(([key, label, count]) => {
+      const badge = document.createElement('span');
+      badge.className = `ai-proposal-status-badge is-${key}`;
+      badge.textContent = `${label} ${count}件`;
+      statusBadges.append(badge);
+    });
+    summary.append(title, statusBadges);
+    const content = document.createElement('div');
+    content.className = 'ai-proposal-queue-content';
+    const operations = items.flatMap((item) => item.proposal.operations || []);
+    const typeCounts = document.createElement('div');
+    typeCounts.className = 'ai-proposal-queue-type-counts';
+    typeCounts.setAttribute('aria-label', '変更種類ごとの件数');
+    typeCounts.append(...renderOperationCountBadges(operations, 'ai-preview-type-badge', { hideZero: true }));
+    content.append(typeCounts);
+    const proposalList = document.createElement('div');
+    proposalList.className = 'ai-proposal-list';
+    items.forEach((item, index) => {
+      const proposal = item.proposal;
+      const displayState = proposalDisplayState(item);
+      const row = document.createElement('article');
+      row.className = `ai-proposal-list-item is-${displayState.key}`;
+      const main = document.createElement('div');
+      main.className = 'ai-proposal-list-main';
+      const meta = document.createElement('div');
+      meta.className = 'ai-proposal-list-meta';
+      const proposalTitle = document.createElement('strong');
+      proposalTitle.className = 'ai-proposal-list-title';
+      proposalTitle.textContent = proposal.title || `提案${index + 1}`;
+      meta.append(proposalTitle);
+      if (item.alternativeGroupId) {
+        const alternative = document.createElement('span');
+        alternative.className = 'ai-proposal-alternative-badge';
+        alternative.textContent = '代替案';
+        alternative.title = '同じグループの代替案とは同時に適用できません。';
+        meta.append(alternative);
+      }
+      meta.append(...renderOperationCountBadges(proposal.operations || [], 'ai-preview-type-badge', { hideZero: true }));
+      const description = document.createElement('p');
+      description.className = 'ai-proposal-list-description';
+      description.textContent = excerpt(proposal.summary || proposal.title, 240);
+      main.append(meta, description);
+      const actions = document.createElement('div');
+      actions.className = 'ai-proposal-list-actions';
+      const stateBadge = document.createElement('span');
+      stateBadge.className = `ai-proposal-status-badge is-${displayState.key}`;
+      stateBadge.textContent = displayState.label;
+      const preview = document.createElement('button');
+      preview.type = 'button';
+      preview.className = 'ai-proposal-preview';
+      preview.textContent = 'プレビュー';
+      const unavailable = ['awaiting-answers', 'superseded', 'alternative-rejected', 'invalid'].includes(item.status);
+      preview.disabled = unavailable;
+      preview.addEventListener('click', () => {
+        void proposalPreview.showPreview(item, false).then(() => renderConversation()).catch(reportPreviewError);
+      });
+      actions.append(stateBadge, preview);
+      row.append(main, actions);
+      proposalList.append(row);
+    });
+    content.append(proposalList);
+    disclosure.append(summary, content);
+    const preview = document.createElement('button');
+    preview.type = 'button';
+    preview.className = 'ai-proposal-preview ai-proposal-queue-preview';
+    preview.textContent = 'プレビュー';
+    const isPreviewable = (item) => !['awaiting-answers', 'superseded', 'alternative-rejected', 'invalid'].includes(item.status);
+    preview.disabled = !items.some(isPreviewable);
+    preview.addEventListener('click', () => {
+      const requestedIndex = Math.max(0, Math.min(items.length - 1, proposalGroup.proposalPageIndex || 0));
+      const current = items[requestedIndex];
+      const start = current && isPreviewable(current) ? current : items.find(isPreviewable);
+      if (start) void proposalPreview.showPreview(start).then(() => renderConversation()).catch(reportPreviewError);
+    });
+    heading.append(disclosure, preview);
+    const updateHeaderPreviewVisibility = () => { preview.hidden = disclosure.open; };
+    disclosure.addEventListener('toggle', updateHeaderPreviewVisibility);
+    updateHeaderPreviewVisibility();
+    queue.append(heading);
+    host.append(queue);
+  };
+  const renderProposalQueue = (items, host = messages) => {
+    if (proposalViewMode === 'legacy') renderProposalQueueLegacy(items, host);
+    else renderProposalQueueCompact(items, host);
   };
   const renderQuestionQueue = (item, host = messages) => {
     const details = document.createElement('details');
@@ -1346,7 +1486,8 @@ let proposalPreview = null;
     currentDataHash,
     verifyLoadedDataVersion,
     renderConversation,
-    setStatus
+    setStatus,
+    getProposalDisplayMode: () => proposalViewMode
   });
   const createLocalConversationContext = (userText) =>
     `利用者の依頼・方針: ${String(userText || '').slice(0, 500)}`;
@@ -2482,6 +2623,13 @@ let proposalPreview = null;
     if (clickedOutside) closePreview();
   });
   document.getElementById('ai-preview-close').addEventListener('click', closePreview);
+  document.getElementById('ai-dismiss-proposal').addEventListener('click', () => {
+    const dismissed = proposalPreview.dismissCurrentProposal();
+    if (!dismissed) return;
+    closePreview();
+    renderConversation();
+    setStatus('変更案を見送りました。編集データは変更していません。');
+  });
   const previewArrowToggle = document.getElementById('ai-preview-arrow-toggle');
   previewArrowToggle.addEventListener('click', () => {
     const visible = previewArrowToggle.getAttribute('aria-checked') !== 'true';
@@ -2533,7 +2681,7 @@ let proposalPreview = null;
     const addedClasses = snapshot.after.classes.filter((item) => !beforeIds.has(item.id));
     if (!addedClasses.length) return;
     currentConversation.items.filter((item) => item.type === 'proposal' && item !== appliedProposal
-      && item.status !== 'applied').forEach((item) => {
+      && !['applied', 'dismissed'].includes(item.status)).forEach((item) => {
       const aliases = new Map();
       item.proposal.operations.forEach((operation) => {
         if (operation.type !== 'addClass' || !operation.temporaryId) return;
@@ -2593,13 +2741,19 @@ let proposalPreview = null;
       applySucceeded = true;
       reconcilePendingProposalAdditions(applied.currentProposal);
       renderConversation();
-      const previewQueue = proposalPreview.previewableProposals();
-      const appliedIndex = previewQueue.indexOf(applied.currentProposal);
-      const nextProposal = appliedIndex >= 0 ? previewQueue.slice(appliedIndex + 1)[0] : null;
-      if (nextProposal) {
-        setStatus('提案を適用しました。次の提案を確認しています。');
-        await proposalPreview.transitionPreview(() => proposalPreview.showPreview(nextProposal));
-        renderConversation();
+      if (proposalViewMode === 'legacy') {
+        const previewQueue = proposalPreview.previewableProposals();
+        const appliedIndex = previewQueue.indexOf(applied.currentProposal);
+        const nextProposal = appliedIndex >= 0 ? previewQueue.slice(appliedIndex + 1)[0] : null;
+        if (nextProposal) {
+          setStatus('提案を適用しました。次の提案を確認しています。');
+          await proposalPreview.transitionPreview(() => proposalPreview.showPreview(nextProposal));
+          renderConversation();
+        } else {
+          closePreview();
+          document.getElementById('ai-apply-proposal').disabled = true;
+          setStatus('提案を適用しました。必要なら最新状態について改めて依頼してください。');
+        }
       } else {
         closePreview();
         document.getElementById('ai-apply-proposal').disabled = true;

@@ -9,7 +9,7 @@
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261103-edit-search-parity-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261106-cross-scope-proposals-v4">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261106-proposal-list-v1">
   <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261105-hide-class-move-plus-in-ai-v1">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-held-panel-fixed-v2">
   <script src="web/data/generated/class-data.js" defer></script>
@@ -159,6 +159,7 @@
           <section id="ai-assistant-panel" class="ai-assistant-panel" aria-label="AIチャット" hidden>
             <header class="ai-chat-header">
               <strong>AIチャット</strong>
+              <button id="ai-proposal-view-toggle" type="button" class="ai-proposal-view-toggle" aria-pressed="true" title="変更案表示を切り替えます">提案表示：新しい一覧</button>
               <button id="ai-response-mode-toggle" type="button" class="ai-response-mode-toggle is-proposal-mode" aria-pressed="true" title="回答モードを切り替えます">改善提案モード</button>
             </header>
             <div id="ai-chat-messages" class="ai-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
@@ -299,6 +300,7 @@
       <button type="button" id="ai-preview-page-previous">前へ</button>
       <span id="ai-preview-page-position" aria-live="polite"></span>
       <button type="button" id="ai-preview-page-next" class="search-button">変更を確認</button>
+      <button type="button" id="ai-dismiss-proposal" class="ai-preview-dismiss">今回は見送る</button>
       <button type="button" id="ai-apply-proposal" class="search-button" hidden>この変更を適用</button>
     </div>
   </dialog>
@@ -340,6 +342,6 @@
       <button type="button" id="edit-validation-export" class="search-button" hidden>警告を確認して出力</button>
     </div>
   </dialog>
-  <script type="module" src="web/js/editor/ai/main.js?v=20261106-cross-scope-candidate-filter-v14"></script>
+  <script type="module" src="web/js/editor/ai/main.js?v=20261106-proposal-list-v1"></script>
 </body>
 </html>

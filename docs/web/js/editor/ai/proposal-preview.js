@@ -16,7 +16,8 @@ export const createProposalPreview = ({
   currentDataHash,
   verifyLoadedDataVersion,
   renderConversation,
-  setStatus
+  setStatus,
+  getProposalDisplayMode = () => 'legacy'
 }) => {
   let previewPlan = null;
   let previewPageIndex = 0;
@@ -818,6 +819,7 @@ export const createProposalPreview = ({
     const previous = document.getElementById('ai-preview-page-previous');
     const next = document.getElementById('ai-preview-page-next');
     const apply = document.getElementById('ai-apply-proposal');
+    const dismiss = document.getElementById('ai-dismiss-proposal');
     const groupIndex = 0;
     overview.hidden = false;
     changes.hidden = false;
@@ -825,6 +827,7 @@ export const createProposalPreview = ({
     previous.hidden = true;
     next.hidden = true;
     apply.hidden = proposalItem.status === 'applied';
+    dismiss.hidden = ['applied', 'dismissed', 'alternative-rejected', 'superseded', 'invalid'].includes(proposalItem.status);
     document.getElementById('ai-preview-page-position').textContent = '';
     if (!changes.hidden) {
       const total = proposalItem.proposal.operations.length;
@@ -845,7 +848,7 @@ export const createProposalPreview = ({
     const navigation = document.getElementById('ai-preview-navigation');
     const previous = document.getElementById('ai-preview-previous');
     const next = document.getElementById('ai-preview-next');
-    navigation.hidden = items.length < 2;
+    navigation.hidden = getProposalDisplayMode() === 'compact' || items.length < 2;
     previous.disabled = index <= 0;
     next.disabled = index < 0 || index >= items.length - 1;
     document.getElementById('ai-preview-position').textContent = index < 0 ? '' : `${index + 1} / ${items.length}`;
@@ -853,7 +856,7 @@ export const createProposalPreview = ({
   const updatePreviewProposalHeading = (proposalItem) => {
     const operationsCount = proposalItem.proposal.operations.length;
     const statusLabels = {
-      pending: '保留中', previewed: '確認済み', stale: '再確認待ち', applied: '適用済み',
+      pending: '未判断', previewed: '未判断', stale: '再確認待ち', applied: '適用済み', dismissed: '見送り',
       'awaiting-answers': '回答待ち', superseded: '回答済み', 'alternative-rejected': '別の代替案を適用済み', invalid: '無効'
     };
     const status = statusLabels[proposalItem.status] || '保留中';
@@ -1170,7 +1173,7 @@ export const createProposalPreview = ({
     if (applyRequested && activeOperations.length) applyButton.focus();
   };
   const navigatePreview = (direction) => {
-    if (!previewPlan) return;
+    if (!previewPlan || getProposalDisplayMode() === 'compact') return;
     const items = previewableProposals();
     const index = items.indexOf(previewPlan.proposalItem);
     const next = items[index + direction];
@@ -1206,7 +1209,7 @@ export const createProposalPreview = ({
   };
   const applyCurrentProposal = async () => {
     const plan = previewPlan;
-    if (!plan || plan.readOnly || ['applied', 'alternative-rejected', 'superseded', 'invalid'].includes(plan.proposalItem.status)) return null;
+    if (!plan || plan.readOnly || ['applied', 'dismissed', 'alternative-rejected', 'superseded', 'invalid'].includes(plan.proposalItem.status)) return null;
     if (hasUnsubmittedQuestions(plan.proposalItem.responseGroupId)) {
       closePreview();
       return null;
@@ -1230,9 +1233,13 @@ export const createProposalPreview = ({
       && (currentProposal.responseGroupId
         ? item.responseGroupId === currentProposal.responseGroupId
         : item === currentProposal));
-    if (proposalGroup) proposalGroup.proposalsOpen = false;
+    if (proposalGroup) {
+      if (getProposalDisplayMode() === 'compact') proposalGroup.proposalListOpen = true;
+      else proposalGroup.proposalsOpen = false;
+    }
     const conversationItems = getCurrentConversation().items;
-    conversationItems.filter((item) => item.type === 'proposal' && item !== currentProposal && item.status !== 'applied')
+    conversationItems.filter((item) => item.type === 'proposal' && item !== currentProposal
+      && !['applied', 'dismissed'].includes(item.status))
       .forEach((item) => {
         const alternativeAlreadyChosen = item.alternativeGroupId && conversationItems.some((other) =>
           other.type === 'proposal' && other.alternativeGroupId === item.alternativeGroupId && other.status === 'applied');
@@ -1251,6 +1258,18 @@ export const createProposalPreview = ({
       previewableProposals,
       hasUnsubmittedQuestions,
       applyCurrentProposal,
+      dismissCurrentProposal() {
+        const item = previewPlan?.proposalItem;
+        if (!item || ['applied', 'alternative-rejected', 'superseded', 'invalid'].includes(item.status)) return null;
+        item.status = 'dismissed';
+        const proposalGroup = getCurrentConversation().items.find((entry) => entry.type === 'proposal'
+          && (item.responseGroupId ? entry.responseGroupId === item.responseGroupId : entry === item));
+        if (proposalGroup) {
+          if (getProposalDisplayMode() === 'compact') proposalGroup.proposalListOpen = true;
+          else proposalGroup.proposalsOpen = true;
+        }
+        return item;
+      },
       clear() { previewPlan = null; previewPageIndex = 0; previewGroups = []; },
       get plan() { return previewPlan; },
       get groups() { return previewGroups; }
