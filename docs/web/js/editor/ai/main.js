@@ -2134,8 +2134,22 @@ let proposalPreview = null;
             const allChunksCompleted = splitTasks.every((_, index) => chunkResults[index] && !incompleteChunkIndices.has(index));
             if (!crossScopeStructure) {
               crossScopeOperationStatus = 'incomplete';
+              logAiProblem('横断確認を開始できません', new Error('全階層確認の対象を構成できませんでした。'), 'warn', {
+                responseMode, scopeCoverage: scope.scopeCoverage,
+                editableCount: scope.editableIds.length,
+                editableClassCount: crossScopeEditableTargets.length
+              });
             } else if (!allChunksCompleted || result.dataRequests.length) {
               crossScopeOperationStatus = 'incomplete';
+              const incompleteTaskIndices = splitTasks.flatMap((_, index) => (
+                !chunkResults[index] || incompleteChunkIndices.has(index) ? [index + 1] : []
+              ));
+              logAiProblem('横断確認を開始できません', new Error('分割範囲の未完了、または追加共有待ちが残っています。'), 'warn', {
+                incompleteTaskIndices,
+                dataRequestCount: result.dataRequests.length,
+                completedTaskCount: splitTasks.length - incompleteTaskIndices.length,
+                taskCount: splitTasks.length
+              });
             } else {
               const crossScopeOperation = await crossScopeProposalSynthesizer.synthesize({
                 plan: crossScopePlan,
