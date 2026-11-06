@@ -292,6 +292,12 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-usage-detail { grid-column: 1 / -1; color: #64748b; font-size: 0.68rem; }
 .ai-chat-guidance { padding: 0.25rem 0.1rem; }
 .ai-key-guidance { margin: 0; color: #64748b; font-size: 0.72rem; line-height: 1.45; }
+.ai-audit-details { color: #475569; font-size: 0.78rem; }
+.ai-audit-details summary { cursor: pointer; font-weight: 600; }
+.ai-audit-list { max-height: 18rem; overflow: auto; padding-left: 1.35rem; }
+.ai-audit-list > li { margin: 0.65rem 0; overflow-wrap: anywhere; }
+.ai-audit-list p { margin: 0.25rem 0; }
+.ai-audit-list ul { padding-left: 1rem; }
 .ai-settings-inline-link { padding: 0; border: 0; background: none; color: #1d4ed8; font: inherit; text-decoration: underline; cursor: pointer; }
 .ai-proposal-card { flex: 0 0 auto; padding: 0.7rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #f8fbff; font-size: 0.84rem; }
 .ai-proposal-card.is-stale { border-color: #fbbf24; background: #fffbeb; }

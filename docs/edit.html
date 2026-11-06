@@ -199,6 +199,13 @@
         <button type="button" id="ai-toggle-key-visibility" class="held-action-button" aria-pressed="false">表示</button>
       </div>
       <p class="edit-settings-note">キーはページを閉じると消去されます。依頼文と選択範囲または全体分析時のクラス情報はOpenAIへ送信され、応答はAPI側に保存されます。利用料はキーのアカウントに請求されるため、信頼できる端末で使用してください。</p>
+      <label for="ai-audit-actor">AI提案の適用記録に表示する名前（任意）</label>
+      <input id="ai-audit-actor" type="text" maxlength="100" autocomplete="off" placeholder="例：編集担当">
+      <p class="edit-settings-note">適用記録はこのブラウザー内に保存し、class-update.jsonには含めません。記録名は入力された文字列で、本人確認には使われません。</p>
+      <details class="ai-audit-details">
+        <summary id="ai-audit-summary">AI提案の適用記録（0件）</summary>
+        <ol id="ai-audit-list" class="ai-audit-list"></ol>
+      </details>
       <label for="ai-model">モデル</label>
       <select id="ai-model" class="edit-settings-select" aria-describedby="ai-model-description"></select>
       <p id="ai-model-description" class="edit-settings-note">モデル候補は設定ファイルで管理します。</p>
@@ -330,6 +337,6 @@
       <button type="button" id="edit-validation-export" class="search-button" hidden>警告を確認して出力</button>
     </div>
   </dialog>
-  <script type="module" src="web/js/editor/ai/main.js?v=20261105-shared-hierarchy-v1"></script>
+  <script type="module" src="web/js/editor/ai/main.js?v=20261106-ai-audit-v1"></script>
 </body>
 </html>

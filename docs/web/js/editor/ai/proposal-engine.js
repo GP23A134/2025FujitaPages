@@ -59,7 +59,19 @@ export const createOperationPolicy = ({ requestText = '', taskKind = 'selected_s
 };
 
 export const operationAllowedByPolicy = (operation, policy, classesById, editableIds) => {
-  if (!operation || !policy?.allowedTypes?.includes(operation.type)) return false;
+  if (!operation) return false;
+  if (operation.type === 'moveClass' && !policy?.allowedTypes?.includes('moveClass')) {
+    const source = classesById.get(operation.classId);
+    const destination = classesById.get(operation.destinationId);
+    const dependentMove = policy?.allowedTypes?.includes('addClass')
+      && policy.addClassTypes.includes('middle')
+      && source?.type === 'class'
+      && editableIds.has(operation.classId)
+      && destination?.type === 'middle'
+      && String(operation.destinationId || '').startsWith('tmp_');
+    if (dependentMove) return true;
+  }
+  if (!policy?.allowedTypes?.includes(operation.type)) return false;
   if (operation.type === 'addClass') return policy.addClassTypes.includes(operation.classType);
   if (operation.type === 'deleteClass' && !policy.allowDelete) return false;
   if (operation.type === 'promoteClass') return editableIds.has(operation.classId)

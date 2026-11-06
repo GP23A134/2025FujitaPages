@@ -3,7 +3,7 @@
 import { createRequestPlanner, createChunkSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261105-shared-hierarchy-v1';
 import { createResponseHandler, createOperationPolicy } from './proposal-engine.js?v=20261105-hierarchy-planning-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261105-functional-modules-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261105-hierarchy-planning-v1';
+import { createProposalPreview } from './proposal-preview.js?v=20261106-ai-audit-v1';
 import { createAIClient } from './ai-client.js?v=20261105-promote-class-v1';
 
 (() => {
@@ -265,6 +265,116 @@ import { createAIClient } from './ai-client.js?v=20261105-promote-class-v1';
   conversations.push(...conversationStore.restoreSavedConversations());
   const persistSavedConversations = () => conversationStore.persistSavedConversations();
   const sessionUsage = { requests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, costKnown: true };
+  const auditLogStorageKey = 'fujita.ai-audit-log-v1';
+  const auditActorStorageKey = 'fujita.ai-audit-actor-v1';
+  const auditActorInput = document.getElementById('ai-audit-actor');
+  const loadAuditLog = () => {
+    try {
+      const value = JSON.parse(localStorage.getItem(auditLogStorageKey) || '[]');
+      return Array.isArray(value) ? value.filter((item) => item && typeof item.id === 'string') : [];
+    } catch (error) {
+      logAiProblem('AI監査記録の読み込み', error, 'warn');
+      return [];
+    }
+  };
+  let aiAuditLog = loadAuditLog();
+  try { auditActorInput.value = localStorage.getItem(auditActorStorageKey) || ''; } catch {}
+  const renderAiAuditLog = () => {
+    document.getElementById('ai-audit-summary').textContent = `AI提案の適用記録（${aiAuditLog.length}件）`;
+    const list = document.getElementById('ai-audit-list');
+    const entries = [...aiAuditLog].reverse().map((record) => {
+      const item = document.createElement('li');
+      const heading = document.createElement('strong');
+      const date = new Date(record.appliedAt);
+      heading.textContent = `${Number.isNaN(date.getTime()) ? record.appliedAt : date.toLocaleString('ja-JP')} — ${record.actor || '記録者未設定'} — ${record.proposal?.title || '提案'}`;
+      item.append(heading);
+      if (record.proposal?.summary) {
+        const summary = document.createElement('p');
+        summary.textContent = record.proposal.summary;
+        item.append(summary);
+      }
+      const renderOperations = (label, values) => {
+        const section = document.createElement('div');
+        const subheading = document.createElement('strong');
+        subheading.textContent = `${label}（${values.length}件）`;
+        const operations = document.createElement('ul');
+        const operationNames = { addClass: '追加', renameClass: '改名', moveClass: '移動', moveChildren: '配下一括移動', promoteClass: '上位化', deleteClass: '削除' };
+        values.forEach((operation) => {
+          const row = document.createElement('li');
+          row.textContent = `${operationNames[operation.type] || operation.type}: ${JSON.stringify(operation)}`;
+          operations.append(row);
+        });
+        section.append(subheading, operations);
+        return section;
+      };
+      item.append(renderOperations('AIの提案', record.proposedOperations || []));
+      item.append(renderOperations('実際に適用', record.appliedOperations || []));
+      (record.changes || []).forEach((change) => {
+        const row = document.createElement('p');
+        const before = change.before ? `${change.before.path} (${change.id})` : '新規';
+        const after = change.after ? `${change.after.path} (${change.id})` : '削除';
+        row.textContent = `変更: ${before} → ${after}`;
+        item.append(row);
+      });
+      return item;
+    });
+    list.replaceChildren(...entries);
+  };
+  renderAiAuditLog();
+  auditActorInput.addEventListener('change', () => {
+    try { localStorage.setItem(auditActorStorageKey, auditActorInput.value.trim().slice(0, 100)); } catch {}
+  });
+  const parentPaths = (state) => {
+    const classesById = new Map(state.classes.map((item) => [item.id, item]));
+    const parentByChild = new Map(state.relations.map(({ child, parent }) => [child, parent]));
+    const pathFor = (id) => {
+      const path = [];
+      const seen = new Set();
+      let current = id;
+      while (current && !seen.has(current)) {
+        seen.add(current);
+        const item = classesById.get(current);
+        if (!item) break;
+        path.unshift(item.label || item.id);
+        current = parentByChild.get(current);
+      }
+      return path.join(' › ');
+    };
+    return { classesById, parentByChild, pathFor };
+  };
+  const buildAuditChanges = (before, after) => {
+    const oldGraph = parentPaths(before);
+    const newGraph = parentPaths(after);
+    const ids = new Set([...oldGraph.classesById.keys(), ...newGraph.classesById.keys()]);
+    return [...ids].flatMap((id) => {
+      const oldItem = oldGraph.classesById.get(id);
+      const newItem = newGraph.classesById.get(id);
+      const oldParentId = oldGraph.parentByChild.get(id) || null;
+      const newParentId = newGraph.parentByChild.get(id) || null;
+      if (oldItem && newItem && oldItem.type === newItem.type && oldItem.label === newItem.label && oldParentId === newParentId) return [];
+      return [{
+        id,
+        before: oldItem ? { type: oldItem.type, label: oldItem.label, parentId: oldParentId, path: oldGraph.pathFor(id) } : null,
+        after: newItem ? { type: newItem.type, label: newItem.label, parentId: newParentId, path: newGraph.pathFor(id) } : null
+      }];
+    });
+  };
+  const recordAiProposalApplication = ({ proposal, operations, before, after }) => {
+    const record = {
+      id: `ai-audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      appliedAt: new Date().toISOString(),
+      actor: auditActorInput.value.trim().slice(0, 100) || null,
+      source: 'AI提案',
+      proposal: { title: proposal.title || '', summary: proposal.summary || '', reason: proposal.reason || '' },
+      proposedOperations: (proposal.operations || []).map((item) => ({ ...item })),
+      appliedOperations: operations.map((item) => ({ ...item })),
+      changes: buildAuditChanges(before, after)
+    };
+      aiAuditLog = [...aiAuditLog, record].slice(-100);
+    try { localStorage.setItem(auditLogStorageKey, JSON.stringify(aiAuditLog)); }
+    catch (error) { logAiProblem('AI監査記録の保存', error, 'warn'); }
+    renderAiAuditLog();
+  };
   let currentConversation = null;
 let proposalPreview = null;
   let sourceDataVersion = '';
@@ -312,13 +422,13 @@ let proposalPreview = null;
     const sessionCost = sessionUsage.requests ? formatUsd(sessionUsage.costUsd) : '$0.000000';
     const label = document.createElement('span');
     label.className = 'ai-usage-label';
-    label.textContent = '合計';
+    label.textContent = '利用額の概算';
     const amount = document.createElement('strong');
     amount.className = 'ai-usage-cost';
     amount.textContent = sessionUsage.costKnown ? sessionCost : '料金不明';
     const details = document.createElement('span');
     details.className = 'ai-usage-detail';
-    details.textContent = `入力 ${sessionUsage.inputTokens.toLocaleString()} tokens · 出力 ${sessionUsage.outputTokens.toLocaleString()} tokens · ${sessionUsage.requests}回`;
+    details.textContent = `入力 ${sessionUsage.inputTokens.toLocaleString()} tokens · 出力 ${sessionUsage.outputTokens.toLocaleString()} tokens · ${sessionUsage.requests}回${modelConfig?.pricingAsOf ? ` · 単価確認 ${modelConfig.pricingAsOf}` : ''}`;
     usageSummary.replaceChildren(label, amount, details);
   };
   const recordUsage = (responseBody) => {
@@ -327,11 +437,16 @@ let proposalPreview = null;
     const rates = selectedModelPricing();
     const inputTokens = usage.input_tokens;
     const outputTokens = usage.output_tokens;
-    const cachedTokens = Math.min(inputTokens, Number(usage.input_tokens_details?.cached_tokens || 0));
-    const ratesAvailable = rates && Number.isFinite(rates.inputUsdPerMillion) && Number.isFinite(rates.outputUsdPerMillion);
+    const inputDetails = usage.input_tokens_details || {};
+    const cachedTokens = Math.min(inputTokens, Number(inputDetails.cached_tokens || 0));
+    const cacheWriteTokens = Math.min(inputTokens - cachedTokens, Number(inputDetails.cache_write_tokens || 0));
+    const ratesAvailable = rates?.pricingVerified === true
+      && Number.isFinite(rates.inputUsdPerMillion) && Number.isFinite(rates.outputUsdPerMillion)
+      && Number.isFinite(rates.cachedInputUsdPerMillion) && Number.isFinite(rates.cacheWriteUsdPerMillion);
     const costUsd = ratesAvailable
-      ? ((inputTokens - cachedTokens) * rates.inputUsdPerMillion
+      ? ((inputTokens - cachedTokens - cacheWriteTokens) * rates.inputUsdPerMillion
         + cachedTokens * (rates.cachedInputUsdPerMillion ?? rates.inputUsdPerMillion)
+        + cacheWriteTokens * rates.cacheWriteUsdPerMillion
         + outputTokens * rates.outputUsdPerMillion) / 1_000_000
       : 0;
     [currentConversation.usage, sessionUsage].forEach((total) => {
@@ -358,13 +473,15 @@ let proposalPreview = null;
     const splitNote = inputs.length > 1
       ? `この依頼はクラス情報を${inputs.length}分割して処理します。\n最後に全体をまとめるため、追加の送信が発生する場合があります。`
       : '';
-    if (!rates) return [splitNote, '料金の目安を表示できません（モデル料金の設定なし）'].filter(Boolean).join('\n\n');
+    const ratesAvailable = rates?.pricingVerified === true
+      && Number.isFinite(rates.inputUsdPerMillion) && Number.isFinite(rates.outputUsdPerMillion);
+    if (!ratesAvailable) return [splitNote, '料金の目安を表示できません（このモデルの単価未確認）'].filter(Boolean).join('\n\n');
     const fixedInstructions = `${systemPrompt}\n${compactResponseInstructions}`;
     const inputTokens = inputs.reduce((total, input) => total + estimateTokensFromText(input) + estimateTokensFromText(fixedInstructions), 0);
     const inputUsd = inputTokens * rates.inputUsdPerMillion / 1_000_000;
     const outputCapUsd = outputTokenBudget * rates.outputUsdPerMillion / 1_000_000;
     const pricingDate = modelConfig?.pricingAsOf ? `料金単価は${modelConfig.pricingAsOf}時点です。` : '';
-    const estimate = `料金の目安：約 ${formatUsd(inputUsd + outputCapUsd)}\n※概算です。会話履歴や追加の送信は含まれず、実際の料金と異なる場合があります。${pricingDate ? ` ${pricingDate}` : ''}`;
+    const estimate = `料金の目安：約 ${formatUsd(inputUsd + outputCapUsd)}\n※標準・短コンテキスト単価による概算です。会話履歴、追加送信、キャッシュ料金、処理モードや長文コンテキストの単価差は含まず、実際の料金と異なる場合があります。${pricingDate ? ` ${pricingDate}` : ''}`;
     return [splitNote, estimate].filter(Boolean).join('\n\n');
   };
   const confirmSendBeforeRequest = (userText, scope, summary, conversation, reusingAnalysisMemory = false, forceConfirm = false,
@@ -1266,7 +1383,8 @@ let proposalPreview = null;
     currentDataHash,
     verifyLoadedDataVersion,
     renderConversation,
-    setStatus
+    setStatus,
+    onApplied: recordAiProposalApplication
   });
   const createLocalConversationContext = (userText) =>
     `利用者の依頼・方針: ${String(userText || '').slice(0, 500)}`;

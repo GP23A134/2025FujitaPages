@@ -16,7 +16,8 @@ export const createProposalPreview = ({
   currentDataHash,
   verifyLoadedDataVersion,
   renderConversation,
-  setStatus
+  setStatus,
+  onApplied = () => {}
 }) => {
   let previewPlan = null;
   let previewPageIndex = 0;
@@ -1226,6 +1227,16 @@ export const createProposalPreview = ({
     };
     editor.commitCandidate(candidate);
     currentProposal.status = 'applied';
+    try {
+      onApplied({
+        proposal: currentProposal.proposal,
+        operations: plan.operations.map((operation) => ({ ...operation })),
+        before: currentProposal.appliedPreviewSnapshot.before,
+        after: currentProposal.appliedPreviewSnapshot.after
+      });
+    } catch (error) {
+      console.warn('[AIチャット] 適用記録の作成に失敗しました', error);
+    }
     const proposalGroup = getCurrentConversation().items.find((item) => item.type === 'proposal'
       && (currentProposal.responseGroupId
         ? item.responseGroupId === currentProposal.responseGroupId
