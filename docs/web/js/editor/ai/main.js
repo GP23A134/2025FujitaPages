@@ -1770,8 +1770,9 @@ let proposalPreview = null;
     const crossScopeParentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
     const crossScopeClassesById = new Map(scope.classes.map((item) => [item.id, item]));
     const crossScopeEditableTargets = scope.editableIds.filter((id) => crossScopeClassesById.get(id)?.type === 'class');
+    const crossScopeEditableTypesSupported = scope.editableIds.every((id) => ['class', 'top', 'middle'].includes(crossScopeClassesById.get(id)?.type));
     const crossScopeStructure = splitTasks && responseMode === 'proposal' && scope.scopeCoverage === 'all_classes'
-      && crossScopeEditableTargets.length > 0 && crossScopeEditableTargets.length === scope.editableIds.length
+      && crossScopeEditableTargets.length > 0 && crossScopeEditableTypesSupported
       ? {
         selectedEditableIds: crossScopeEditableTargets,
         selectedRoots: [...(scope.selectionRoots || scope.selectedIds || [])],
@@ -1784,7 +1785,9 @@ let proposalPreview = null;
         }),
         relations: scope.relations.map(({ child, parent }) => ({ child, parent })),
         targetClassCounts: Object.fromEntries(Object.entries(scope.counts || {})),
-        allowHierarchyEdits: Boolean(scope.allowHierarchyEdits),
+        // This final pass proposes cross-scope moves for target classes only.
+        // Editable hierarchy nodes have already been assessed by hierarchy chunks.
+        allowHierarchyEdits: false,
         allowProposals: Boolean(scope.allowProposals)
       }
       : null;
@@ -2174,8 +2177,8 @@ let proposalPreview = null;
                   const availableClassIds = scope.classes.map((item) => item.id);
                   const crossScopeEditScope = {
                     ...scope,
-                    editableIds: scope.editableIds.filter((id) => scope.allowHierarchyEdits
-                      || scope.classes.find((item) => item.id === id)?.type === 'class')
+                    editableIds: crossScopeEditableTargets,
+                    allowHierarchyEdits: false
                   };
                   responseHandler.normalizeDuplicateClassOperations(crossResult, availableClassIds);
                   const crossOperationPolicy = createOperationPolicy({ allowProposals: true, taskKind: 'cross_scope', scope: crossScopeEditScope });
