@@ -27,12 +27,12 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     }));
   };
   // 全体参照が上限を超える場合、階層範囲と対象クラス範囲を分割して漏れなく計画します。
-  const makeLargeScopePlan = async (userText, scope, conversation) => {
+  const makeLargeScopePlan = async (userText, scope, conversation, { promptOverhead = 0 } = {}) => {
     const hierarchyParentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
     const hierarchyRows = scope.classes.filter((item) => ['top', 'middle'].includes(item.type))
       .map((item) => [item.id, item.type, item.label, hierarchyParentByChild.get(item.id) || null]);
     const contextCharacterCount = shortenInputIds(JSON.stringify({ scopeCoverage: 'hierarchy_reference', hierarchy: hierarchyRows })).length;
-    const taskCharacterLimit = MAX_REQUEST_CHARACTERS - contextCharacterCount;
+    const taskCharacterLimit = MAX_REQUEST_CHARACTERS - contextCharacterCount - promptOverhead;
     if (taskCharacterLimit <= 0) throw new Error('上位・中間クラスの全体情報が送信上限を超えています。');
     const upperClassBatchCount = 10;
     const upperClassBatchIndex = (id) => {
@@ -71,7 +71,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         return '';
       };
       const targetInstruction = scope.allowHierarchyEdits
-        ? 'この分割範囲に含まれる上位クラス配下の対象クラスを評価してください。既存の階層を優先し、必要な追加・改名・移動はこの上位クラスの範囲に限って提案します。削除は利用者が明示して許可し、配下の既存クラスがすべて今回の編集範囲に含まれる場合だけ提案します。子の移動を先、親の削除を後に置いてください。新しいクラスと対象クラスの移動は同じ提案にまとめ、対象との関連を説明してください。無関係な階層変更や入力にないクラス・関係の推測は禁止します。'
+        ? `この分割範囲に含まれる上位クラス配下の対象クラスを評価してください。既存の階層を優先し、必要な追加・改名・移動はこの上位クラスの範囲に限って提案します。${scope.allowProposals ? '削除も許可されていますが、配下の既存クラスがすべて今回の編集範囲に含まれ、子を安全な親へ移動できる場合だけ提案し、子の移動を先、親の削除を後に置いてください。' : '削除を含む変更案は作りません。'}新しいクラスと対象クラスの移動は同じ提案にまとめ、対象との関連を説明してください。無関係な階層変更や入力にないクラス・関係の推測は禁止します。`
         : 'この分割範囲に含まれる上位クラス配下の対象クラスを評価し、必要な移動を提案してください。利用者が新設を求めた場合は、この範囲に含まれる上位・中間クラスの下へ中間クラスを追加できます。新設クラスと対象クラスの移動は同じ提案にまとめます。入力にないクラスや関係の推測、範囲外のクラス操作は禁止します。別の上位クラスをまたぐ判断は最終統合に委ねてください。';
       const buildTargetTask = (targets, groupHierarchy, topClassId) => {
         const targetIds = new Set(targets.map((item) => item.id));
@@ -96,7 +96,8 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
             descendantTargetClassCounts: Object.fromEntries(Object.entries(scope.targetContext?.descendantTargetClassCounts || {})
               .filter(([id]) => includedIds.has(id)))
           },
-          allowHierarchyEdits: Boolean(scope.allowHierarchyEdits)
+          allowHierarchyEdits: Boolean(scope.allowHierarchyEdits),
+          allowProposals: Boolean(scope.allowProposals)
         };
         const input = buildUserContent(userText, taskScope, conversation, {
           forceSnapshot: true,
@@ -154,7 +155,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
       : editor.getHierarchyScopedState(scope.selectedIds);
     if (!hierarchyScope) return null;
     const hierarchyInstruction = scope.allowHierarchyEdits
-      ? 'この分割範囲では上位・中間クラスの追加・改名・移動を提案できます。削除は利用者が明示した場合だけにしてください。対象クラスの個別IDや全件情報は含まれないため、対象クラスの操作は提案しないでください。targetContextの対象クラス数は規模を示す参考情報です。入力にない情報を推測しないでください。selectionRootsの上位クラスは必要なら中間クラスへ移動できます。その場合は上位を中間化し、配下の親子関係を保って移動してください。'
+      ? `この分割範囲では上位・中間クラスの追加・改名・移動を提案できます。${scope.allowProposals ? '削除も許可されていますが、配下を安全に移動して構造が成立する場合だけ提案してください。' : '削除を含む変更案は作りません。'}対象クラスの個別IDや全件情報は含まれないため、対象クラスの操作は提案しないでください。targetContextの対象クラス数は規模を示す参考情報です。入力にない情報を推測しないでください。selectionRootsの上位クラスは必要なら中間クラスへ移動できます。その場合は上位を中間化し、配下の親子関係を保って移動してください。`
       : 'この分割範囲では上位・中間クラスの追加・改名・移動・削除を提案できます。対象クラスの個別IDや全件情報は含まれません。targetContextに対象クラス数がある場合は読み取り専用の参考として使えますが、対象クラスの変更案は作らず、入力にない情報を推測しないでください。この制約は今回の階層分割範囲だけに適用し、AIシステム全体が対象クラスの移動しかできないなどと説明してはいけません。selectionRootsの上位クラスは中間クラスへ移動できます。その場合は上位を中間化し、配下の親子関係を保って移動してください。';
     const hierarchyClasses = scope.classes.filter((item) => ['top', 'middle'].includes(item.type));
     const hierarchyChunkLimit = taskCharacterLimit;
@@ -207,7 +208,8 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         targetContext: {
           descendantTargetClassCounts: Object.fromEntries(Object.entries(scope.targetContext?.descendantTargetClassCounts || {}).filter(([id]) => classIdsForTask.has(id)))
         },
-        allowHierarchyEdits: Boolean(scope.allowHierarchyEdits)
+        allowHierarchyEdits: Boolean(scope.allowHierarchyEdits),
+        allowProposals: Boolean(scope.allowProposals)
       };
       return buildHierarchyTask(taskScope);
     };
@@ -382,7 +384,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         task.input = JSON.stringify(input);
       });
     }
-    tasks.forEach((task) => { task.contextCharacterCount = contextCharacterCount; });
+    tasks.forEach((task) => { task.contextCharacterCount = contextCharacterCount + promptOverhead; });
     return tasks;
   };
     const packAnalysisUnits = async (units, userText, conversation) => {
@@ -451,67 +453,169 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     return { buildUserContent, makeLargeScopePlan, packAnalysisUnits };
 };
 
-// 分割回答の文章だけを、専用の統合依頼でまとめます。
+// 分割回答と範囲根拠を統合し、カテゴリ別の横断比較状態も返します。
 // チャンクの検証・提案・会話状態は呼び出し側が管理します。
 export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS }) => {
-  const buildInput = (request, sourceScopeCoverage, entries, round) => JSON.stringify({
+  const categoryKeys = ['duplicates', 'imbalance', 'gaps', 'other'];
+  const insufficientComparison = (expectedScopes, requiredScopesByCategory, reason) => Object.fromEntries(categoryKeys.map((key) => [key, {
+    status: 'insufficient',
+    requiredScopes: requiredScopesByCategory[key] || [],
+    assessedScopes: [],
+    unassessedScopes: requiredScopesByCategory[key] || [],
+    findings: [],
+    limitation: reason
+  }]));
+  const buildInput = (request, sourceScopeCoverage, entries, round, expectedScopes, requiredScopesByCategory) => JSON.stringify({
     request,
+    expectedScopeIds: expectedScopes,
+    comparisonRequirements: requiredScopesByCategory,
     scopeCoverage: 'chunk_synthesis',
     sourceScopeCoverage,
     synthesisRound: round,
+    comparisonRules: 'comparisonRequirementsがカテゴリごとの必須範囲です。別カテゴリの未完了チャンクを一律に必須扱いしません。所見ごとにrequiredScopesとassessedScopesを分け、所見を支える範囲だけを列挙します。未完了範囲は推測せず、完了範囲だけの所見を残し、全体結論へ一般化しません。',
     results: entries
   });
 
-  const packInputs = (entries, round, request, sourceScopeCoverage) => {
+  const packInputs = (entries, round, request, sourceScopeCoverage, payloadLimit, expectedScopes, requiredScopesByCategory) => {
     const batches = [];
     let current = [];
     for (const entry of entries) {
       const candidate = [...current, entry];
-      if (buildInput(request, sourceScopeCoverage, candidate, round).length <= MAX_REQUEST_CHARACTERS) current = candidate;
+      if (buildInput(request, sourceScopeCoverage, candidate, round, expectedScopes, requiredScopesByCategory).length <= payloadLimit) current = candidate;
       else {
         if (!current.length) return null;
         batches.push(current);
         current = [entry];
-        if (buildInput(request, sourceScopeCoverage, current, round).length > MAX_REQUEST_CHARACTERS) return null;
+        if (buildInput(request, sourceScopeCoverage, current, round, expectedScopes, requiredScopesByCategory).length > payloadLimit) return null;
       }
     }
     if (current.length) batches.push(current);
     return batches;
   };
 
-  const synthesize = async ({ request, sourceScopeCoverage, initialMessage, assessments, warnings = [], prompt,
+  const synthesize = async ({ request, sourceScopeCoverage, initialMessage, assessments, expectedScopeIds = [],
+    requiredScopeIdsByCategory = null, warnings = [], prompt, fixedPromptCharacters = 0,
     send, onProgress = () => {}, onError = () => {} }) => {
+    const expectedScopes = [...new Set(expectedScopeIds.length
+      ? expectedScopeIds : assessments.flatMap((entry) => entry.requiredScopeIds || []))];
+    const requiredScopesByCategory = Object.fromEntries(categoryKeys.map((key) => [key, [...new Set(
+      Array.isArray(requiredScopeIdsByCategory?.[key]) ? requiredScopeIdsByCategory[key] : expectedScopes
+    )]]));
+    const payloadLimit = MAX_REQUEST_CHARACTERS - fixedPromptCharacters;
+    const failureResult = (message) => ({
+      message,
+      synthesisStatus: 'failed',
+      comparison: insufficientComparison(expectedScopes, requiredScopesByCategory, '統合に失敗したため、横断比較結果を確定できません。')
+    });
+    const providedScopes = new Set(assessments.flatMap((entry) => entry.requiredScopeIds || []));
+    const knownClasses = new Map();
+    const knownClassScopes = new Map();
+    const addKnownClass = (id, name, scopes) => {
+      if (!id) return;
+      knownClasses.set(id, name);
+      if (!knownClassScopes.has(id)) knownClassScopes.set(id, new Set());
+      scopes.forEach((scopeId) => knownClassScopes.get(id).add(scopeId));
+    };
+    assessments.forEach((entry) => {
+      const entryScopes = entry.requiredScopeIds || [];
+      (entry.scopeEvidence?.upperClasses || []).forEach((item) => addKnownClass(item.id, item.name, entryScopes));
+      (entry.scopeEvidence?.classes || []).forEach((item) => {
+        addKnownClass(item.id, item.name, entryScopes);
+        addKnownClass(item.parentId, item.parentName || '', entryScopes);
+      });
+    });
+    const localJudgementIsComplete = (scopeId, key) => {
+      const entry = assessments.find((item) => (item.requiredScopeIds || []).includes(scopeId));
+      const judgment = entry?.comparisonSummary?.[key];
+      return judgment?.status === 'none' && judgment.findings?.length === 0
+        || judgment?.status === 'findings' && judgment.findings?.length > 0;
+    };
+    const validateComparison = (comparison) => Object.fromEntries(categoryKeys.map((key) => {
+      const result = comparison?.[key];
+      const requiredScopes = requiredScopesByCategory[key];
+      const reportedRequiredScopes = Array.isArray(result?.requiredScopes) ? result.requiredScopes : [];
+      const reportedAssessedScopes = Array.isArray(result?.assessedScopes) ? result.assessedScopes : [];
+      const findings = Array.isArray(result?.findings) ? result.findings : [];
+      const actualAssessedScopes = requiredScopes.filter((scopeId) => providedScopes.has(scopeId)
+        && localJudgementIsComplete(scopeId, key));
+      const unassessedScopes = requiredScopes.filter((scopeId) => !actualAssessedScopes.includes(scopeId));
+      const sameRequiredScopes = requiredScopes.length === reportedRequiredScopes.length
+        && requiredScopes.every((scopeId) => reportedRequiredScopes.includes(scopeId));
+      const scopesAreKnown = [...reportedRequiredScopes, ...reportedAssessedScopes]
+        .every((scopeId) => expectedScopes.includes(scopeId));
+      const assessedScopesValid = reportedAssessedScopes.every((scopeId) => actualAssessedScopes.includes(scopeId));
+      const allRequiredScopesAssessed = requiredScopes.length > 0
+        && requiredScopes.every((scopeId) => actualAssessedScopes.includes(scopeId)
+          && reportedAssessedScopes.includes(scopeId));
+      const validFindings = findings.filter((finding) => {
+        const findingRequiredScopes = finding.requiredScopes || [];
+        const findingAssessedScopes = finding.assessedScopes || [];
+        return findingRequiredScopes.length > 0
+          && findingRequiredScopes.every((scopeId) => requiredScopes.includes(scopeId)
+            && findingAssessedScopes.includes(scopeId) && actualAssessedScopes.includes(scopeId))
+          && findingAssessedScopes.length > 0
+          && findingAssessedScopes.every((scopeId) => actualAssessedScopes.includes(scopeId)
+            && findingRequiredScopes.includes(scopeId))
+          && (finding.classes || []).length > 0
+          && finding.classes.every((item) => knownClasses.get(item.id) === item.name
+            && findingAssessedScopes.some((scopeId) => knownClassScopes.get(item.id)?.has(scopeId)))
+          && String(finding.evidence || '').trim().length > 0;
+      });
+      const evidenceIsValid = validFindings.length === findings.length;
+      const categoryComplete = result?.status === 'comparable' && sameRequiredScopes && scopesAreKnown
+        && assessedScopesValid && allRequiredScopesAssessed && evidenceIsValid;
+      return [key, {
+        status: categoryComplete ? 'comparable' : 'insufficient',
+        requiredScopes,
+        assessedScopes: actualAssessedScopes,
+        unassessedScopes,
+        findings: validFindings,
+        limitation: categoryComplete
+          ? result.limitation
+          : (result?.limitation || 'カテゴリに必要な範囲または有効な判定が揃っていません。')
+      }];
+    }));
+
     let entries = assessments;
     let round = 1;
     const maxRounds = 8;
-    const initialInput = prompt && entries.length ? buildInput(request, sourceScopeCoverage, entries, round) : '';
-    let ready = Boolean(initialInput) && initialInput.length <= MAX_REQUEST_CHARACTERS;
-    if (!ready && prompt && entries.length) ready = Boolean(packInputs(entries, round, request, sourceScopeCoverage));
+    const initialInput = prompt && entries.length ? buildInput(request, sourceScopeCoverage, entries, round, expectedScopes, requiredScopesByCategory) : '';
+    let ready = payloadLimit > 0 && Boolean(initialInput) && initialInput.length <= payloadLimit;
+    if (!ready && prompt && entries.length) ready = Boolean(packInputs(entries, round, request, sourceScopeCoverage, payloadLimit, expectedScopes, requiredScopesByCategory));
 
     if (!ready) {
-      return {
-        message: [initialMessage, '分割回答の全文を統合入力に収められなかったため、以下は分割ごとの回答です。']
-          .filter(Boolean).join('\n')
-      };
+      return failureResult([initialMessage, '分割回答または比較根拠を統合入力に収められません。個別結果を表示します。']
+        .filter(Boolean).join('\n'));
     }
 
     try {
       while (true) {
         if (round > maxRounds) throw new Error('分割回答の統合が所定回数で完了しませんでした。');
-        const batches = packInputs(entries, round, request, sourceScopeCoverage);
+        const batches = packInputs(entries, round, request, sourceScopeCoverage, payloadLimit, expectedScopes, requiredScopesByCategory);
         if (!batches) throw new Error('分割回答の全文を統合入力に収められません。');
         const previousSize = entries.reduce((size, entry) => size + JSON.stringify(entry).length, 0);
         const merged = [];
+        let finalComparison = null;
         for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
           onProgress(batchIndex + 1, batches.length);
-          const payload = buildInput(request, sourceScopeCoverage, batches[batchIndex], round);
+          const payload = buildInput(request, sourceScopeCoverage, batches[batchIndex], round, expectedScopes, requiredScopesByCategory);
           const synthesis = await send(payload, prompt);
           const text = String(synthesis.result.message || '').trim();
           if (!text) throw new Error('統合AIから文章が返りませんでした。');
-          merged.push({ scope: batches.length > 1 ? `統合結果 ${batchIndex + 1}` : '統合結果', message: text });
+          finalComparison = synthesis.result.comparison;
+          merged.push({
+            scope: batches.length > 1 ? `統合結果 ${batchIndex + 1}` : '統合結果',
+            message: text,
+            comparison: finalComparison,
+            requiredScopeIds: batches[batchIndex].flatMap((entry) => entry.requiredScopeIds || [])
+          });
         }
         if (merged.length === 1) {
-          return { message: [merged[0].message, ...warnings].filter(Boolean).join('\n') };
+          return {
+            message: [merged[0].message, ...warnings].filter(Boolean).join('\n'),
+            synthesisStatus: 'completed',
+            comparison: validateComparison(finalComparison)
+          };
         }
         const mergedSize = merged.reduce((size, entry) => size + JSON.stringify(entry).length, 0);
         if (merged.length >= entries.length && mergedSize >= previousSize) {
@@ -522,12 +626,8 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS }) => {
       }
     } catch (error) {
       onError(error);
-      return {
-        message: sourceScopeCoverage === 'all_classes'
-          ? ['全体を分割して評価しましたが、分割回答の統合に失敗しました。以下に分割ごとの回答を表示します。全体を横断した整合性確認は完了していません。', initialMessage]
-            .filter(Boolean).join('\n\n')
-          : [initialMessage, '分割回答の統合に失敗したため、以下は分割ごとの回答です。'].filter(Boolean).join('\n')
-      };
+      return failureResult([initialMessage, '個別結果を表示中。全体統合は未完了です。']
+        .filter(Boolean).join('\n'));
     }
   };
 
@@ -547,23 +647,28 @@ export const filterPromptExamples = (examples, context) => examples.filter((exam
 });
 
 // 送信と全体範囲の再試行を、画面状態から独立した処理として扱います。
-export const createRequestSender = ({ responsesClient, responseHandler, apiKey, model, systemPrompt,
+export const createRequestSender = ({ responsesClient, responseHandler, apiKey, model, systemPrompt, proposalPolicy, evaluationMode = false,
   signal, baseDataHash, scopeCoverage, maxOutputTokens, defaultStage, onStage, onUsage }) => {
   const send = (input, previousResponseId = '', outputTokens = maxOutputTokens,
-    stage = defaultStage, grouped = false, summaryOnly = false, promptOverride = '') => responsesClient.send(input, {
+    stage = defaultStage, grouped = false, summaryOnly = false, promptOverride = '', comparisonSynthesis = false) => responsesClient.send(input, {
     apiKey, model, systemPrompt, previousResponseId, maxOutputTokens: outputTokens,
-    stage, grouped, summaryOnly, promptOverride, signal, onStage, onUsage
+    stage, grouped, summaryOnly, comparisonSynthesis, promptOverride, signal, onStage, onUsage
   });
   const retryCompleteScopeDataRequest = async (response, isChunk = false) => {
     responseHandler.validatePayload(response.result, baseDataHash);
     if (scopeCoverage !== 'all_classes' || !response.result.dataRequests.length) return response;
     if (!response.responseBody.id) throw new Error('修正回答の会話IDを取得できませんでした。');
     const correctionInput = JSON.stringify({
-      request: isChunk
+      request: evaluationMode
+        ? '前回の回答を修正してください。共有済みの範囲を評価・説明し、変更案や確認質問を出さず、判断できない点は理由とともに説明してください。'
+        : isChunk
         ? '前回の回答を修正してください。全上位・中間クラスと選択中クラスの情報を複数のリクエストに分割して処理中です。今回の入力はその一部なので、追加のクラス情報は要求せず、この範囲だけを評価してください。全体評価を終えたとは断定せず、最初の利用者依頼に沿って回答してください。'
         : '前回の回答を修正してください。全上位・中間クラスと選択中クラスのID・種別・名称・親子関係はすでに共有されています。追加のクラス情報は要求せず、最初の利用者依頼に対して、受け取った情報から判断できる範囲で評価・説明・変更案を返してください。実データや件数がないため判断できない点は、その限界を説明してください。',
       scopeCoverage: isChunk ? 'all_classes_chunk' : 'all_classes',
-      responsePolicy: 'dataRequestsは必ず空配列にしてください。追加クラス情報をmessageやquestionsで要求してはいけません。ユーザーの意図や希望する変更方針の確認だけはquestionsで尋ねられます。'
+      proposalPolicy,
+      responsePolicy: evaluationMode
+        ? 'dataRequestsとquestionsは必ず空配列にしてください。追加データや確認を求めず、判断できない点はmessageに説明してください。'
+        : 'dataRequestsは必ず空配列にしてください。追加クラス情報をmessageやquestionsで要求してはいけません。ユーザーの意図や希望する変更方針の確認だけはquestionsで尋ねられます。'
     });
     const corrected = await send(correctionInput, response.responseBody.id || '');
     responseHandler.validatePayload(corrected.result, baseDataHash);

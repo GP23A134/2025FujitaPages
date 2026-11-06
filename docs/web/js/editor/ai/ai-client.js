@@ -134,10 +134,106 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     },
     required: ['g']
   };
+  const comparisonFindingSchema = {
+    type: 'object', additionalProperties: false,
+    properties: {
+      text: { type: 'string' },
+      requiredScopes: { type: 'array', items: { type: 'string' }, maxItems: 100 },
+      assessedScopes: { type: 'array', items: { type: 'string' }, maxItems: 100 },
+      classes: {
+        type: 'array', maxItems: 8, items: {
+          type: 'object', additionalProperties: false,
+          properties: { id: { type: 'string' }, name: { type: 'string' } },
+          required: ['id', 'name']
+        }
+      },
+      evidence: { type: 'string' },
+      limitations: { type: 'string' }
+    },
+    required: ['text', 'requiredScopes', 'assessedScopes', 'classes', 'evidence', 'limitations']
+  };
+  const comparisonCategorySchema = {
+    type: 'object', additionalProperties: false,
+    properties: {
+      status: { type: 'string', enum: ['comparable', 'insufficient'] },
+      requiredScopes: { type: 'array', items: { type: 'string' }, maxItems: 100 },
+      assessedScopes: { type: 'array', items: { type: 'string' }, maxItems: 100 },
+      unassessedScopes: { type: 'array', items: { type: 'string' }, maxItems: 100 },
+      findings: { type: 'array', items: comparisonFindingSchema, maxItems: 8 },
+      limitation: { type: 'string' }
+    },
+    required: ['status', 'requiredScopes', 'assessedScopes', 'unassessedScopes', 'findings', 'limitation']
+  };
+  const localFindingSchema = {
+    type: 'object', additionalProperties: false,
+    properties: {
+      text: { type: 'string' },
+      classes: {
+        type: 'array', maxItems: 4, items: comparisonFindingSchema.properties.classes.items
+      },
+      evidence: { type: 'string' },
+      limitations: { type: 'string' }
+    },
+    required: ['text', 'classes', 'evidence', 'limitations']
+  };
+  const chunkComparisonCategorySchema = {
+    type: 'object', additionalProperties: false,
+    properties: {
+      status: { type: 'string', enum: ['findings', 'none', 'insufficient'] },
+      findings: { type: 'array', items: localFindingSchema, maxItems: 3 },
+      limitation: { type: 'string' }
+    },
+    required: ['status', 'findings', 'limitation']
+  };
+  const chunkComparisonSchema = {
+    type: 'object', additionalProperties: false,
+    properties: {
+      duplicates: chunkComparisonCategorySchema,
+      imbalance: chunkComparisonCategorySchema,
+      gaps: chunkComparisonCategorySchema,
+      other: chunkComparisonCategorySchema
+    },
+    required: ['duplicates', 'imbalance', 'gaps', 'other']
+  };
+  const responseWithChunkComparisonSchema = {
+    ...responseSchema,
+    properties: { ...responseSchema.properties, c: chunkComparisonSchema },
+    required: [...responseSchema.required, 'c']
+  };
+  const comparisonSummaryResponseSchema = {
+    type: 'object', additionalProperties: false,
+    properties: {
+      m: { type: 'string' },
+      c: {
+        type: 'object', additionalProperties: false,
+        properties: {
+          duplicates: comparisonCategorySchema,
+          imbalance: comparisonCategorySchema,
+          gaps: comparisonCategorySchema,
+          other: comparisonCategorySchema
+        },
+        required: ['duplicates', 'imbalance', 'gaps', 'other']
+      }
+    },
+    required: ['m', 'c']
+  };
   const summaryResponseSchema = {
     type: 'object', additionalProperties: false,
     properties: { m: { type: 'string' } },
     required: ['m']
+  };
+  const chunkGroupedResponseSchema = {
+    ...groupedResponseSchema,
+    properties: {
+      g: {
+        ...groupedResponseSchema.properties.g,
+        items: {
+          ...groupedResponseSchema.properties.g.items,
+          properties: { ...groupedResponseSchema.properties.g.items.properties, c: chunkComparisonSchema },
+          required: [...groupedResponseSchema.properties.g.items.required, 'c']
+        }
+      }
+    }
   };
   const compactGroupedResponseInstructions = `${compactResponseInstructions.replace('トップレベルはm=回答文、p=提案配列、q=確認質問配列です。', 'トップレベルはg=上位クラス別回答配列です。各回答はk=入力analysisGroupsのkey、m=回答文、p=提案配列、q=確認質問配列です。')} 各analysisGroups.keyをちょうど1回ずつ返し、異なるグループの変更案を混ぜないでください。`;
 
@@ -164,10 +260,11 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
         }))
       })),
       questions: wire.q,
+      comparison: wire.c,
       dataRequests: []
     };
   };
-  const parseAIResponse = (response, grouped = false, summaryOnly = false) => {
+  const parseAIResponse = (response, grouped = false, summaryOnly = false, chunked = false, comparisonSynthesis = false) => {
     if (response.status === 'incomplete') {
       const reason = response.incomplete_details?.reason;
       if (reason === 'max_output_tokens') {
@@ -177,9 +274,15 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     }
     try {
       const wire = JSON.parse(readResponseText(response));
-      if (summaryOnly) return { message: wire.m, proposals: [], questions: [], dataRequests: [] };
+      if (summaryOnly) {
+        if (comparisonSynthesis && !wire.c) throw new Error('統合結果のカテゴリ別比較が不足しています。');
+        return { message: wire.m, comparison: wire.c, proposals: [], questions: [], dataRequests: [] };
+      }
+      if (chunked && (grouped ? wire.g.some((item) => !item.c) : !wire.c)) {
+        throw new Error('分割評価のカテゴリ別判定が不足しています。');
+      }
       return grouped
-        ? { groups: wire.g.map((item) => ({ key: item.k, ...expandCompactResponse({ m: item.m, p: item.p, q: item.q }) })) }
+        ? { groups: wire.g.map((item) => ({ key: item.k, ...expandCompactResponse({ m: item.m, p: item.p, q: item.q, c: item.c }) })) }
         : expandCompactResponse(wire);
     } catch (error) {
       if (error instanceof SyntaxError) {
@@ -191,8 +294,12 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
 
   return {
     responseSchema,
+    responseWithChunkComparisonSchema,
     groupedResponseSchema,
+    chunkGroupedResponseSchema,
     summaryResponseSchema,
+    comparisonSummaryResponseSchema,
+    chunkComparisonInstructions: '分割評価では通常応答のトップレベル、analysisGroups応答では各g要素のcキーにduplicates、imbalance、gaps、otherの全カテゴリを必ず出してください。各statusはfindings（所見あり）、none（十分に確認して所見なし）、insufficient（情報不足）です。未記入や形式不正をnoneにせず、各所見には少なくとも一つの入力済みクラスID・名称と具体的な根拠を示し、各カテゴリ最大3件に絞ってください。件数が入力されていない偏りは判断不能としてください。',
     compactResponseInstructions,
     compactGroupedResponseInstructions,
     parseAIResponse
@@ -202,7 +309,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
 
 // Responses APIのリクエスト構築と応答の受け渡しを担当します。
 // 進捗表示・使用量更新・会話状態は呼び出し側から渡します。
-export const createResponsesClient = ({ responseFormat, digest, shortenInputIds, createIdCodec }) => ({
+export const createResponsesClient = ({ responseFormat, digest, shortenInputIds, createIdCodec, maxInputCharacters = 48000 }) => ({
   async send(input, {
     apiKey,
     model,
@@ -212,21 +319,31 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
     stage,
     grouped = false,
     summaryOnly = false,
+    comparisonSynthesis = false,
     promptOverride = '',
     signal,
     onStage = () => {},
     onUsage = () => {}
   }) {
     const requestPayload = JSON.parse(input);
+    const chunked = requestPayload.scopeCoverage === 'all_classes_chunk' || requestPayload.chunkedAnalysis === true;
     const requestPolicies = ['instruction', 'proposalPolicy', 'responsePolicy']
       .map((key) => typeof requestPayload[key] === 'string' ? requestPayload[key].trim() : '')
       .filter(Boolean);
     ['instruction', 'proposalPolicy', 'responsePolicy'].forEach((key) => { delete requestPayload[key]; });
     const apiInput = summaryOnly ? JSON.stringify(requestPayload) : shortenInputIds(JSON.stringify(requestPayload));
     const formatInstructions = summaryOnly
-      ? 'JSON形式でmキーに統合後の返答文だけを返してください。'
-      : grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions;
+      ? comparisonSynthesis
+        ? 'JSON形式でmに統合回答、cにカテゴリ別の横断比較を返してください。入力のcomparisonRequirementsにある各カテゴリの必須範囲をrequiredScopesに正確に反映し、実際に判定できた範囲をassessedScopes、未判定範囲をunassessedScopesに分けます。cはduplicates=重複候補、imbalance=分類の偏り、gaps=分類漏れ・孤立、other=その他です。各カテゴリはstatus=comparableまたはinsufficient、requiredScopes、assessedScopes、unassessedScopes、findings、limitationを返します。所見ごとにもrequiredScopesとassessedScopesを分け、必要なチャンクが不足しても、必要・判定済み範囲が揃った局所所見は残します。所見がない場合findingsは空配列にし、判断できない場合はinsufficientとして理由を記します。所見ごとにクラスID・名称、根拠、限界を返してください。各カテゴリの所見は重要なものを最大8件に絞り、入力にない事実や確信度を作らないでください。'
+        : 'JSON形式でmキーに受領確認などの短い返答だけを返してください。'
+      : chunked
+        ? `${grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions} ${responseFormat.chunkComparisonInstructions}`
+        : grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions;
     const instructions = [promptOverride || systemPrompt, formatInstructions, ...requestPolicies].join('\n\n');
+    const inputCharacterCount = instructions.length + apiInput.length;
+    if (inputCharacterCount > maxInputCharacters) {
+      throw new Error(`プロンプト・依頼データを含む送信入力が上限を超えました（${inputCharacterCount.toLocaleString()} / ${maxInputCharacters.toLocaleString()}文字）。範囲を小さくして再依頼してください。過去の応答IDに含まれる会話履歴はこの文字数に含まれません。`);
+    }
     const promptCacheKey = `class-editor-ai-${(await digest(`${model}\n${instructions}`)).slice(0, 48)}`;
     const body = {
       model,
@@ -235,9 +352,12 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
       input: apiInput,
       text: { format: {
         type: 'json_schema',
-        name: summaryOnly ? 'class_edit_summary' : grouped ? 'class_edit_group_results' : 'class_edit_proposals',
+        name: summaryOnly ? comparisonSynthesis ? 'class_edit_comparison_summary' : 'class_edit_summary' : chunked ? 'class_edit_chunk_results' : grouped ? 'class_edit_group_results' : 'class_edit_proposals',
         strict: true,
-        schema: summaryOnly ? responseFormat.summaryResponseSchema
+        schema: summaryOnly
+          ? comparisonSynthesis ? responseFormat.comparisonSummaryResponseSchema : responseFormat.summaryResponseSchema
+          : chunked && grouped ? responseFormat.chunkGroupedResponseSchema
+          : chunked ? responseFormat.responseWithChunkComparisonSchema
           : grouped ? responseFormat.groupedResponseSchema : responseFormat.responseSchema
       } },
       max_output_tokens: maxOutputTokens,
@@ -251,11 +371,14 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
     onUsage(responseBody);
     onStage('結果を処理中');
     await new Promise((resolve) => requestAnimationFrame(resolve));
-    const result = responseFormat.parseAIResponse(responseBody, grouped, summaryOnly);
+    const result = responseFormat.parseAIResponse(responseBody, grouped, summaryOnly, chunked, comparisonSynthesis);
     const restoreId = createIdCodec().restore;
     const responseGroups = grouped ? result.groups : [result];
     responseGroups.forEach((group) => {
       (group.dataRequests || []).forEach((request) => { if (request.classId) request.classId = restoreId(request.classId); });
+      Object.values(group.comparison || {}).forEach((category) => (category.findings || []).forEach((finding) => {
+        (finding.classes || []).forEach((item) => { if (item.id) item.id = restoreId(item.id); });
+      }));
       group.proposals.forEach((proposal) => proposal.operations.forEach((operation) => {
         ['parentId', 'classId', 'destinationId', 'from', 'to'].forEach((key) => {
           if (operation[key]) operation[key] = restoreId(operation[key]);
@@ -267,10 +390,10 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
 });
 
 // AI入出力の構成点。ID変換・応答形式・API通信をひとつの境界として公開します。
-export const createAIClient = ({ editor, outputLimits, digest }) => {
+export const createAIClient = ({ editor, outputLimits, maxInputCharacters, digest }) => {
   const responseFormat = createResponseFormat(outputLimits);
   const createIdCodec = () => createClassIdCodec(editor.getState().classes);
   const shortenInputIds = (input) => createIdCodec().shortenText(input);
-  const responsesClient = createResponsesClient({ responseFormat, digest, shortenInputIds, createIdCodec });
+  const responsesClient = createResponsesClient({ responseFormat, digest, shortenInputIds, createIdCodec, maxInputCharacters });
   return { responseFormat, createIdCodec, shortenInputIds, responsesClient };
 };

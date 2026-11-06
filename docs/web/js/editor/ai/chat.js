@@ -164,7 +164,35 @@ export const createConversationView = ({
       body.className = 'ai-message-body';
       if (item.role === 'assistant') renderAssistantText(body, item.text);
       else body.textContent = item.text;
-      bubble.append(title, body);
+      const splitState = item.role === 'assistant' ? item.splitState : null;
+      let splitStatus = null;
+      if (splitState) {
+        splitStatus = document.createElement('div');
+        splitStatus.className = 'ai-split-state';
+        splitStatus.setAttribute('role', 'status');
+        splitStatus.textContent = splitState.synthesisStatus === 'completed'
+          ? '分割結果を統合しました'
+          : '個別結果を表示中。全体統合は未完了です';
+        const categoryLabels = {
+          duplicates: '重複候補', imbalance: '分類の偏り', gaps: '分類漏れ・孤立', other: 'その他'
+        };
+        const heldCategories = Object.entries(splitState.comparison || {})
+          .filter(([, item]) => item?.status === 'insufficient')
+          .map(([key]) => categoryLabels[key] || key);
+        if (heldCategories.length) {
+          const comparisonStatus = document.createElement('span');
+          comparisonStatus.textContent = `一部の横断比較は保留されています（${heldCategories.join('・')}）`;
+          splitStatus.append(comparisonStatus);
+        }
+        if (splitState.unassessedScopeIds?.length) {
+          const partialStatus = document.createElement('span');
+          partialStatus.textContent = '一部の分割範囲は未評価です';
+          splitStatus.append(partialStatus);
+        }
+      }
+      bubble.append(title);
+      if (splitStatus) bubble.append(splitStatus);
+      bubble.append(body);
       messages.append(bubble);
     };
 

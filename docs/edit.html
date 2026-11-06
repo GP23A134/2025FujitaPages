@@ -9,7 +9,7 @@
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261103-edit-search-parity-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261105-move-badge-right-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261106-split-state-v1">
   <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261105-hide-class-move-plus-in-ai-v1">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-held-panel-fixed-v2">
   <script src="web/data/generated/class-data.js" defer></script>
@@ -157,6 +157,10 @@
             <button type="button" id="apply-held-destination" class="held-action-button" disabled>選択先へ移動</button>
           </section>
           <section id="ai-assistant-panel" class="ai-assistant-panel" aria-label="AIチャット" hidden>
+            <header class="ai-chat-header">
+              <strong>AIチャット</strong>
+              <button id="ai-response-mode-toggle" type="button" class="ai-response-mode-toggle is-proposal-mode" aria-pressed="true" title="回答モードを切り替えます">改善提案モード</button>
+            </header>
             <div id="ai-chat-messages" class="ai-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
             <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
             <p id="ai-key-guidance" class="ai-key-guidance" hidden>AIチャットを使うにはAPIキーが必要です。<button type="button" id="ai-open-settings" class="ai-settings-inline-link">設定</button>から入力してください。</p>
@@ -337,6 +341,6 @@
       <button type="button" id="edit-validation-export" class="search-button" hidden>警告を確認して出力</button>
     </div>
   </dialog>
-  <script type="module" src="web/js/editor/ai/main.js?v=20261106-ai-audit-v1"></script>
+  <script type="module" src="web/js/editor/ai/main.js?v=20261106-scope-aware-synthesis-v3"></script>
 </body>
 </html>
