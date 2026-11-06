@@ -212,7 +212,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
   };
   const responseWithChunkComparisonSchema = {
     ...responseSchema,
-    properties: { ...responseSchema.properties, c: chunkComparisonSchema, h: { type: 'array', items: { type: 'string' }, maxItems: 100 } },
+    properties: { ...responseSchema.properties, c: chunkComparisonSchema, h: { type: 'array', items: { type: 'string' } } },
     required: [...responseSchema.required, 'c', 'h']
   };
   const comparisonSummaryResponseSchema = {
@@ -245,7 +245,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
         items: {
           ...groupedResponseSchema.properties.g.items,
           properties: { ...groupedResponseSchema.properties.g.items.properties, c: chunkComparisonSchema,
-            h: { type: 'array', items: { type: 'string' }, maxItems: 100 } },
+            h: { type: 'array', items: { type: 'string' } } },
           required: [...groupedResponseSchema.properties.g.items.required, 'c', 'h']
         }
       }
@@ -324,7 +324,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     summaryResponseSchema,
     comparisonSummaryResponseSchema,
     chunkComparisonInstructions: '分割評価では通常応答のトップレベル、analysisGroups応答では各g要素にcとhを必ず出してください。cにはduplicates、imbalance、gaps、otherの全カテゴリを含めます。各statusはfindings（所見あり）、none（十分に確認して所見なし）、insufficient（情報不足）です。未記入や形式不正をnoneにせず、各所見には少なくとも一つの入力済みクラスID・名称と具体的な根拠を示し、各カテゴリ最大3件に絞ってください。件数が入力されていない偏りは判断不能としてください。hは追加の横断確認候補IDの配列です。入力指示で候補抽出を求められていない場合は空配列にします。',
-    chunkCrossScopeCandidateInstructions: '通常応答ではトップレベル、analysisGroups応答では各g要素のhに、今回の入力範囲で変更可能な対象クラスのIDだけを入れてください。別上位クラス配下への所属変更を追加確認する候補を求められている場合は、現在の上位クラス内に明確な受け皿が見つからない、または分類上のずれがあり、別上位クラスにも適合する可能性がある対象だけを選びます。単に判断不能な対象を全て入れず、候補IDは重要度の高い順にし、最大100件までとします。候補抽出を求められていない場合や評価モードでは空配列を返してください。',
+    chunkCrossScopeCandidateInstructions: '通常応答ではトップレベル、analysisGroups応答では各g要素のhに、今回の入力範囲で変更可能な対象クラスのIDだけを入れてください。別上位クラス配下への所属変更を追加確認する候補として、現在の所属に明確なずれがある対象に加え、別の上位・中間クラスにも具体的に関連しそうな対象を広めに選びます。移動先を断定できなくても、具体的な別分類先の可能性があれば候補に含めてください。候補IDは追加確認の優先度順に並べ、件数で切り捨てないでください。判断不能というだけで具体的な別分類先が考えられない対象は除外します。候補抽出を求められていない場合や評価モードでは空配列を返してください。',
     compactResponseInstructions,
     compactGroupedResponseInstructions,
     parseAIResponse
