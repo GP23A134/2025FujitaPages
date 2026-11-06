@@ -840,15 +840,16 @@ export const createProposalPreview = ({
   const previewableProposals = () => getCurrentConversation().items.filter((item) => item.type === 'proposal'
     && item.proposal.operations.length
     && !['awaiting-answers', 'superseded', 'alternative-rejected', 'invalid'].includes(item.status));
+  const previewNavigationProposals = () => previewableProposals();
   const hasUnsubmittedQuestions = (responseGroupId) => getCurrentConversation().items.some((item) =>
     item.type === 'questions' && !item.submitted && item.responseGroupId === responseGroupId);
   const updatePreviewNavigation = (proposalItem) => {
-    const items = previewableProposals();
+    const items = previewNavigationProposals(proposalItem);
     const index = items.indexOf(proposalItem);
     const navigation = document.getElementById('ai-preview-navigation');
     const previous = document.getElementById('ai-preview-previous');
     const next = document.getElementById('ai-preview-next');
-    navigation.hidden = getProposalDisplayMode() === 'compact' || items.length < 2;
+    navigation.hidden = items.length < 2;
     previous.disabled = index <= 0;
     next.disabled = index < 0 || index >= items.length - 1;
     document.getElementById('ai-preview-position').textContent = index < 0 ? '' : `${index + 1} / ${items.length}`;
@@ -1173,8 +1174,8 @@ export const createProposalPreview = ({
     if (applyRequested && activeOperations.length) applyButton.focus();
   };
   const navigatePreview = (direction) => {
-    if (!previewPlan || getProposalDisplayMode() === 'compact') return;
-    const items = previewableProposals();
+    if (!previewPlan) return;
+    const items = previewNavigationProposals(previewPlan.proposalItem);
     const index = items.indexOf(previewPlan.proposalItem);
     const next = items[index + direction];
     if (!next) return;

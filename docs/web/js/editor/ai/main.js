@@ -3,7 +3,7 @@
 import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261106-cross-scope-candidate-filter-v9';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261106-cross-scope-proposals-v4';
 import { createConversationStore, createConversationView } from './chat.js?v=20261106-split-state-v2-user-facing-status';
-import { createProposalPreview } from './proposal-preview.js?v=20261106-proposal-list-v1';
+import { createProposalPreview } from './proposal-preview.js?v=20261106-proposal-list-v3';
 import { createAIClient } from './ai-client.js?v=20261106-cross-scope-candidate-filter-v6';
 
 (() => {
@@ -680,10 +680,9 @@ let proposalPreview = null;
         const responseGroup = document.createElement('section');
         responseGroup.className = 'ai-response-group';
         if (item.responseGroupId) responseGroup.dataset.responseGroupId = item.responseGroupId;
+        const readyProposalItems = proposalItems.filter((proposalItem) => proposalItem.status !== 'awaiting-answers');
+        if (readyProposalItems.length) renderProposalQueue(readyProposalItems, responseGroup);
         questionItems.forEach((questionItem) => renderQuestionQueue(questionItem, responseGroup));
-        if (proposalItems.length && questionItems.every((questionItem) => questionItem.submitted)) {
-          renderProposalQueue(proposalItems, responseGroup);
-        }
         messages.append(responseGroup);
       }
     });
