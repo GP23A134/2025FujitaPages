@@ -64,7 +64,7 @@ import { createAIClient } from './ai-client.js?v=20261106-cross-scope-candidate-
     const savedStrategy = preferences.crossScopeStrategy || localStorage.getItem(crossScopeStrategyStorageKey);
     if (crossScopeStrategies.has(savedStrategy)) crossScopeStrategy = savedStrategy;
   } catch {}
-  crossScopeStrategySelect.value = crossScopeStrategy;
+  if (crossScopeStrategySelect) crossScopeStrategySelect.value = crossScopeStrategy;
   const keyGuidance = document.getElementById('ai-key-guidance');
   const updateKeyGuidance = () => { keyGuidance.hidden = Boolean(keyInput.value.trim()); };
   updateKeyGuidance();
@@ -185,7 +185,7 @@ import { createAIClient } from './ai-client.js?v=20261106-cross-scope-candidate-
     const strategy = event.detail?.crossScopeStrategy;
     if (crossScopeStrategies.has(strategy)) {
       crossScopeStrategy = strategy;
-      crossScopeStrategySelect.value = strategy;
+      if (crossScopeStrategySelect) crossScopeStrategySelect.value = strategy;
       try { localStorage.setItem(crossScopeStrategyStorageKey, strategy); } catch {}
     }
     const responseMode = event.detail?.responseMode;
