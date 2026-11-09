@@ -2,7 +2,15 @@
 /* 閲覧用・編集用で共有する階層モデルとクラス検索。 */
 (function (global) {
   const treeDepthColors = ['#bae6fd', '#7dd3fc', '#38bdf8', '#0369a1', '#082f49', '#020617'];
-  const treeDepthColor = (depth) => treeDepthColors[Math.min(depth, treeDepthColors.length - 1)];
+  const treeDepthColor = (depth) => {
+    const color = treeDepthColors[Math.min(depth, treeDepthColors.length - 1)];
+    const intensity = Math.max(0, Math.min(1, Number(global.testTreeColorIntensity ?? 1)));
+    if (depth === 0 || intensity === 1) return color;
+    const base = treeDepthColors[0];
+    const channel = (hex, offset) => parseInt(hex.slice(offset, offset + 2), 16);
+    const mix = (offset) => Math.round(channel(base, offset) + (channel(color, offset) - channel(base, offset)) * intensity);
+    return `#${[1, 3, 5].map((offset) => mix(offset).toString(16).padStart(2, '0')).join('')}`;
+  };
   const treeLabel = (value) => String(value || '').replace(/^"|"@[^@]+$/g, '');
 
   function classType(id) {

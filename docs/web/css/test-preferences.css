@@ -1,0 +1,43 @@
+/* テスト調整用。不要になったらこのCSSとedit.htmlの読み込みを削除する。 */
+#open-test-settings[hidden] { display: none !important; }
+#test-settings-dialog {
+  width: min(760px, calc(100vw - 2rem));
+  padding: 1.35rem;
+  font-size: 1rem;
+}
+#test-settings-dialog .ai-preview-header { margin-bottom: 1rem; }
+#test-settings-dialog .ai-preview-header h2 { font-size: 1.4rem; }
+#test-settings-dialog .edit-settings-section { gap: 0.65rem; margin-top: 1rem; padding: 1rem; }
+#test-settings-dialog .edit-settings-section h3 { font-size: 1.15rem; }
+#test-settings-dialog .edit-settings-section > label:not(.edit-settings-toggle) { font-size: 1rem; }
+#test-settings-dialog .edit-settings-note { font-size: 0.95rem; line-height: 1.55; }
+#test-settings-dialog .edit-settings-select { min-height: 3rem; font-size: 1rem; }
+#test-settings-dialog .test-range-row { gap: 1rem; }
+#test-settings-dialog .test-range-row input { min-height: 1.5rem; }
+#test-settings-dialog .test-range-row input[type="number"] { width: 7rem; flex: 0 0 7rem; padding: 0.4rem 0.55rem; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; }
+#test-settings-dialog .test-range-row input[type="color"] { width: 4rem; height: 2.5rem; padding: 0.15rem; border: 1px solid #cbd5e1; border-radius: 6px; }
+#test-settings-dialog .test-range-row output { min-width: 4rem; font-size: 1rem; }
+.test-settings-actions { display: flex; justify-content: flex-end; gap: 0.65rem; margin-top: 1rem; }
+#test-settings-dialog .test-settings-actions button { min-height: 3rem; padding: 0.55rem 1rem; font-size: 1rem; }
+.held-instance-table { font-size: var(--test-held-font-size, 0.92rem); }
+.held-instance-table th,
+.held-instance-table button,
+.held-pagination { font-size: calc(var(--test-held-font-size, 0.92rem) * 0.89); }
+.held-instance-table-id { font-size: calc(var(--test-held-font-size, 0.92rem) * 0.85); }
+.ai-message, .ai-message-body, .ai-chat-form textarea { font-size: var(--test-chat-font-size, 1rem); }
+.ai-message strong { font-size: calc(var(--test-chat-font-size, 1rem) * 0.9); }
+.ai-message-heading { font-size: calc(var(--test-chat-font-size, 1rem) * 0.98); }
+.ai-proposal-card, .ai-proposal-list-item { font-size: var(--test-proposal-font-size, 0.9rem); }
+#edit-tree-panel .tree-top-class > summary { font-size: var(--test-tree-top-font-size, 0.95rem); }
+#edit-tree-panel .tree-middle-class > summary { font-size: var(--test-tree-middle-font-size, 0.95rem); }
+#edit-tree-panel .tree-top-class > summary::before,
+#edit-tree-panel .tree-middle-class > summary::before { font-size: var(--test-tree-disclosure-size, 0.85rem) !important; }
+#edit-tree-panel .tree-top-class > summary .tree-level-label,
+.edit-show-ids #edit-tree-panel .tree-top-class > summary .tree-level-label { font-size: var(--test-tree-top-font-size, 0.95rem); }
+#edit-tree-panel .tree-middle-class > summary .tree-level-label,
+.edit-show-ids #edit-tree-panel .tree-middle-class > summary .tree-level-label { font-size: var(--test-tree-middle-font-size, 0.95rem); }
+#edit-tree-panel .tree-top-class { --tree-level-color: var(--test-tree-top-color, #7dd3fc) !important; }
+#edit-tree-panel .tree-top-class > summary { color: var(--test-tree-top-text-color, #075985) !important; background-color: var(--test-tree-top-background-color, #e0f2fe) !important; }
+.test-range-row { display: flex; align-items: center; gap: 0.75rem; }
+.test-range-row input { width: 100%; }
+.test-range-row output { min-width: 3.5rem; color: #334155; font-variant-numeric: tabular-nums; text-align: right; }

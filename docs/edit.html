@@ -8,19 +8,21 @@
   
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
-  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261103-edit-search-parity-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261106-proposal-list-v1">
-  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261105-hide-class-move-plus-in-ai-v1">
+  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261109-tree-filter-disclosure-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261109-edit-taskbar-compact-v1">
+  <link rel="stylesheet" href="web/css/test-preferences.css?v=20261109-test-preferences-v18">
+  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261109-restore-tree-plus-v1">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-held-panel-fixed-v2">
   <script src="web/data/generated/class-data.js" defer></script>
   <script src="web/data/generated/instance-data.js" defer></script>
 
   <!-- データ → 共通ツリー → 編集状態・パネル・ツリー・イベント → AIの順で実行する。 -->
-  <script src="web/js/shared/tree.js?v=20261105-preview-arrow-order-v1" defer></script>
+  <script src="web/js/shared/tree.js?v=20261109-tree-color-intensity-v1" defer></script>
   <script src="web/js/editor/state.js?v=20261106-ai-audit-undo-v1" defer></script>
   <script src="web/js/editor/panels.js?v=20261105-hide-add-buttons-in-ai-v1" defer></script>
-  <script src="web/js/editor/tree.js?v=20261105-descendant-select-always-v1" defer></script>
+  <script src="web/js/editor/tree.js?v=20261109-tree-color-intensity-v1" defer></script>
   <script src="web/js/editor/events.js?v=20261106-ai-audit-undo-v1" defer></script>
+  <script src="web/js/editor/test-preferences.js?v=20261109-test-preferences-v27" defer></script>
 </head>
 <body class="edit-panes-pinned" data-mode="edit">
   <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>
@@ -29,6 +31,8 @@
     <h1>クラス編集</h1>
     <p class="page-description">既存クラスの所属を整理します。</p>
     <div class="page-header-actions">
+      <!-- テスト調整用UI。撤去時は、このボタンと下のdialogを削除する。 -->
+      <button type="button" id="open-test-settings" class="page-link-button" hidden>テスト</button>
       <button type="button" id="open-edit-settings" class="page-link-button">設定</button>
       <a id="browse-link" class="page-link-button" href="index.html">閲覧画面へ</a>
     </div>
@@ -159,13 +163,11 @@
           <section id="ai-assistant-panel" class="ai-assistant-panel" aria-label="AIチャット" hidden>
             <header class="ai-chat-header">
               <strong>AIチャット</strong>
-              <button id="ai-proposal-view-toggle" type="button" class="ai-proposal-view-toggle" aria-pressed="true" title="変更案表示を切り替えます">提案表示：新しい一覧</button>
-              <button id="ai-response-mode-toggle" type="button" class="ai-response-mode-toggle is-proposal-mode" aria-pressed="true" title="回答モードを切り替えます">改善提案モード</button>
             </header>
             <div id="ai-chat-messages" class="ai-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
             <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
             <p id="ai-key-guidance" class="ai-key-guidance" hidden>AIチャットを使うにはAPIキーが必要です。<button type="button" id="ai-open-settings" class="ai-settings-inline-link">設定</button>から入力してください。</p>
-            <p id="ai-usage-summary" class="ai-usage-summary" aria-live="polite"><span class="ai-usage-label">合計</span><strong class="ai-usage-cost">$0.000000</strong><span class="ai-usage-detail">入力 0 tokens · 出力 0 tokens · 0回</span></p>
+            <p id="ai-usage-summary" class="ai-usage-summary" aria-live="polite"><span class="ai-usage-label">合計</span><strong class="ai-usage-cost">$0.000000</strong><span class="ai-usage-detail">入力 0 / 出力 0 tokens</span><span class="ai-usage-requests">送信 0回</span></p>
             <form id="ai-chat-form" class="ai-chat-form">
               <div class="ai-prompt-examples">
                 <div id="ai-prompt-examples-list" class="ai-prompt-examples-list"></div>
@@ -207,12 +209,6 @@
       <label for="ai-model">モデル</label>
       <select id="ai-model" class="edit-settings-select" aria-describedby="ai-model-description"></select>
       <p id="ai-model-description" class="edit-settings-note">モデル候補は設定ファイルで管理します。</p>
-      <label for="ai-cross-scope-strategy">移動先の探し方</label>
-      <select id="ai-cross-scope-strategy" class="edit-settings-select" aria-describedby="ai-cross-scope-strategy-description">
-        <option value="exhaustive">全階層を比較（現行方式）</option>
-        <option value="hierarchical">階層から候補を検索（高速化を試す）</option>
-      </select>
-      <p id="ai-cross-scope-strategy-description" class="edit-settings-note">候補検索では、上位クラス内の評価で追加確認が必要とされた対象だけを横断確認します。各対象について名称が近い別の上位クラス（最大2件）と、その配下の中間クラス（各最大5件）を候補にします。候補を網羅する方式ではありません。いつでも全階層比較に戻せます。</p>
       <p id="ai-settings-status" class="ai-status" role="status" aria-live="polite"></p>
     </section>
     <section class="edit-settings-section" aria-labelledby="edit-display-settings-title">
@@ -222,6 +218,75 @@
       <label class="edit-settings-toggle"><input type="checkbox" id="ai-confirm-before-send"> AIチャットの送信前に内容を確認する</label>
       <p class="edit-settings-note">ONにすると送信前に内容を確認します。確認画面で「これ以降表示しない」を選ぶと、次回以降はOFFになります。</p>
     </section>
+  </dialog>
+  <!-- テスト調整用UI。専用CSS・JSと合わせて撤去できるよう分離している。 -->
+  <dialog id="test-settings-dialog" class="edit-settings-dialog" aria-labelledby="test-settings-title">
+    <div class="ai-preview-header">
+      <h2 id="test-settings-title">テスト・調整</h2>
+      <button type="button" id="close-test-settings" class="target-instance-dialog-close" aria-label="テスト設定を閉じる">×</button>
+    </div>
+    <p class="edit-settings-note">変更はすぐに反映され、自動保存されます。「保存して閉じる」からも保存できます。</p>
+    <section class="edit-settings-section" aria-labelledby="test-ai-chat-title">
+      <h3 id="test-ai-chat-title">AIチャット</h3>
+      <label for="test-ai-response-mode">AIの回答モード</label>
+      <select id="test-ai-response-mode" class="edit-settings-select" data-preference="responseMode">
+        <option value="proposal">改善提案モード</option>
+        <option value="evaluation">評価モード</option>
+      </select>
+      <p class="edit-settings-note">次の依頼から適用します。確認事項への回答中は、その相談で使っているモードを引き継ぎます。</p>
+      <label for="test-proposal-mode">提案一覧の表示</label>
+      <select id="test-proposal-mode" class="edit-settings-select" data-preference="proposalMode">
+        <option value="compact">新しい一覧</option>
+        <option value="legacy">従来表示</option>
+      </select>
+      <label for="test-chat-font-size">AIチャットの文字サイズ</label>
+      <div class="test-range-row"><input id="test-chat-font-size" type="range" min="0.85" max="1.4" step="0.05" data-preference="chatFontSize"><output for="test-chat-font-size"></output></div>
+      <label for="ai-cross-scope-strategy">移動先の探し方</label>
+      <select id="ai-cross-scope-strategy" class="edit-settings-select" aria-describedby="ai-cross-scope-strategy-description" data-preference="crossScopeStrategy">
+        <option value="exhaustive">全階層を比較（現行方式）</option>
+        <option value="hierarchical">階層から候補を検索（高速化を試す）</option>
+      </select>
+      <p id="ai-cross-scope-strategy-description" class="edit-settings-note">候補検索は、上位クラス内の評価で追加確認が必要とされた対象だけを横断確認します。候補数は下で調整できます。候補を網羅する方式ではありません。候補を増やすと確認範囲と送信量が増えます。</p>
+      <label for="test-ai-concurrency">AIリクエストの同時処理数</label>
+      <div class="test-range-row"><input id="test-ai-concurrency" type="range" min="1" max="4" step="1" data-preference="aiConcurrency"><output for="test-ai-concurrency"></output></div>
+      <p class="edit-settings-note">分割分析と全範囲の横断確認で、同時に処理するリクエスト数です。初期値は2件です。</p>
+      <label for="test-cross-scope-top-limit">候補検索で確認する上位クラス数</label>
+      <div class="test-range-row"><input id="test-cross-scope-top-limit" type="range" min="1" max="5" step="1" data-preference="crossScopeTopLimit"><output for="test-cross-scope-top-limit"></output></div>
+      <label for="test-cross-scope-middle-limit">上位クラスごとに確認する中間クラス数</label>
+      <div class="test-range-row"><input id="test-cross-scope-middle-limit" type="range" min="1" max="10" step="1" data-preference="crossScopeMiddleLimit"><output for="test-cross-scope-middle-limit"></output></div>
+    </section>
+    <section class="edit-settings-section" aria-labelledby="test-tree-display-title">
+      <h3 id="test-tree-display-title">ツリー表示</h3>
+      <label for="test-tree-top-font-size">上位クラスの文字サイズ</label>
+      <div class="test-range-row"><input id="test-tree-top-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeTopFontSize"><output for="test-tree-top-font-size"></output></div>
+      <label for="test-tree-middle-font-size">中間クラスの文字サイズ</label>
+      <div class="test-range-row"><input id="test-tree-middle-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeMiddleFontSize"><output for="test-tree-middle-font-size"></output></div>
+      <label for="test-tree-color-intensity">階層ごとの色の変化量</label>
+      <div class="test-range-row"><input id="test-tree-color-intensity" type="range" min="0" max="1" step="0.1" data-preference="treeColorIntensity"><output for="test-tree-color-intensity"></output></div>
+      <label for="test-tree-disclosure-size">開閉ボタンの三角表示サイズ</label>
+      <div class="test-range-row"><input id="test-tree-disclosure-size" type="range" min="0.6" max="1.4" step="0.05" data-preference="treeDisclosureSize"><output for="test-tree-disclosure-size"></output></div>
+      <label for="test-tree-top-color">上位クラスの色</label>
+      <div class="test-range-row"><input id="test-tree-top-color" type="color" data-preference="treeTopColor"></div>
+      <label for="test-tree-top-text-color">上位クラスのフォント色</label>
+      <div class="test-range-row"><input id="test-tree-top-text-color" type="color" data-preference="treeTopTextColor"></div>
+      <label for="test-tree-top-background-color">上位クラスの背景色</label>
+      <div class="test-range-row"><input id="test-tree-top-background-color" type="color" data-preference="treeTopBackgroundColor"></div>
+    </section>
+    <section class="edit-settings-section" aria-labelledby="test-proposal-display-title">
+      <h3 id="test-proposal-display-title">提案表示</h3>
+      <label for="test-proposal-font-size">提案の文字サイズ</label>
+      <div class="test-range-row"><input id="test-proposal-font-size" type="range" min="0.8" max="1.3" step="0.05" data-preference="proposalFontSize"><output for="test-proposal-font-size"></output></div>
+    </section>
+    <section class="edit-settings-section" aria-labelledby="test-held-display-title">
+      <h3 id="test-held-display-title">保持欄</h3>
+      <label for="test-held-font-size">保持欄の文字サイズ</label>
+      <div class="test-range-row"><input id="test-held-font-size" type="range" min="0.8" max="1.3" step="0.05" data-preference="heldFontSize"><output for="test-held-font-size"></output></div>
+    </section>
+    <div class="test-settings-actions">
+      <button type="button" id="test-preferences-reset" class="search-button secondary-search-button">初期値に戻す</button>
+      <button type="button" id="save-test-settings" class="search-button">保存して閉じる</button>
+    </div>
+    <p id="test-preferences-status" class="ai-status" role="status" aria-live="polite"></p>
   </dialog>
   <dialog id="target-instance-dialog" class="target-instance-dialog" aria-labelledby="target-instance-title">
     <form method="dialog" class="target-instance-dialog-header">
@@ -342,6 +407,6 @@
       <button type="button" id="edit-validation-export" class="search-button" hidden>警告を確認して出力</button>
     </div>
   </dialog>
-  <script type="module" src="web/js/editor/ai/main.js?v=20261106-proposal-list-v3"></script>
+  <script type="module" src="web/js/editor/ai/main.js?v=20261109-usage-four-columns-v1"></script>
 </body>
 </html>

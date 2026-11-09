@@ -67,9 +67,9 @@
 .tree-filter-heading { position: relative; display: flex; min-height: var(--edit-pane-header-height, 2.8rem); align-items: center; justify-content: flex-start; gap: 0.6rem; padding: var(--edit-pane-header-padding-block, 0.4rem) 2.85rem var(--edit-pane-header-padding-block, 0.4rem) 3.5rem; border-radius: 9px; color: #334155; background: #f1f5f9; cursor: pointer; font-size: var(--tree-panel-heading-font-size, 1rem); font-weight: 700; line-height: 1.35; list-style: none; }
 .tree-filter-close { position: absolute; top: 50%; right: 0.85rem; z-index: 1; transform: translateY(-50%); }
 .tree-filter-heading::-webkit-details-marker { display: none; }
-.tree-filter-heading::after { position: absolute; left: 0.85rem; content: "▾"; color: #64748b; font-size: 1rem; }
+.tree-filter-heading::after { position: absolute; left: 0.85rem; content: "▸"; color: #64748b; font-size: 0.85rem; }
 .tree-filter[open] > .tree-filter-heading { border-bottom: 1px solid #cbd5e1; border-radius: 9px 9px 0 0; }
-.tree-filter[open] > .tree-filter-heading::after { content: "▴"; }
+.tree-filter[open] > .tree-filter-heading::after { content: "▾"; }
 .tree-filter-heading:hover, .tree-filter-heading:focus-visible { background: #e2e8f0; outline: none; }
 .tree-filter-count { position: static; transform: none; margin: 0; padding: 0.1rem 0.55rem; border: 1px solid #cbd5e1; border-radius: 999px; color: #475569; background: #fff; font-size: 0.78rem; font-weight: 700; line-height: 1.5; }
 /* 絞り込み条件の入力欄、キーワード、件数方式の切り替え */

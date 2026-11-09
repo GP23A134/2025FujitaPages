@@ -474,6 +474,9 @@ function renderTree() {
     }
   });
 }
+window.addEventListener('class-editor-test-preferences-change', (event) => {
+  if (event.detail && 'treeColorIntensity' in event.detail) renderTree();
+});
 function scheduleTreeRender() {
   if (treeRenderFrame) return;
   treeRenderFrame = requestAnimationFrame(() => {

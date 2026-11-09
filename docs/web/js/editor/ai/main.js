@@ -1,6 +1,6 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261106-cross-scope-candidate-filter-v9';
+import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261109-test-tuning-v2';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261106-cross-scope-proposals-v4';
 import { createConversationStore, createConversationView } from './chat.js?v=20261106-split-state-v2-user-facing-status';
 import { createProposalPreview } from './proposal-preview.js?v=20261106-proposal-list-v3';
@@ -60,16 +60,11 @@ import { createAIClient } from './ai-client.js?v=20261106-cross-scope-candidate-
   const crossScopeStrategies = new Set(['exhaustive', 'hierarchical']);
   let crossScopeStrategy = 'exhaustive';
   try {
-    const savedStrategy = localStorage.getItem(crossScopeStrategyStorageKey);
+    const preferences = JSON.parse(localStorage.getItem('classEditorTestPreferences') || '{}');
+    const savedStrategy = preferences.crossScopeStrategy || localStorage.getItem(crossScopeStrategyStorageKey);
     if (crossScopeStrategies.has(savedStrategy)) crossScopeStrategy = savedStrategy;
   } catch {}
   crossScopeStrategySelect.value = crossScopeStrategy;
-  crossScopeStrategySelect.addEventListener('change', () => {
-    crossScopeStrategy = crossScopeStrategies.has(crossScopeStrategySelect.value)
-      ? crossScopeStrategySelect.value : 'exhaustive';
-    crossScopeStrategySelect.value = crossScopeStrategy;
-    try { localStorage.setItem(crossScopeStrategyStorageKey, crossScopeStrategy); } catch {}
-  });
   const keyGuidance = document.getElementById('ai-key-guidance');
   const updateKeyGuidance = () => { keyGuidance.hidden = Boolean(keyInput.value.trim()); };
   updateKeyGuidance();
@@ -158,41 +153,50 @@ import { createAIClient } from './ai-client.js?v=20261106-cross-scope-candidate-
   const textInput = document.getElementById('ai-chat-input');
   const promptExamplesList = document.getElementById('ai-prompt-examples-list');
   const promptExamplesById = new Map();
-  const responseModeToggle = document.getElementById('ai-response-mode-toggle');
-  const proposalViewToggle = document.getElementById('ai-proposal-view-toggle');
   const proposalViewStorageKey = 'classEditorAiProposalView';
+  const readAiTuningValue = (key, fallback, minimum, maximum) => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('classEditorTestPreferences') || '{}');
+      const value = Number(saved[key]);
+      if (Number.isInteger(value) && value >= minimum && value <= maximum) return value;
+    } catch {}
+    return fallback;
+  };
+  let aiRequestConcurrency = readAiTuningValue('aiConcurrency', 2, 1, 4);
+  let crossScopeCandidateUpperLimit = readAiTuningValue('crossScopeTopLimit', 2, 1, 5);
+  let crossScopeCandidateMiddleLimit = readAiTuningValue('crossScopeMiddleLimit', 5, 1, 10);
+  let currentResponseMode = 'proposal';
+  try {
+    const saved = JSON.parse(localStorage.getItem('classEditorTestPreferences') || '{}');
+    if (saved.responseMode === 'proposal' || saved.responseMode === 'evaluation') currentResponseMode = saved.responseMode;
+  } catch {}
   let proposalViewMode = 'compact';
   try {
     if (localStorage.getItem(proposalViewStorageKey) === 'legacy') proposalViewMode = 'legacy';
   } catch {}
-  const renderProposalViewToggle = () => {
-    const isCompact = proposalViewMode === 'compact';
-    proposalViewToggle.textContent = isCompact ? '従来表示' : '新表示';
-    proposalViewToggle.setAttribute('aria-pressed', String(isCompact));
-    proposalViewToggle.setAttribute('aria-label', `変更案表示：${isCompact ? '新しい一覧' : '従来表示'}。クリックで切り替え`);
-    proposalViewToggle.title = `変更案表示を${isCompact ? '従来表示' : '新しい一覧'}に切り替えます`;
-  };
-  proposalViewToggle.addEventListener('click', () => {
-    proposalViewMode = proposalViewMode === 'compact' ? 'legacy' : 'compact';
-    try { localStorage.setItem(proposalViewStorageKey, proposalViewMode); } catch {}
-    renderProposalViewToggle();
-    if (currentConversation) renderConversation();
+  // テスト調整機能の接続点。削除時は test-preferences.js とこの連携を一緒に外す。
+  window.addEventListener('class-editor-test-preferences-change', (event) => {
+    const concurrency = Number(event.detail?.aiConcurrency);
+    if (Number.isInteger(concurrency) && concurrency >= 1 && concurrency <= 4) aiRequestConcurrency = concurrency;
+    const upperLimit = Number(event.detail?.crossScopeTopLimit);
+    if (Number.isInteger(upperLimit) && upperLimit >= 1 && upperLimit <= 5) crossScopeCandidateUpperLimit = upperLimit;
+    const middleLimit = Number(event.detail?.crossScopeMiddleLimit);
+    if (Number.isInteger(middleLimit) && middleLimit >= 1 && middleLimit <= 10) crossScopeCandidateMiddleLimit = middleLimit;
+    const strategy = event.detail?.crossScopeStrategy;
+    if (crossScopeStrategies.has(strategy)) {
+      crossScopeStrategy = strategy;
+      crossScopeStrategySelect.value = strategy;
+      try { localStorage.setItem(crossScopeStrategyStorageKey, strategy); } catch {}
+    }
+    const responseMode = event.detail?.responseMode;
+    if (responseMode === 'proposal' || responseMode === 'evaluation') currentResponseMode = responseMode;
+    const mode = event.detail?.proposalMode;
+    if (mode === 'legacy' || mode === 'compact') {
+      proposalViewMode = mode;
+      try { localStorage.setItem(proposalViewStorageKey, mode); } catch {}
+      if (currentConversation) renderConversation();
+    }
   });
-  renderProposalViewToggle();
-  let currentResponseMode = 'proposal';
-  const renderResponseMode = () => {
-    const isProposalMode = currentResponseMode === 'proposal';
-    responseModeToggle.textContent = isProposalMode ? '改善提案モード' : '評価モード';
-    responseModeToggle.setAttribute('aria-pressed', String(isProposalMode));
-    responseModeToggle.setAttribute('aria-label', `回答モード：${isProposalMode ? '改善提案' : '評価のみ'}。クリックで切り替え`);
-    responseModeToggle.title = `現在：${isProposalMode ? '改善提案モード' : '評価モード'}。クリックで切り替え`;
-    responseModeToggle.classList.toggle('is-proposal-mode', isProposalMode);
-  };
-  responseModeToggle.addEventListener('click', () => {
-    currentResponseMode = currentResponseMode === 'proposal' ? 'evaluation' : 'proposal';
-    renderResponseMode();
-  });
-  renderResponseMode();
   const responseModeInstruction = (mode) => mode === 'proposal'
     ? '利用者が改善提案モードを選択しています。依頼内容を評価し、必要で妥当な変更案があれば提案してください。許可された操作は全種類です。依頼文から操作許可を推測・制限せず、削除を含む操作も提案できます。ただし依頼の条件に反する変更や根拠の弱い変更は提案しないでください。'
     : '利用者が評価モードを選択しています。変更操作を含む提案や確認質問を出さず、評価・説明だけを返してください。情報が足りない場合は、判断できない点と理由をmessageに記載してください。';
@@ -387,14 +391,17 @@ let proposalPreview = null;
     const sessionCost = sessionUsage.requests ? formatUsd(sessionUsage.costUsd) : '$0.000000';
     const label = document.createElement('span');
     label.className = 'ai-usage-label';
-    label.textContent = '利用額の概算';
+    label.textContent = '合計';
     const amount = document.createElement('strong');
     amount.className = 'ai-usage-cost';
     amount.textContent = sessionUsage.costKnown ? sessionCost : '料金不明';
     const details = document.createElement('span');
     details.className = 'ai-usage-detail';
-    details.textContent = `入力 ${sessionUsage.inputTokens.toLocaleString()} tokens · 出力 ${sessionUsage.outputTokens.toLocaleString()} tokens · ${sessionUsage.requests}回${modelConfig?.pricingAsOf ? ` · 単価確認 ${modelConfig.pricingAsOf}` : ''}`;
-    usageSummary.replaceChildren(label, amount, details);
+    details.textContent = `入力 ${sessionUsage.inputTokens.toLocaleString()} / 出力 ${sessionUsage.outputTokens.toLocaleString()} tokens`;
+    const requests = document.createElement('span');
+    requests.className = 'ai-usage-requests';
+    requests.textContent = `送信 ${sessionUsage.requests}回`;
+    usageSummary.replaceChildren(label, amount, details, requests);
   };
   const recordUsage = (responseBody) => {
     const usage = responseBody?.usage;
@@ -1848,7 +1855,8 @@ let proposalPreview = null;
       + responseFormat.crossScopeOperationInstructions.length + responseModeInstruction(responseMode).length + 1200;
     const crossScopePlan = crossScopeStructure && !crossScopeCandidateMode
       ? crossScopeProposalSynthesizer.plan({ request: userText, conversationContext: conversation.localContext || '',
-        scope: crossScopeStructure, fixedPromptCharacters: crossScopeFixedPromptCharacters, strategy: crossScopeStrategy })
+        scope: crossScopeStructure, fixedPromptCharacters: crossScopeFixedPromptCharacters, strategy: crossScopeStrategy,
+        candidateUpperClassLimit: crossScopeCandidateUpperLimit, candidateMiddleClassLimit: crossScopeCandidateMiddleLimit })
       : null;
     const crossScopePreflightInputs = crossScopePlan?.status === 'completed'
       ? crossScopePlan.batches.map((batch) => batch.input) : [];
@@ -2053,8 +2061,8 @@ let proposalPreview = null;
           const cached = chunkCacheByKey.get(chunkKeys[index]);
           if (cached) processSplitUnit(task, index, { ...structuredClone(cached), baseDataHash });
         });
-        for (let offset = 0; offset < splitBatches.length; offset += 2) {
-          const batch = splitBatches.slice(offset, offset + 2);
+        for (let offset = 0; offset < splitBatches.length; offset += aiRequestConcurrency) {
+          const batch = splitBatches.slice(offset, offset + aiRequestConcurrency);
           const chunkProgress = `${offset + 1}/${splitBatches.length}送信バッチを処理中${cachedChunkCount ? `（上位クラス別評価を再利用 ${cachedChunkCount}件）` : ''}`;
           setThinkingStage(conversation, '分割処理中', chunkProgress);
           const parts = await Promise.all(batch.map(async (task) => {
@@ -2237,15 +2245,18 @@ let proposalPreview = null;
                 : crossScopeStructure;
               const executionPlan = crossScopeCandidateMode
                 ? crossScopeProposalSynthesizer.plan({ request: userText, conversationContext: conversation.localContext || '',
-                  scope: executionScope, fixedPromptCharacters: crossScopeFixedPromptCharacters, strategy: crossScopeStrategy })
+                  scope: executionScope, fixedPromptCharacters: crossScopeFixedPromptCharacters, strategy: crossScopeStrategy,
+                  candidateUpperClassLimit: crossScopeCandidateUpperLimit, candidateMiddleClassLimit: crossScopeCandidateMiddleLimit })
                 : crossScopePlan;
               if (crossScopeCandidateMode) console.info('[AIチャット] 横断確認候補を絞り込みました', {
                 editableTargetCount: crossScopeEditableTargets.length,
                 candidateTargetCount: crossScopeTargetIds.length,
-                candidateUpperClassLimit: 2
+                candidateUpperClassLimit: crossScopeCandidateUpperLimit,
+                candidateMiddleClassLimit: crossScopeCandidateMiddleLimit
               });
               const crossScopeOperation = await crossScopeProposalSynthesizer.synthesize({
                 plan: executionPlan,
+                concurrency: aiRequestConcurrency,
                 send: (payload, batchId, batchCount) => sendApiRequest(payload, '', CROSS_SCOPE_OUTPUT_TOKENS,
                   `全範囲の横断確認中（${batchId}/${batchCount}）`)
               });

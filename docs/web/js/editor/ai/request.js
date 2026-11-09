@@ -667,7 +667,10 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS }) => {
 
 // 完了済み分割結果と全階層を使い、横断操作案だけを生成します。
 export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, shortenInputIds, createIdCodec }) => {
-  const plan = ({ request, conversationContext = '', scope, fixedPromptCharacters = 0, strategy = 'exhaustive' }) => {
+  const plan = ({ request, conversationContext = '', scope, fixedPromptCharacters = 0, strategy = 'exhaustive',
+    candidateUpperClassLimit = 2, candidateMiddleClassLimit = 5 }) => {
+    candidateUpperClassLimit = Math.max(1, Math.min(5, Math.floor(Number(candidateUpperClassLimit) || 2)));
+    candidateMiddleClassLimit = Math.max(1, Math.min(10, Math.floor(Number(candidateMiddleClassLimit) || 5)));
     const classById = new Map((scope.classes || []).map((item) => [item.id, item]));
     const rawEditableIds = scope.selectedEditableIds || [];
     if (new Set(rawEditableIds).size !== rawEditableIds.length) {
@@ -725,7 +728,7 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, sh
         branchScores
           .filter(({ top, score }) => top.id !== currentTopId && score > 0)
           .sort((left, right) => right.score - left.score || String(left.top.id).localeCompare(String(right.top.id)))
-          .slice(0, 2)
+          .slice(0, candidateUpperClassLimit)
           .forEach(({ top }) => candidateTopIds.add(top.id));
         const candidates = new Set(candidateTopIds);
         candidateTopIds.forEach((topId) => {
@@ -734,7 +737,7 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, sh
             .map((item) => ({ item, score: similarity(targetTerms, hierarchyTerms.get(item.id)) }))
             .filter(({ score }) => score > 0)
             .sort((left, right) => right.score - left.score || String(left.item.id).localeCompare(String(right.item.id)))
-            .slice(0, 5)
+            .slice(0, candidateMiddleClassLimit)
             .forEach(({ item }) => candidates.add(item.id));
         });
         candidateHierarchyIdsByTarget.set(target.id, [...candidates]);
@@ -782,7 +785,7 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, sh
           allowHierarchyEdits: Boolean(scope.allowHierarchyEdits), allowProposals: Boolean(scope.allowProposals)
         } },
         instruction: strategy === 'hierarchical'
-          ? '階層を使った移動先候補の検索です。同じ上位クラス内は分割評価で確認済みのため、この横断工程では各editableIdについてcrossScopeBatch.targetCandidatesのtopIdsとmiddleIdsだけを移動先候補として比較してください。候補は名称が近い別の上位クラス最大2件と、その配下で名称が近い中間クラスです。候補外の階層を網羅的に確認したとは扱いません。role=cは親や選択ルートの文脈です。入力にない移動先や関係は推測しません。根拠が明確な場合だけ操作案を作ります。変更元はeditableIdsのクラスだけにし、移動先はその対象に指定されたtopIdsまたはmiddleIds内の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。質問は出さず、mに候補検索の限界を含む簡潔な判断、pに操作案、xにバッチIDと確認件数を返してください。'
+          ? `階層を使った移動先候補の検索です。同じ上位クラス内は分割評価で確認済みのため、この横断工程では各editableIdについてcrossScopeBatch.targetCandidatesのtopIdsとmiddleIdsだけを移動先候補として比較してください。候補は名称が近い別の上位クラス最大${candidateUpperClassLimit}件と、その配下で名称が近い中間クラス（各最大${candidateMiddleClassLimit}件）です。候補外の階層を網羅的に確認したとは扱いません。role=cは親や選択ルートの文脈です。入力にない移動先や関係は推測しません。根拠が明確な場合だけ操作案を作ります。変更元はeditableIdsのクラスだけにし、移動先はその対象に指定されたtopIdsまたはmiddleIds内の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。質問は出さず、mに候補検索の限界を含む簡潔な判断、pに操作案、xにバッチIDと確認件数を返してください。`
           : '全体の横断操作検討です。このバッチに含まれるeditableIdsをすべて確認し、selectedScope.data.classesのrole=hで示された全top/middleを候補として比較してください。role=cは親や選択ルートの文脈であり、このバッチの判定対象数には含めません。アプリは全対象と全階層の組み合わせを漏れなくバッチ化しています。入力にない移動先や関係は推測しません。根拠がある場合だけ操作案を作ります。変更元はeditableIdsのクラスだけにし、移動先は入力中の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。削除は配下全体を安全に編集できる場合だけにします。質問は出さず、mに簡潔な判断、pにこのバッチの操作案、xにバッチIDと実際に確認した件数を返してください。'
       });
     };
@@ -870,10 +873,11 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, sh
         || new Set(batch.hierarchyIds).size !== batch.hierarchyIds.length)) {
       return { status: 'incomplete', message: '横断確認バッチの範囲に重複または不足があります。' };
     }
-    return { status: 'completed', strategy, batches, expectedEditableCount: editableItems.length, expectedHierarchyCount,
+    return { status: 'completed', strategy, candidateUpperClassLimit, candidateMiddleClassLimit, batches,
+      expectedEditableCount: editableItems.length, expectedHierarchyCount,
       expectedPairCount: expectedTotalPairs };
   };
-  const synthesize = async ({ plan: batchPlan, send }) => {
+  const synthesize = async ({ plan: batchPlan, send, concurrency = 2 }) => {
     if (!batchPlan || batchPlan.status !== 'completed') {
       return { status: 'incomplete', message: batchPlan?.message || '横断確認の分割計画を作成できませんでした。' };
     }
@@ -917,8 +921,8 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, sh
         }
       }
     };
-    const concurrency = Math.min(2, batchPlan.batches.length);
-    await Promise.all(Array.from({ length: concurrency }, () => processNextBatch()));
+    const workerCount = Math.min(4, Math.max(1, Math.floor(Number(concurrency) || 2)), batchPlan.batches.length);
+    await Promise.all(Array.from({ length: workerCount }, () => processNextBatch()));
     if (failure?.error?.name === 'AbortError') throw failure.error;
     if (failure) return failure;
 
