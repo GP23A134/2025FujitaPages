@@ -375,6 +375,7 @@ document.getElementById('apply-held-destination').addEventListener('click', () =
   else moveHeldClassesToTop(heldDestinationId);
 });
 document.getElementById('clear-held').addEventListener('click', () => {
+  const selectionBefore = snapshotEditState();
   if (heldKindView === 'target') {
     heldInstances.clear();
   } else if (heldKindView === 'middle') {
@@ -385,11 +386,13 @@ document.getElementById('clear-held').addEventListener('click', () => {
   syncTreeSelectionAppearance();
   syncTargetButtonAvailability();
   renderInstances();
+  recordEditHistory(selectionBefore, '', '保持中の選択解除');
   const kindLabel = heldKindView === 'target' ? '対象クラス' : heldKindView === 'middle' ? '中間クラス' : '上位クラス';
   logEditAction(`保持中の${kindLabel}を解除しました。`);
 });
 
 function updateVisibleTreeSelection(select) {
+  const selectionBefore = snapshotEditState();
   const roots = [
     ...middleCheckboxById.keys(),
     ...topCheckboxById.keys(),
@@ -408,10 +411,12 @@ function updateVisibleTreeSelection(select) {
   if (select) heldKindView = 'target';
   syncTargetButtonAvailability();
   renderInstances();
+  recordEditHistory(selectionBefore, '', select ? '表示範囲を選択' : '表示範囲の選択解除');
 }
 document.getElementById('select-visible-tree').addEventListener('click', () => updateVisibleTreeSelection(true));
 document.getElementById('clear-visible-tree-selection').addEventListener('click', () => updateVisibleTreeSelection(false));
 function updateFilteredTargetSelection(select) {
+  const selectionBefore = snapshotEditState();
   (currentFilteredTargetIds || []).forEach((id) => {
     const item = classById.get(id);
     if (!item) return;
@@ -426,6 +431,7 @@ function updateFilteredTargetSelection(select) {
   });
   syncTargetButtonAvailability();
   renderInstances();
+  recordEditHistory(selectionBefore, '', select ? '検索結果を選択' : '検索結果の選択解除');
 }
 document.getElementById('select-filtered-targets').addEventListener('click', () => updateFilteredTargetSelection(true));
 document.getElementById('clear-filtered-targets-selection').addEventListener('click', () => updateFilteredTargetSelection(false));
@@ -639,7 +645,9 @@ function buildAiTargetContext(all, hierarchyClasses) {
 // AIモジュールへ選択範囲とクラス構造だけを渡す画面内API。個別インスタンスは公開しない。
 window.classEditorAI = {
   get selectedIds() { return [...heldInstances.keys(), ...heldMiddleClasses.keys(), ...heldTopClasses.keys()]; },
+  get selectionSnapshot() { return { instances: [...heldInstances.keys()], middleClasses: [...heldMiddleClasses.keys()], topClasses: [...heldTopClasses.keys()] }; },
   setSelectedIds(ids) {
+    const selectionBefore = snapshotEditState();
     heldInstances.clear(); heldMiddleClasses.clear(); heldTopClasses.clear();
     (Array.isArray(ids) ? ids : []).forEach((id) => {
       const item = classById.get(id);
@@ -649,15 +657,26 @@ window.classEditorAI = {
       else if (type === 'middle') heldMiddleClasses.set(id, item);
       else heldInstances.set(id, item);
     });
+    recordEditHistory(selectionBefore, '', 'AI範囲の選択変更');
     render();
   },
-  selectAll() { classes.forEach((item) => {
+  selectAll() {
+    const selectionBefore = snapshotEditState();
+    classes.forEach((item) => {
     const type = classKind(item);
     if (type === 'top') heldTopClasses.set(item.id, item);
     else if (type === 'middle') heldMiddleClasses.set(item.id, item);
     else heldInstances.set(item.id, item);
-  }); render(); },
-  clearSelection() { heldInstances.clear(); heldMiddleClasses.clear(); heldTopClasses.clear(); render(); },
+    });
+    recordEditHistory(selectionBefore, '', 'すべて選択');
+    render();
+  },
+  clearSelection() {
+    const selectionBefore = snapshotEditState();
+    heldInstances.clear(); heldMiddleClasses.clear(); heldTopClasses.clear();
+    recordEditHistory(selectionBefore, '', '選択解除');
+    render();
+  },
   getState() {
     const children = buildChildrenMap();
     const aggregateCount = createTargetCounter(children);

@@ -2,6 +2,7 @@
   const input = document.getElementById('data-import-file');
   const dialog = document.getElementById('data-import-dialog');
   const openButton = document.getElementById('open-data-import');
+  const resetButton = document.getElementById('reset-to-default');
   const confirmButton = document.getElementById('data-import-confirm');
   if (!input || !dialog || !openButton || !confirmButton) return;
   const drop = document.getElementById('data-import-drop');
@@ -128,8 +129,13 @@
       })));
       let instanceFile;
       let hierarchyFile;
+      let hierarchyOnly = false;
       if (parsedFiles.length === 1) {
-        instanceFile = parsedFiles[0];
+        if (Array.isArray(parsedFiles[0].content?.instances)) instanceFile = parsedFiles[0];
+        else if (Array.isArray(parsedFiles[0].content?.classes)) {
+          hierarchyFile = parsedFiles[0];
+          hierarchyOnly = true;
+        } else throw new Error('クラス・インスタンスデータまたはクラス階層データを選んでください。');
       } else {
         const instanceFiles = parsedFiles.filter(({ content }) => Array.isArray(content?.instances));
         const hierarchyFiles = parsedFiles.filter(({ content }) => !Array.isArray(content?.instances) && Array.isArray(content?.classes));
@@ -139,11 +145,17 @@
         [instanceFile] = instanceFiles;
         [hierarchyFile] = hierarchyFiles;
       }
-      const instanceData = parseInstanceData(instanceFile.content);
       const hierarchyData = hierarchyFile ? parseHierarchyData(hierarchyFile.content) : null;
+      const instanceData = hierarchyOnly
+        ? { classes: [], instances: [], classRelations: [], instanceClassRelations: [] }
+        : parseInstanceData(instanceFile.content);
       const data = mergeData(instanceData, hierarchyData);
       const fileNames = selectedFiles.map((file) => file.name);
-      selected = { fileNames, data };
+      selected = { fileNames, data, hierarchyOnly };
+      if (hierarchyOnly) {
+        dialog.querySelector('input[name="data-import-mode"][value="append"]').checked = true;
+        confirmButton.textContent = '現在の作業へ追加';
+      }
       const assigned = new Set(data.instanceClassRelations.map((relation) => relation.instance));
       const unlabeledClasses = data.classes.filter((item) => !String(item.label || '').trim()).length;
       const unlabeledInstances = data.instances.filter((item) => !String(item.label || '').trim()).length;
@@ -154,7 +166,9 @@
       summary.append(summaryFileName, totals, notes);
       summary.hidden = false;
       confirmButton.disabled = false;
-      setStatus(hierarchyFile ? '2つのファイルをクラスIDで統合しました。内容を確認してください。' : '内容を確認し、読み込み方法を選んでください。');
+      setStatus(hierarchyOnly
+        ? '階層データを読み込みました。既存の作業へ追加してください。'
+        : hierarchyFile ? '2つのファイルをクラスIDで統合しました。内容を確認してください。' : '内容を確認し、読み込み方法を選んでください。');
     } catch (error) {
       setStatus(error instanceof SyntaxError ? 'JSONを読み取れません。ファイル形式を確認してください。' : error.message, true);
     }
@@ -162,6 +176,7 @@
   const makeWorkspace = (mode) => {
     const incoming = selected.data;
     const current = window.appData || {};
+    if (selected.hierarchyOnly && mode !== 'append') throw new Error('クラス階層データだけを読み込む場合は「現在の作業に追加」を選んでください。');
     let classes, hierarchy, instances, memberships;
     const ensureUnclassifiedRoot = (classList) => {
       let root = classList.find((item) => item.type === 'top' && item.label === '未分類');
@@ -189,20 +204,46 @@
       memberships = incoming.instanceClassRelations.map((item) => ({ ...item }));
     } else {
       const existingClasses = currentClassList();
-      const existingClassIds = new Set(existingClasses.map((item) => item.id));
-      const existingInstanceIds = new Set((current.instanceData?.instances || []).map((item) => item.id));
-      const conflict = incoming.classes.find((item) => existingClassIds.has(item.id)) || incoming.instances.find((item) => existingInstanceIds.has(item.id));
-      if (conflict) throw new Error(`現在の作業とIDが重複しています: ${conflict.id}`);
-      classes = existingClasses.map((item) => ({ ...item }));
-      const importedClasses = incoming.classes.map((item) => ({ ...item }));
-      classes.push(...importedClasses);
-      hierarchy = [
-        ...(current.classData?.relations || []).map((item) => ({ ...item })),
-        ...incoming.classRelations.map((item) => ({ ...item, relation: 'subClassOf' }))
-      ];
+      const classById = new Map(existingClasses.map((item) => [item.id, { ...item }]));
+      incoming.classes.forEach((item) => {
+        const existing = classById.get(item.id);
+        if (!existing) { classById.set(item.id, { ...item }); return; }
+        if (existing.label && item.label && existing.label !== item.label) throw new Error(`同じクラスIDのラベルが一致しません: ${item.id}`);
+        if (existing.type !== item.type && existing.type !== 'class' && item.type !== 'class') throw new Error(`同じクラスIDに異なる種類が指定されています: ${item.id}`);
+        existing.label ||= item.label;
+        if (existing.type === 'class' && item.type !== 'class') existing.type = item.type;
+      });
+      classes = [...classById.values()];
+      const importedClasses = incoming.classes.map((item) => classById.get(item.id));
+      const relationByChild = new Map();
+      (current.classData?.relations || []).forEach((item) => relationByChild.set(item.child, { ...item }));
+      const unclassifiedId = classes.find((item) => item.type === 'top' && item.label === '未分類')?.id;
+      incoming.classRelations.forEach((item) => {
+        const existing = relationByChild.get(item.child);
+        if (existing && existing.parent !== item.parent) {
+          const replacesFallback = existing.parent === unclassifiedId && item.parent !== unclassifiedId;
+          if (!replacesFallback) throw new Error(`同じクラスに異なる親が指定されています: ${item.child}`);
+        }
+        relationByChild.set(item.child, { ...item, relation: 'subClassOf' });
+      });
+      hierarchy = [...relationByChild.values()];
       addOrphanClasses(classes, hierarchy, importedClasses);
-      instances = [...(current.instanceData?.instances || []).map((item) => ({ ...item })), ...incoming.instances.map((item) => ({ ...item }))];
-      memberships = [...(current.instanceClassData?.relations || []).map((item) => ({ ...item })), ...incoming.instanceClassRelations.map((item) => ({ ...item }))];
+      const instanceById = new Map((current.instanceData?.instances || []).map((item) => [item.id, { ...item }]));
+      incoming.instances.forEach((item) => {
+        const existing = instanceById.get(item.id);
+        if (existing && existing.label && item.label && existing.label !== item.label) throw new Error(`同じインスタンスIDのラベルが一致しません: ${item.id}`);
+        if (existing) existing.label ||= item.label;
+        else instanceById.set(item.id, { ...item });
+      });
+      instances = [...instanceById.values()];
+      const membershipIds = new Set();
+      memberships = [...(current.instanceClassData?.relations || []), ...incoming.instanceClassRelations]
+        .filter((item) => {
+          const key = `${item.instance}\u0000${item.class}`;
+          if (membershipIds.has(key)) return false;
+          membershipIds.add(key);
+          return true;
+        }).map((item) => ({ ...item }));
     }
     return { classData: { classes, relations: hierarchy }, targetClassData: { classes: [] }, instanceData: { instances }, instanceClassData: { relations: memberships }, workspaceMeta: { kind: 'uploaded', fileName: selected.fileNames.join(' + ') } };
   };
@@ -217,6 +258,18 @@
     setStatus('ファイルを選択してください。');
   };
   openButton.addEventListener('click', () => { resetDialog(); dialog.showModal(); });
+  resetButton?.addEventListener('click', async () => {
+    resetButton.disabled = true;
+    try {
+      const defaultData = await window.dataWorkspace.restoreDefault();
+      if (!defaultData) throw new Error('初期状態のデータを読み込めません。');
+      await window.dataWorkspace.save(defaultData, window.appData || null, window.classEditorAI?.selectionSnapshot || null);
+      window.location.reload();
+    } catch (error) {
+      resetButton.disabled = false;
+      window.alert(error.message);
+    }
+  });
   document.getElementById('data-import-close')?.addEventListener('click', () => dialog.close());
   document.getElementById('data-import-cancel')?.addEventListener('click', () => dialog.close());
   dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
@@ -242,7 +295,7 @@
   confirmButton.addEventListener('click', async () => {
     if (!selected) return;
     try {
-      await window.dataWorkspace.save(makeWorkspace(readMode()));
+      await window.dataWorkspace.save(makeWorkspace(readMode()), window.appData || null, window.classEditorAI?.selectionSnapshot || null);
       window.__editorImportReload = true;
       window.location.reload();
     } catch (error) { setStatus(error.message, true); }

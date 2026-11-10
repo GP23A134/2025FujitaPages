@@ -132,10 +132,12 @@ function renderInstances() {
   const redoButton = document.getElementById('redo-edit');
   const undoEntry = editUndoStack.at(-1);
   const redoEntry = editRedoStack.at(-1);
-  undoButton.disabled = !undoEntry;
-  undoButton.title = undoEntry ? `元に戻す: ${undoEntry.actionLabel}` : '元に戻す履歴はありません';
-  redoButton.disabled = !redoEntry;
-  redoButton.title = redoEntry ? `やり直す: ${redoEntry.actionLabel}` : 'やり直す履歴はありません';
+  const canUndoUpload = Boolean(window.__dataWorkspaceUndoAvailable);
+  const canRedoUpload = Boolean(window.__dataWorkspaceRedoAvailable);
+  undoButton.disabled = !undoEntry && !canUndoUpload;
+  undoButton.title = undoEntry ? `元に戻す: ${undoEntry.actionLabel}` : canUndoUpload ? 'データ読み込みを元に戻す' : '元に戻す履歴はありません';
+  redoButton.disabled = !redoEntry && !canRedoUpload;
+  redoButton.title = redoEntry ? `やり直す: ${redoEntry.actionLabel}` : canRedoUpload ? 'データ読み込みをやり直す' : 'やり直す履歴はありません';
   const showHeldList = heldPanelView === 'held' && !heldPanelCollapsed;
   heldListView.hidden = !showHeldList;
   destinationPicker.hidden = heldPanelCollapsed || heldPanelView !== 'destination';

@@ -12,8 +12,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       placeholder.replaceWith(script);
     });
     if (script.src.includes('/shared/data-workspace.js')) {
+      await window.dataWorkspace.rememberDefault(window.appData);
       const workspace = await window.dataWorkspace.restore();
       if (workspace) window.appData = workspace;
+      window.__workspaceSelectionToRestore = document.body.dataset.mode === 'edit'
+        ? await window.dataWorkspace.takeSelectionToRestore()
+        : null;
+      window.__dataWorkspaceUndoAvailable = await window.dataWorkspace.hasUndo();
+      window.__dataWorkspaceRedoAvailable = await window.dataWorkspace.hasRedo();
     }
   }
 });

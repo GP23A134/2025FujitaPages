@@ -181,6 +181,7 @@ function syncTreeSelectionAppearance() {
 }
 
 function applyTreeSelectionRange(control, event, selected) {
+  const selectionBefore = snapshotEditState();
   const tree = document.getElementById('edit-tree');
   const controls = [...tree.querySelectorAll('.tree-level-selection-checkbox, .tree-leaf-class')];
   const ids = controls.map((element) => element.dataset.selectionId);
@@ -196,6 +197,7 @@ function applyTreeSelectionRange(control, event, selected) {
     selectedIds = [control.dataset.selectionId];
   }
   applyTreeSubtreeSelection(selectedIds, selected);
+  recordEditHistory(selectionBefore, '', selected ? 'クラス選択' : 'クラス選択解除');
   selectionRangeAnchorId = control.dataset.selectionId;
   heldKindView = control.dataset.selectionKind === 'target'
     ? 'target'
@@ -241,13 +243,24 @@ if (legacyUnclassifiedMiddleIds.size) {
 }
 
 const classById = new Map(classes.map((item) => [item.id, item]));
+const restoredSelection = window.__workspaceSelectionToRestore;
+if (restoredSelection) {
+  restoredSelection.instances?.forEach((id) => { const item = classById.get(id); if (item && classKind(item) === 'class') heldInstances.set(id, item); });
+  restoredSelection.middleClasses?.forEach((id) => { const item = classById.get(id); if (item && classKind(item) === 'middle') heldMiddleClasses.set(id, item); });
+  restoredSelection.topClasses?.forEach((id) => { const item = classById.get(id); if (item && classKind(item) === 'top') heldTopClasses.set(id, item); });
+}
 const editUndoStack = [];
 const editRedoStack = [];
 const EDIT_HISTORY_LIMIT = 100;
 function snapshotEditState() {
   const state = {
     classes: classes.map((item) => ({ ...item })),
-    relations: data.classData.relations.map((relation) => ({ ...relation }))
+    relations: data.classData.relations.map((relation) => ({ ...relation })),
+    selection: {
+      instances: [...heldInstances.keys()],
+      middleClasses: [...heldMiddleClasses.keys()],
+      topClasses: [...heldTopClasses.keys()]
+    }
   };
   return { ...state, fingerprint: JSON.stringify(state), recentDestinations: [...recentHeldDestinationIds] };
 }
@@ -257,29 +270,31 @@ function recordEditHistory(before, destinationId = '', actionLabel = '編集') {
     recentHeldDestinationIds = [destinationId, ...recentHeldDestinationIds.filter((id) => id !== destinationId)].slice(0, 5);
   }
   before.recentDestinations = recentDestinationsBefore;
-  editUndoStack.push({ before, after: snapshotEditState(), actionLabel });
+  const after = snapshotEditState();
+  if (before.fingerprint === after.fingerprint) return;
+  editUndoStack.push({ before, after, actionLabel });
   if (editUndoStack.length > EDIT_HISTORY_LIMIT) editUndoStack.shift();
   editRedoStack.length = 0;
+  window.dataWorkspace?.clearRedo?.();
 }
 function restoreEditState(snapshot) {
   // 描画用Mapはクラス配列を参照するため、配列とMapを同時に作り直す。
-  // 選択状態は、復元後も存在するIDに限って保持する。
-  const currentHeldInstances = [...heldInstances.entries()];
-  const currentHeldMiddleIds = [...heldMiddleClasses.keys()];
-  const currentHeldTopIds = [...heldTopClasses.keys()];
   classes.splice(0, classes.length, ...snapshot.classes.map((item) => ({ ...item })));
   data.classData.relations = snapshot.relations.map((relation) => ({ ...relation }));
   classById.clear();
   classes.forEach((item) => classById.set(item.id, item));
   heldInstances.clear();
-  currentHeldInstances.forEach(([id, instance]) => heldInstances.set(id, instance));
+  (snapshot.selection?.instances || []).forEach((id) => {
+    const item = classById.get(id);
+    if (item && classKind(item) === 'class') heldInstances.set(id, item);
+  });
   heldMiddleClasses.clear();
-  currentHeldMiddleIds.forEach((id) => {
+  (snapshot.selection?.middleClasses || []).forEach((id) => {
     const item = classById.get(id);
     if (item && classKind(item) === 'middle') heldMiddleClasses.set(id, item);
   });
   heldTopClasses.clear();
-  currentHeldTopIds.forEach((id) => {
+  (snapshot.selection?.topClasses || []).forEach((id) => {
     const item = classById.get(id);
     if (item && classKind(item) === 'top') heldTopClasses.set(id, item);
   });
@@ -287,9 +302,12 @@ function restoreEditState(snapshot) {
   recentHeldDestinationIds = [...(snapshot.recentDestinations || [])];
   hasUnsavedChanges = true;
 }
-function undoLastEdit() {
+async function undoLastEdit() {
   const edit = editUndoStack.at(-1);
-  if (!edit) return;
+  if (!edit) {
+    if (window.__dataWorkspaceUndoAvailable && await window.dataWorkspace?.undoUpload(window.classEditorAI?.selectionSnapshot)) window.location.reload();
+    return;
+  }
   if (snapshotEditState().fingerprint !== edit.after.fingerprint) {
     editUndoStack.length = 0;
     editRedoStack.length = 0;
@@ -303,9 +321,12 @@ function undoLastEdit() {
   logEditAction(`「${edit.actionLabel}」を元に戻しました。`);
   render();
 }
-function redoLastEdit() {
+async function redoLastEdit() {
   const edit = editRedoStack.at(-1);
-  if (!edit) return;
+  if (!edit) {
+    if (window.__dataWorkspaceRedoAvailable && await window.dataWorkspace?.redoUpload(window.classEditorAI?.selectionSnapshot)) window.location.reload();
+    return;
+  }
   if (snapshotEditState().fingerprint !== edit.before.fingerprint) {
     editUndoStack.length = 0;
     editRedoStack.length = 0;

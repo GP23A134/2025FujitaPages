@@ -91,8 +91,9 @@
   dialog?.addEventListener('click', (event) => {
     if (event.target === dialog) dialog.close();
   });
-  const status = (message) => document.getElementById('test-preferences-status')
-    ?.replaceChildren(document.createTextNode(message));
+  const status = (message) => ['test-preferences-status', 'test-preferences-settings-status'].forEach((id) => {
+    document.getElementById(id)?.replaceChildren(document.createTextNode(message));
+  });
   const savePreferences = () => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(preferences));
