@@ -12,8 +12,8 @@
 | 4 | `tree-appearance.css` | ツリーカードの配色・見た目と閲覧／編集の差分 |
 | 5 | `browse-responsive.css` | 閲覧画面の集計・一覧と画面幅に応じた調整 |
 
-HTML側の読み込み順は[閲覧画面](../../index.html)と[編集画面](../../edit.html)で確認できます。後のCSSが前の指定を上書きするため、順番とセレクターの優先度を確認してください。共通ツリーの寸法・階層線は`tree-structure.css`、カード外観と閲覧／編集の差分は`tree-appearance.css`、AIプレビューなど編集パネル固有の外観は`editor-panels.css`にあります。中間クラス見出しから縦線へつながる線は、閲覧・編集が`tree-appearance.css`の`summary::after`、AIプレビューが`editor-panels.css`の`summary::before`です。横線を変更する場合は対象階層・擬似要素・画面固有の上書きを特定し、別の階層線に影響しないことを確認してください。
+HTML側の読み込み順は[閲覧画面](../../index.html)と[編集画面](../../edit.html)で確認できます。後から読み込むCSSが前の指定を上書きすることがあるため、変更時は順序とセレクターの優先度を確認してください。共通ツリーの寸法・階層線は`tree-structure.css`、カード外観は`tree-appearance.css`、編集パネルは`editor-panels.css`で管理します。
 
 CSSを変更したときは、変更が反映されるHTMLの`web/css/`参照先とキャッシュ更新用`?v=`を更新してください。共通CSSを両画面で使う場合は両方のHTMLを確認します。
 
-画面全体の構成は[Web README](../)、ツリーの描画と操作は[JavaScript README](../js/)を参照してください。
+画面全体の構成は[Web画面README](../)、ツリーの描画と操作は[JavaScript README](../js/)を参照してください。

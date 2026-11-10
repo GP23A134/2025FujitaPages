@@ -26,6 +26,7 @@ public final class WebDataBuild {
     public static void main(String[] args) throws IOException {
         JsonObject classData = new JsonObject();
         JsonObject integratedClassData = readJson("class-data.json").getAsJsonObject();
+        classData.addProperty("classDataVersion", ClassDataVersion.currentHash());
         classData.add("classData", integratedClassData);
         classData.add("middleClassList", buildClassList(integratedClassData, "m_"));
         classData.add("topClassList", buildClassList(integratedClassData, "t_"));

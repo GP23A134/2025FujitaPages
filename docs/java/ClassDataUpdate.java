@@ -4,14 +4,19 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -24,13 +29,17 @@ import com.google.gson.JsonParser;
 public final class ClassDataUpdate {
     private static final Path INPUT_DIRECTORY = Paths.get("data/input");
     private static final Path HISTORY_DIRECTORY = INPUT_DIRECTORY.resolve("history");
-    private static final Path INPUT_FILE = INPUT_DIRECTORY.resolve("class-update.json");
+    private static final String LEGACY_INPUT_FILE_NAME = "class-update.json";
+    private static final Pattern DATED_INPUT_FILE_PATTERN =
+            Pattern.compile("^class-update-(\\d{8}-\\d{6}-\\d{3})\\.json$");
     private static final Path CLASS_DATA = Paths.get("data/integrated/class-data.json");
     private static final Path TARGET_CLASS_DATA = Paths.get("data/integrated/target-class-data.json");
     private static final Path MIDDLE_TSV_LIST = Paths.get("data/output/middle-class-list.tsv");
     private static final Path TOP_TSV_LIST = Paths.get("data/output/top-class-list.tsv");
     private static final String URI_PREFIX = "https://kozaki-lab.jp/REFV-KG/class/";
     private static final DateTimeFormatter HISTORY_TIMESTAMP_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS");
+    private static final DateTimeFormatter INPUT_TIMESTAMP_FORMATTER =
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
@@ -40,8 +49,15 @@ public final class ClassDataUpdate {
         // 全件JSONなら入力内容を使い、差分JSONなら現在データへ適用する。クラスのラベルは既存一覧から引き継ぐ。
         // この順序で検証を先に行うため、入力に問題がある場合はJSONを更新せず、
         // 入力JSONもhistoryへ移動しない。
+        List<InputCandidate> inputCandidates = findInputCandidates();
+        InputCandidate latestInput = inputCandidates.stream()
+                .max(Comparator.comparing(InputCandidate::timestamp)
+                        .thenComparing(candidate -> candidate.path().getFileName().toString()))
+                .orElseThrow(() -> new IOException("data/input/に分類更新JSONがありません。"));
+        Path inputFile = latestInput.path();
+        System.out.println("適用する入力JSON: " + inputFile);
         Map<String, String> existingTargetLabels = readTargetClassLabels();
-        InputData input = readInput(existingTargetLabels);
+        InputData input = readInput(inputFile, existingTargetLabels);
         Map<String, String> classes = new LinkedHashMap<>();
         Map<String, String> temporaryIds = new LinkedHashMap<>();
         addInputClasses(classes, temporaryIds, input.classes(), existingTargetLabels);
@@ -53,10 +69,13 @@ public final class ClassDataUpdate {
         validateUnclassifiedHasNoMiddleChildren(classes, relations);
         validateAcyclic(relations);
 
+        int deletedInputs = deleteOtherInputFiles(inputCandidates, inputFile);
+        System.out.println("古い入力JSONを削除しました: " + deletedInputs + "件");
+
         Path snapshot = writeBeforeUpdateSnapshot(existingTargetLabels);
         System.out.println("変更前データを履歴に保存しました: " + snapshot);
 
-        // クラス一覧、関係一覧、クラス一覧を同じ入力内容から出力する。
+        // クラス一覧と階層関係を、同じ入力内容から生成する。
         writeClassData(classes, relations);
         writeList(TARGET_CLASS_DATA, classes, "c_");
         writeListTsv(MIDDLE_TSV_LIST, classes, "m_");
@@ -64,7 +83,7 @@ public final class ClassDataUpdate {
         ClassDataVersion.writeCurrentHash();
 
         // 出力がすべて成功した後で、入力を履歴フォルダへ移動する。
-        Path archivedInput = moveInputFile();
+        Path archivedInput = moveInputFile(inputFile);
         System.out.printf("クラス一覧と親子関係を再生成しました。クラス: %d件、関係: %d件%n",
                 classes.size(), relations.size());
         System.out.println("中間クラスTSVを出力しました: " + MIDDLE_TSV_LIST);
@@ -72,13 +91,51 @@ public final class ClassDataUpdate {
         System.out.println("入力JSONを履歴に保存しました: " + archivedInput);
     }
 
-    private static Path moveInputFile() throws IOException {
+    private static List<InputCandidate> findInputCandidates() throws IOException {
+        List<InputCandidate> candidates = new ArrayList<>();
+        if (!Files.isDirectory(INPUT_DIRECTORY)) return candidates;
+        try (var files = Files.list(INPUT_DIRECTORY)) {
+            for (Path path : files.filter(Files::isRegularFile).toList()) {
+                String fileName = path.getFileName().toString();
+                Matcher matcher = DATED_INPUT_FILE_PATTERN.matcher(fileName);
+                LocalDateTime timestamp;
+                if (matcher.matches()) {
+                    try {
+                        timestamp = LocalDateTime.parse(matcher.group(1), INPUT_TIMESTAMP_FORMATTER);
+                    } catch (java.time.format.DateTimeParseException exception) {
+                        throw new IOException("入力JSONの日時が不正です: " + path, exception);
+                    }
+                } else if (LEGACY_INPUT_FILE_NAME.equals(fileName)) {
+                    Instant modified = Files.getLastModifiedTime(path).toInstant();
+                    timestamp = LocalDateTime.ofInstant(modified, ZoneId.systemDefault());
+                } else {
+                    continue;
+                }
+                candidates.add(new InputCandidate(path, timestamp));
+            }
+        }
+        if (candidates.isEmpty()) {
+            throw new IOException("data/input/に分類更新JSONがありません。class-update-YYYYMMDD-HHmmss-SSS.jsonを配置してください。");
+        }
+        return candidates;
+    }
+
+    private static int deleteOtherInputFiles(List<InputCandidate> candidates, Path appliedInput) throws IOException {
+        int deleted = 0;
+        for (InputCandidate candidate : candidates) {
+            if (candidate.path().equals(appliedInput)) continue;
+            if (Files.deleteIfExists(candidate.path())) deleted++;
+        }
+        return deleted;
+    }
+
+    private static Path moveInputFile(Path inputFile) throws IOException {
         // 実行日時をファイル名に含め、履歴フォルダ直下に保存する。
         // ミリ秒まで含めることで、短時間に連続実行した場合も衝突しにくくする。
         String timestamp = LocalDateTime.now().format(HISTORY_TIMESTAMP_FORMATTER);
         Files.createDirectories(HISTORY_DIRECTORY);
         Path movedInput = uniqueHistoryPath("class-update-" + timestamp);
-        moveWithRetry(INPUT_FILE, movedInput);
+        moveWithRetry(inputFile, movedInput);
         return movedInput;
     }
 
@@ -104,11 +161,11 @@ public final class ClassDataUpdate {
         throw new IOException("入力JSONの移動に失敗しました。");
     }
 
-    private static InputData readInput(Map<String, String> existingTargetLabels) throws IOException {
-        if (!Files.isRegularFile(INPUT_FILE)) {
-            throw new IOException("入力JSONが見つかりません: " + INPUT_FILE);
+    private static InputData readInput(Path inputFile, Map<String, String> existingTargetLabels) throws IOException {
+        if (!Files.isRegularFile(inputFile)) {
+            throw new IOException("入力JSONが見つかりません: " + inputFile);
         }
-        try (Reader reader = Files.newBufferedReader(INPUT_FILE, StandardCharsets.UTF_8)) {
+        try (Reader reader = Files.newBufferedReader(inputFile, StandardCharsets.UTF_8)) {
             JsonElement parsed = JsonParser.parseReader(reader);
             if (!parsed.isJsonObject()) throw new IOException("入力JSONのルートはオブジェクトにしてください。");
             JsonObject root = parsed.getAsJsonObject();
@@ -151,13 +208,13 @@ public final class ClassDataUpdate {
         if (!patch.has("baseDataHash") || !patch.get("baseDataHash").isJsonPrimitive()
                 || !patch.getAsJsonPrimitive("baseDataHash").isString()) {
             throw new IOException("差分JSONにbaseDataHashがありません。"
-                    + " data/input/current-class-data-version.txtをAIへ渡し、差分を作り直してください。");
+                    + " 現在の内部版情報をAIへ渡し、差分を作り直してください。");
         }
         String expected = patch.get("baseDataHash").getAsString().trim();
         String actual = ClassDataVersion.currentHash();
         if (!expected.equalsIgnoreCase(actual)) {
             throw new IOException("差分JSONのbaseDataHashが現在のクラスデータと一致しません。"
-                    + " data/input/current-class-data-version.txtをAIへ渡し、差分を作り直してください。"
+                    + " 現在のクラスデータをAIへ渡し、差分を作り直してください。"
                     + " (expected=" + expected + ", current=" + actual + ")");
         }
     }
@@ -686,8 +743,6 @@ public final class ClassDataUpdate {
     }
 
     private static void writeList(Path output, Map<String, String> classes, String prefix) throws IOException {
-        // class-data.jsonと同じクラスMapから、上位または中間クラスだけを抽出した一覧JSONを作る。
-        // URIの末尾ではなく正式なURI_PREFIXとの組み合わせで判定し、別名前空間を混ぜない。
         JsonObject root = new JsonObject();
         JsonArray array = new JsonArray();
         classes.entrySet().stream().filter(entry -> entry.getKey().startsWith(URI_PREFIX + prefix))
@@ -792,4 +847,5 @@ public final class ClassDataUpdate {
     }
 
     private record InputData(List<String[]> classes, List<String[]> relations) {}
+    private record InputCandidate(Path path, LocalDateTime timestamp) {}
 }

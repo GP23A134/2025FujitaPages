@@ -1,23 +1,17 @@
 # KG Tools
 
-ナレッジグラフの閲覧・クラス分類編集を行うWeb画面と、データ取得・統合・生成を行うJavaツールをまとめたプロジェクトです。
+ナレッジグラフの閲覧・クラス分類編集を行うWeb画面と、データの取得・統合・Web表示用データ生成を行うJavaツールのプロジェクトです。
 
 ## 画面
 
 - `index.html`：クラス階層、インスタンス、集計結果を閲覧します。
-- `edit.html`：クラス階層を編集し、保持中の対象を移動し、変更案を確認・適用します。AIチャットを使う場合は画面でOpenAI APIキーを入力します。
+- `edit.html`：クラス階層を編集し、保持中の対象を移動できます。AIチャットは変更案を提示し、利用者がプレビューから適用します。利用時は画面でOpenAI APIキーを入力します。
 
-## データ更新の流れ
+## データ更新
 
-通常のデータ再取得とWeb表示データの更新は、プロジェクトのルート（この`docs`フォルダー）から次の順に実行します。
+通常の再取得は`QueryRun` → `DataIntegrate` → `WebDataBuild`の順に行います。クラス分類だけを更新する場合は、更新JSONを`data/input/`に置いて`ClassDataUpdate`を実行し、その後`WebDataBuild`を実行します。
 
-1. `QueryRun all`で基本クエリと階層クエリを実行し、`data/query-results/`に保存します。
-2. `DataIntegrate`で取得結果を統合し、`data/integrated/`と`data/output/`を更新します。
-3. `WebDataBuild`で`web/data/generated/`の表示用JavaScriptを更新します。
-
-クラス分類だけを更新するときは、全件JSONまたはAIが作成した差分JSONを`data/input/class-update.json`に置き、`ClassDataUpdate`を実行してから`WebDataBuild`を実行します。入力形式、差分の版確認、履歴からの復元手順は[クラス分類更新のREADME](data/input/)を参照してください。
-
-Javaツールのコンパイル、実行コマンド、クエリモードは[JavaツールのREADME](java/)にまとめています。
+コンパイルと実行コマンドは[JavaツールREADME](java/)に、JSON形式・更新ルール・履歴からの復元は[クラス分類更新README](data/input/)にまとめています。
 
 ## プロジェクト構成
 
@@ -36,7 +30,7 @@ Javaツールのコンパイル、実行コマンド、クエリモードは[Jav
 | `config/` | 開発補助ツールの設定 |
 | `data/` | 取得結果、統合データ、更新入力、TSV出力 |
 
-`data/input/history/`には分類更新前のスナップショットと適用済み入力をローカル保存します。履歴JSONと一時入力`data/input/class-update.json`は`.gitignore`で除外されます。統合JSONや生成TSV、Web表示データは更新結果としてGit管理します。
+`data/input/history/`には分類更新前のスナップショットと適用済み入力をローカル保存します。履歴JSONと一時入力は`.gitignore`で除外されます。取得結果、統合JSON、生成TSV、Web表示データは更新後に差分を確認して管理します。
 
 ## README一覧
 

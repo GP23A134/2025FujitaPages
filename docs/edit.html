@@ -9,7 +9,7 @@
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261109-tree-filter-disclosure-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261110-ai-behavior-groups-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261110-file-summary-remove-v1">
   <link rel="stylesheet" href="web/css/test-preferences.css?v=20261109-test-preferences-v20">
   <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261109-restore-tree-plus-v1">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-held-panel-fixed-v2">
@@ -22,7 +22,7 @@
   <script data-app-script="web/js/editor/state.js?v=20261110-upload-selection-undo-v2"></script>
   <script data-app-script="web/js/editor/panels.js?v=20261110-upload-selection-undo-v2"></script>
   <script data-app-script="web/js/editor/tree.js?v=20261109-tree-color-intensity-v1"></script>
-  <script data-app-script="web/js/editor/events.js?v=20261110-upload-selection-undo-v2"></script>
+  <script data-app-script="web/js/editor/events.js?v=20261110-dated-class-update-v1"></script>
   <script data-app-script="web/js/editor/test-preferences.js?v=20261110-chat-settings-move-v1"></script>
   <script src="web/js/shared/app-startup.js?v=20261110-default-data-v1"></script>
 </head>
@@ -165,7 +165,6 @@
           </section>
           <section id="ai-assistant-panel" class="ai-assistant-panel" aria-label="AIチャット" hidden>
             <header class="ai-chat-header">
-              <strong>AIチャット</strong>
             </header>
             <div id="ai-chat-messages" class="ai-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
             <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
@@ -451,14 +450,15 @@
     </fieldset>
     <section class="data-import-file-section" aria-labelledby="data-import-file-heading">
       <div class="data-import-file-heading"><h3 id="data-import-file-heading">データファイル</h3><span>JSON形式・最大2ファイル</span></div>
-      <div class="data-import-file-control"><label class="data-import-file-button">ファイルを選択<input id="data-import-file" type="file" accept="application/json,.json" multiple></label><span id="data-import-file-name">ファイルは選択されていません</span></div>
+      <div class="data-import-file-control"><label class="data-import-file-button">ファイルを選択<input id="data-import-file" type="file" accept="application/json,.json"></label><span id="data-import-file-name">ファイルは選択されていません</span></div>
+      <ul id="data-import-selected-file-list" class="data-import-selected-files" hidden></ul>
       <div id="data-import-drop" class="data-import-drop" tabindex="0">クラス・インスタンスとクラス階層のJSONをここにドロップ</div>
     </section>
     <p id="data-import-status" class="data-import-status" role="status" aria-live="polite">ファイルを選択してください。</p>
     <section id="data-import-summary" class="data-import-summary" hidden></section>
-    <div class="data-import-actions"><button type="button" id="reset-to-default" class="data-import-reset">初期状態</button><button type="button" id="data-import-cancel">キャンセル</button><button type="button" id="data-import-confirm" class="search-button" disabled>このデータで開始</button></div>
+    <div class="data-import-actions"><button type="button" id="reset-to-default" class="search-button secondary-search-button">初期状態</button><button type="button" id="data-import-cancel" class="search-button secondary-search-button">キャンセル</button><button type="button" id="data-import-confirm" class="search-button" disabled>このデータで開始</button></div>
   </dialog>
-  <script data-app-script="web/js/shared/data-upload.js?v=20261110-default-data-v1"></script>
-  <script data-app-script="web/js/editor/ai/main.js?v=20261109-hide-proposal-review-wait-v1" data-app-type="module"></script>
+  <script data-app-script="web/js/shared/data-upload.js?v=20261110-file-summary-type-fix-v1"></script>
+  <script data-app-script="web/js/editor/ai/main.js?v=20261110-internal-data-version-v1" data-app-type="module"></script>
 </body>
 </html>

@@ -153,6 +153,13 @@ function downloadJson(name, value) {
   const link = document.createElement('a'); link.href = url; link.download = name; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+function classUpdateFilename() {
+  const now = new Date();
+  const pad = (value, length = 2) => String(value).padStart(length, '0');
+  const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}-${pad(now.getMilliseconds(), 3)}`;
+  return `class-update-${date}-${time}.json`;
+}
 function saveEditChanges(skipValidation = false) {
   if (!skipValidation) {
     const currentGraph = {
@@ -169,8 +176,9 @@ function saveEditChanges(skipValidation = false) {
     classes: classes.map((item) => ({ type: classKind(item), id: item.id, label: item.label })),
     relations: data.classData.relations.map(({ child, parent }) => ({ child, parent }))
   };
-  downloadJson('class-update.json', exportData);
-  logEditAction('class-update.jsonをダウンロードしました。data/input/に配置してClassDataUpdateを実行してください。');
+  const filename = classUpdateFilename();
+  downloadJson(filename, exportData);
+  logEditAction(`${filename}をダウンロードしました。data/input/に配置してClassDataUpdateを実行してください。`);
   hasUnsavedChanges = false;
 }
 document.getElementById('edit-validation-close').addEventListener('click', () => saveValidationDialog.close());

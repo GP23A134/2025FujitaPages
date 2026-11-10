@@ -4,17 +4,47 @@
   const openButton = document.getElementById('open-data-import');
   const resetButton = document.getElementById('reset-to-default');
   const confirmButton = document.getElementById('data-import-confirm');
+  const cancelButton = document.getElementById('data-import-cancel');
   if (!input || !dialog || !openButton || !confirmButton) return;
   const drop = document.getElementById('data-import-drop');
   const status = document.getElementById('data-import-status');
   const summary = document.getElementById('data-import-summary');
   const selectedFileName = document.getElementById('data-import-file-name');
+  const selectedFileList = document.getElementById('data-import-selected-file-list');
   let selected = null;
+  let selectedFilesState = [];
+  let parseRevision = 0;
   const setStatus = (text, error = false) => {
     status.textContent = text;
     status.classList.toggle('is-error', error);
   };
   const readMode = () => dialog.querySelector('input[name="data-import-mode"]:checked')?.value || 'replace';
+  const updateModeActions = () => {
+    const appendMode = readMode() === 'append';
+    confirmButton.textContent = appendMode ? '現在の作業へ追加' : 'このデータで開始';
+    if (cancelButton) cancelButton.textContent = appendMode ? '追加をやめる' : 'キャンセル';
+  };
+  const renderSelectedFiles = () => {
+    selectedFileName.textContent = selectedFilesState.length
+      ? `${selectedFilesState.length}ファイル選択中`
+      : 'ファイルは選択されていません';
+    selectedFileList.replaceChildren();
+    selectedFilesState.forEach((file, index) => {
+      const item = document.createElement('li');
+      const name = document.createElement('span'); name.textContent = file.name;
+      const remove = document.createElement('button');
+      remove.type = 'button'; remove.className = 'data-import-remove-file'; remove.textContent = '×';
+      remove.setAttribute('aria-label', `${file.name}を読み込み対象から削除`);
+      remove.addEventListener('click', () => {
+        const remaining = selectedFilesState.filter((_, fileIndex) => fileIndex !== index);
+        input.value = '';
+        readFiles(remaining);
+      });
+      item.append(name, remove);
+      selectedFileList.append(item);
+    });
+    selectedFileList.hidden = selectedFilesState.length === 0;
+  };
   const records = (items, label) => {
     if (!Array.isArray(items)) throw new Error(`${label}は配列で指定してください。`);
     const ids = new Set();
@@ -107,6 +137,9 @@
   const currentClassList = () => [...(window.appData?.classData?.classes || []), ...(window.appData?.targetClassData?.classes || [])];
   const readFiles = async (files) => {
     const selectedFiles = [...(files || [])];
+    selectedFilesState = selectedFiles;
+    renderSelectedFiles();
+    const revision = ++parseRevision;
     if (!selectedFiles.length) {
       selected = null;
       confirmButton.disabled = true;
@@ -117,7 +150,6 @@
     selected = null;
     confirmButton.disabled = true;
     summary.hidden = true;
-    selectedFileName.textContent = selectedFiles.map((file) => file.name).join(' + ');
     if (selectedFiles.length > 2) {
       setStatus('一度に選択できるファイルは2つまでです。', true);
       return;
@@ -127,6 +159,7 @@
         file,
         content: JSON.parse(await file.text())
       })));
+      if (revision !== parseRevision) return;
       let instanceFile;
       let hierarchyFile;
       let hierarchyOnly = false;
@@ -154,22 +187,46 @@
       selected = { fileNames, data, hierarchyOnly };
       if (hierarchyOnly) {
         dialog.querySelector('input[name="data-import-mode"][value="append"]').checked = true;
-        confirmButton.textContent = '現在の作業へ追加';
+        updateModeActions();
       }
       const assigned = new Set(data.instanceClassRelations.map((relation) => relation.instance));
       const unlabeledClasses = data.classes.filter((item) => !String(item.label || '').trim()).length;
       const unlabeledInstances = data.instances.filter((item) => !String(item.label || '').trim()).length;
       summary.replaceChildren();
-      const summaryFileName = document.createElement('h3'); summaryFileName.textContent = fileNames.join(' + ');
+      const filesHeading = document.createElement('h3'); filesHeading.textContent = 'ファイルごとの内容';
+      const fileDetails = document.createElement('div'); fileDetails.className = 'data-import-file-summaries';
+      parsedFiles.forEach(({ file }) => {
+        const isHierarchyFile = file === hierarchyFile?.file;
+        const fileData = isHierarchyFile ? hierarchyData : instanceData;
+        const card = document.createElement('article'); card.className = 'data-import-file-summary';
+        const title = document.createElement('div'); title.className = 'data-import-file-summary-title';
+        const name = document.createElement('strong'); name.textContent = file.name;
+        const type = document.createElement('span'); type.textContent = isHierarchyFile ? 'クラス階層データ' : 'クラス・インスタンスデータ';
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.className = 'data-import-remove-file'; remove.textContent = '×';
+        remove.setAttribute('aria-label', `${file.name}を読み込み対象から削除`);
+        remove.addEventListener('click', () => {
+          input.value = '';
+          readFiles(selectedFilesState.filter((candidate) => candidate !== file));
+        });
+        title.append(name, type, remove);
+        const details = document.createElement('p');
+        details.textContent = `クラス ${fileData.classes.length}件 / インスタンス ${fileData.instances?.length || 0}件 / クラス階層 ${fileData.classRelations.length}件 / 所属関係 ${fileData.instanceClassRelations?.length || 0}件`;
+        card.append(title, details);
+        fileDetails.append(card);
+      });
+      const combinedHeading = document.createElement('h3'); combinedHeading.className = 'data-import-combined-heading'; combinedHeading.textContent = '統合後の内容';
       const totals = document.createElement('p'); totals.textContent = `クラス ${data.classes.length}件 / インスタンス ${data.instances.length}件 / クラス階層 ${data.classRelations.length}件 / 所属関係 ${data.instanceClassRelations.length}件`;
       const notes = document.createElement('p'); notes.textContent = `ラベルなし: クラス ${unlabeledClasses}件、インスタンス ${unlabeledInstances}件 / クラス未割り当て: ${data.instances.length - assigned.size}件`;
-      summary.append(summaryFileName, totals, notes);
+      summary.append(filesHeading, fileDetails, combinedHeading, totals, notes);
       summary.hidden = false;
+      selectedFileList.hidden = true;
       confirmButton.disabled = false;
       setStatus(hierarchyOnly
         ? '階層データを読み込みました。既存の作業へ追加してください。'
         : hierarchyFile ? '2つのファイルをクラスIDで統合しました。内容を確認してください。' : '内容を確認し、読み込み方法を選んでください。');
     } catch (error) {
+      if (revision !== parseRevision) return;
       setStatus(error instanceof SyntaxError ? 'JSONを読み取れません。ファイル形式を確認してください。' : error.message, true);
     }
   };
@@ -249,12 +306,15 @@
   };
   const resetDialog = () => {
     selected = null;
+    selectedFilesState = [];
+    renderSelectedFiles();
+    parseRevision += 1;
     input.value = '';
     selectedFileName.textContent = 'ファイルは選択されていません';
     summary.hidden = true;
     dialog.querySelector('input[name="data-import-mode"][value="replace"]').checked = true;
     confirmButton.disabled = true;
-    confirmButton.textContent = 'このデータで開始';
+    updateModeActions();
     setStatus('ファイルを選択してください。');
   };
   openButton.addEventListener('click', () => { resetDialog(); dialog.showModal(); });
@@ -271,27 +331,39 @@
     }
   });
   document.getElementById('data-import-close')?.addEventListener('click', () => dialog.close());
-  document.getElementById('data-import-cancel')?.addEventListener('click', () => dialog.close());
+  cancelButton?.addEventListener('click', () => dialog.close());
   dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
-  const bindFilePicker = (picker, zone) => {
-    picker.addEventListener('change', () => readFiles(picker.files));
-    zone.addEventListener('keydown', (event) => {
+  const bindFilePicker = (picker, keyboardZone, dragZone) => {
+    picker.addEventListener('change', () => {
+      const addedFiles = [...picker.files];
+      picker.value = '';
+      if (addedFiles.length) readFiles([...selectedFilesState, ...addedFiles]);
+    });
+    keyboardZone.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
       event.preventDefault();
       picker.click();
     });
-    zone.addEventListener('dragover', (event) => { event.preventDefault(); zone.classList.add('is-dragging'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('is-dragging'));
-    zone.addEventListener('drop', (event) => {
+    let dragDepth = 0;
+    dragZone.addEventListener('dragenter', (event) => {
       event.preventDefault();
-      zone.classList.remove('is-dragging');
-      readFiles(event.dataTransfer?.files);
+      dragDepth += 1;
+      dragZone.classList.add('is-dragging');
+    });
+    dragZone.addEventListener('dragover', (event) => event.preventDefault());
+    dragZone.addEventListener('dragleave', () => {
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) dragZone.classList.remove('is-dragging');
+    });
+    dragZone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      dragDepth = 0;
+      dragZone.classList.remove('is-dragging');
+      readFiles([...selectedFilesState, ...(event.dataTransfer?.files || [])]);
     });
   };
-  bindFilePicker(input, drop);
-  dialog.querySelectorAll('input[name="data-import-mode"]').forEach((radio) => radio.addEventListener('change', () => {
-    confirmButton.textContent = readMode() === 'append' ? '現在の作業へ追加' : 'このデータで開始';
-  }));
+  bindFilePicker(input, drop, dialog);
+  dialog.querySelectorAll('input[name="data-import-mode"]').forEach((radio) => radio.addEventListener('change', updateModeActions));
   confirmButton.addEventListener('click', async () => {
     if (!selected) return;
     try {

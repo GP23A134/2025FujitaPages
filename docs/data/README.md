@@ -1,6 +1,6 @@
-# データフォルダ
+# データ
 
-サイト表示用データと、Javaツールが処理する入力・出力データを置いています。
+SPARQLの取得結果、統合データ、クラス分類の更新入力、確認用TSVを置いています。Webページ用データは[`../web/data/`](../web/data/)にあります。
 
 ## フォルダ
 
@@ -11,13 +11,11 @@
 | `integrated/` | `DataIntegrate`と`ClassDataUpdate`が生成する統合JSON。ファイル一覧は[`integrated/`](integrated/)を参照してください。 |
 | `output/` | 上位クラスと中間クラスの一覧TSV。`DataIntegrate`または`ClassDataUpdate`が生成します。TSVはGit管理対象です。形式は[`output/`](output/)を参照してください。 |
 
-Webページ用のCSS・JavaScript・設定・生成データは、[`../web/`](../web/)にまとめています。`WebDataBuild`の出力先は`../web/data/generated/`です。
-
 ## Git管理
 
 `data/input/class-update.json`は更新時に使う一時入力で、成功すると`input/history/`へ移動します。実行前スナップショットと処理済み入力を含む`input/history/*.json`、`query-results/**/*.tmp`は`.gitignore`で除外します。取得元JSON、統合JSON、TSV、Web生成データは更新後に差分を確認してGit管理します。Javaの`.class`ファイルは`bin/`に生成され、Git管理対象外です。
 
-## データ処理の流れ
+## 更新の流れ
 
 1. `java/QueryRun.java`がクエリ結果を`query-results/`に保存します。
 2. `java/DataIntegrate.java`が取得結果を統合し、`integrated/`に保存します。
@@ -25,4 +23,4 @@ Webページ用のCSS・JavaScript・設定・生成データは、[`../web/`](.
 4. `DataIntegrate`または`ClassDataUpdate`が上位・中間クラス一覧TSVを`output/`に生成します。
 5. `java/WebDataBuild.java`が統合JSONから`../web/data/generated/`のJavaScriptを生成します。
 
-各プログラムの実行方法は[`java/`](../java/)を参照してください。
+Javaツールのコンパイルと実行方法は[`java/README.md`](../java/)を参照してください。分類JSONの形式と適用ルールは[`input/README.md`](input/)を参照してください。

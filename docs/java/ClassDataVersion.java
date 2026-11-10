@@ -11,7 +11,7 @@ import java.util.HexFormat;
 /** 差分入力が現在のクラスデータを元に作られたか確認するための版情報です。 */
 final class ClassDataVersion {
     private static final Path CLASS_DATA = Paths.get("data/integrated/class-data.json");
-    private static final Path VERSION_FILE = Paths.get("data/input/current-class-data-version.txt");
+    private static final Path VERSION_FILE = Paths.get("data/input/.internal/class-data-version");
 
     private ClassDataVersion() {}
 

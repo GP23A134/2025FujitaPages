@@ -1,4 +1,4 @@
-# 統合データ
+# 統合済みデータ
 
 `DataIntegrate`または`ClassDataUpdate`が生成するJSONを置きます。Webページ用データの元になるため、手動編集せずJavaプログラムから更新してください。クラス分類の更新後は`WebDataBuild`も実行してブラウザー用データを再生成します。
 
@@ -9,6 +9,8 @@
 | `class-data.json` | 上位・中間クラスと親子関係 |
 | `target-class-data.json` | クラス一覧 |
 
-`class-data.json`には上位・中間クラスと親子関係、`target-class-data.json`には対象クラス一覧が入ります。Web表示用データは`class-data.json`とほかの統合JSONから`WebDataBuild`が生成します。確認用TSVは`DataIntegrate`または`ClassDataUpdate`が[`../output/`](../output/)に出力します。
+`DataIntegrate`はSPARQL取得結果から4つのJSONを生成します。`ClassDataUpdate`はクラス一覧と親子関係を更新します。`WebDataBuild`はこれらを読み、`web/data/generated/`を生成します。確認用TSVは`DataIntegrate`または`ClassDataUpdate`が[`../output/`](../output/)に出力します。
 
-実行順は[データフォルダー全体のREADME](../)、各Javaプログラムの説明は[JavaツールのREADME](../../java/)を参照してください。
+Webアプリはクラス・インスタンスデータとクラス階層データの2ファイルも読み込めます。ローカルテスト用の現在データは[`.local-test/data/current-workspace/`](../../.local-test/data/current-workspace/)に置いています。
+
+更新の流れは[データREADME](../)、Javaの実行方法は[JavaツールREADME](../../java/)を参照してください。

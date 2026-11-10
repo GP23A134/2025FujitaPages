@@ -11,7 +11,7 @@
 - 移動先の親クラスのID、種類、ラベル
 - 同名クラスの新設を判断するため、候補となる上位・中間クラスのIDとラベル
 - 新しい上位・中間クラスを作る場合は、その親クラス
-- `data/input/current-class-data-version.txt`の内容（`baseDataHash`として出力JSONに記載）
+- 内部版情報の内容（`baseDataHash`として出力JSONに記載）
 
 IDや現在の関係が分からず、渡された情報からも一意に確認できない場合は、推測せず確認事項を返してください。クラスのラベルは差分に含めません。
 
@@ -49,7 +49,7 @@ IDや現在の関係が分からず、渡された情報からも一意に確認
 
 ```json
 {
-  "baseDataHash": "渡されたcurrent-class-data-version.txtの内容",
+  "baseDataHash": "渡された内部版情報の内容",
   "addClasses": [
     { "type": "middle", "id": "new-m_1", "label": "新しい中間クラス" }
   ],

@@ -8,8 +8,8 @@
 |---|---|
 | `QueryRun` | SPARQLクエリを実行し、JSONを`data/query-results/`へ保存します。 |
 | `DataIntegrate` | クエリ結果を統合し、`data/integrated/`と確認用TSVを生成します。 |
-| `ClassDataUpdate` | `data/input/class-update.json`を検証・適用し、クラス一覧と親子関係を更新します。更新前データと処理済み入力を履歴へ保存します。 |
-| `ClassDataVersion` | クラスデータのSHA-256を計算し、差分入力が最新データを基に作られたか検証します。 |
+| `ClassDataUpdate` | `data/input/`にある日時付き分類更新JSONのうち最新の1件を検証・適用し、古い入力を削除して、更新前データと処理済み入力を履歴へ保存します。 |
+| `ClassDataVersion` | 内部のSHA-256版情報を更新し、差分入力が最新データを基に作られたか検証します。 |
 | `WebDataBuild` | 統合データから`web/data/generated/`のJavaScriptを生成します。 |
 
 ## クエリ
@@ -46,7 +46,7 @@ java -cp "bin;lib/*" DataIntegrate
 java -cp "bin;lib/*" WebDataBuild
 ```
 
-クラス分類の更新では、`data/input/class-update.json`を用意して次を実行します。
+クラス分類の更新では、編集画面が出力した日時付きJSONまたはAI差分JSONを`data/input/`へ置いて次を実行します。複数ある場合は、ファイル名の日時が最も新しい1件だけを適用し、検証成功後に他の分類更新JSONを削除します。従来名の`class-update.json`も読み込み対象で、日時付き入力と同時にある場合はファイル更新日時で比較します。
 
 ```powershell
 java -cp "bin;lib/*" ClassDataUpdate

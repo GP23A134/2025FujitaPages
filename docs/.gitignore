@@ -1,5 +1,7 @@
 # 適用後に履歴へ移す一時的な分類更新入力
 /data/input/class-update.json
+/data/input/class-update-*.json
+/data/input/.internal/
 
 # ローカルに保管する分類更新履歴（大量のスナップショット）
 /data/input/history/*.json

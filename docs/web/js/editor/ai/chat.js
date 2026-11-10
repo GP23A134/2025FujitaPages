@@ -48,7 +48,7 @@ export const createConversationStore = ({ conversations, savedConversationsKey, 
             if (entry.type === 'proposal') return [{ ...entry, status: 'invalid' }];
             if (entry.type === 'questions') return [{ ...entry, submitting: false }];
             if (entry.type === 'message' && ['user', 'assistant'].includes(entry.role)) return [entry];
-            if (entry.type === 'work-duration' && Number.isFinite(entry.seconds)) return [entry];
+            if (entry.type === 'workflow-status' && typeof entry.text === 'string') return [entry];
             if (entry.type === 'scope-summary' && Array.isArray(entry.classes)) return [entry];
             return [];
           }),

@@ -1,8 +1,17 @@
-# データ更新・移動・追加
+# クラス分類の更新
 
-クラス分類を更新するときは、編集画面から全件JSONを保存する方法と、AIに変更差分だけを作成させる方法があります。どちらも`class-update.json`としてこのフォルダーに置き、`ClassDataUpdate`を実行してください。`class-update.json`は一時入力としてGit追跡対象外です。反映後は統合データをコミットしてください。AI用の指示は[`classification-prompt.md`](classification-prompt.md)を参照してください。
+クラス分類を更新するときは、編集画面から全件JSONを保存する方法と、AIに変更差分だけを作成させる方法があります。編集画面の保存ボタンは`class-update-YYYYMMDD-HHmmss-SSS.json`として出力します。ファイルをこのフォルダーに置き、`ClassDataUpdate`を実行してください。AI差分JSONは従来名の`class-update.json`でも読み込めます。入力ファイルは一時データとしてGit追跡対象外です。反映後は統合データをコミットしてください。AI用の指示は[`classification-prompt.md`](classification-prompt.md)を参照してください。
 
-差分JSONには、必ず[`current-class-data-version.txt`](current-class-data-version.txt)の値を`baseDataHash`として含めます。これはAIへ現在のクラス一覧と一緒に渡してください。差分作成後に元データが更新されていた場合や版情報がない場合、更新プログラムは適用を止め、差分の作り直しを促します。全件JSONによる復元には`baseDataHash`は不要です。
+差分JSONには、現在のクラス階層データから生成した内部版情報を`baseDataHash`として含めます。差分作成後に元データが更新されていた場合や版情報がない場合、更新プログラムは適用を止め、差分の作り直しを促します。全件JSONによる復元には`baseDataHash`は不要です。
+
+## このREADMEの内容
+
+- [更新前の確認と操作の対応](#更新前に確認すること)
+- [入力ファイルとJSON形式](#入力ファイル)
+- [適用ルール](#更新ルール)
+- [変更前への復元](#変更前へ戻す)
+
+Javaのコンパイルと実行コマンドは[JavaツールREADME](../../java/)にまとめています。
 
 ## 更新前に確認すること
 
@@ -26,13 +35,13 @@
 | 中間クラスを上位クラスへ移動 | `relations`の中間クラスの親を更新 |
 | 親クラスを変更 | 対象の子クラスの親子関係を更新 |
 | 未分類へ移動 | クラスを未分類の上位クラスへ関連付け |
-| 編集内容を保存 | `class-update.json`を出力 |
+| 編集内容を保存 | `class-update-YYYYMMDD-HHmmss-SSS.json`を出力 |
 
 対象クラスやインスタンスの新規取得は編集画面では行いません。取得データを追加・更新する場合は、SPARQLの取得結果を更新して`DataIntegrate`を実行します。上位・中間クラスの分類追加は、ここに記載したJSON更新で行えます。
 
 ## 入力ファイル
 
-入力ファイル名は`class-update.json`です。UTF-8のJSONオブジェクトを指定します。編集画面は従来どおり全件の`classes`と`relations`を出力します。AI用の差分形式では、次の6配列で変更内容だけを指定します。差分は最新の`data/integrated/`へ適用されます。
+入力ファイル名は編集画面の日時付き形式`class-update-YYYYMMDD-HHmmss-SSS.json`または従来名`class-update.json`です。UTF-8のJSONオブジェクトを指定します。複数の入力がある場合は日時が最も新しい1件だけを適用します。検証成功後、他の分類更新入力JSONは削除します。編集画面は全件の`classes`と`relations`を出力します。AI用の差分形式では、次の6配列で変更内容だけを指定します。差分は最新の`data/integrated/`へ適用されます。
 
 ```json
 {
@@ -54,7 +63,7 @@
 
 ```json
 {
-  "baseDataHash": "current-class-data-version.txtの内容",
+  "baseDataHash": "渡された内部版情報の内容",
   "addClasses": [
     { "type": "middle", "id": "new-m_1", "label": "新しい中間クラス" }
   ],
@@ -96,17 +105,11 @@
 - インスタンスとクラスの関係は変更しません。
 - 画面で未保存の変更がある状態で画面を移動・更新すると、保存確認が表示されます。
 
-入力の検証に失敗した場合は統合データを更新せず、`class-update.json`も履歴へ移動しません。成功時は変更前スナップショットと適用済み入力を[`history/`](history/README.md)に保存します。履歴ファイルと一時入力は`.gitignore`によりGit管理されません。
+入力の検証に失敗した場合は統合データを更新せず、適用対象の入力JSONも履歴へ移動しません。成功時は変更前スナップショットと適用済み入力を[`history/`](history/README.md)に保存します。履歴ファイルと一時入力は`.gitignore`によりGit管理されません。
 
-## 実行
+## 適用と履歴
 
-リポジトリの`docs`ディレクトリから実行します。
-
-```powershell
-java -cp "bin;lib/*" ClassDataUpdate
-```
-
-実行前に、編集画面またはAIが作成した`class-update.json`をこのフォルダーに置いてください。実行前の全件データを、入力形式にかかわらず`history/class-data-before-update-YYYYMMDD-HHmmss-SSS.json`として自動保存します。成功すると入力JSONも[`history/`](history/README.md)へ`class-update-YYYYMMDD-HHmmss-SSS.json`として移動します。処理に失敗した場合は統合データを更新せず、入力JSONを残します。`ClassDataUpdate`と`DataIntegrate`は成功後に版情報ファイルを更新します。
+`ClassDataUpdate`はこのフォルダーの入力を検証してから適用します。複数ある場合は最も新しいものを適用し、成功後に他の分類更新JSONを削除します。実行前の全件データは入力形式にかかわらず[`history/`](history/README.md)へ保存されます。処理に失敗した場合は統合データを更新せず、適用対象の入力JSONを残します。版情報ファイルは`ClassDataUpdate`と`DataIntegrate`が成功後に更新します。
 
 ### 変更前へ戻す
 

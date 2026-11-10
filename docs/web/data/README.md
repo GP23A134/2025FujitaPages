@@ -1,4 +1,4 @@
-# Web用データ
+# ブラウザー用データ
 
 ブラウザーが使うデータは`web/`以下にまとめています。
 
@@ -7,6 +7,6 @@
 | `generated/` | `class-data.js`、`instance-data.js`。閲覧・編集ページが読む公開データ | `WebDataBuild`で生成。直接編集しない |
 | `config/` | AIモデル設定とシステムプロンプト | 内容を確認して手動更新。ブラウザーから読めるため秘密情報を置かない |
 
-`WebDataBuild`は`data/integrated/`を読み、`web/data/generated/`へ出力します。出力ファイルがない場合はフォルダーを作成します。
+`WebDataBuild`は`data/integrated/`を読み、`web/data/generated/`へ出力します。生成ファイルは手動編集せず、元データを更新してから再生成してください。実行方法は[JavaツールREADME](../../java/)を参照してください。
 
 faviconは`web/favicon.svg`に置いています。APIキーは編集画面で利用者が入力し、ページを開いている間だけブラウザーのメモリ内に保持します。設定ファイルや生成データにキーを保存しません。

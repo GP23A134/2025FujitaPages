@@ -2,7 +2,7 @@
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
 import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261109-test-tuning-v2';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261106-cross-scope-proposals-v4';
-import { createConversationStore, createConversationView } from './chat.js?v=20261106-split-state-v2-user-facing-status';
+import { createConversationStore, createConversationView } from './chat.js?v=20261110-first-line-workflow-status-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261106-proposal-list-v3';
 import { createAIClient } from './ai-client.js?v=20261106-cross-scope-candidate-filter-v6';
 
@@ -669,11 +669,13 @@ let proposalPreview = null;
         details.append(list);
         messages.append(details);
       }
-      else if (item.type === 'work-duration') {
-        const duration = document.createElement('div');
-        duration.className = 'ai-thinking-indicator is-complete';
-        duration.textContent = `${formatElapsedTime(item.seconds)}間作業しました`;
-        messages.append(duration);
+      else if (item.type === 'workflow-status') {
+        const indicator = document.createElement('div');
+        indicator.className = 'ai-thinking-indicator is-complete ai-workflow-status';
+        indicator.setAttribute('role', 'status');
+        indicator.setAttribute('aria-live', 'polite');
+        indicator.textContent = item.text;
+        messages.append(indicator);
       }
       else if (item.type === 'proposal' || item.type === 'questions') {
         const responseGroupId = item.responseGroupId || item;
@@ -699,13 +701,6 @@ let proposalPreview = null;
       indicator.setAttribute('role', 'status');
       indicator.setAttribute('aria-live', 'polite');
       indicator.textContent = formatThinkingStatus(currentConversation);
-      messages.append(indicator);
-    } else if (currentConversation.workflowStatus) {
-      const indicator = document.createElement('div');
-      indicator.className = 'ai-thinking-indicator is-complete ai-workflow-status';
-      indicator.setAttribute('role', 'status');
-      indicator.setAttribute('aria-live', 'polite');
-      indicator.textContent = currentConversation.workflowStatus;
       messages.append(indicator);
     }
     if (scrollToResponseGroupId) {
@@ -767,12 +762,18 @@ let proposalPreview = null;
     compactResponseInstructions, compactGroupedResponseInstructions
   } = responseFormat;
   const currentDataHash = async () => digest(JSON.stringify({ version: sourceDataVersion, state: stableState() }));
+  const fetchPublishedDataVersion = async () => {
+    const response = await fetch('web/data/generated/class-data.js', { cache: 'no-store' });
+    if (!response.ok) throw new Error('クラスデータの版情報を確認できません。');
+    const source = await response.text();
+    const match = source.match(/"classDataVersion"\s*:\s*"([a-f0-9]{64})"/i);
+    if (!match) throw new Error('クラスデータの版情報を取得できません。');
+    return match[1];
+  };
   const verifyLoadedDataVersion = async () => {
     if (sourceDataVersionPromise) await sourceDataVersionPromise;
     if (window.appData?.workspaceMeta?.kind === 'uploaded') return;
-    const response = await fetch('data/input/current-class-data-version.txt', { cache: 'no-store' });
-    if (!response.ok) throw new Error('クラスデータの版情報を確認できません。');
-    const latest = (await response.text()).trim();
+    const latest = await fetchPublishedDataVersion();
     if (!latest || !sourceDataVersion) throw new Error('クラスデータの版情報を取得できません。');
     if (latest !== sourceDataVersion) throw new Error('編集画面を開いた後にデータ版が更新されています。ページを再読み込みしてから依頼してください。');
   };
@@ -1654,6 +1655,18 @@ let proposalPreview = null;
     });
     return lines.join('\n').slice(-6000);
   };
+  const putWorkflowStatusAfter = (conversation, anchor, text) => {
+    const anchorIndex = conversation.items.indexOf(anchor);
+    if (anchorIndex < 0) return;
+    const existing = conversation.items[anchorIndex + 1];
+    const statusItem = { type: 'workflow-status', text };
+    if (existing?.type === 'workflow-status') conversation.items[anchorIndex + 1] = statusItem;
+    else conversation.items.splice(anchorIndex + 1, 0, statusItem);
+  };
+  const putWorkflowStatusAfterLatestQuestion = (conversation, text) => {
+    const latestQuestion = [...conversation.items].reverse().find((item) => item.type === 'message' && item.role === 'user');
+    if (latestQuestion) putWorkflowStatusAfter(conversation, latestQuestion, text);
+  };
   const responseHandler = createResponseHandler({
     editor,
     AI_OUTPUT_LIMITS,
@@ -2520,15 +2533,13 @@ let proposalPreview = null;
               : sharedScopeIds.has(item.id) ? '追加共有・参照のみ' : '範囲内の参照情報'
         }))
       };
-      conversation.items.splice(pendingMessageIndex + 1, 0,
-        scopeSummary,
-        { type: 'work-duration', seconds: elapsed });
+      putWorkflowStatusAfter(conversation, pendingUserMessage,
+        hasShareRequest || queuedQuestions.length
+          ? `回答待ち（所要時間 ${formatElapsedTime(elapsed)}）`
+          : `完了（所要時間 ${formatElapsedTime(elapsed)}）`);
+      conversation.items.splice(pendingMessageIndex + 2, 0, scopeSummary);
       conversation.isThinking = false;
-      conversation.workflowStatus = hasShareRequest || queuedQuestions.length
-        ? `追加情報の回答待ち（所要時間 ${formatElapsedTime(elapsed)}）`
-        : result.proposals.length
-          ? ''
-          : `完了（所要時間 ${formatElapsedTime(elapsed)}）`;
+      conversation.workflowStatus = '';
       conversation.thinkingProgress = '';
       conversation.thinkingStage = '';
       conversation.thinkingStartedAt = null;
@@ -2538,15 +2549,14 @@ let proposalPreview = null;
     } catch (error) {
       logAiProblem('AIへの依頼処理', error);
       conversation.isThinking = false;
-      conversation.workflowStatus = error.name === 'AbortError'
-        ? `中止（所要時間 ${formatElapsedTime(elapsedSeconds(conversation))}）`
-        : `エラー（所要時間 ${formatElapsedTime(elapsedSeconds(conversation))}）`;
+      const terminalStatus = error.name === 'AbortError' ? '中止' : 'エラー';
+      putWorkflowStatusAfter(conversation, pendingUserMessage,
+        `${terminalStatus}（所要時間 ${formatElapsedTime(elapsedSeconds(conversation))}）`);
+      conversation.workflowStatus = '';
       conversation.thinkingProgress = '';
       conversation.thinkingStage = '';
       conversation.thinkingStartedAt = null;
       if (error.name === 'AbortError') {
-        const pendingIndex = conversation.items.indexOf(pendingUserMessage);
-        if (pendingIndex >= 0) conversation.items.splice(pendingIndex, 1);
         if (conversation.items.some((item) => item.type === 'message' && item.role === 'user')) refreshConversationTitle(conversation);
         else conversation.title = '新しい相談';
         conversation.updatedAt = Date.now();
@@ -2555,8 +2565,6 @@ let proposalPreview = null;
         resizeChatInput();
         setStatus('リクエストを中止しました。入力内容は保持されています。');
       } else {
-        const pendingIndex = conversation.items.indexOf(pendingUserMessage);
-        if (pendingIndex >= 0) conversation.items.splice(pendingIndex, 1);
         if (textInput.value.trim()) textInput.value = `${userText}\n${textInput.value}`;
         else textInput.value = userText;
         resizeChatInput();
@@ -2777,8 +2785,10 @@ let proposalPreview = null;
       applyConversation.thinkingStage = '';
       applyConversation.thinkingStartedAt = null;
       applyConversation.workflowStatus = applySucceeded
-        ? `変更の適用を完了しました（所要時間 ${formatElapsedTime((Date.now() - applyStartedAt) / 1000)}）`
+        ? ''
         : previousWorkflowStatus;
+      if (applySucceeded) putWorkflowStatusAfterLatestQuestion(applyConversation,
+        `変更の適用を完了しました（所要時間 ${formatElapsedTime((Date.now() - applyStartedAt) / 1000)}）`);
       renderConversation();
     }
   });
@@ -2801,9 +2811,8 @@ let proposalPreview = null;
   sourceDataVersionPromise = window.appData?.workspaceMeta?.kind === 'uploaded'
     ? digest(JSON.stringify(window.appData.workspaceMeta.importedData || window.appData))
       .then((value) => { sourceDataVersion = `uploaded-${value}`; })
-    : fetch('data/input/current-class-data-version.txt', { cache: 'no-store' })
-      .then((response) => { if (!response.ok) throw new Error('データ版ファイルを取得できません。'); return response.text(); })
-      .then((value) => { sourceDataVersion = value.trim(); if (!sourceDataVersion) throw new Error('データ版が空です。'); })
+    : fetchPublishedDataVersion()
+      .then((value) => { sourceDataVersion = value; })
     .catch((error) => {
       logAiProblem('クラスデータ版の読み込み', error);
       setStatus('データ版を確認できません。通信状態を確認してください。AI提案は確認できるまで送信できません', 'error');
