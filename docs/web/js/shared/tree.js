@@ -13,7 +13,9 @@
   };
   const treeLabel = (value) => String(value || '').replace(/^"|"@[^@]+$/g, '');
 
-  function classType(id) {
+  function classType(value) {
+    if (value && typeof value === 'object' && ['top', 'middle', 'class'].includes(value.type)) return value.type;
+    const id = value && typeof value === 'object' ? value.id : value;
     const shortId = String(id).split('/').pop().replace(/^new-/, '');
     return shortId.startsWith('t_') ? 'top' : shortId.startsWith('m_') ? 'middle' : 'class';
   }
@@ -31,11 +33,11 @@
     const makeNode = (item, seen = new Set()) => {
       if (!item || seen.has(item.id)) return null;
       const nextSeen = new Set(seen).add(item.id);
-      const node = { id: item.id, label: item.label, type: classType(item.id), children: [], targets: [] };
+      const node = { id: item.id, label: item.label, type: classType(item), children: [], targets: [] };
       (children.get(item.id) || []).forEach((childId) => {
         const child = byId.get(childId);
         if (!child) return;
-        if (classType(child.id) === 'class') {
+        if (classType(child) === 'class') {
           if (!targetIds || targetIds.has(child.id)) node.targets.push(child);
         }
         else {
@@ -283,12 +285,12 @@
         .filter((relation) => matchedInstanceIds.has(relation.instance))
         .map((relation) => relation.class));
       return {
-        targets: classes.filter((item) => classType(item.id) === 'class' && matchedClassIds.has(item.id)),
+        targets: classes.filter((item) => classType(item) === 'class' && matchedClassIds.has(item.id)),
         matchedInstanceCount: matchedInstances.length
       };
     }
     return {
-      targets: classes.filter((item) => classType(item.id) === 'class' &&
+      targets: classes.filter((item) => classType(item) === 'class' &&
         matchesQuery(searchValues(item.label, item.id))),
       matchedInstanceCount: 0
     };

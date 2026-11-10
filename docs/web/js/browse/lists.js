@@ -274,11 +274,13 @@ async function copyIdentifier(value, button) {
 
 function renderClassLists(data) {
   const allClasses = [...new Map((data.classData?.classes || []).map((item) => [item.id, item])).values()];
-  const topClasses = [...new Map((data.topClassList?.classes || allClasses.filter((item) => item.id.includes('/t_')))
+  const classTypeById = new Map(allClasses.map((item) => [item.id, item.type || (/\/(?:new-)?t[_-]/.test(item.id) ? 'top' : /\/(?:new-)?m[_-]/.test(item.id) ? 'middle' : 'class')]));
+  const classType = (id) => classTypeById.get(id) || 'class';
+  const topClasses = [...new Map((data.topClassList?.classes || allClasses.filter((item) => classType(item.id) === 'top'))
     .map((item) => [item.id, item])).values()];
-  const middleClasses = [...new Map((data.middleClassList?.classes || allClasses.filter((item) => item.id.includes('/m_')))
+  const middleClasses = [...new Map((data.middleClassList?.classes || allClasses.filter((item) => classType(item.id) === 'middle'))
     .map((item) => [item.id, item])).values()];
-  const targetClasses = allClasses.filter((item) => item.id.includes('/c_'));
+  const targetClasses = allClasses.filter((item) => classType(item.id) === 'class');
   const allInstances = [...new Map((data.instanceData?.instances || []).map((item) => [item.id, item])).values()];
   const tops = groupItemsByLabel(topClasses);
   const middles = groupItemsByLabel(middleClasses);
@@ -340,11 +342,11 @@ function renderClassLists(data) {
   const parentClassesById = new Map(allClasses.map((item) => [item.id,
     [...new Set(parentMap.get(item.id) || [])].map((id) => classById.get(id)).filter(Boolean)]));
   const topClassesById = new Map(allClasses.map((item) => [item.id,
-    [...ancestors(item.id)].filter((id) => id.includes('/t_')).map((id) => classById.get(id)).filter(Boolean)]));
+    [...ancestors(item.id)].filter((id) => classType(id) === 'top').map((id) => classById.get(id)).filter(Boolean)]));
   const middleClassesById = new Map(allClasses.map((item) => [item.id,
-    [...ancestors(item.id)].filter((id) => id.includes('/m_')).map((id) => classById.get(id)).filter(Boolean)]));
+    [...ancestors(item.id)].filter((id) => classType(id) === 'middle').map((id) => classById.get(id)).filter(Boolean)]));
   const childMiddleClassesById = new Map(allClasses.map((item) => [item.id,
-    [...new Set(childrenMap.get(item.id) || [])].filter((id) => id.includes('/m_')).map((id) => classById.get(id)).filter(Boolean)]));
+    [...new Set(childrenMap.get(item.id) || [])].filter((id) => classType(id) === 'middle').map((id) => classById.get(id)).filter(Boolean)]));
   const parentClassesForGroup = (item) => [...new Map((item.ids || [item.id])
     .flatMap((id) => parentClassesById.get(id) || []).map((parent) => [parent.id, parent])).values()];
   const parentLabelForGroup = (item) => {
@@ -371,11 +373,11 @@ function renderClassLists(data) {
   const directTargetIdsByClassId = new Map();
   allClasses.forEach((item) => {
     const containedIds = descendants(item.id);
-    middleIdsByClassId.set(item.id, new Set([...containedIds].filter((id) => id.includes('/m_'))));
-    targetIdsByClassId.set(item.id, new Set([...containedIds].filter((id) => id.includes('/c_'))));
+    middleIdsByClassId.set(item.id, new Set([...containedIds].filter((id) => classType(id) === 'middle')));
+    targetIdsByClassId.set(item.id, new Set([...containedIds].filter((id) => classType(id) === 'class')));
     const directIds = childrenMap.get(item.id) || [];
-    directMiddleIdsByClassId.set(item.id, new Set(directIds.filter((id) => id.includes('/m_'))));
-    directTargetIdsByClassId.set(item.id, new Set(directIds.filter((id) => id.includes('/c_'))));
+    directMiddleIdsByClassId.set(item.id, new Set(directIds.filter((id) => classType(id) === 'middle')));
+    directTargetIdsByClassId.set(item.id, new Set(directIds.filter((id) => classType(id) === 'class')));
   });
   const renderInstancePage = () => {
     const pageCount = Math.max(1, Math.ceil(filteredInstances.length / pageSize));
@@ -405,8 +407,8 @@ function renderClassLists(data) {
         lineage.forEach((classId) => {
           const ancestorClass = classById.get(classId);
           if (!ancestorClass) return;
-          if (classId.includes('/t_')) topClasses.set(classId, ancestorClass);
-          if (classId.includes('/m_')) middleClasses.set(classId, ancestorClass);
+          if (classType(classId) === 'top') topClasses.set(classId, ancestorClass);
+          if (classType(classId) === 'middle') middleClasses.set(classId, ancestorClass);
         });
       });
       appendClassLinks(topClassesCell, [...topClasses.values()], '上位クラスなし');
@@ -541,7 +543,7 @@ function renderClassLists(data) {
         (item.ids || [item.id]).forEach((id) => (classesByInstanceId.get(id)?.values() || []).forEach((classInfo) => {
           const lineage = new Set([classInfo.id, ...ancestors(classInfo.id)]);
           lineage.forEach((classId) => {
-            if (classId.includes(level === 'top-class' ? '/t_' : '/m_')) {
+            if (classType(classId) === (level === 'top-class' ? 'top' : 'middle')) {
               const relatedClass = classById.get(classId);
               if (relatedClass) related.set(classId, relatedClass.label || relatedClass.id);
             }
@@ -821,7 +823,7 @@ function renderClassLists(data) {
         .map((classGroup) => classGroup.label || '(ラベルなし)').join(' ／ ') || '分類なし';
       const hierarchyLabels = (level) => groupItemsByLabel([...new Map(instanceClasses.flatMap((classInfo) =>
         [...new Set([classInfo.id, ...ancestors(classInfo.id)])]
-          .filter((id) => id.includes(level === 'top' ? '/t_' : '/m_'))
+          .filter((id) => classType(id) === (level === 'top' ? 'top' : 'middle'))
           .map((id) => classById.get(id)).filter(Boolean).map((relatedClass) => [relatedClass.id, relatedClass]))).values()])
         .map((classGroup) => classGroup.label || '(ラベルなし)').join(' ／ ') || `${level === 'top' ? '上位' : '中間'}クラスなし`;
       return `${base}\t${escapeTsv(hierarchyLabels('top'))}\t${escapeTsv(hierarchyLabels('middle'))}\t${escapeTsv(relatedClasses)}`;

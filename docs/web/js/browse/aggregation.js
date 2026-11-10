@@ -1,7 +1,12 @@
 // データ全体の規模・分布・重複・関係整合性をID単位で集計し、閲覧画面の集計欄を描画する。
 const aggregationNumber = (value) => Number(value || 0).toLocaleString('ja-JP');
 const aggregationPercent = (part, whole) => whole ? `${(part / whole * 100).toFixed(1)}%` : '—';
-const aggregationClassLevel = (id) => /\/t_/.test(id) ? '上位' : /\/m_/.test(id) ? '中間' : /\/c_/.test(id) ? '対象' : '不明';
+const aggregationClassTypesById = new Map();
+const aggregationClassType = (id) => aggregationClassTypesById.get(id)
+  || (/\/(?:new-)?t[_-]/.test(id) ? 'top' : /\/(?:new-)?m[_-]/.test(id) ? 'middle' : 'class');
+const aggregationClassLevel = (id) => aggregationClassType(id) === 'top' ? '上位'
+  : aggregationClassType(id) === 'middle' ? '中間'
+    : aggregationClassType(id) === 'class' ? '対象' : '不明';
 let aggregationHideZeroIntegrity = true;
 let aggregationHideZeroLabelId = true;
 const aggregationDetailDialog = document.getElementById('aggregation-detail-dialog');
@@ -382,6 +387,8 @@ function renderAggregation(data) {
   const missingInstanceIds = rawInstances.filter((item) => !item?.id).length;
   const classes = aggregationUniqueById(rawClasses);
   const instances = aggregationUniqueById(rawInstances);
+  aggregationClassTypesById.clear();
+  classes.forEach((item) => aggregationClassTypesById.set(item.id, item.type || (/\/(?:new-)?t[_-]/.test(item.id) ? 'top' : /\/(?:new-)?m[_-]/.test(item.id) ? 'middle' : 'class')));
   const classIds = new Set(classes.map((item) => item.id));
   const instanceIds = new Set(instances.map((item) => item.id));
   const classById = new Map(classes.map((item) => [item.id, item]));
@@ -412,10 +419,10 @@ function renderAggregation(data) {
       lineage.add(current);
       pending.push(...(parents.get(current) || []));
     }
-    const labelsFor = (pattern) => [...lineage].filter((classId) => pattern.test(classId))
+    const labelsFor = (type) => [...lineage].filter((classId) => aggregationClassType(classId) === type)
       .sort((a, b) => (classById.get(a)?.label || a).localeCompare(classById.get(b)?.label || b, 'ja'))
       .map((classId) => classById.get(classId)?.label || classId);
-    return { upperLabels: labelsFor(/\/t_/), middleLabels: labelsFor(/\/m_/) };
+    return { upperLabels: labelsFor('top'), middleLabels: labelsFor('middle') };
   };
   const classesWithoutTop = classes.filter(({ id }) => classContextForId(id).upperLabels.length === 0);
   const visitedComponents = new Set();
@@ -452,9 +459,9 @@ function renderAggregation(data) {
     depthMemo.set(id, depth);
     return depth;
   };
-  const topClasses = classes.filter(({ id }) => /\/t_/.test(id));
-  const middleClasses = classes.filter(({ id }) => /\/m_/.test(id));
-  const targetClasses = classes.filter(({ id }) => /\/c_/.test(id));
+  const topClasses = classes.filter(({ id }) => aggregationClassType(id) === 'top');
+  const middleClasses = classes.filter(({ id }) => aggregationClassType(id) === 'middle');
+  const targetClasses = classes.filter(({ id }) => aggregationClassType(id) === 'class');
   const targetDepths = targetClasses.map(({ id }) => classDepth(id));
   const maxTargetDepth = Math.max(0, ...targetDepths);
   const roots = classes.filter(({ id }) => parents.get(id).size === 0).length;
@@ -462,8 +469,8 @@ function renderAggregation(data) {
   const multipleParents = classes.filter(({ id }) => parents.get(id).size > 1).length;
   const maxChildren = Math.max(0, ...classes.map(({ id }) => children.get(id).size));
   const maxChildrenClass = classes.find(({ id }) => children.get(id).size === maxChildren && maxChildren > 0);
-  const topWithMiddle = topClasses.filter(({ id }) => [...children.get(id)].some((child) => /\/m_/.test(child))).length;
-  const middleWithTarget = middleClasses.filter(({ id }) => [...children.get(id)].some((child) => /\/c_/.test(child))).length;
+  const topWithMiddle = topClasses.filter(({ id }) => [...children.get(id)].some((child) => aggregationClassType(child) === 'middle')).length;
+  const middleWithTarget = middleClasses.filter(({ id }) => [...children.get(id)].some((child) => aggregationClassType(child) === 'class')).length;
   const countTargetDescendants = (id) => {
     const visited = new Set([id]);
     const pending = [...(children.get(id) || [])];
@@ -472,7 +479,7 @@ function renderAggregation(data) {
       const child = pending.pop();
       if (visited.has(child)) continue;
       visited.add(child);
-      if (/\/c_/.test(child)) count += 1;
+      if (aggregationClassType(child) === 'class') count += 1;
       pending.push(...(children.get(child) || []));
     }
     return count;

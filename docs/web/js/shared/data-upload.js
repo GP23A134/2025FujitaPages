@@ -28,7 +28,11 @@
   const normalizeClassRecords = (items, label) => {
     records(items, label);
     return items.map((item) => {
-      const type = item.type || 'class';
+      const segment = item.id.split('/').pop();
+      const inferredType = /^(?:new-)?t[_-]/.test(segment)
+        ? 'top'
+        : /^(?:new-)?m[_-]/.test(segment) ? 'middle' : 'class';
+      const type = item.type || inferredType;
       if (!['top', 'middle', 'class'].includes(type)) throw new Error(`${label}のtypeが不正です: ${item.id}`);
       return { ...item, type };
     });
