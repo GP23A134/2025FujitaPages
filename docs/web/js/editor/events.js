@@ -3,7 +3,7 @@
 // JSON出力と保存
 // ============================================================
 const saveValidationBaseline = {
-  classes: classes.map((item) => ({ id: item.id, type: kind(item.id), label: item.label })),
+  classes: classes.map((item) => ({ id: item.id, type: classKind(item), label: item.label })),
   relations: data.classData.relations.map(({ child, parent }) => ({ child, parent }))
 };
 const saveValidationDialog = document.getElementById('edit-validation-dialog');
@@ -156,7 +156,7 @@ function downloadJson(name, value) {
 function saveEditChanges(skipValidation = false) {
   if (!skipValidation) {
     const currentGraph = {
-      classes: classes.map((item) => ({ id: item.id, type: kind(item.id), label: item.label })),
+      classes: classes.map((item) => ({ id: item.id, type: classKind(item), label: item.label })),
       relations: data.classData.relations.map(({ child, parent }) => ({ child, parent }))
     };
     const issues = collectSaveValidationIssues(currentGraph);
@@ -166,7 +166,7 @@ function saveEditChanges(skipValidation = false) {
     }
   }
   const exportData = {
-    classes: classes.map((item) => ({ type: kind(item.id), id: item.id, label: item.label })),
+    classes: classes.map((item) => ({ type: classKind(item), id: item.id, label: item.label })),
     relations: data.classData.relations.map(({ child, parent }) => ({ child, parent }))
   };
   downloadJson('class-update.json', exportData);

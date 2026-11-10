@@ -2,919 +2,1148 @@
   "classes": [
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_1",
-      "label": "行政機関"
+      "label": "行政機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_10",
-      "label": "事務局"
+      "label": "事務局",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_100",
-      "label": "危機管理職"
+      "label": "危機管理職",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_101",
-      "label": "児童"
+      "label": "児童",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_102",
-      "label": "デジタル担当"
+      "label": "デジタル担当",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_103",
-      "label": "建設部長"
+      "label": "建設部長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_104",
-      "label": "学校"
+      "label": "学校",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_105",
-      "label": "医療行政職員"
+      "label": "医療行政職員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_106",
-      "label": "利用者"
+      "label": "利用者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_107",
-      "label": "公益施設"
+      "label": "公益施設",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_108",
-      "label": "経済関係者"
+      "label": "経済関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_109",
-      "label": "支所長"
+      "label": "支所長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_11",
-      "label": "行政首長"
+      "label": "行政首長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_110",
-      "label": "事業参加者"
+      "label": "事業参加者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_111",
-      "label": "教育行政者"
+      "label": "教育行政者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_112",
-      "label": "消防行政者"
+      "label": "消防行政者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_113",
-      "label": "施設運営者"
+      "label": "施設運営者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_114",
-      "label": "環境団体"
+      "label": "環境団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_115",
-      "label": "国"
+      "label": "国",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_116",
-      "label": "教育責任者"
+      "label": "教育責任者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_117",
-      "label": "危機管理責任者"
+      "label": "危機管理責任者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_118",
-      "label": "協議参加者"
+      "label": "協議参加者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_119",
-      "label": "中学校"
+      "label": "中学校",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_12",
-      "label": "政府機関"
+      "label": "政府機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_120",
-      "label": "消防機関"
+      "label": "消防機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_121",
-      "label": "請願者"
+      "label": "請願者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_122",
-      "label": "市議会議員"
+      "label": "市議会議員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_123",
-      "label": "病院職員"
+      "label": "病院職員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_124",
-      "label": "地方首長"
+      "label": "地方首長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_125",
-      "label": "研究団体"
+      "label": "研究団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_126",
-      "label": "審査機関"
+      "label": "審査機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_127",
-      "label": "有識者"
+      "label": "有識者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_128",
-      "label": "エネルギー事業者"
+      "label": "エネルギー事業者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_129",
-      "label": "環境保護団体"
+      "label": "環境保護団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_13",
-      "label": "議員"
+      "label": "議員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_130",
-      "label": "市民団体代表"
+      "label": "市民団体代表",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_131",
-      "label": "地域団体代表"
+      "label": "地域団体代表",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_132",
-      "label": "事業者代表"
+      "label": "事業者代表",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_133",
-      "label": "個人"
+      "label": "個人",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_134",
-      "label": "審査会関係者"
+      "label": "審査会関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_135",
-      "label": "行政主体"
+      "label": "行政主体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_136",
-      "label": "内部告発者"
+      "label": "内部告発者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_137",
-      "label": "災害ボランティア"
+      "label": "災害ボランティア",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_138",
-      "label": "住民団体"
+      "label": "住民団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_139",
-      "label": "地方行政"
+      "label": "地方行政",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_14",
-      "label": "行政職員"
+      "label": "行政職員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_140",
-      "label": "審議機関"
+      "label": "審議機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_141",
-      "label": "行政責任者"
+      "label": "行政責任者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_142",
-      "label": "地域住民"
+      "label": "地域住民",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_143",
-      "label": "電力事業者"
+      "label": "電力事業者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_144",
-      "label": "不動産会社"
+      "label": "不動産会社",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_145",
-      "label": "自治体と不動産会社"
+      "label": "自治体と不動産会社",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_146",
-      "label": "自然保護団体"
+      "label": "自然保護団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_147",
-      "label": "企業責任者"
+      "label": "企業責任者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_148",
-      "label": "経済団体役員"
+      "label": "経済団体役員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_149",
-      "label": "官民連携主体"
+      "label": "官民連携主体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_15",
-      "label": "自治体職員"
+      "label": "自治体職員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_150",
-      "label": "民間企業"
+      "label": "民間企業",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_151",
-      "label": "参加者"
+      "label": "参加者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_152",
-      "label": "小売店"
+      "label": "小売店",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_153",
-      "label": "環境関係者"
+      "label": "環境関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_154",
-      "label": "電力会社"
+      "label": "電力会社",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_155",
-      "label": "関係者"
+      "label": "関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_156",
-      "label": "不動産会社代表"
+      "label": "不動産会社代表",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_157",
-      "label": "自治体代表"
+      "label": "自治体代表",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_158",
-      "label": "環境専門家"
+      "label": "環境専門家",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_159",
-      "label": "不動産業者"
+      "label": "不動産業者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_16",
-      "label": "地方議員"
+      "label": "地方議員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_160",
-      "label": "高校生"
+      "label": "高校生",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_161",
-      "label": "小学生"
+      "label": "小学生",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_162",
-      "label": "学生"
+      "label": "学生",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_163",
-      "label": "自然保護者"
+      "label": "自然保護者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_164",
-      "label": "政党議員"
+      "label": "政党議員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_165",
-      "label": "行政機関職員"
+      "label": "行政機関職員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_166",
-      "label": "漁協代表"
+      "label": "漁協代表",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_167",
-      "label": "市町村長"
+      "label": "市町村長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_168",
-      "label": "行政部門"
+      "label": "行政部門",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_169",
-      "label": "発電事業者"
+      "label": "発電事業者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_17",
-      "label": "都道府県知事"
+      "label": "都道府県知事",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_170",
-      "label": "著名人"
+      "label": "著名人",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_171",
-      "label": "博物館関係者"
+      "label": "博物館関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_172",
-      "label": "工事関係者"
+      "label": "工事関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_173",
-      "label": "意見提出者"
+      "label": "意見提出者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_174",
-      "label": "政府関係者"
+      "label": "政府関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_175",
-      "label": "小売店管理者"
+      "label": "小売店管理者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_176",
-      "label": "企業代表"
+      "label": "企業代表",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_177",
-      "label": "国会議員"
+      "label": "国会議員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_178",
-      "label": "研究機関代表"
+      "label": "研究機関代表",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_179",
-      "label": "再生可能エネルギー事業者"
+      "label": "再生可能エネルギー事業者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_18",
-      "label": "市長"
+      "label": "市長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_180",
-      "label": "漁業団体"
+      "label": "漁業団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_181",
-      "label": "林業者"
+      "label": "林業者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_182",
-      "label": "観光団体"
+      "label": "観光団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_183",
-      "label": "風力事業者"
+      "label": "風力事業者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_184",
-      "label": "著述家"
+      "label": "著述家",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_185",
-      "label": "自治体幹部"
+      "label": "自治体幹部",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_186",
-      "label": "出席者"
+      "label": "出席者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_187",
-      "label": "再エネ事業関係者"
+      "label": "再エネ事業関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_188",
-      "label": "企業担当者"
+      "label": "企業担当者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_189",
-      "label": "博物館長"
+      "label": "博物館長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_19",
-      "label": "教育長"
+      "label": "教育長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_190",
-      "label": "登山家"
+      "label": "登山家",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_191",
-      "label": "自然保護団体代表"
+      "label": "自然保護団体代表",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_192",
-      "label": "市議"
+      "label": "市議",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_193",
-      "label": "自治体担当者"
+      "label": "自治体担当者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_194",
-      "label": "議員団代表"
+      "label": "議員団代表",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_195",
-      "label": "町内会"
+      "label": "町内会",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_196",
-      "label": "地方行政官"
+      "label": "地方行政官",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_197",
-      "label": "協議会委員"
+      "label": "協議会委員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_198",
-      "label": "国の行政機関"
+      "label": "国の行政機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_199",
-      "label": "非営利団体"
+      "label": "非営利団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_2",
-      "label": "委員"
+      "label": "委員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_20",
-      "label": "地方議会"
+      "label": "地方議会",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_200",
-      "label": "獣医師"
+      "label": "獣医師",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_201",
-      "label": "市民団体関係者"
+      "label": "市民団体関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_202",
-      "label": "施設関係者"
+      "label": "施設関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_203",
-      "label": "参考人"
+      "label": "参考人",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_204",
-      "label": "関係者会議"
+      "label": "関係者会議",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_205",
-      "label": "教育団体"
+      "label": "教育団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_206",
-      "label": "通信事業者"
+      "label": "通信事業者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_207",
-      "label": "大学教員"
+      "label": "大学教員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_208",
-      "label": "防衛機関"
+      "label": "防衛機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_209",
-      "label": "自治体団体"
+      "label": "自治体団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_21",
-      "label": "自治体首長"
+      "label": "自治体首長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_210",
-      "label": "従業員"
+      "label": "従業員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_211",
-      "label": "業界団体"
+      "label": "業界団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_212",
-      "label": "事業者担当者"
+      "label": "事業者担当者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_213",
-      "label": "地域団体役員"
+      "label": "地域団体役員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_214",
-      "label": "生態系評価組織"
+      "label": "生態系評価組織",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_215",
-      "label": "環境保全団体"
+      "label": "環境保全団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_216",
-      "label": "自然保護活動家"
+      "label": "自然保護活動家",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_217",
-      "label": "協議会"
+      "label": "協議会",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_218",
-      "label": "移住者"
+      "label": "移住者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_219",
-      "label": "森林組合"
+      "label": "森林組合",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_22",
-      "label": "市民"
+      "label": "市民",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_220",
-      "label": "記事執筆者"
+      "label": "記事執筆者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_221",
-      "label": "勉強会主催者"
+      "label": "勉強会主催者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_222",
-      "label": "説明会参加者"
+      "label": "説明会参加者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_223",
-      "label": "投稿者"
+      "label": "投稿者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_224",
-      "label": "情報提供者"
+      "label": "情報提供者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_225",
-      "label": "制作者"
+      "label": "制作者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_226",
-      "label": "陳情者"
+      "label": "陳情者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_227",
-      "label": "著者"
+      "label": "著者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_228",
-      "label": "報道機関"
+      "label": "報道機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_229",
-      "label": "医療団体"
+      "label": "医療団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_23",
-      "label": "委員会委員"
+      "label": "委員会委員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_24",
-      "label": "監査機関"
+      "label": "監査機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_25",
-      "label": "病院管理者"
+      "label": "病院管理者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_26",
-      "label": "行政関係者"
+      "label": "行政関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_27",
-      "label": "自治体議員"
+      "label": "自治体議員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_28",
-      "label": "研究機関"
+      "label": "研究機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_29",
-      "label": "議会委員会"
+      "label": "議会委員会",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_3",
-      "label": "事業者"
+      "label": "事業者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_30",
-      "label": "地方公職者"
+      "label": "地方公職者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_31",
-      "label": "首長"
+      "label": "首長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_32",
-      "label": "議会"
+      "label": "議会",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_33",
-      "label": "常任委員会"
+      "label": "常任委員会",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_34",
-      "label": "請願提出者"
+      "label": "請願提出者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_35",
-      "label": "議長"
+      "label": "議長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_36",
-      "label": "教育委員会"
+      "label": "教育委員会",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_37",
-      "label": "実行委員会"
+      "label": "実行委員会",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_38",
-      "label": "支援機関"
+      "label": "支援機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_39",
-      "label": "教育関係者"
+      "label": "教育関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_4",
-      "label": "住民"
+      "label": "住民",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_40",
-      "label": "議会委員長"
+      "label": "議会委員長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_41",
-      "label": "部長"
+      "label": "部長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_42",
-      "label": "研究者"
+      "label": "研究者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_43",
-      "label": "危機管理監"
+      "label": "危機管理監",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_44",
-      "label": "教育次長"
+      "label": "教育次長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_45",
-      "label": "委員会"
+      "label": "委員会",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_46",
-      "label": "教育行政"
+      "label": "教育行政",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_47",
-      "label": "教育行政責任者"
+      "label": "教育行政責任者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_48",
-      "label": "農業関係者"
+      "label": "農業関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_49",
-      "label": "地方政治家"
+      "label": "地方政治家",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_5",
-      "label": "環境審査機関"
+      "label": "環境審査機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_50",
-      "label": "医療調整監"
+      "label": "医療調整監",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_51",
-      "label": "教育行政職"
+      "label": "教育行政職",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_52",
-      "label": "障害者家族"
+      "label": "障害者家族",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_53",
-      "label": "企業"
+      "label": "企業",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_54",
-      "label": "病院長"
+      "label": "病院長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_55",
-      "label": "会議参加者"
+      "label": "会議参加者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_56",
-      "label": "教育行政職員"
+      "label": "教育行政職員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_57",
-      "label": "選管委員"
+      "label": "選管委員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_58",
-      "label": "行政部長"
+      "label": "行政部長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_59",
-      "label": "教育行政機関"
+      "label": "教育行政機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_6",
-      "label": "専門家"
+      "label": "専門家",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_60",
-      "label": "自治体行政機関"
+      "label": "自治体行政機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_61",
-      "label": "市議会"
+      "label": "市議会",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_62",
-      "label": "監査委員"
+      "label": "監査委員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_63",
-      "label": "受講者"
+      "label": "受講者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_64",
-      "label": "政治家"
+      "label": "政治家",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_65",
-      "label": "自治体関係者"
+      "label": "自治体関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_66",
-      "label": "農業従事者"
+      "label": "農業従事者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_67",
-      "label": "国行政機関"
+      "label": "国行政機関",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_68",
-      "label": "都道府県"
+      "label": "都道府県",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_69",
-      "label": "公職者"
+      "label": "公職者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_7",
-      "label": "環境審査委員"
+      "label": "環境審査委員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_70",
-      "label": "団体代表"
+      "label": "団体代表",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_71",
-      "label": "議会議長"
+      "label": "議会議長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_72",
-      "label": "委員長"
+      "label": "委員長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_73",
-      "label": "団体"
+      "label": "団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_74",
-      "label": "副市長"
+      "label": "副市長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_75",
-      "label": "地域関係者"
+      "label": "地域関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_76",
-      "label": "地方自治体首長"
+      "label": "地方自治体首長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_77",
-      "label": "地方公務員"
+      "label": "地方公務員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_78",
-      "label": "地方自治体"
+      "label": "地方自治体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_79",
-      "label": "市民団体"
+      "label": "市民団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_8",
-      "label": "自治体"
+      "label": "自治体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_80",
-      "label": "審議会"
+      "label": "審議会",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_81",
-      "label": "農業者"
+      "label": "農業者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_82",
-      "label": "地方自治体関係者"
+      "label": "地方自治体関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_83",
-      "label": "議会議員"
+      "label": "議会議員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_84",
-      "label": "調査委員会"
+      "label": "調査委員会",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_85",
-      "label": "地域団体"
+      "label": "地域団体",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_86",
-      "label": "町長"
+      "label": "町長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_87",
-      "label": "課長"
+      "label": "課長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_88",
-      "label": "環境審議会"
+      "label": "環境審議会",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_89",
-      "label": "副首長"
+      "label": "副首長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_9",
-      "label": "審査委員"
+      "label": "審査委員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_90",
-      "label": "保護者"
+      "label": "保護者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_91",
-      "label": "農業団体役員"
+      "label": "農業団体役員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_92",
-      "label": "副町長"
+      "label": "副町長",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_93",
-      "label": "団体関係者"
+      "label": "団体関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_94",
-      "label": "漁業関係者"
+      "label": "漁業関係者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_95",
-      "label": "行政担当者"
+      "label": "行政担当者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_96",
-      "label": "企業経営者"
+      "label": "企業経営者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_97",
-      "label": "選挙管理者"
+      "label": "選挙管理者",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_98",
-      "label": "審判員"
+      "label": "審判員",
+      "type": "class"
     },
     {
       "id": "https://kozaki-lab.jp/REFV-KG/class/st_99",
-      "label": "高校野球団体"
+      "label": "高校野球団体",
+      "type": "class"
     }
   ],
   "instances": [
@@ -10179,7 +10408,8 @@
       "label": "イギリスの研究"
     }
   ],
-  "relations": [
+  "classRelations": [],
+  "instanceClassRelations": [
     {
       "instance": "https://kozaki-lab.jp/REFV-KG/data/st_10001_1",
       "class": "https://kozaki-lab.jp/REFV-KG/class/st_1"
