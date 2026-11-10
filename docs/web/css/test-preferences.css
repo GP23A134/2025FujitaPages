@@ -9,6 +9,8 @@
 #test-settings-dialog .ai-preview-header h2 { font-size: 1.4rem; }
 #test-settings-dialog .edit-settings-section { gap: 0.65rem; margin-top: 1rem; padding: 1rem; }
 #test-settings-dialog .edit-settings-section h3 { font-size: 1.15rem; }
+#test-settings-dialog .test-settings-group { display: grid; gap: 0.55rem; padding: 0.85rem; border: 1px solid #dbe3ec; border-radius: 8px; background: #fff; }
+#test-settings-dialog .test-settings-group h4 { margin: 0 0 0.15rem; color: #334155; font-size: 1rem; }
 #test-settings-dialog .edit-settings-section > label:not(.edit-settings-toggle) { font-size: 1rem; }
 #test-settings-dialog .edit-settings-note { font-size: 0.95rem; line-height: 1.55; }
 #test-settings-dialog .edit-settings-select { min-height: 3rem; font-size: 1rem; }

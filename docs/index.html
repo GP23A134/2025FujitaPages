@@ -8,11 +8,12 @@
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261109-tree-filter-disclosure-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261103-css-reorg-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261110-data-dialog-v4">
   <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261103-browse-scroll-range-90-v1">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261104-aggregation-preview-v18">
   <script src="web/data/generated/class-data.js" defer></script>
   <script src="web/data/generated/instance-data.js" defer></script>
+  <script src="web/js/shared/data-workspace.js?v=20261110-upload-workspace-v2" defer></script>
   <!-- defer付きクラシックスクリプトをこの順で実行する。各画面ファイルは共有グローバル状態を使う。 -->
   <script src="web/js/shared/tree.js?v=20261103-middle-sticky-gap-zero-v1" defer></script>
   <script src="web/js/browse/bootstrap.js?v=20261103-open-all-tree-v1" defer></script>
@@ -28,6 +29,7 @@
     <h1>クラス階層</h1>
     <p class="page-description">上位・中間クラスごとにクラスを検索、参照できます。</p>
     <div class="page-header-actions">
+      <button type="button" id="open-data-import" class="page-link-button">データ</button>
       <a class="page-link-button" href="edit.html">編集画面へ</a>
     </div>
   </header>
@@ -294,5 +296,24 @@
     </div>
     <div id="aggregation-detail-dialog-content" class="aggregation-detail-dialog-content"></div>
   </dialog>
+  <dialog id="data-import-dialog" class="data-import-dialog" aria-labelledby="data-import-title">
+    <div class="data-import-header"><h2 id="data-import-title">データの読み込み</h2><button type="button" id="data-import-close" aria-label="閉じる">×</button></div>
+    <p class="data-import-description">読み込むJSONファイルを選択し、内容を確認してください。</p>
+    <fieldset id="data-import-mode" class="data-import-mode"><legend>作業方法</legend>
+      <div class="data-import-mode-options">
+        <label class="data-import-mode-option"><input type="radio" name="data-import-mode" value="replace" checked><span><strong>新規作成</strong><small>このデータから新しい作業を始めます</small></span></label>
+        <label class="data-import-mode-option"><input type="radio" name="data-import-mode" value="append"><span><strong>現在の作業に追加</strong><small>読み込み済みの作業へデータを加えます</small></span></label>
+      </div>
+    </fieldset>
+    <section class="data-import-file-section" aria-labelledby="data-import-file-heading">
+      <div class="data-import-file-heading"><h3 id="data-import-file-heading">読み込むデータ</h3><span>JSON形式</span></div>
+      <div class="data-import-file-control"><label class="data-import-file-button">ファイルを選択<input id="data-import-file" type="file" accept="application/json,.json"></label><span id="data-import-file-name">ファイルは選択されていません</span></div>
+      <div id="data-import-drop" class="data-import-drop" tabindex="0">または、ここにJSONファイルをドロップ</div>
+    </section>
+    <p id="data-import-status" class="data-import-status" role="status" aria-live="polite">ファイルを選択してください。</p>
+    <section id="data-import-summary" class="data-import-summary" hidden></section>
+    <div class="data-import-actions"><button type="button" id="data-import-cancel">キャンセル</button><button type="button" id="data-import-confirm" class="search-button" disabled>このデータで開始</button></div>
+  </dialog>
+  <script src="web/js/shared/data-upload.js?v=20261110-data-dialog-v4" defer></script>
 </body>
 </html>

@@ -769,6 +769,7 @@ let proposalPreview = null;
   const currentDataHash = async () => digest(JSON.stringify({ version: sourceDataVersion, state: stableState() }));
   const verifyLoadedDataVersion = async () => {
     if (sourceDataVersionPromise) await sourceDataVersionPromise;
+    if (window.appData?.workspaceMeta?.kind === 'uploaded') return;
     const response = await fetch('data/input/current-class-data-version.txt', { cache: 'no-store' });
     if (!response.ok) throw new Error('クラスデータの版情報を確認できません。');
     const latest = (await response.text()).trim();
@@ -2526,7 +2527,7 @@ let proposalPreview = null;
       conversation.workflowStatus = hasShareRequest || queuedQuestions.length
         ? `追加情報の回答待ち（所要時間 ${formatElapsedTime(elapsed)}）`
         : result.proposals.length
-          ? `変更案の確認待ち（所要時間 ${formatElapsedTime(elapsed)}）`
+          ? ''
           : `完了（所要時間 ${formatElapsedTime(elapsed)}）`;
       conversation.thinkingProgress = '';
       conversation.thinkingStage = '';
@@ -2797,9 +2798,12 @@ let proposalPreview = null;
     messages.replaceChildren();
   });
 
-  sourceDataVersionPromise = fetch('data/input/current-class-data-version.txt', { cache: 'no-store' })
-    .then((response) => { if (!response.ok) throw new Error('データ版ファイルを取得できません。'); return response.text(); })
-    .then((value) => { sourceDataVersion = value.trim(); if (!sourceDataVersion) throw new Error('データ版が空です。'); })
+  sourceDataVersionPromise = window.appData?.workspaceMeta?.kind === 'uploaded'
+    ? digest(JSON.stringify(window.appData.workspaceMeta.importedData || window.appData))
+      .then((value) => { sourceDataVersion = `uploaded-${value}`; })
+    : fetch('data/input/current-class-data-version.txt', { cache: 'no-store' })
+      .then((response) => { if (!response.ok) throw new Error('データ版ファイルを取得できません。'); return response.text(); })
+      .then((value) => { sourceDataVersion = value.trim(); if (!sourceDataVersion) throw new Error('データ版が空です。'); })
     .catch((error) => {
       logAiProblem('クラスデータ版の読み込み', error);
       setStatus('データ版を確認できません。通信状態を確認してください。AI提案は確認できるまで送信できません', 'error');

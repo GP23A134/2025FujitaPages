@@ -4,15 +4,16 @@ PREFIX kg:    <https://kozaki-lab.jp/REFV-KG/data/>
 PREFIX cls:   <https://kozaki-lab.jp/REFV-KG/class/>
 PREFIX prop:  <https://kozaki-lab.jp/REFV-KG/prop/>
 
-SELECT DISTINCT ?oClass ?o
+SELECT DISTINCT ?st ?stLabel
 WHERE {
   GRAPH ?g {
     ?s ?p ?o .
+    << ?s ?p ?o >> prop:relatedOpinion ?opinion .
     VALUES ?p { prop:cause prop:effect prop:countermeasure }
-    OPTIONAL{
-      ?o a ?oClass .
-      OPTIONAL{ ?oClass rdfs:label ?oClassLabel . }
+    ?opinion prop:speaker ?st .
+    OPTIONAL {
+      ?st rdfs:label ?stLabel .
     }
   }
 }
-ORDER BY ?oClass
+ORDER BY ?st

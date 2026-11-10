@@ -1025,6 +1025,7 @@ document.getElementById('browse-link').addEventListener('click', (event) => {
   }
 });
 window.addEventListener('beforeunload', (event) => {
+  if (window.__editorImportReload) return;
   // タブを閉じる、更新するなどの離脱では未保存データや実行中のAIリクエストを保護する。
   if (!hasUnsavedChanges && !aiRequestRunning) return;
   event.preventDefault();
