@@ -35,7 +35,9 @@ export const createRequestProgress = ({ messages, getCurrentConversation }) => {
 
   const updatePreparationIndicator = () => {
     if (!preparationIndicator) return;
-    preparationIndicator.setAttribute('aria-label', `${preparationLabel}…（${formatElapsedTime((Date.now() - preparationStartedAt) / 1000)}）`);
+    const text = `${preparationLabel}…（${formatElapsedTime((Date.now() - preparationStartedAt) / 1000)}）`;
+    preparationIndicator.textContent = text;
+    preparationIndicator.setAttribute('aria-label', text);
   };
 
   const startPreparation = ({ label, startedAt }) => {
@@ -46,7 +48,8 @@ export const createRequestProgress = ({ messages, getCurrentConversation }) => {
     preparationIndicator.className = 'ai-thinking-indicator';
     preparationIndicator.setAttribute('role', 'status');
     preparationIndicator.setAttribute('aria-live', 'polite');
-    preparationIndicator.setAttribute('aria-label', `${preparationLabel}…（0s）`);
+    preparationIndicator.textContent = `${preparationLabel}…（0s）`;
+    preparationIndicator.setAttribute('aria-label', preparationIndicator.textContent);
     messages.append(preparationIndicator);
     messages.scrollTop = messages.scrollHeight;
     updatePreparationIndicator();
@@ -72,7 +75,8 @@ export const createRequestProgress = ({ messages, getCurrentConversation }) => {
     indicator.className = 'ai-thinking-indicator';
     indicator.setAttribute('role', 'status');
     indicator.setAttribute('aria-live', 'polite');
-    indicator.setAttribute('aria-label', formatThinkingStatus(conversation));
+    indicator.textContent = formatThinkingStatus(conversation);
+    indicator.setAttribute('aria-label', indicator.textContent);
     return indicator;
   };
 
@@ -81,7 +85,10 @@ export const createRequestProgress = ({ messages, getCurrentConversation }) => {
     conversation.thinkingProgress = progress;
     if (getCurrentConversation() === conversation) {
       const indicator = messages.querySelector('.ai-thinking-indicator:not(.is-complete)');
-      if (indicator) indicator.setAttribute('aria-label', formatThinkingStatus(conversation));
+      if (indicator) {
+        indicator.textContent = formatThinkingStatus(conversation);
+        indicator.setAttribute('aria-label', indicator.textContent);
+      }
     }
   };
 
@@ -90,7 +97,8 @@ export const createRequestProgress = ({ messages, getCurrentConversation }) => {
     thinkingTimer = window.setInterval(() => {
       const indicator = messages.querySelector('.ai-thinking-indicator:not(.is-complete)');
       if (indicator && getCurrentConversation() === conversation) {
-        indicator.setAttribute('aria-label', formatThinkingStatus(conversation));
+        indicator.textContent = formatThinkingStatus(conversation);
+        indicator.setAttribute('aria-label', indicator.textContent);
       }
     }, 1000);
     return stopThinkingTimer;

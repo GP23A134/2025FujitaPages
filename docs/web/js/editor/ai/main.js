@@ -5,7 +5,7 @@ import { createResponseHandler, createOperationPolicy, reconcileSplitProposals }
 import { createConversationStore, createConversationView } from './chat.js?v=20261110-first-line-workflow-status-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261111-ai-proposal-undo-sync-v1';
 import { createAIClient } from './ai-client.js?v=20261111-input-limit-setting-v1';
-import { createRequestProgress } from './request-progress.js?v=20261111-request-progress-module-v1';
+import { createRequestProgress } from './request-progress.js?v=20261111-processing-text-v1';
 
 (() => {
   const editor = window.classEditorAI;
