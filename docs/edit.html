@@ -19,10 +19,10 @@
 
   <!-- データ → 共通ツリー → 編集状態・パネル・ツリー・イベント → AIの順で実行する。 -->
   <script data-app-script="web/js/shared/tree.js?v=20261110-upload-class-types-v1"></script>
-  <script data-app-script="web/js/editor/state.js?v=20261111-ai-proposal-undo-sync-v1"></script>
+  <script data-app-script="web/js/editor/state.js?v=20261111-json-export-toggle-v2"></script>
   <script data-app-script="web/js/editor/panels.js?v=20261111-held-table-fixed-header-v2"></script>
   <script data-app-script="web/js/editor/tree.js?v=20261109-tree-color-intensity-v1"></script>
-  <script data-app-script="web/js/editor/events.js?v=20261111-save-and-export-v3"></script>
+  <script data-app-script="web/js/editor/events.js?v=20261111-save-and-export-v4"></script>
   <script data-app-script="web/js/editor/test-preferences.js?v=20261110-chat-settings-move-v1"></script>
   <script src="web/js/shared/app-startup.js?v=20261110-default-data-v1"></script>
 </head>
@@ -62,7 +62,6 @@
         <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="chat" role="tab" aria-selected="false" aria-controls="ai-assistant-panel"><span class="edit-taskbar-icon" aria-hidden="true">◉</span>AIチャット</button>
       </div>
     </div>
-    <button type="button" id="export-edit-data" class="edit-taskbar-button" title="ClassDataUpdateと、別のPCでの続きの編集に使えるJSONをダウンロードします">JSONを書き出す</button>
     <button type="button" id="save-edit-changes" class="edit-taskbar-button edit-header-save">編集内容を保存</button>
   </div>
 
@@ -218,7 +217,8 @@
       <h3 id="edit-display-settings-title">表示・編集</h3>
       <label class="edit-settings-toggle"><input type="checkbox" id="toggle-edit-ids"> クラスIDを表示する</label>
       <label class="edit-settings-toggle"><input type="checkbox" id="toggle-tree-edit-mode"> クラス編集を有効にする</label>
-      <label class="edit-settings-toggle"><input type="checkbox" id="ai-confirm-before-send"> AIチャットの送信前に内容を確認する</label>
+      <label class="edit-settings-toggle"><input type="checkbox" id="toggle-json-export"> JSON書き出しを有効にする</label>
+      <label class="edit-settings-toggle"><input type="checkbox" id="ai-confirm-before-send" checked> AIチャットの送信前に内容を確認する</label>
       <p class="edit-settings-note">ONにすると送信前に内容を確認します。確認画面で「これ以降表示しない」を選ぶと、次回以降はOFFになります。</p>
     </section>
     <section class="edit-settings-section" aria-labelledby="edit-ai-behavior-settings-title">
@@ -460,6 +460,6 @@
     <div class="data-import-actions"><button type="button" id="reset-to-default" class="search-button secondary-search-button">初期状態</button><button type="button" id="data-import-cancel" class="search-button secondary-search-button">キャンセル</button><button type="button" id="data-import-confirm" class="search-button" disabled>このデータで開始</button></div>
   </dialog>
   <script data-app-script="web/js/shared/data-upload.js?v=20261110-file-summary-type-fix-v1"></script>
-  <script data-app-script="web/js/editor/ai/main.js?v=20261111-unified-processing-display-v1" data-app-type="module"></script>
+  <script data-app-script="web/js/editor/ai/main.js?v=20261111-ai-send-confirm-on-v1" data-app-type="module"></script>
 </body>
 </html>

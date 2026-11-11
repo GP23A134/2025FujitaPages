@@ -25,6 +25,24 @@ if (toggleEditIds) {
   setEditIdsVisible(false);
   toggleEditIds.addEventListener('change', () => setEditIdsVisible(toggleEditIds.checked));
 }
+const toggleJsonExport = document.getElementById('toggle-json-export');
+if (toggleJsonExport) {
+  const jsonExportPreferenceKey = 'classEditor.jsonExportEnabled';
+  let jsonExportEnabled = false;
+  try {
+    jsonExportEnabled = window.localStorage.getItem(jsonExportPreferenceKey) === 'true';
+  } catch (error) {
+    console.warn('[クラス編集] JSON書き出し設定を読み込めません。', error);
+  }
+  toggleJsonExport.checked = jsonExportEnabled;
+  toggleJsonExport.addEventListener('change', () => {
+    try {
+      window.localStorage.setItem(jsonExportPreferenceKey, String(toggleJsonExport.checked));
+    } catch (error) {
+      console.warn('[クラス編集] JSON書き出し設定を保存できません。', error);
+    }
+  });
+}
 let pinnedHeldPanelBoundsFrame = 0;
 function setInlineStyleIfChanged(element, property, value) {
   if (element.style.getPropertyValue(property) === value) return;
