@@ -1,26 +1,53 @@
 /* テスト調整用。不要になったらこのCSSとedit.htmlの読み込みを削除する。 */
 #open-test-settings[hidden] { display: none !important; }
-#test-settings-dialog {
-  width: min(760px, calc(100vw - 2rem));
-  padding: 1.35rem;
+#test-settings-dialog:not([open]) { display: none; }
+#test-settings-dialog[open] {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.8fr);
+  grid-template-rows: auto;
+  align-content: start;
+  gap: 0.55rem 0.85rem;
+  width: min(1120px, calc(100vw - 2rem));
+  max-height: min(96vh, 980px);
+  padding: 0.9rem;
   font-size: 1rem;
 }
-#test-settings-dialog .ai-preview-header { margin-bottom: 1rem; }
-#test-settings-dialog .ai-preview-header h2 { font-size: 1.4rem; }
-#test-settings-dialog .edit-settings-section { gap: 0.65rem; margin-top: 1rem; padding: 1rem; }
-#test-settings-dialog .edit-settings-section h3 { font-size: 1.15rem; }
-#test-settings-dialog .test-settings-group { display: grid; gap: 0.55rem; padding: 0.85rem; border: 1px solid #dbe3ec; border-radius: 8px; background: #fff; }
-#test-settings-dialog .test-settings-group h4 { margin: 0 0 0.15rem; color: #334155; font-size: 1rem; }
+#test-settings-dialog > .ai-preview-header,
+#test-settings-dialog > .edit-settings-note,
+#test-settings-dialog > .test-settings-actions,
+#test-settings-dialog > #test-preferences-status { grid-column: 1 / -1; }
+#test-settings-dialog .ai-preview-header { margin-bottom: 0.1rem; }
+#test-settings-dialog .ai-preview-header h2 { font-size: 1.25rem; }
+#test-settings-dialog .edit-settings-section { gap: 0.5rem; margin-top: 0; padding: 0.65rem; }
+#test-settings-dialog .edit-settings-section h3 { font-size: 1rem; }
+#test-settings-dialog .edit-settings-section[aria-labelledby="test-ai-chat-title"] { grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 0.55rem; }
+#test-settings-dialog .edit-settings-section[aria-labelledby="test-ai-chat-title"] > h3,
+#test-settings-dialog .edit-settings-section[aria-labelledby="test-ai-chat-title"] > [aria-labelledby="test-ai-split-title"] { grid-column: 1 / -1; }
+#test-settings-dialog .test-settings-group { display: grid; gap: 0.4rem; padding: 0.6rem; border: 1px solid #dbe3ec; border-radius: 8px; background: #fff; }
+#test-settings-dialog .test-settings-group h4 { margin: 0 0 0.1rem; color: #334155; font-size: 0.9rem; }
 #test-settings-dialog .edit-settings-section > label:not(.edit-settings-toggle) { font-size: 1rem; }
-#test-settings-dialog .edit-settings-note { font-size: 0.95rem; line-height: 1.55; }
-#test-settings-dialog .edit-settings-select { min-height: 3rem; font-size: 1rem; }
-#test-settings-dialog .test-range-row { gap: 1rem; }
-#test-settings-dialog .test-range-row input { min-height: 1.5rem; }
+#test-settings-dialog .edit-settings-note { font-size: 0.82rem; line-height: 1.4; }
+#test-settings-dialog .edit-settings-select { min-height: 2.4rem; font-size: 0.9rem; }
+#test-settings-dialog .test-range-row { gap: 0.45rem; }
+#test-settings-dialog .test-range-row input { min-height: 1.2rem; }
 #test-settings-dialog .test-range-row input[type="number"] { width: 7rem; flex: 0 0 7rem; padding: 0.4rem 0.55rem; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; }
 #test-settings-dialog .test-range-row input[type="color"] { width: 4rem; height: 2.5rem; padding: 0.15rem; border: 1px solid #cbd5e1; border-radius: 6px; }
-#test-settings-dialog .test-range-row output { min-width: 4rem; font-size: 1rem; }
+#test-settings-dialog .test-range-row output { min-width: 3.5rem; font-size: 0.86rem; }
+#test-settings-dialog .test-tuning-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem 0.65rem; }
+#test-settings-dialog .test-tuning-control { display: grid; align-content: start; gap: 0.2rem; min-width: 0; padding: 0.4rem 0.45rem; border-radius: 6px; background: #f8fafc; }
+#test-settings-dialog .test-tuning-control > label { color: #334155; font-size: 0.78rem; font-weight: 650; line-height: 1.25; }
 .test-settings-actions { display: flex; justify-content: flex-end; gap: 0.65rem; margin-top: 1rem; }
-#test-settings-dialog .test-settings-actions button { min-height: 3rem; padding: 0.55rem 1rem; font-size: 1rem; }
+#test-settings-dialog .test-settings-actions { margin-top: 0.1rem; }
+#test-settings-dialog .test-settings-actions button { min-height: 2.35rem; padding: 0.4rem 0.8rem; font-size: 0.88rem; }
+@media (max-width: 760px) {
+  #test-settings-dialog[open] { grid-template-columns: minmax(0, 1fr); max-height: 92vh; }
+  #test-settings-dialog .edit-settings-section[aria-labelledby="test-ai-chat-title"] { grid-template-columns: minmax(0, 1fr); }
+  #test-settings-dialog .edit-settings-section[aria-labelledby="test-ai-chat-title"] > h3,
+  #test-settings-dialog .edit-settings-section[aria-labelledby="test-ai-chat-title"] > [aria-labelledby="test-ai-split-title"] { grid-column: auto; }
+}
+@media (max-height: 720px) and (min-width: 761px) {
+  #test-settings-dialog[open] { max-height: 98vh; }
+}
 .held-instance-table { font-size: var(--test-held-font-size, 0.92rem); }
 .held-instance-table th,
 .held-instance-table button,

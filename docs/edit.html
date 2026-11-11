@@ -9,8 +9,8 @@
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261109-tree-filter-disclosure-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261111-ai-chat-settings-v1">
-  <link rel="stylesheet" href="web/css/test-preferences.css?v=20261109-test-preferences-v20">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261111-display-settings-layout-v1">
+  <link rel="stylesheet" href="web/css/test-preferences.css?v=20261111-test-settings-layout-v1">
   <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261111-tree-drag-move-v2">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-held-panel-fixed-v2">
   <script data-app-script="web/data/generated/class-data.js"></script>
@@ -23,7 +23,7 @@
   <script data-app-script="web/js/editor/panels.js?v=20261111-held-table-fixed-header-v2"></script>
   <script data-app-script="web/js/editor/tree.js?v=20261111-tree-drag-move-v3"></script>
   <script data-app-script="web/js/editor/events.js?v=20261111-proposal-freedom-v1"></script>
-  <script data-app-script="web/js/editor/test-preferences.js?v=20261111-input-limit-setting-v1"></script>
+  <script data-app-script="web/js/editor/test-preferences.js?v=20261111-response-count-limits-v1"></script>
   <script src="web/js/shared/app-startup.js?v=20261111-tab-session-v1"></script>
 </head>
 <body class="edit-panes-pinned" data-mode="edit">
@@ -35,7 +35,7 @@
     <div class="page-header-actions">
       <!-- テスト調整用UI。撤去時は、このボタンと下のdialogを削除する。 -->
       <button type="button" id="open-test-settings" class="page-link-button" hidden>テスト</button>
-      <button type="button" id="open-edit-settings" class="page-link-button">設定</button>
+      <button type="button" id="open-edit-settings" class="page-link-button">表示設定</button>
       <button type="button" id="open-data-import" class="page-link-button">データ追加</button>
       <a id="browse-link" class="page-link-button" href="index.html">閲覧画面へ</a>
     </div>
@@ -197,35 +197,44 @@
     </section>
 
   </main>
-  <dialog id="edit-settings-dialog" class="edit-settings-dialog" aria-labelledby="edit-settings-title">
+  <dialog id="edit-settings-dialog" class="edit-settings-dialog edit-display-settings-dialog" aria-labelledby="edit-settings-title">
     <div class="ai-preview-header">
-      <h2 id="edit-settings-title">設定</h2>
-      <button type="button" id="close-edit-settings" class="target-instance-dialog-close" aria-label="設定を閉じる">×</button>
+      <h2 id="edit-settings-title">表示設定</h2>
+      <button type="button" id="close-edit-settings" class="target-instance-dialog-close" aria-label="表示設定を閉じる">×</button>
     </div>
-    <section class="edit-settings-section" aria-labelledby="edit-display-settings-title">
-      <h3 id="edit-display-settings-title">表示・編集</h3>
-      <label class="edit-settings-toggle"><input type="checkbox" id="toggle-edit-ids"> クラスIDを表示する</label>
-      <label class="edit-settings-toggle"><input type="checkbox" id="toggle-tree-edit-mode"> クラス編集を有効にする</label>
-      <label class="edit-settings-toggle"><input type="checkbox" id="toggle-json-export"> JSON書き出しを有効にする</label>
-      <label for="setting-ai-chat-font-size">AIチャットの文字サイズ</label>
-      <div class="test-range-row"><input id="setting-ai-chat-font-size" type="range" min="0.85" max="1.4" step="0.05" data-preference="chatFontSize"><output for="setting-ai-chat-font-size"></output></div>
-      <p class="edit-settings-note">チャットの返答文と入力欄の文字サイズを調整します。変更はすぐに反映され、ブラウザーに保存されます。</p>
-      <label for="setting-tree-top-font-size">上位クラスの文字サイズ</label>
-      <div class="test-range-row"><input id="setting-tree-top-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeTopFontSize"><output for="setting-tree-top-font-size"></output></div>
-      <label for="setting-tree-middle-font-size">中間クラスの文字サイズ</label>
-      <div class="test-range-row"><input id="setting-tree-middle-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeMiddleFontSize"><output for="setting-tree-middle-font-size"></output></div>
-      <label for="setting-tree-target-font-size">対象クラスの文字サイズ</label>
-      <div class="test-range-row"><input id="setting-tree-target-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeTargetFontSize"><output for="setting-tree-target-font-size"></output></div>
+    <section class="edit-settings-section" aria-labelledby="edit-font-settings-title">
+      <h3 id="edit-font-settings-title">文字サイズ</h3>
+      <div class="edit-settings-card-grid">
+        <div class="edit-settings-card">
+          <h4>AIチャット</h4>
+          <label for="setting-ai-chat-font-size">返答文と入力欄</label>
+          <div class="test-range-row"><input id="setting-ai-chat-font-size" type="range" min="0.85" max="1.4" step="0.05" data-preference="chatFontSize"><output for="setting-ai-chat-font-size"></output></div>
+        </div>
+        <div class="edit-settings-card">
+          <h4>ツリー</h4>
+          <label for="setting-tree-top-font-size">上位クラス</label>
+          <div class="test-range-row"><input id="setting-tree-top-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeTopFontSize"><output for="setting-tree-top-font-size"></output></div>
+          <label for="setting-tree-middle-font-size">中間クラス</label>
+          <div class="test-range-row"><input id="setting-tree-middle-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeMiddleFontSize"><output for="setting-tree-middle-font-size"></output></div>
+          <label for="setting-tree-target-font-size">対象クラス</label>
+          <div class="test-range-row"><input id="setting-tree-target-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeTargetFontSize"><output for="setting-tree-target-font-size"></output></div>
+        </div>
+        <div class="edit-settings-card">
+          <h4>提案・保持欄</h4>
+          <label for="setting-proposal-font-size">提案</label>
+          <div class="test-range-row"><input id="setting-proposal-font-size" type="range" min="0.8" max="1.3" step="0.05" data-preference="proposalFontSize"><output for="setting-proposal-font-size"></output></div>
+          <label for="setting-held-font-size">保持欄</label>
+          <div class="test-range-row"><input id="setting-held-font-size" type="range" min="0.8" max="1.3" step="0.05" data-preference="heldFontSize"><output for="setting-held-font-size"></output></div>
+        </div>
+      </div>
     </section>
-    <section class="edit-settings-section" aria-labelledby="edit-proposal-display-title">
-      <h3 id="edit-proposal-display-title">提案表示</h3>
-      <label for="setting-proposal-font-size">提案の文字サイズ</label>
-      <div class="test-range-row"><input id="setting-proposal-font-size" type="range" min="0.8" max="1.3" step="0.05" data-preference="proposalFontSize"><output for="setting-proposal-font-size"></output></div>
-    </section>
-    <section class="edit-settings-section" aria-labelledby="edit-held-display-title">
-      <h3 id="edit-held-display-title">保持欄</h3>
-      <label for="setting-held-font-size">保持欄の文字サイズ</label>
-      <div class="test-range-row"><input id="setting-held-font-size" type="range" min="0.8" max="1.3" step="0.05" data-preference="heldFontSize"><output for="setting-held-font-size"></output></div>
+    <section class="edit-settings-section" aria-labelledby="edit-display-behavior-title">
+      <h3 id="edit-display-behavior-title">表示・編集機能</h3>
+      <div class="edit-settings-toggle-grid">
+        <label class="edit-settings-toggle edit-settings-toggle-card"><input type="checkbox" id="toggle-edit-ids"> クラスIDを表示する</label>
+        <label class="edit-settings-toggle edit-settings-toggle-card"><input type="checkbox" id="toggle-tree-edit-mode"> クラス編集を有効にする</label>
+        <label class="edit-settings-toggle edit-settings-toggle-card"><input type="checkbox" id="toggle-json-export"> JSON書き出しを有効にする</label>
+      </div>
     </section>
   </dialog>
   <dialog id="ai-chat-settings-dialog" class="edit-settings-dialog" aria-labelledby="ai-chat-settings-title">
@@ -319,25 +328,34 @@
       <div class="test-settings-group" role="group" aria-labelledby="test-ai-output-title">
         <h4 id="test-ai-output-title">出力トークン上限</h4>
         <p class="edit-settings-note">各値は選択中モデルの最大出力トークン数を超えません。</p>
-        <label for="test-ai-output-tokens">通常の回答</label>
-        <div class="test-range-row"><input id="test-ai-output-tokens" type="range" min="500" max="128000" step="500" data-preference="responseOutputTokens"><output for="test-ai-output-tokens"></output></div>
-        <label for="test-ai-chunk-output-tokens">分割回答</label>
-        <div class="test-range-row"><input id="test-ai-chunk-output-tokens" type="range" min="500" max="128000" step="500" data-preference="chunkOutputTokens"><output for="test-ai-chunk-output-tokens"></output></div>
-        <label for="test-ai-synthesis-output-tokens">結果統合</label>
-        <div class="test-range-row"><input id="test-ai-synthesis-output-tokens" type="range" min="500" max="128000" step="500" data-preference="synthesisOutputTokens"><output for="test-ai-synthesis-output-tokens"></output></div>
-        <label for="test-ai-cross-scope-output-tokens">横断確認</label>
-        <div class="test-range-row"><input id="test-ai-cross-scope-output-tokens" type="range" min="500" max="128000" step="500" data-preference="crossScopeOutputTokens"><output for="test-ai-cross-scope-output-tokens"></output></div>
+        <div class="test-tuning-grid">
+          <div class="test-tuning-control"><label for="test-ai-output-tokens">通常の回答</label><div class="test-range-row"><input id="test-ai-output-tokens" type="range" min="500" max="128000" step="500" data-preference="responseOutputTokens"><output for="test-ai-output-tokens"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-chunk-output-tokens">分割回答</label><div class="test-range-row"><input id="test-ai-chunk-output-tokens" type="range" min="500" max="128000" step="500" data-preference="chunkOutputTokens"><output for="test-ai-chunk-output-tokens"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-synthesis-output-tokens">結果統合</label><div class="test-range-row"><input id="test-ai-synthesis-output-tokens" type="range" min="500" max="128000" step="500" data-preference="synthesisOutputTokens"><output for="test-ai-synthesis-output-tokens"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-cross-scope-output-tokens">横断確認</label><div class="test-range-row"><input id="test-ai-cross-scope-output-tokens" type="range" min="500" max="128000" step="500" data-preference="crossScopeOutputTokens"><output for="test-ai-cross-scope-output-tokens"></output></div></div>
+        </div>
+      </div>
+      <div class="test-settings-group" role="group" aria-labelledby="test-ai-response-limits-title">
+        <h4 id="test-ai-response-limits-title">応答件数上限</h4>
+        <div class="test-tuning-grid">
+          <div class="test-tuning-control"><label for="test-ai-proposal-limit">1回の回答で返す提案数</label><div class="test-range-row"><input id="test-ai-proposal-limit" type="range" min="5" max="100" step="5" data-preference="maxProposalsPerResponse"><output for="test-ai-proposal-limit"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-question-limit">確認事項数</label><div class="test-range-row"><input id="test-ai-question-limit" type="range" min="1" max="10" step="1" data-preference="maxQuestionsPerResponse"><output for="test-ai-question-limit"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-operation-limit">1提案あたりの操作数</label><div class="test-range-row"><input id="test-ai-operation-limit" type="range" min="5" max="100" step="5" data-preference="maxOperationsPerProposal"><output for="test-ai-operation-limit"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-uncertainty-limit">1提案あたりの不確実点数</label><div class="test-range-row"><input id="test-ai-uncertainty-limit" type="range" min="1" max="10" step="1" data-preference="maxUncertaintiesPerProposal"><output for="test-ai-uncertainty-limit"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-chunk-findings-limit">分割回答の所見数／カテゴリ</label><div class="test-range-row"><input id="test-ai-chunk-findings-limit" type="range" min="1" max="8" step="1" data-preference="maxChunkFindingsPerCategory"><output for="test-ai-chunk-findings-limit"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-comparison-findings-limit">統合結果の所見数／カテゴリ</label><div class="test-range-row"><input id="test-ai-comparison-findings-limit" type="range" min="1" max="12" step="1" data-preference="maxComparisonFindingsPerCategory"><output for="test-ai-comparison-findings-limit"></output></div></div>
+        </div>
+        <p class="edit-settings-note">件数を増やすと、出力トークン上限に達して回答が完了しない場合があります。</p>
       </div>
       <div class="test-settings-group" role="group" aria-labelledby="test-ai-split-title">
         <h4 id="test-ai-split-title">分割・統合</h4>
         <label class="edit-settings-checkbox"><input id="test-ai-split-enabled" type="checkbox" data-preference="aiSplitEnabled"> 分割送信を使う</label>
         <p class="edit-settings-note">オフにすると分割分析を行いません。1回の送信上限を超える場合は送信できません。</p>
-        <label for="test-ai-batch-units">1回の分割送信に含める上位単位数</label>
-        <div class="test-range-row"><input id="test-ai-batch-units" type="range" min="1" max="4" step="1" data-preference="maxUnitsPerBatch"><output for="test-ai-batch-units"></output></div>
-        <label for="test-ai-split-threshold">構造最適化で分割を始める対象数</label>
-        <div class="test-range-row"><input id="test-ai-split-threshold" type="range" min="1" max="20" step="1" data-preference="optimizationSplitThreshold"><output for="test-ai-split-threshold"></output></div>
-        <label for="test-ai-synthesis-rounds">結果統合の最大回数</label>
-        <div class="test-range-row"><input id="test-ai-synthesis-rounds" type="range" min="1" max="8" step="1" data-preference="synthesisMaxRounds"><output for="test-ai-synthesis-rounds"></output></div>
+        <div class="test-tuning-grid">
+          <div class="test-tuning-control"><label for="test-ai-batch-units">1回の分割送信に含める上位単位数</label><div class="test-range-row"><input id="test-ai-batch-units" type="range" min="1" max="4" step="1" data-preference="maxUnitsPerBatch"><output for="test-ai-batch-units"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-split-threshold">構造最適化で分割を始める対象数</label><div class="test-range-row"><input id="test-ai-split-threshold" type="range" min="1" max="20" step="1" data-preference="optimizationSplitThreshold"><output for="test-ai-split-threshold"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-synthesis-rounds">結果統合の最大回数</label><div class="test-range-row"><input id="test-ai-synthesis-rounds" type="range" min="1" max="8" step="1" data-preference="synthesisMaxRounds"><output for="test-ai-synthesis-rounds"></output></div></div>
+        </div>
       </div>
     </section>
     <section class="edit-settings-section" aria-labelledby="test-tree-display-title">
@@ -504,6 +522,6 @@
     <div class="data-import-actions"><button type="button" id="reset-to-default" class="search-button secondary-search-button">初期状態</button><button type="button" id="data-import-cancel" class="search-button secondary-search-button">キャンセル</button><button type="button" id="data-import-confirm" class="search-button" disabled>このデータで開始</button></div>
   </dialog>
   <script data-app-script="web/js/shared/data-upload.js?v=20261110-file-summary-type-fix-v1"></script>
-  <script data-app-script="web/js/editor/ai/main.js?v=20261111-processing-text-v1" data-app-type="module"></script>
+  <script data-app-script="web/js/editor/ai/main.js?v=20261111-response-count-limits-v1" data-app-type="module"></script>
 </body>
 </html>

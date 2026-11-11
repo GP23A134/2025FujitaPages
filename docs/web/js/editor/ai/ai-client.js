@@ -174,7 +174,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
       requiredScopes: { type: 'array', items: { type: 'string' }, maxItems: 100 },
       assessedScopes: { type: 'array', items: { type: 'string' }, maxItems: 100 },
       unassessedScopes: { type: 'array', items: { type: 'string' }, maxItems: 100 },
-      findings: { type: 'array', items: comparisonFindingSchema, maxItems: 8 },
+      findings: { type: 'array', items: comparisonFindingSchema, maxItems: AI_OUTPUT_LIMITS.comparisonFindingsPerCategory },
       limitation: { type: 'string' }
     },
     required: ['status', 'requiredScopes', 'assessedScopes', 'unassessedScopes', 'findings', 'limitation']
@@ -195,7 +195,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     type: 'object', additionalProperties: false,
     properties: {
       status: { type: 'string', enum: ['findings', 'none', 'insufficient'] },
-      findings: { type: 'array', items: localFindingSchema, maxItems: 3 },
+      findings: { type: 'array', items: localFindingSchema, maxItems: AI_OUTPUT_LIMITS.chunkFindingsPerCategory },
       limitation: { type: 'string' }
     },
     required: ['status', 'findings', 'limitation']
@@ -314,6 +314,16 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     }
   };
 
+  const updateOutputLimits = () => {
+    responseSchema.properties.p.maxItems = AI_OUTPUT_LIMITS.proposals;
+    responseSchema.properties.q.maxItems = AI_OUTPUT_LIMITS.questions;
+    responseSchema.properties.p.items.properties.q.maxItems = AI_OUTPUT_LIMITS.questions;
+    responseSchema.properties.p.items.properties.u.maxItems = AI_OUTPUT_LIMITS.uncertaintiesPerProposal;
+    responseSchema.properties.p.items.properties.o.maxItems = AI_OUTPUT_LIMITS.operationsPerProposal;
+    comparisonCategorySchema.properties.findings.maxItems = AI_OUTPUT_LIMITS.comparisonFindingsPerCategory;
+    chunkComparisonCategorySchema.properties.findings.maxItems = AI_OUTPUT_LIMITS.chunkFindingsPerCategory;
+  };
+
   return {
     responseSchema,
     responseWithChunkComparisonSchema,
@@ -323,7 +333,9 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     chunkGroupedResponseSchema,
     summaryResponseSchema,
     comparisonSummaryResponseSchema,
-    chunkComparisonInstructions: '分割評価では通常応答のトップレベル、analysisGroups応答では各g要素にcとhを必ず出してください。cにはduplicates、imbalance、gaps、otherの全カテゴリを含めます。各statusはfindings（所見あり）、none（十分に確認して所見なし）、insufficient（情報不足）です。未記入や形式不正をnoneにせず、各所見には少なくとも一つの入力済みクラスID・名称と具体的な根拠を示し、各カテゴリ最大3件に絞ってください。件数が入力されていない偏りは判断不能としてください。hは追加の横断確認候補IDの配列です。入力指示で候補抽出を求められていない場合は空配列にします。',
+    updateOutputLimits,
+    getChunkComparisonInstructions: () => `分割評価では通常応答のトップレベル、analysisGroups応答では各g要素にcとhを必ず出してください。cにはduplicates、imbalance、gaps、otherの全カテゴリを含めます。各statusはfindings（所見あり）、none（十分に確認して所見なし）、insufficient（情報不足）です。未記入や形式不正をnoneにせず、各所見には少なくとも一つの入力済みクラスID・名称と具体的な根拠を示し、各カテゴリ最大${AI_OUTPUT_LIMITS.chunkFindingsPerCategory}件に絞ってください。件数が入力されていない偏りは判断不能としてください。hは追加の横断確認候補IDの配列です。入力指示で候補抽出を求められていない場合や評価モードでは空配列を返してください.`,
+    getComparisonSynthesisInstructions: () => `JSON形式でmに統合回答、cにカテゴリ別の横断比較を返してください。入力のcomparisonRequirementsにある各カテゴリの必須範囲をrequiredScopesに正確に反映し、実際に判定できた範囲をassessedScopes、未判定範囲をunassessedScopesに分けます。cはduplicates=重複候補、imbalance=分類の偏り、gaps=分類漏れ・孤立、other=その他です。各カテゴリはstatus=comparableまたはinsufficient、requiredScopes、assessedScopes、unassessedScopes、findings、limitationを返します。所見ごとにもrequiredScopesとassessedScopesを分け、必要なチャンクが不足しても、必要・判定済み範囲が揃った局所所見は残します。所見がない場合findingsは空配列にし、判断できない場合はinsufficientとして理由を記します。所見ごとにクラスID・名称、根拠、限界を返してください。各カテゴリの所見は重要なものを最大${AI_OUTPUT_LIMITS.comparisonFindingsPerCategory}件に絞り、入力にない事実や確信度を作らないでください.`,
     chunkCrossScopeCandidateInstructions: '通常応答ではトップレベル、analysisGroups応答では各g要素のhに、今回の入力範囲で変更可能な対象クラスのIDだけを入れてください。別上位クラス配下への所属変更を追加確認する候補として、現在の所属に明確なずれがある対象に加え、別の上位・中間クラスにも具体的に関連しそうな対象を広めに選びます。移動先を断定できなくても、具体的な別分類先の可能性があれば候補に含めてください。候補IDは追加確認の優先度順に並べ、件数で切り捨てないでください。判断不能というだけで具体的な別分類先が考えられない対象は除外します。候補抽出を求められていない場合や評価モードでは空配列を返してください。',
     compactResponseInstructions,
     compactGroupedResponseInstructions,
@@ -361,12 +373,12 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
     const apiInput = summaryOnly ? JSON.stringify(requestPayload) : shortenInputIds(JSON.stringify(requestPayload));
     const formatInstructions = summaryOnly
       ? comparisonSynthesis
-        ? 'JSON形式でmに統合回答、cにカテゴリ別の横断比較を返してください。入力のcomparisonRequirementsにある各カテゴリの必須範囲をrequiredScopesに正確に反映し、実際に判定できた範囲をassessedScopes、未判定範囲をunassessedScopesに分けます。cはduplicates=重複候補、imbalance=分類の偏り、gaps=分類漏れ・孤立、other=その他です。各カテゴリはstatus=comparableまたはinsufficient、requiredScopes、assessedScopes、unassessedScopes、findings、limitationを返します。所見ごとにもrequiredScopesとassessedScopesを分け、必要なチャンクが不足しても、必要・判定済み範囲が揃った局所所見は残します。所見がない場合findingsは空配列にし、判断できない場合はinsufficientとして理由を記します。所見ごとにクラスID・名称、根拠、限界を返してください。各カテゴリの所見は重要なものを最大8件に絞り、入力にない事実や確信度を作らないでください。'
+        ? responseFormat.getComparisonSynthesisInstructions()
         : 'JSON形式でmキーに受領確認などの短い返答だけを返してください。'
       : crossScopeOperation
         ? `${responseFormat.compactResponseInstructions} ${responseFormat.crossScopeOperationInstructions}`
         : chunked
-          ? `${grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions} ${responseFormat.chunkComparisonInstructions}${crossScopeCandidateMode ? ` ${responseFormat.chunkCrossScopeCandidateInstructions}` : ''}`
+          ? `${grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions} ${responseFormat.getChunkComparisonInstructions()}${crossScopeCandidateMode ? ` ${responseFormat.chunkCrossScopeCandidateInstructions}` : ''}`
           : grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions;
     const instructions = [promptOverride || systemPrompt, formatInstructions, ...requestPolicies].join('\n\n');
     const inputCharacterCount = instructions.length + apiInput.length;

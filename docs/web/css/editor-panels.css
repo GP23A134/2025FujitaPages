@@ -216,7 +216,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .edit-settings-dialog { width: min(520px, calc(100vw - 2rem)); max-height: min(90vh, 760px); overflow: auto; padding: 1rem; border: 1px solid #cbd5e1; border-radius: 12px; color: #1e293b; box-shadow: 0 20px 60px rgba(15, 23, 42, 0.28); }
 .edit-settings-dialog { scrollbar-width: none; }
 .edit-settings-dialog::-webkit-scrollbar { display: none; }
-#edit-settings-dialog { width: min(860px, calc(100vw - 2rem)); max-height: min(92vh, 900px); padding: 1.25rem; }
+#edit-settings-dialog { width: min(980px, calc(100vw - 2rem)); max-height: min(92vh, 900px); padding: 1.25rem; }
 .edit-settings-dialog::backdrop { background: rgba(15, 23, 42, 0.48); }
 .edit-settings-dialog .ai-preview-header { margin-bottom: 0.85rem; }
 .edit-settings-section { display: grid; gap: 0.45rem; margin-top: 0.75rem; padding: 0.75rem; border: 1px solid #dbe3ec; border-radius: 9px; background: #f8fafc; }
@@ -226,6 +226,21 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .edit-settings-select { width: 100%; min-height: 2.5rem; padding: 0.45rem 0.55rem; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; }
 .edit-settings-toggle { display: flex; align-items: center; gap: 0.55rem; color: #334155; font-size: 0.88rem; }
 .edit-settings-toggle input { width: 1rem; height: 1rem; accent-color: #0369a1; }
+.edit-settings-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+.edit-settings-card { display: grid; align-content: start; gap: 0.4rem; min-width: 0; padding: 0.75rem; border: 1px solid #dbe3ec; border-radius: 8px; background: #fff; }
+.edit-settings-card h4 { margin: 0 0 0.1rem; color: #334155; font-size: 0.9rem; }
+.edit-settings-card > label { color: #475569; font-size: 0.82rem; font-weight: 650; }
+.edit-settings-card .test-range-row { gap: 0.55rem; }
+.edit-settings-toggle-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.65rem; }
+.edit-settings-toggle-card { min-height: 3rem; padding: 0.7rem; border: 1px solid #dbe3ec; border-radius: 8px; background: #fff; }
+@media (max-width: 760px) {
+  .edit-settings-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .edit-settings-toggle-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  #edit-settings-dialog { padding: 0.85rem; }
+  .edit-settings-card-grid { grid-template-columns: minmax(0, 1fr); }
+}
 .edit-ai-behavior-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
 .edit-ai-setting-card { display: grid; align-content: start; gap: 0.55rem; min-width: 0; padding: 0.85rem; border: 1px solid #dbe3ec; border-radius: 8px; background: #fff; }
 .edit-ai-setting-card h4 { margin: 0; color: #334155; font-size: 0.9rem; }

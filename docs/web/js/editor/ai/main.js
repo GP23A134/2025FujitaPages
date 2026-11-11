@@ -4,7 +4,7 @@ import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalS
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261111-split-global-plans-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261110-first-line-workflow-status-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261111-ai-proposal-undo-sync-v1';
-import { createAIClient } from './ai-client.js?v=20261111-input-limit-setting-v1';
+import { createAIClient } from './ai-client.js?v=20261111-response-count-limits-v1';
 import { createRequestProgress } from './request-progress.js?v=20261111-processing-text-v1';
 
 (() => {
@@ -55,7 +55,9 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
     return bounded;
   };
   // ここでの上限はAPIスキーマの上限です。応答トークンの上限は依頼種別ごとに別途設定します。
-  const AI_OUTPUT_LIMITS = { proposals: 30, questions: 3, operationsPerProposal: 40, uncertaintiesPerProposal: 5 };
+  const AI_OUTPUT_LIMITS = { proposals: 30, questions: 3, operationsPerProposal: 40, uncertaintiesPerProposal: 5,
+    chunkFindingsPerCategory: 3, comparisonFindingsPerCategory: 8 };
+  let refreshResponseOutputLimits = () => {};
   // APIの短縮出力形式と内部データ形式の境界はai-client.jsに集約します。
   const keyInput = document.getElementById('ai-api-key');
   const fullGraphScopeToggle = document.getElementById('ai-full-graph-scope');
@@ -196,6 +198,12 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
   OPTIMIZATION_SPLIT_THRESHOLD = readAiTuningValue('optimizationSplitThreshold', OPTIMIZATION_SPLIT_THRESHOLD, 1, 20);
   MAX_SYNTHESIS_ROUNDS = readAiTuningValue('synthesisMaxRounds', MAX_SYNTHESIS_ROUNDS, 1, 8);
   MAX_REQUEST_CHARACTERS = readAiTuningValue('maxRequestCharacters', MAX_REQUEST_CHARACTERS, 12000, 128000);
+  AI_OUTPUT_LIMITS.proposals = readAiTuningValue('maxProposalsPerResponse', AI_OUTPUT_LIMITS.proposals, 5, 100);
+  AI_OUTPUT_LIMITS.questions = readAiTuningValue('maxQuestionsPerResponse', AI_OUTPUT_LIMITS.questions, 1, 10);
+  AI_OUTPUT_LIMITS.operationsPerProposal = readAiTuningValue('maxOperationsPerProposal', AI_OUTPUT_LIMITS.operationsPerProposal, 5, 100);
+  AI_OUTPUT_LIMITS.uncertaintiesPerProposal = readAiTuningValue('maxUncertaintiesPerProposal', AI_OUTPUT_LIMITS.uncertaintiesPerProposal, 1, 10);
+  AI_OUTPUT_LIMITS.chunkFindingsPerCategory = readAiTuningValue('maxChunkFindingsPerCategory', AI_OUTPUT_LIMITS.chunkFindingsPerCategory, 1, 8);
+  AI_OUTPUT_LIMITS.comparisonFindingsPerCategory = readAiTuningValue('maxComparisonFindingsPerCategory', AI_OUTPUT_LIMITS.comparisonFindingsPerCategory, 1, 12);
   try {
     const saved = JSON.parse(localStorage.getItem('classEditorTestPreferences') || '{}');
     if (typeof saved.aiSplitEnabled === 'boolean') AI_SPLIT_ENABLED = saved.aiSplitEnabled;
@@ -236,6 +244,19 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
     if (typeof event.detail?.aiSplitEnabled === 'boolean') AI_SPLIT_ENABLED = event.detail.aiSplitEnabled;
     const inputLimit = Number(event.detail?.maxRequestCharacters);
     if (Number.isInteger(inputLimit) && inputLimit >= 12000 && inputLimit <= 128000) MAX_REQUEST_CHARACTERS = inputLimit;
+    const responseCountSettings = [
+      ['maxProposalsPerResponse', 'proposals', 5, 100],
+      ['maxQuestionsPerResponse', 'questions', 1, 10],
+      ['maxOperationsPerProposal', 'operationsPerProposal', 5, 100],
+      ['maxUncertaintiesPerProposal', 'uncertaintiesPerProposal', 1, 10],
+      ['maxChunkFindingsPerCategory', 'chunkFindingsPerCategory', 1, 8],
+      ['maxComparisonFindingsPerCategory', 'comparisonFindingsPerCategory', 1, 12]
+    ];
+    responseCountSettings.forEach(([preferenceKey, limitKey, minimum, maximum]) => {
+      const value = Number(event.detail?.[preferenceKey]);
+      if (Number.isInteger(value) && value >= minimum && value <= maximum) AI_OUTPUT_LIMITS[limitKey] = value;
+    });
+    refreshResponseOutputLimits();
     const synthesisRounds = Number(event.detail?.synthesisMaxRounds);
     if (Number.isInteger(synthesisRounds) && synthesisRounds >= 1 && synthesisRounds <= 8) MAX_SYNTHESIS_ROUNDS = synthesisRounds;
     const strategy = event.detail?.crossScopeStrategy;
@@ -812,6 +833,7 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
     getMaxInputCharacters: () => MAX_REQUEST_CHARACTERS,
     digest
   });
+  refreshResponseOutputLimits = responseFormat.updateOutputLimits;
   const {
     responseSchema, groupedResponseSchema, summaryResponseSchema,
     compactResponseInstructions, compactGroupedResponseInstructions
@@ -1664,7 +1686,7 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
   const splitTaskCacheKey = async (task, userText, systemPrompt, conversation) => digest(JSON.stringify({
     sourceDataVersion,
     model: modelSelect.value,
-    systemPrompt: `${systemPrompt}\n${compactResponseInstructions}\n${compactGroupedResponseInstructions}\n${responseFormat.chunkComparisonInstructions}\n${responseFormat.chunkCrossScopeCandidateInstructions}`,
+    systemPrompt: `${systemPrompt}\n${compactResponseInstructions}\n${compactGroupedResponseInstructions}\n${responseFormat.getChunkComparisonInstructions()}\n${responseFormat.chunkCrossScopeCandidateInstructions}`,
     responseSchema,
     responseWithChunkComparisonSchema: responseFormat.responseWithChunkComparisonSchema,
     groupedResponseSchema,
