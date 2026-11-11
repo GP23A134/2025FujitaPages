@@ -787,7 +787,11 @@ function renderClassLists(data) {
       : activeListId === 'top-class-tab' ? 'top-class-list.tsv'
         : activeListId === 'instance-tab' ? 'instance-list.tsv'
           : 'class-list.tsv';
-    const escapeTsv = (value) => String(value ?? '').replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
+    const escapeTsv = (value) => {
+      const text = String(value ?? '');
+      const safeText = /^[\u0000-\u0020\uFEFF]*[=+\-@]/.test(text) ? `'${text}` : text;
+      return safeText.replace(/[\t\r\n]/g, ' ');
+    };
     const headers = activeListId === 'top-class-tab'
       ? ['ID', 'ラベル', '配下の中間クラス数', '配下の対象クラス数', '配下のインスタンス数']
       : activeListId === 'middle-class-tab'

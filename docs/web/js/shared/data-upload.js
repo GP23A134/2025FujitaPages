@@ -11,6 +11,7 @@
   const summary = document.getElementById('data-import-summary');
   const selectedFileName = document.getElementById('data-import-file-name');
   const selectedFileList = document.getElementById('data-import-selected-file-list');
+  const MAX_TOTAL_FILE_BYTES = 50 * 1000 * 1000;
   let selected = null;
   let selectedFilesState = [];
   let parseRevision = 0;
@@ -71,12 +72,27 @@
   const validateClassRelations = (relations, classIds) => {
     if (!Array.isArray(relations)) throw new Error('クラス階層の関係は配列で指定してください。');
     const classChildren = new Set();
+    const parentByChild = new Map();
     relations.forEach((relation, index) => {
       if (!relation || typeof relation.child !== 'string' || typeof relation.parent !== 'string') throw new Error(`クラス階層の${index + 1}件目を読み取れません。`);
       if (!classIds.has(relation.child) || !classIds.has(relation.parent)) throw new Error(`クラス階層の参照先がありません: ${relation.child} → ${relation.parent}`);
       if (relation.child === relation.parent || classChildren.has(relation.child)) throw new Error(`クラス階層の親子関係が不正または重複しています: ${relation.child}`);
       classChildren.add(relation.child);
+      parentByChild.set(relation.child, relation.parent);
     });
+    const completed = new Set();
+    for (const startId of parentByChild.keys()) {
+      const path = [];
+      const pathIds = new Set();
+      let currentId = startId;
+      while (parentByChild.has(currentId) && !completed.has(currentId)) {
+        if (pathIds.has(currentId)) throw new Error(`クラス階層に循環があります: ${currentId}`);
+        pathIds.add(currentId);
+        path.push(currentId);
+        currentId = parentByChild.get(currentId);
+      }
+      path.forEach((id) => completed.add(id));
+    }
     return relations;
   };
   const validateInstanceRelations = (relations, classIds, instanceIds) => {
@@ -152,6 +168,11 @@
     summary.hidden = true;
     if (selectedFiles.length > 2) {
       setStatus('一度に選択できるファイルは2つまでです。', true);
+      return;
+    }
+    const totalFileBytes = selectedFiles.reduce((total, file) => total + file.size, 0);
+    if (totalFileBytes > MAX_TOTAL_FILE_BYTES) {
+      setStatus('選択したJSONの合計サイズが50MBを超えています。ファイルを分けるか、不要なデータを除いてください。', true);
       return;
     }
     try {

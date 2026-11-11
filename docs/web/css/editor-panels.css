@@ -337,7 +337,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-audit-list p { margin: 0.25rem 0; }
 .ai-audit-list ul { padding-left: 1rem; }
 .ai-settings-inline-link { padding: 0; border: 0; background: none; color: #1d4ed8; font: inherit; text-decoration: underline; cursor: pointer; }
-.ai-proposal-card { flex: 0 0 auto; padding: 0.7rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #f8fbff; font-size: 0.84rem; }
+.ai-proposal-card { flex: 0 0 auto; padding: 0.7rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #fff; font-size: 0.84rem; }
 .ai-proposal-source { display: inline-block; margin-bottom: 0.35rem; color: #475569; font-size: 0.72rem; font-weight: 600; }
 .ai-proposal-alternative { padding: 0.35rem 0.5rem; border-radius: 6px; background: #fff7ed; color: #9a3412; font-size: 0.74rem; }
 .ai-proposal-card.is-stale { border-color: #fbbf24; background: #fffbeb; }
@@ -578,9 +578,9 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-proposal-queue-disclosure > summary::-webkit-details-marker { display: none; }
 .ai-proposal-queue-disclosure > summary::before { flex: 0 0 auto; color: #64748b; content: "▸"; }
 .ai-proposal-queue-disclosure[open] > summary::before { content: "▾"; }
-.ai-proposal-queue-title { white-space: nowrap; }
+.ai-proposal-queue-title { font-size: 1rem; white-space: nowrap; }
 .ai-proposal-queue-status-counts { display: inline-flex; flex-wrap: wrap; gap: 0.2rem; }
-.ai-proposal-status-badge { display: inline-flex; align-items: center; padding: 0.12rem 0.4rem; border: 1px solid #94a3b8; border-radius: 999px; color: #334155; font-size: 0.68rem; font-weight: 650; line-height: 1.25; white-space: nowrap; }
+.ai-proposal-status-badge { display: inline-flex; align-items: center; padding: 0.15rem 0.48rem; border: 1px solid #94a3b8; border-radius: 999px; color: #334155; font-size: 0.76rem; font-weight: 650; line-height: 1.25; white-space: nowrap; }
 .ai-proposal-status-badge.is-unjudged { border-color: #eab308; color: #713f12; background: #fef08a; }
 .ai-proposal-status-badge.is-applied { border-color: #22c55e; color: #166534; background: #dcfce7; }
 .ai-proposal-status-badge.is-dismissed { border-color: #ef4444; color: #991b1b; background: #fee2e2; }
@@ -589,7 +589,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-proposal-queue-type-counts { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .ai-proposal-list { display: grid; gap: 0.3rem; }
 .ai-proposal-list-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 0.45rem; padding: 0.4rem 0.5rem; border: 1px solid; border-radius: 7px; font-size: 0.78rem; }
-.ai-proposal-list-item.is-unjudged { border-color: #eab308; background: #fef9c3; }
+.ai-proposal-list-item.is-unjudged { border-color: #cbd5e1; background: #fff; }
 .ai-proposal-list-item.is-applied { border-color: #86efac; background: #dcfce7; }
 .ai-proposal-list-item.is-dismissed { border-color: #fca5a5; background: #fee2e2; }
 .ai-proposal-list-main { display: grid; min-width: 0; gap: 0.15rem; align-content: center; }

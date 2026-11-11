@@ -291,7 +291,11 @@ function renderAggregationDetailLists(targetId, sections, classContextForId) {
         const context = type !== 'インスタンス' && type !== '未登録' ? classContextForId(id) : { upperLabels: [], middleLabels: [] };
         rows.push([section.title, title, type, id, context.upperLabels.join(' ／ '), context.middleLabels.join(' ／ '), variantLabel ? `実際の表記: ${variantLabel}` : note]);
       }));
-      const tsv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join('\t')).join('\r\n');
+      const safeCell = (cell) => {
+        const text = String(cell ?? '');
+        return /^[\u0000-\u0020\uFEFF]*[=+\-@]/.test(text) ? `'${text}` : text;
+      };
+      const tsv = rows.map((row) => row.map((cell) => `"${safeCell(cell).replaceAll('"', '""')}"`).join('\t')).join('\r\n');
       const blob = new Blob([`\ufeff${tsv}\r\n`], { type: 'text/tab-separated-values;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
