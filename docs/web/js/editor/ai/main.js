@@ -207,8 +207,8 @@ import { createAIClient } from './ai-client.js?v=20261111-unified-processing-dis
   };
   const isFullGraphScopeEnabled = () => fullGraphScopeToggle.getAttribute('aria-checked') === 'true';
   const defaultPromptExamples = [
-    { id: 'target-membership', title: '所属を見直す', prompt: '選択範囲に対象クラスが含まれる場合は、現在の所属が内容に合っているか確認してください。所属変更が必要な対象クラスがあれば、移動先と理由を提案してください。中間クラスや上位クラスの階層変更は、分類上必要な場合に限り、対象・移動先・理由を示して提案してください。変更が不要、または判断できない場合は変更案を出さないでください。', showWhen: { always: true } },
-    { id: 'common-summary', title: '選択範囲を要約', prompt: '選択範囲のクラスと親子関係を要約し、各クラスの役割と分類の特徴を説明してください。変更案は出さないでください。', showWhen: { always: true } }
+    { id: 'target-membership', category: '基本', title: '所属を見直す', prompt: '選択範囲に対象クラスが含まれる場合、各対象の現在の所属が内容に合っているか確認してください。明確な所属のずれがある場合だけ、対象・適切な移動先・判断理由を示してください。所属を判断できない場合は、変更案を出さず不足している情報を説明してください。', showWhen: { always: true } },
+    { id: 'common-summary', category: '基本', title: '選択範囲を要約', prompt: '選択範囲のクラスと親子関係を要約し、各クラスの役割と分類の特徴を説明してください。変更案は出さないでください。', showWhen: { always: true } }
   ];
   let availablePromptExamples = defaultPromptExamples;
   let lastRenderedPromptExamples = null;
@@ -249,17 +249,32 @@ import { createAIClient } from './ai-client.js?v=20261111-unified-processing-dis
     });
     if (lastRenderedPromptExamples === examples && lastPromptExampleContext === contextKey) return;
     promptExamplesById.clear();
-    const fragment = document.createDocumentFragment();
+    const groupedExamples = new Map();
     filterPromptExamples(examples, context).forEach((example) => {
       if (!example || typeof example.id !== 'string' || typeof example.title !== 'string'
         || typeof example.prompt !== 'string' || !example.id.trim() || !example.title.trim() || !example.prompt.trim()) return;
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'ai-prompt-example';
-      button.dataset.promptExample = example.id;
-      button.textContent = example.title;
-      promptExamplesById.set(example.id, example.prompt);
-      fragment.append(button);
+      const category = typeof example.category === 'string' && example.category.trim() ? example.category : 'その他';
+      if (!groupedExamples.has(category)) groupedExamples.set(category, []);
+      groupedExamples.get(category).push(example);
+    });
+    const fragment = document.createDocumentFragment();
+    groupedExamples.forEach((categoryExamples, category) => {
+      const group = document.createElement('div');
+      group.className = 'ai-prompt-example-group';
+      const label = document.createElement('span');
+      label.className = 'ai-prompt-example-category';
+      label.textContent = category;
+      group.append(label);
+      categoryExamples.forEach((example) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'ai-prompt-example';
+        button.dataset.promptExample = example.id;
+        button.textContent = example.title;
+        promptExamplesById.set(example.id, example.prompt);
+        group.append(button);
+      });
+      fragment.append(group);
     });
     promptExamplesList.replaceChildren(fragment);
     lastRenderedPromptExamples = examples;
