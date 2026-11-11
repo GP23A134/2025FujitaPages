@@ -823,13 +823,16 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
   background: rgba(255, 255, 255, 0.85);
 }
 
-.held-instance-table { width: 100%; border-collapse: separate; border-spacing: 0; color: #334155; font-size: 0.92rem; }
+.held-instance-table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; color: #334155; font-size: 0.92rem; }
 .held-instance-table[hidden] { display: none; }
 .held-instance-table th, .held-instance-table td { padding: 0.42rem 0.45rem; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: middle; }
-.held-instance-table th { position: sticky; top: 0; z-index: 1; color: #475569; background: #f1f5f9; font-size: 0.82rem; font-weight: 700; }
+.held-instance-table th { position: sticky; top: 0; z-index: 1; color: #475569; background: #f1f5f9; font-size: 0.82rem; font-weight: 700; text-align: center; border-radius: 0; }
+.held-instance-table th:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 0; }
+.held-instance-table th:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 0; }
+.held-instance-table td:nth-child(2) { overflow-wrap: anywhere; }
 .held-instance-table tbody tr:hover { background: #f8fafc; }
-.held-instance-table-id { width: 1%; color: #64748b; font-size: 0.78rem; white-space: nowrap; }
-.held-instance-table-action { width: 1%; text-align: right !important; white-space: nowrap; }
+.held-instance-table-id { color: #64748b; font-size: 0.78rem; white-space: nowrap; }
+.held-instance-table-action { text-align: center !important; white-space: nowrap; }
 .held-instance-table button { border: 1px solid #bfdbfe; border-radius: 999px; padding: 0.12rem 0.45rem; color: #1e40af; background: #eff6ff; cursor: pointer; font: inherit; font-size: 0.82rem; }
 .held-instance-table button:hover, .held-instance-table button:focus-visible { color: #fff; background: #2563eb; }
 .held-pagination-container { display: flex; flex: 0 0 auto; flex-direction: column; }

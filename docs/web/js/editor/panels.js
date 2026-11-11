@@ -202,6 +202,12 @@ function renderInstances() {
     table.className = 'held-instance-table';
     table.dataset.heldKind = kind;
     table.hidden = kind !== heldKindView;
+    const columns = document.createElement('colgroup');
+    ['20%', '56%', '24%'].forEach((width) => {
+      const column = document.createElement('col');
+      column.style.width = width;
+      columns.append(column);
+    });
     const head = document.createElement('thead');
     const headerRow = document.createElement('tr');
     ['ID', 'クラス名', '操作'].forEach((text) => {
@@ -230,7 +236,7 @@ function renderInstances() {
       row.append(idCell, labelCell, actionCell);
       body.append(row);
     });
-    table.append(head, body);
+    table.append(columns, head, body);
     return table;
   };
   held.replaceChildren(
