@@ -6,6 +6,7 @@
     {
       "id": "gpt-6-luna",
       "label": "GPT-6 Luna",
+      "maxOutputTokens": 128000,
       "description": "低コストの既定モデル。標準・短コンテキスト価格：入力 $0.10 / 100万トークン、キャッシュ入力 $0.01、キャッシュ書き込み $0.125、出力 $0.50。",
       "pricingVerified": true,
       "inputUsdPerMillion": 0.10,
@@ -16,6 +17,7 @@
     {
       "id": "gpt-6.1-sol",
       "label": "GPT-6.1 Sol",
+      "maxOutputTokens": 128000,
       "description": "標準・短コンテキスト価格：入力 $2 / 100万トークン、キャッシュ入力 $0.10、キャッシュ書き込み $2.50、出力 $10。",
       "pricingVerified": true,
       "inputUsdPerMillion": 2,
@@ -26,18 +28,21 @@
     {
       "id": "gpt-6-sol",
       "label": "GPT-6 Sol",
+      "maxOutputTokens": 128000,
       "description": "料金を確認できていないため、このモデルの料金概算は表示されません。",
       "pricingVerified": false
     },
     {
       "id": "gpt-5.6-terra",
       "label": "GPT-5.6 Terra",
+      "maxOutputTokens": 128000,
       "description": "料金を確認できていないため、このモデルの料金概算は表示されません。",
       "pricingVerified": false
     },
     {
       "id": "gpt-5.6-luna",
       "label": "GPT-5.6 Luna",
+      "maxOutputTokens": 128000,
       "description": "料金を確認できていないため、このモデルの料金概算は表示されません。",
       "pricingVerified": false
     }

@@ -10,7 +10,7 @@
   }
   const storageKey = 'classEditorTestPreferences';
   const proposalModeKey = 'classEditorAiProposalView';
-  const defaults = { heldFontSize: 0.92, chatFontSize: 1, proposalFontSize: 0.9, treeTopFontSize: 0.95, treeMiddleFontSize: 0.95, treeTargetFontSize: 0.9, treeColorIntensity: 1, treeDisclosureSize: 0.85, treeTopColor: '#7dd3fc', treeTopTextColor: '#075985', treeTopBackgroundColor: '#e0f2fe', proposalMode: 'compact', responseMode: 'proposal', promptFlexibility: 5, crossScopeStrategy: 'exhaustive', aiConcurrency: 2, crossScopeTopLimit: 2, crossScopeMiddleLimit: 5 };
+  const defaults = { heldFontSize: 0.92, chatFontSize: 1, proposalFontSize: 0.9, treeTopFontSize: 0.95, treeMiddleFontSize: 0.95, treeTargetFontSize: 0.9, treeColorIntensity: 1, treeDisclosureSize: 0.85, treeTopColor: '#7dd3fc', treeTopTextColor: '#075985', treeTopBackgroundColor: '#e0f2fe', proposalMode: 'compact', responseMode: 'proposal', promptFlexibility: 5, crossScopeStrategy: 'exhaustive', aiConcurrency: 2, crossScopeTopLimit: 2, crossScopeMiddleLimit: 5, responseOutputTokens: 5000, chunkOutputTokens: 3000, synthesisOutputTokens: 4500, crossScopeOutputTokens: 4000, aiSplitEnabled: true, maxUnitsPerBatch: 4, optimizationSplitThreshold: 20, synthesisMaxRounds: 8 };
   const limits = {
     heldFontSize: [0.8, 1.3],
     chatFontSize: [0.85, 1.4],
@@ -23,18 +23,29 @@
     aiConcurrency: [1, 4],
     promptFlexibility: [1, 5],
     crossScopeTopLimit: [1, 5],
-    crossScopeMiddleLimit: [1, 10]
+    crossScopeMiddleLimit: [1, 10],
+    responseOutputTokens: [500, 128000],
+    chunkOutputTokens: [500, 128000],
+    synthesisOutputTokens: [500, 128000],
+    crossScopeOutputTokens: [500, 128000],
+    maxUnitsPerBatch: [1, 4],
+    optimizationSplitThreshold: [1, 20],
+    synthesisMaxRounds: [1, 8]
   };
-  const countSettings = new Set(['aiConcurrency', 'crossScopeTopLimit', 'crossScopeMiddleLimit']);
+  const countSettings = new Set(['aiConcurrency', 'crossScopeTopLimit', 'crossScopeMiddleLimit', 'maxUnitsPerBatch', 'optimizationSplitThreshold', 'synthesisMaxRounds']);
+  const countUnits = { maxUnitsPerBatch: '単位', synthesisMaxRounds: '回' };
+  const outputTokenSettings = new Set(['responseOutputTokens', 'chunkOutputTokens', 'synthesisOutputTokens', 'crossScopeOutputTokens']);
   const flexibilityLabels = ['最大限自由', '柔軟', '標準', '厳密', '非常に厳密'];
   const percentageSettings = new Set(['treeColorIntensity']);
   const read = () => {
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}') || {}; } catch {}
     const preferences = { ...defaults };
+    if (typeof saved.aiSplitEnabled === 'boolean') preferences.aiSplitEnabled = saved.aiSplitEnabled;
     for (const [key, [min, max]] of Object.entries(limits)) {
       const value = Number(saved[key]);
-      if (Number.isFinite(value) && value >= min && value <= max) preferences[key] = value;
+      if (Number.isFinite(value) && value >= min && value <= max
+        && (Number.isInteger(value) || !Number.isInteger(defaults[key]))) preferences[key] = value;
     }
     const legacyTreeLevelFontSize = Number(saved.treeLevelFontSize);
     if (legacyTreeLevelFontSize >= 0.8 && legacyTreeLevelFontSize <= 1.4) {
@@ -83,10 +94,12 @@
   const updateControls = () => controls.forEach((control) => {
     const key = control.dataset.preference;
     if (!(key in preferences)) return;
-    control.value = String(preferences[key]);
+    if (control.type === 'checkbox') control.checked = Boolean(preferences[key]);
+    else control.value = String(preferences[key]);
     const output = document.querySelector(`output[for="${control.id}"]`);
     if (output) output.value = key === 'promptFlexibility' ? `${preferences[key]}：${flexibilityLabels[preferences[key] - 1]}`
-      : countSettings.has(key) ? `${preferences[key]}件`
+      : countSettings.has(key) ? `${preferences[key]}${countUnits[key] || '件'}`
+      : outputTokenSettings.has(key) ? `${Number(preferences[key]).toLocaleString('ja-JP')} トークン`
       : percentageSettings.has(key) ? `${Math.round(preferences[key] * 100)}%` : `${Number(preferences[key]).toFixed(2)}rem`;
   });
   updateControls();
@@ -111,6 +124,31 @@
       return false;
     }
   };
+  window.addEventListener('class-editor-model-capabilities-change', (event) => {
+    const suppliedLimit = Number(event.detail?.maxOutputTokens);
+    const modelMaximum = Number.isInteger(suppliedLimit) && suppliedLimit > 0
+      ? Math.min(128000, suppliedLimit) : 128000;
+    let changed = false;
+    outputTokenSettings.forEach((key) => {
+      limits[key][1] = modelMaximum;
+      controls.filter((control) => control.dataset.preference === key).forEach((control) => {
+        control.max = String(modelMaximum);
+      });
+      if (preferences[key] > modelMaximum) {
+        preferences[key] = modelMaximum;
+        changed = true;
+      }
+    });
+    if (!changed) {
+      updateControls();
+      return;
+    }
+    apply(preferences);
+    updateControls();
+    dispatch(preferences);
+    savePreferences();
+    status('選択モデルの最大出力に合わせて上限を調整しました。');
+  });
   const restoreSaved = () => {
     const hadUnsavedChanges = JSON.stringify(preferences) !== JSON.stringify(savedPreferences);
     preferences = { ...savedPreferences };
@@ -120,9 +158,10 @@
     status(hadUnsavedChanges ? '未保存の変更を取り消しました。' : '');
   };
   controls.forEach((control) => control.addEventListener(
-    control.tagName === 'SELECT' || control.type === 'number' ? 'change' : 'input', () => {
+    control.tagName === 'SELECT' || control.type === 'number' || control.type === 'checkbox' ? 'change' : 'input', () => {
     const key = control.dataset.preference;
-    if (limits[key]) {
+    if (control.type === 'checkbox') preferences[key] = control.checked;
+    else if (limits[key]) {
       const [min, max] = limits[key];
       const value = Number(control.value);
       preferences[key] = Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
@@ -134,6 +173,9 @@
   }));
   document.getElementById('test-preferences-reset')?.addEventListener('click', () => {
     preferences = { ...defaults };
+    Object.entries(limits).forEach(([key, [min, max]]) => {
+      if (Number.isFinite(Number(preferences[key]))) preferences[key] = Math.max(min, Math.min(max, Number(preferences[key])));
+    });
     apply(preferences);
     updateControls();
     dispatch(preferences);

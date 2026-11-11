@@ -1,6 +1,7 @@
 // 現在の選択範囲を依頼JSONへ変換し、大きすぎる範囲を処理単位へ分割します。
 // scope固有の指示はJSON内に一時的に載せ、送信層が固定プロンプトの後ろへ移します。
-export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope, shortenInputIds }) => {
+export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope, shortenInputIds,
+  getMaxUnitsPerBatch = () => 4, getOptimizationSplitThreshold = () => 20 }) => {
   // 長い全体分析の計画中も、ブラウザーに描画と入力イベントの処理を返します。
   const yieldToBrowser = () => new Promise((resolve) => window.setTimeout(resolve, 0));
   // 通常依頼では前回スナップショットとの差分を使い、初回・強制更新では全体を送ります。
@@ -438,9 +439,10 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
         const candidate = makeBatch([...pending, unit]);
         const editableIds = new Set(candidate.scope.editableIds);
         const editableTargetCount = candidate.scope.classes.filter((item) => item.type === 'class' && editableIds.has(item.id)).length;
-        // Four units keep the grouped response budget near the previously stable 12k-token ceiling.
-        const exceedsGroupLimit = candidate.units.length > 4;
-        const exceedsOperationLimit = candidate.scope.allowHierarchyEdits && editableTargetCount > 20;
+        const maxUnitsPerBatch = Math.min(4, Math.max(1, Math.floor(Number(getMaxUnitsPerBatch()) || 4)));
+        const optimizationSplitThreshold = Math.min(20, Math.max(1, Math.floor(Number(getOptimizationSplitThreshold()) || 20)));
+        const exceedsGroupLimit = candidate.units.length > maxUnitsPerBatch;
+        const exceedsOperationLimit = candidate.scope.allowHierarchyEdits && editableTargetCount > optimizationSplitThreshold;
         if (pending.length && (candidate.input.length > taskCharacterLimit || exceedsGroupLimit || exceedsOperationLimit)) {
           batches.push(makeBatch(pending));
           pending = [unit];
@@ -458,7 +460,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
 
 // 分割回答と範囲根拠を統合し、カテゴリ別の横断比較状態も返します。
 // チャンクの検証・提案・会話状態は呼び出し側が管理します。
-export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS }) => {
+export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRounds = () => 8 }) => {
   const categoryKeys = ['duplicates', 'imbalance', 'gaps', 'other'];
   const insufficientComparison = (expectedScopes, requiredScopesByCategory, reason) => Object.fromEntries(categoryKeys.map((key) => [key, {
     status: 'insufficient',
@@ -610,7 +612,7 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS }) => {
     });
     let entries = compactAssessments;
     let round = 1;
-    const maxRounds = 8;
+    const maxRounds = Math.min(8, Math.max(1, Math.floor(Number(getMaxRounds()) || 8)));
     const initialInput = prompt && entries.length ? buildInput(request, sourceScopeCoverage, entries, round, expectedScopes, requiredScopesByCategory) : '';
     let ready = payloadLimit > 0 && Boolean(initialInput) && initialInput.length <= payloadLimit;
     if (!ready && prompt && entries.length) ready = Boolean(packInputs(entries, round, request, sourceScopeCoverage, payloadLimit, expectedScopes, requiredScopesByCategory));
@@ -966,12 +968,18 @@ export const filterPromptExamples = (examples, context) => examples.filter((exam
 
 // 送信と全体範囲の再試行を、画面状態から独立した処理として扱います。
 export const createRequestSender = ({ responsesClient, responseHandler, apiKey, model, systemPrompt, proposalPolicy, evaluationMode = false,
-  signal, baseDataHash, scopeCoverage, maxOutputTokens, defaultStage, onStage, onUsage }) => {
+  signal, baseDataHash, scopeCoverage, maxOutputTokens, modelMaxOutputTokens = 128000, defaultStage, onStage, onUsage }) => {
   const send = (input, previousResponseId = '', outputTokens = maxOutputTokens,
-    stage = defaultStage, grouped = false, summaryOnly = false, promptOverride = '', comparisonSynthesis = false) => responsesClient.send(input, {
-    apiKey, model, systemPrompt, previousResponseId, maxOutputTokens: outputTokens,
-    stage, grouped, summaryOnly, comparisonSynthesis, promptOverride, signal, onStage, onUsage
-  });
+    stage = defaultStage, grouped = false, summaryOnly = false, promptOverride = '', comparisonSynthesis = false) => {
+    const modelLimit = Number.isInteger(Number(modelMaxOutputTokens)) && Number(modelMaxOutputTokens) > 0
+      ? Math.min(128000, Number(modelMaxOutputTokens)) : 128000;
+    const requestedLimit = Math.floor(Number(outputTokens) || Number(maxOutputTokens) || 1);
+    const boundedOutputTokens = Math.min(modelLimit, Math.max(1, requestedLimit));
+    return responsesClient.send(input, {
+      apiKey, model, systemPrompt, previousResponseId, maxOutputTokens: boundedOutputTokens,
+      stage, grouped, summaryOnly, comparisonSynthesis, promptOverride, signal, onStage, onUsage
+    });
+  };
   const retryCompleteScopeDataRequest = async (response, isChunk = false) => {
     responseHandler.validatePayload(response.result, baseDataHash);
     if (scopeCoverage !== 'all_classes' || !response.result.dataRequests.length) return response;

@@ -31,10 +31,14 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
 
   // Context tokenization varies by model and language; reserve headroom for prompts and output.
   const MAX_REQUEST_CHARACTERS = 48000;
-  const MAX_OUTPUT_TOKENS = 5000;
-  const CHUNK_OUTPUT_TOKENS = 3000;
-  const SYNTHESIS_OUTPUT_TOKENS = 4500;
-  const CROSS_SCOPE_OUTPUT_TOKENS = 4000;
+  let MAX_OUTPUT_TOKENS = 5000;
+  let CHUNK_OUTPUT_TOKENS = 3000;
+  let SYNTHESIS_OUTPUT_TOKENS = 4500;
+  let CROSS_SCOPE_OUTPUT_TOKENS = 4000;
+  let MAX_UNITS_PER_BATCH = 4;
+  let OPTIMIZATION_SPLIT_THRESHOLD = 20;
+  let MAX_SYNTHESIS_ROUNDS = 8;
+  let AI_SPLIT_ENABLED = true;
   const MAX_CACHED_SPLIT_SUMMARY_CHARACTERS = 24000;
   const MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS = 8000;
   const MAX_CACHED_SPLIT_CHUNK_CHARACTERS = 450000;
@@ -144,6 +148,9 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
       updateCurrentModelLabel();
       const selected = config.models.find((item) => item.id === config.defaultModel);
       if (selected?.description) document.getElementById('ai-model-description').textContent = selected.description;
+      window.dispatchEvent(new CustomEvent('class-editor-model-capabilities-change', {
+        detail: { maxOutputTokens: selected?.maxOutputTokens || 128000 }
+      }));
       return config;
     })
     .catch((error) => {
@@ -158,6 +165,9 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
     const selected = modelConfig?.models.find((item) => item.id === modelSelect.value);
     document.getElementById('ai-model-description').textContent = selected?.description || '選択したモデルを次の依頼から使用します。';
     updateCurrentModelLabel();
+    window.dispatchEvent(new CustomEvent('class-editor-model-capabilities-change', {
+      detail: { maxOutputTokens: selected?.maxOutputTokens || 128000 }
+    }));
   });
   const messages = document.getElementById('ai-chat-messages');
   const status = document.getElementById('ai-status');
@@ -178,6 +188,17 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
   let promptFlexibility = readAiTuningValue('promptFlexibility', 5, 1, 5);
   let crossScopeCandidateUpperLimit = readAiTuningValue('crossScopeTopLimit', 2, 1, 5);
   let crossScopeCandidateMiddleLimit = readAiTuningValue('crossScopeMiddleLimit', 5, 1, 10);
+  MAX_OUTPUT_TOKENS = readAiTuningValue('responseOutputTokens', MAX_OUTPUT_TOKENS, 500, 128000);
+  CHUNK_OUTPUT_TOKENS = readAiTuningValue('chunkOutputTokens', CHUNK_OUTPUT_TOKENS, 500, 128000);
+  SYNTHESIS_OUTPUT_TOKENS = readAiTuningValue('synthesisOutputTokens', SYNTHESIS_OUTPUT_TOKENS, 500, 128000);
+  CROSS_SCOPE_OUTPUT_TOKENS = readAiTuningValue('crossScopeOutputTokens', CROSS_SCOPE_OUTPUT_TOKENS, 500, 128000);
+  MAX_UNITS_PER_BATCH = readAiTuningValue('maxUnitsPerBatch', MAX_UNITS_PER_BATCH, 1, 4);
+  OPTIMIZATION_SPLIT_THRESHOLD = readAiTuningValue('optimizationSplitThreshold', OPTIMIZATION_SPLIT_THRESHOLD, 1, 20);
+  MAX_SYNTHESIS_ROUNDS = readAiTuningValue('synthesisMaxRounds', MAX_SYNTHESIS_ROUNDS, 1, 8);
+  try {
+    const saved = JSON.parse(localStorage.getItem('classEditorTestPreferences') || '{}');
+    if (typeof saved.aiSplitEnabled === 'boolean') AI_SPLIT_ENABLED = saved.aiSplitEnabled;
+  } catch {}
   let currentResponseMode = 'proposal';
   try {
     const saved = JSON.parse(localStorage.getItem('classEditorTestPreferences') || '{}');
@@ -197,6 +218,23 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
     if (Number.isInteger(upperLimit) && upperLimit >= 1 && upperLimit <= 5) crossScopeCandidateUpperLimit = upperLimit;
     const middleLimit = Number(event.detail?.crossScopeMiddleLimit);
     if (Number.isInteger(middleLimit) && middleLimit >= 1 && middleLimit <= 10) crossScopeCandidateMiddleLimit = middleLimit;
+    const selectedModel = modelConfig?.models.find((item) => item.id === modelSelect.value);
+    const modelOutputLimit = Math.min(128000, Number(selectedModel?.maxOutputTokens) || 128000);
+    const readBoundedOutput = (key, current) => {
+      const value = Number(event.detail?.[key]);
+      return Number.isInteger(value) && value >= 500 && value <= modelOutputLimit ? value : current;
+    };
+    MAX_OUTPUT_TOKENS = readBoundedOutput('responseOutputTokens', MAX_OUTPUT_TOKENS);
+    CHUNK_OUTPUT_TOKENS = readBoundedOutput('chunkOutputTokens', CHUNK_OUTPUT_TOKENS);
+    SYNTHESIS_OUTPUT_TOKENS = readBoundedOutput('synthesisOutputTokens', SYNTHESIS_OUTPUT_TOKENS);
+    CROSS_SCOPE_OUTPUT_TOKENS = readBoundedOutput('crossScopeOutputTokens', CROSS_SCOPE_OUTPUT_TOKENS);
+    const unitsPerBatch = Number(event.detail?.maxUnitsPerBatch);
+    if (Number.isInteger(unitsPerBatch) && unitsPerBatch >= 1 && unitsPerBatch <= 4) MAX_UNITS_PER_BATCH = unitsPerBatch;
+    const splitThreshold = Number(event.detail?.optimizationSplitThreshold);
+    if (Number.isInteger(splitThreshold) && splitThreshold >= 1 && splitThreshold <= 20) OPTIMIZATION_SPLIT_THRESHOLD = splitThreshold;
+    if (typeof event.detail?.aiSplitEnabled === 'boolean') AI_SPLIT_ENABLED = event.detail.aiSplitEnabled;
+    const synthesisRounds = Number(event.detail?.synthesisMaxRounds);
+    if (Number.isInteger(synthesisRounds) && synthesisRounds >= 1 && synthesisRounds <= 8) MAX_SYNTHESIS_ROUNDS = synthesisRounds;
     const strategy = event.detail?.crossScopeStrategy;
     if (crossScopeStrategies.has(strategy)) {
       crossScopeStrategy = strategy;
@@ -839,7 +877,7 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
       targetContext: scope.targetContext || { descendantTargetClassCounts: {} }
     };
   };
-  const chunkSynthesizer = createChunkSynthesizer({ MAX_REQUEST_CHARACTERS });
+  const chunkSynthesizer = createChunkSynthesizer({ MAX_REQUEST_CHARACTERS, getMaxRounds: () => MAX_SYNTHESIS_ROUNDS });
   const crossScopeProposalSynthesizer = createCrossScopeProposalSynthesizer({ MAX_REQUEST_CHARACTERS, shortenInputIds, createIdCodec });
   const diffScope = (before, after) => {
     const current = compactScope(after);
@@ -895,7 +933,9 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
     editor,
     MAX_REQUEST_CHARACTERS,
     diffScope,
-    shortenInputIds
+    shortenInputIds,
+    getMaxUnitsPerBatch: () => MAX_UNITS_PER_BATCH,
+    getOptimizationSplitThreshold: () => OPTIMIZATION_SPLIT_THRESHOLD
   });
   const getPayloadSnapshot = (additionalContextIds = [], includeAllClasses = false) => {
     const selectedIds = editor.selectedIds;
@@ -1841,9 +1881,10 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
     const optimizationHierarchyCount = scope.classes.filter((item) => ['top', 'middle'].includes(item.type)
       && editableScopeIdSet.has(item.id)).length;
     const needsOptimizationCoverageSplit = wantsClassificationOptimization
-      && (optimizationTargetCount > 20 || (!optimizationTargetCount && optimizationHierarchyCount > 20));
+      && (optimizationTargetCount > OPTIMIZATION_SPLIT_THRESHOLD
+        || (!optimizationTargetCount && optimizationHierarchyCount > OPTIMIZATION_SPLIT_THRESHOLD));
     const estimatedCurrentInputCharacters = userContent.length + systemPrompt.length + compactResponseInstructions.length + 1200;
-    if (estimatedCurrentInputCharacters > MAX_REQUEST_CHARACTERS || needsOptimizationCoverageSplit) {
+    if (AI_SPLIT_ENABLED && (estimatedCurrentInputCharacters > MAX_REQUEST_CHARACTERS || needsOptimizationCoverageSplit)) {
       conversation.localContext = conversation.localContext || summarizeVisibleConversation(conversation);
       try {
         splitTasks = await requestPlanner.makeLargeScopePlan(userText, scope, conversation, {
@@ -1871,6 +1912,9 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
         setStatus(`送信データが大きすぎます（約${userContent.length.toLocaleString()}文字）。${guidance}入力文は保持しています。`, 'error');
         return;
       }
+    } else if (!AI_SPLIT_ENABLED && estimatedCurrentInputCharacters > MAX_REQUEST_CHARACTERS) {
+      setStatus(`分割送信がオフのため、送信データが上限（${MAX_REQUEST_CHARACTERS.toLocaleString()}文字）を超える依頼は送信できません。対象範囲を小さくするか、分割送信をオンにしてください。`, 'error');
+      return;
     }
     const cachedChunkEntries = splitTasks && canReuseSplitChunks ? priorAnalysisMemory.chunkCache || [] : [];
     const chunkCacheByKey = new Map(cachedChunkEntries.map((entry) => [entry.key, entry.result]));
@@ -2033,6 +2077,7 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
         evaluationMode: responseMode === 'evaluation',
         signal: activeRequestController.signal, baseDataHash, scopeCoverage: scope.scopeCoverage,
         maxOutputTokens: MAX_OUTPUT_TOKENS,
+        modelMaxOutputTokens: modelConfig?.models.find((item) => item.id === modelSelect.value)?.maxOutputTokens || 128000,
         defaultStage: userText.startsWith('確認事項への回答です') ? '追加情報送信中' : '回答作成中',
         onStage: (nextStage) => requestProgress.setThinkingStage(conversation, nextStage),
         onUsage: recordUsage
