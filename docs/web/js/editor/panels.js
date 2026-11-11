@@ -67,13 +67,15 @@ let heldPageSizeUpdateScheduled = false;
 function syncHeldPageSize() {
   const held = document.getElementById('held-instance-list');
   if (!held || held.clientHeight <= 0) return;
-  const table = held.querySelector('.held-instance-table:not([hidden])');
-  const headerHeight = table?.tHead?.getBoundingClientRect().height || 30;
+  const visibleTable = held.querySelector('.held-instance-table-container:not([hidden])');
+  const bodyScroll = visibleTable?.querySelector('.held-instance-table-scroll');
+  const table = visibleTable?.querySelector('.held-instance-table-body');
+  if (!bodyScroll || bodyScroll.clientHeight <= 0) return;
   const rows = [...(table?.tBodies[0]?.rows || [])];
   const rowHeight = rows.length
     ? rows.reduce((total, row) => total + row.getBoundingClientRect().height, 0) / rows.length
     : 34;
-  const nextPageSize = Math.max(1, Math.min(50, Math.floor((held.clientHeight - headerHeight - 4) / rowHeight)));
+  const nextPageSize = Math.max(1, Math.min(50, Math.floor((bodyScroll.clientHeight - 4) / rowHeight)));
   if (nextPageSize === HELD_PAGE_SIZE) return;
   HELD_PAGE_SIZE = nextPageSize;
   renderInstances();
@@ -198,16 +200,22 @@ function renderInstances() {
     heldPageByKind[kind] = Math.min(heldPageByKind[kind] || 0, lastPage);
     const page = heldPageByKind[kind];
     const visibleRows = rows.slice(page * HELD_PAGE_SIZE, (page + 1) * HELD_PAGE_SIZE);
-    const table = document.createElement('table');
-    table.className = 'held-instance-table';
-    table.dataset.heldKind = kind;
-    table.hidden = kind !== heldKindView;
-    const columns = document.createElement('colgroup');
-    ['20%', '56%', '24%'].forEach((width) => {
-      const column = document.createElement('col');
-      column.style.width = width;
-      columns.append(column);
-    });
+    const container = document.createElement('div');
+    container.className = 'held-instance-table-container';
+    container.dataset.heldKind = kind;
+    container.hidden = kind !== heldKindView;
+    const makeColumns = () => {
+      const columns = document.createElement('colgroup');
+      ['20%', '56%', '24%'].forEach((width) => {
+        const column = document.createElement('col');
+        column.style.width = width;
+        columns.append(column);
+      });
+      return columns;
+    };
+    const headerTable = document.createElement('table');
+    headerTable.className = 'held-instance-table held-instance-table-header';
+    headerTable.append(makeColumns());
     const head = document.createElement('thead');
     const headerRow = document.createElement('tr');
     ['ID', 'クラス名', '操作'].forEach((text) => {
@@ -217,6 +225,15 @@ function renderInstances() {
       headerRow.append(cell);
     });
     head.append(headerRow);
+    headerTable.append(head);
+    const headerWrap = document.createElement('div');
+    headerWrap.className = 'held-instance-table-header-wrap';
+    headerWrap.append(headerTable);
+    const bodyScroll = document.createElement('div');
+    bodyScroll.className = 'held-instance-table-scroll';
+    const bodyTable = document.createElement('table');
+    bodyTable.className = 'held-instance-table held-instance-table-body';
+    bodyTable.append(makeColumns());
     const body = document.createElement('tbody');
     visibleRows.forEach(({ item, remove }) => {
       const row = document.createElement('tr');
@@ -236,8 +253,19 @@ function renderInstances() {
       row.append(idCell, labelCell, actionCell);
       body.append(row);
     });
-    table.append(columns, head, body);
-    return table;
+    if (!rows.length) {
+      const emptyRow = document.createElement('tr');
+      const emptyCell = document.createElement('td');
+      emptyCell.className = 'held-kind-empty';
+      emptyCell.colSpan = 3;
+      emptyCell.textContent = 'この種類の保持項目はありません。';
+      emptyRow.append(emptyCell);
+      body.append(emptyRow);
+    }
+    bodyTable.append(body);
+    bodyScroll.append(bodyTable);
+    container.append(headerWrap, bodyScroll);
+    return container;
   };
   held.replaceChildren(
     makeHeldTable('top', [...heldTopClasses.values()].map((item) => ({
@@ -266,6 +294,12 @@ function renderInstances() {
       } }
     })))
   );
+  held.querySelectorAll('.held-instance-table-container:not([hidden])').forEach((container) => {
+    const headerWrap = container.querySelector('.held-instance-table-header-wrap');
+    const bodyScroll = container.querySelector('.held-instance-table-scroll');
+    const scrollbarWidth = Math.max(0, bodyScroll.offsetWidth - bodyScroll.clientWidth);
+    headerWrap.style.setProperty('--held-list-scrollbar-width', `${scrollbarWidth}px`);
+  });
   heldPagination.replaceChildren();
   Object.entries({ top: heldTopClasses.size, middle: heldMiddleClasses.size, target: heldInstances.size }).forEach(([kind, total]) => {
     if (!total) return;
@@ -299,12 +333,6 @@ function renderInstances() {
     navigation.append(previous, status, next);
     heldPagination.append(navigation);
   });
-  if (!heldKindCounts[heldKindView]) {
-    const empty = document.createElement('p');
-    empty.className = 'held-kind-empty';
-    empty.textContent = 'この種類の保持項目はありません。';
-    held.append(empty);
-  }
   document.querySelectorAll('.held-kind-tab').forEach((tab) => {
     const selected = tab.dataset.heldKind === heldKindView;
     tab.classList.toggle('is-active', selected);

@@ -194,7 +194,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .held-kind-tab:focus-visible { outline: 2px solid #0284c7; outline-offset: 1px; }
 .held-kind-tabs { display: flex; flex: 0 0 auto; justify-content: flex-start; gap: 0.2rem; margin: 0 0 0.45rem; padding: 0.15rem 0.2rem; border-radius: 999px; background: #f1f5f9; }
 .held-kind-tab span { margin-left: 0.15rem; color: #64748b; font-size: 0.72rem; }
-.held-kind-empty { margin: 0.5rem; color: #64748b; font-size: 0.82rem; text-align: center; }
+.held-instance-table .held-kind-empty { padding: 0.65rem 0.5rem; color: #64748b; font-size: 0.82rem; font-weight: 400; text-align: center; }
 .held-panel-icon-button { display: inline-flex; width: 2rem; height: 2rem; flex: 0 0 2rem; align-items: center; justify-content: center; padding: 0; border: 1px solid #cbd5e1; border-radius: 6px; color: #475569; background: #fff; cursor: pointer; font: inherit; font-size: 1.05rem; line-height: 1; }
 .held-panel-icon-button:hover, .held-panel-icon-button:focus-visible { border-color: #7dd3fc; color: #075985; background: #e0f2fe; }
 .held-panel-icon-button:focus-visible { outline: 2px solid #0284c7; outline-offset: 1px; }
@@ -813,22 +813,32 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .instance-selection:not(.is-collapsed) #held-list-view:not([hidden]) { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow: hidden; }
 .instance-selection:not(.is-collapsed) .held-panel-actions { flex: 0 0 auto; }
 .held-instance-list {
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 0;
   border: 1px solid #bae6fd;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.85);
 }
 
+.held-instance-table-container { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
+.held-instance-table-container[hidden] { display: none; }
 .held-instance-table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; color: #334155; font-size: 0.92rem; }
-.held-instance-table[hidden] { display: none; }
 .held-instance-table th, .held-instance-table td { padding: 0.42rem 0.45rem; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: middle; }
-.held-instance-table th { position: sticky; top: 0; z-index: 1; color: #475569; background: #f1f5f9; font-size: 0.82rem; font-weight: 700; text-align: center; border-radius: 0; }
-.held-instance-table th:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 0; }
-.held-instance-table th:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 0; }
+.held-instance-table th { color: #475569; background: #f1f5f9; font-size: 0.82rem; font-weight: 700; text-align: center; border-radius: 0; }
+.held-instance-table th:first-child { border-top-left-radius: 7px; border-bottom-left-radius: 0; }
+.held-instance-table th:last-child { border-top-right-radius: 7px; border-bottom-right-radius: 0; }
+.held-instance-table-header-wrap { box-sizing: border-box; flex: 0 0 auto; overflow: hidden; padding-right: var(--held-list-scrollbar-width, 0px); border-bottom: 1px solid #e2e8f0; border-radius: 7px 7px 0 0; background: #f1f5f9; }
+.held-instance-table-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
+.held-instance-table-header { flex: 0 0 auto; }
+.held-instance-table-header th { background: transparent; border-bottom: 0; }
+.held-instance-table-header th:first-child { border-top-left-radius: 0; }
+.held-instance-table-header th:last-child { border-top-right-radius: 0; }
+.held-instance-table-body td { text-align: left; }
 .held-instance-table td:nth-child(2) { overflow-wrap: anywhere; }
 .held-instance-table tbody tr:hover { background: #f8fafc; }
 .held-instance-table-id { color: #64748b; font-size: 0.78rem; white-space: nowrap; }
