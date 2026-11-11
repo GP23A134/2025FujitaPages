@@ -1,6 +1,6 @@
 // 編集モジュールを読み込んだ後に、保存・Undo/Redo・UIイベントを登録して初回描画を行う。
 // ============================================================
-// JSON出力と保存
+// IndexedDBへの保存
 // ============================================================
 const saveValidationBaseline = {
   classes: classes.map((item) => ({ id: item.id, type: classKind(item), label: item.label })),
@@ -115,8 +115,8 @@ const showSaveValidation = (issues) => {
   const warnings = currentIssues.filter((issue) => issue.severity === 'warning');
   const summary = document.getElementById('edit-validation-summary');
   summary.textContent = errors.length
-    ? `編集で新たに発生したエラーが${errors.length}件あります。修正してから出力してください。警告 ${warnings.length}件。`
-    : `出力前に確認したい警告が${warnings.length}件あります。元データから存在する問題も警告として表示しています。`;
+    ? `編集で新たに発生したエラーが${errors.length}件あります。修正してから保存してください。警告 ${warnings.length}件。`
+    : `保存前に確認したい警告が${warnings.length}件あります。元データから存在する問題も警告として表示しています。`;
   const list = document.getElementById('edit-validation-issues');
   const rows = currentIssues.map((issue) => {
     const row = document.createElement('li');
@@ -145,22 +145,10 @@ const showSaveValidation = (issues) => {
   list.replaceChildren(...rows);
   const exportButton = document.getElementById('edit-validation-export');
   exportButton.hidden = errors.length > 0;
+  exportButton.textContent = '警告を確認して保存';
   saveValidationDialog.showModal();
 };
-function downloadJson(name, value) {
-  const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], { type: 'application/json;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a'); link.href = url; link.download = name; link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-function classUpdateFilename() {
-  const now = new Date();
-  const pad = (value, length = 2) => String(value).padStart(length, '0');
-  const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
-  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}-${pad(now.getMilliseconds(), 3)}`;
-  return `class-update-${date}-${time}.json`;
-}
-function saveEditChanges(skipValidation = false) {
+async function saveEditChanges(skipValidation = false) {
   if (!skipValidation) {
     const currentGraph = {
       classes: classes.map((item) => ({ id: item.id, type: classKind(item), label: item.label })),
@@ -172,26 +160,42 @@ function saveEditChanges(skipValidation = false) {
       return;
     }
   }
-  const exportData = {
-    classes: classes.map((item) => ({ type: classKind(item), id: item.id, label: item.label })),
-    relations: data.classData.relations.map(({ child, parent }) => ({ child, parent }))
-  };
-  const filename = classUpdateFilename();
-  downloadJson(filename, exportData);
-  logEditAction(`${filename}をダウンロードしました。data/input/に配置してClassDataUpdateを実行してください。`);
-  hasUnsavedChanges = false;
+  const saveButton = document.getElementById('save-edit-changes');
+  const originalSaveLabel = saveButton.textContent;
+  saveButton.disabled = true;
+  saveButton.textContent = '保存中…';
+  try {
+    const workspace = JSON.parse(JSON.stringify(window.appData));
+    workspace.classData.classes = classes.map((item) => ({ ...item }));
+    workspace.classData.relations = data.classData.relations.map((relation) => ({ ...relation }));
+    workspace.targetClassData = { ...(workspace.targetClassData || {}), classes: [] };
+    workspace.workspaceMeta = { ...(workspace.workspaceMeta || {}), kind: 'uploaded', fileName: '編集済み作業データ' };
+    await window.dataWorkspace.save(workspace, null, window.classEditorAI?.selectionSnapshot || []);
+    hasUnsavedChanges = false;
+    window.__dataWorkspaceUndoAvailable = true;
+    window.__dataWorkspaceRedoAvailable = false;
+    saveButton.textContent = '保存しました';
+    logEditAction('編集内容をブラウザーの作業データ（IndexedDB）に保存しました。閲覧画面にも反映されています。');
+  } catch (error) {
+    console.error('[クラス編集] IndexedDBへの保存に失敗しました。', error);
+    saveButton.textContent = '保存に失敗';
+    logEditAction('IndexedDBへの保存に失敗しました。ブラウザーの保存領域を確認してください。', 'error');
+  } finally {
+    saveButton.disabled = false;
+    window.setTimeout(() => { saveButton.textContent = originalSaveLabel; }, 2500);
+  }
 }
 document.getElementById('edit-validation-close').addEventListener('click', () => saveValidationDialog.close());
 document.getElementById('edit-validation-cancel').addEventListener('click', () => saveValidationDialog.close());
 document.getElementById('edit-validation-export').addEventListener('click', () => {
   saveValidationDialog.close();
-  saveEditChanges(true);
+  void saveEditChanges(true);
 });
 // ============================================================
 // 編集操作のイベント登録
 // ============================================================
 // 保存と編集履歴
-document.getElementById('save-edit-changes').addEventListener('click', () => saveEditChanges());
+document.getElementById('save-edit-changes').addEventListener('click', () => { void saveEditChanges(); });
 
 const scrollToTopButton = document.getElementById('scroll-to-top');
 const treePaneForScrollButton = document.querySelector('#edit-tree-panel .edit-tree-pane');
