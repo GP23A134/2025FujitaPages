@@ -9,7 +9,7 @@
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261109-tree-filter-disclosure-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261111-display-settings-layout-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261111-ai-chat-responsibilities-v1">
   <link rel="stylesheet" href="web/css/test-preferences.css?v=20261111-test-settings-layout-v1">
   <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261111-tree-drag-move-v2">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-held-panel-fixed-v2">
@@ -23,7 +23,7 @@
   <script data-app-script="web/js/editor/panels.js?v=20261111-held-table-fixed-header-v2"></script>
   <script data-app-script="web/js/editor/tree.js?v=20261111-tree-drag-move-v3"></script>
   <script data-app-script="web/js/editor/events.js?v=20261111-proposal-freedom-v1"></script>
-  <script data-app-script="web/js/editor/test-preferences.js?v=20261111-response-count-limits-v1"></script>
+  <script data-app-script="web/js/editor/test-preferences.js?v=20261111-ai-tuning-limits-v1" data-app-type="module"></script>
   <script src="web/js/shared/app-startup.js?v=20261111-tab-session-v1"></script>
 </head>
 <body class="edit-panes-pinned" data-mode="edit">
@@ -33,8 +33,8 @@
     <h1>クラス編集</h1>
     <p class="page-description">既存クラスの所属を整理します。</p>
     <div class="page-header-actions">
-      <!-- テスト調整用UI。撤去時は、このボタンと下のdialogを削除する。 -->
-      <button type="button" id="open-test-settings" class="page-link-button" hidden>テスト</button>
+      <!-- 開発者向けの調整UI。撤去時は、このボタンと下のdialogを削除する。 -->
+      <button type="button" id="open-test-settings" class="page-link-button" hidden>開発者設定</button>
       <button type="button" id="open-edit-settings" class="page-link-button">表示設定</button>
       <button type="button" id="open-data-import" class="page-link-button">データ追加</button>
       <a id="browse-link" class="page-link-button" href="index.html">閲覧画面へ</a>
@@ -302,23 +302,15 @@
       <p id="test-preferences-settings-status" class="ai-status" role="status" aria-live="polite"></p>
     </section>
   </dialog>
-  <!-- テスト調整用UI。専用CSS・JSと合わせて撤去できるよう分離している。 -->
+  <!-- 開発者向け調整UI。専用CSS・JSと合わせて撤去できるよう分離している。 -->
   <dialog id="test-settings-dialog" class="edit-settings-dialog" aria-labelledby="test-settings-title">
     <div class="ai-preview-header">
-      <h2 id="test-settings-title">テスト・調整</h2>
-      <button type="button" id="close-test-settings" class="target-instance-dialog-close" aria-label="テスト設定を閉じる">×</button>
+      <h2 id="test-settings-title">開発者設定</h2>
+      <button type="button" id="close-test-settings" class="target-instance-dialog-close" aria-label="開発者設定を閉じる">×</button>
     </div>
     <p class="edit-settings-note">変更はすぐに反映され、自動保存されます。「保存して閉じる」からも保存できます。</p>
     <section class="edit-settings-section" aria-labelledby="test-ai-chat-title">
       <h3 id="test-ai-chat-title">AIチャット</h3>
-      <div class="test-settings-group" role="group" aria-labelledby="test-ai-response-title">
-        <h4 id="test-ai-response-title">提案表示</h4>
-        <label for="test-proposal-mode">提案一覧の表示</label>
-        <select id="test-proposal-mode" class="edit-settings-select" data-preference="proposalMode">
-          <option value="compact">新しい一覧</option>
-          <option value="legacy">従来表示</option>
-        </select>
-      </div>
       <div class="test-settings-group" role="group" aria-labelledby="test-ai-tuning-title">
         <h4 id="test-ai-tuning-title">送信入力上限</h4>
         <label for="test-ai-input-limit">1回の送信で扱う最大文字数</label>
@@ -352,9 +344,9 @@
         <label class="edit-settings-checkbox"><input id="test-ai-split-enabled" type="checkbox" data-preference="aiSplitEnabled"> 分割送信を使う</label>
         <p class="edit-settings-note">オフにすると分割分析を行いません。1回の送信上限を超える場合は送信できません。</p>
         <div class="test-tuning-grid">
-          <div class="test-tuning-control"><label for="test-ai-batch-units">1回の分割送信に含める上位単位数</label><div class="test-range-row"><input id="test-ai-batch-units" type="range" min="1" max="4" step="1" data-preference="maxUnitsPerBatch"><output for="test-ai-batch-units"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-split-threshold">構造最適化で分割を始める対象数</label><div class="test-range-row"><input id="test-ai-split-threshold" type="range" min="1" max="20" step="1" data-preference="optimizationSplitThreshold"><output for="test-ai-split-threshold"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-synthesis-rounds">結果統合の最大回数</label><div class="test-range-row"><input id="test-ai-synthesis-rounds" type="range" min="1" max="8" step="1" data-preference="synthesisMaxRounds"><output for="test-ai-synthesis-rounds"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-batch-units">1回の分割送信に含める上位単位数</label><div class="test-range-row"><input id="test-ai-batch-units" type="range" step="1" data-preference="maxUnitsPerBatch"><output for="test-ai-batch-units"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-split-threshold">構造最適化で分割を始める対象数</label><div class="test-range-row"><input id="test-ai-split-threshold" type="range" step="1" data-preference="optimizationSplitThreshold"><output for="test-ai-split-threshold"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-synthesis-rounds">結果統合の最大回数</label><div class="test-range-row"><input id="test-ai-synthesis-rounds" type="range" step="1" data-preference="synthesisMaxRounds"><output for="test-ai-synthesis-rounds"></output></div></div>
         </div>
       </div>
     </section>
@@ -522,6 +514,6 @@
     <div class="data-import-actions"><button type="button" id="reset-to-default" class="search-button secondary-search-button">初期状態</button><button type="button" id="data-import-cancel" class="search-button secondary-search-button">キャンセル</button><button type="button" id="data-import-confirm" class="search-button" disabled>このデータで開始</button></div>
   </dialog>
   <script data-app-script="web/js/shared/data-upload.js?v=20261110-file-summary-type-fix-v1"></script>
-  <script data-app-script="web/js/editor/ai/main.js?v=20261111-response-count-limits-v1" data-app-type="module"></script>
+  <script data-app-script="web/js/editor/ai/main.js?v=20261111-ai-chat-renderer-v1" data-app-type="module"></script>
 </body>
 </html>

@@ -1,11 +1,14 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261111-input-limit-setting-v1';
-import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261111-split-global-plans-v1';
+import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261111-ai-tuning-limits-v1';
+import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261111-ai-chat-responsibilities-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261110-first-line-workflow-status-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261111-ai-proposal-undo-sync-v1';
+import { createProposalPreview } from './proposal-preview.js?v=20261111-ai-chat-responsibilities-v1';
 import { createAIClient } from './ai-client.js?v=20261111-response-count-limits-v1';
 import { createRequestProgress } from './request-progress.js?v=20261111-processing-text-v1';
+import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261111-ai-tuning-limits-v1';
+import { createProposalView } from './proposal-view.js?v=20261111-ai-chat-view-separation-v1';
+import { createConversationRenderer } from './conversation-renderer.js?v=20261111-ai-chat-renderer-v1';
 
 (() => {
   const editor = window.classEditorAI;
@@ -35,9 +38,9 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
   let CHUNK_OUTPUT_TOKENS = 3000;
   let SYNTHESIS_OUTPUT_TOKENS = 4500;
   let CROSS_SCOPE_OUTPUT_TOKENS = 4000;
-  let MAX_UNITS_PER_BATCH = 4;
-  let OPTIMIZATION_SPLIT_THRESHOLD = 20;
-  let MAX_SYNTHESIS_ROUNDS = 8;
+  let MAX_UNITS_PER_BATCH = AI_TUNING_LIMITS.maxUnitsPerBatch.default;
+  let OPTIMIZATION_SPLIT_THRESHOLD = AI_TUNING_LIMITS.optimizationSplitThreshold.default;
+  let MAX_SYNTHESIS_ROUNDS = AI_TUNING_LIMITS.synthesisMaxRounds.default;
   let AI_SPLIT_ENABLED = true;
   const MAX_CACHED_SPLIT_SUMMARY_CHARACTERS = 24000;
   const MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS = 8000;
@@ -177,7 +180,6 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
   const textInput = document.getElementById('ai-chat-input');
   const promptExamplesList = document.getElementById('ai-prompt-examples-list');
   const promptExamplesById = new Map();
-  const proposalViewStorageKey = 'classEditorAiProposalView';
   const readAiTuningValue = (key, fallback, minimum, maximum) => {
     try {
       const saved = JSON.parse(localStorage.getItem('classEditorTestPreferences') || '{}');
@@ -194,9 +196,9 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
   CHUNK_OUTPUT_TOKENS = readAiTuningValue('chunkOutputTokens', CHUNK_OUTPUT_TOKENS, 500, 128000);
   SYNTHESIS_OUTPUT_TOKENS = readAiTuningValue('synthesisOutputTokens', SYNTHESIS_OUTPUT_TOKENS, 500, 128000);
   CROSS_SCOPE_OUTPUT_TOKENS = readAiTuningValue('crossScopeOutputTokens', CROSS_SCOPE_OUTPUT_TOKENS, 500, 128000);
-  MAX_UNITS_PER_BATCH = readAiTuningValue('maxUnitsPerBatch', MAX_UNITS_PER_BATCH, 1, 4);
-  OPTIMIZATION_SPLIT_THRESHOLD = readAiTuningValue('optimizationSplitThreshold', OPTIMIZATION_SPLIT_THRESHOLD, 1, 20);
-  MAX_SYNTHESIS_ROUNDS = readAiTuningValue('synthesisMaxRounds', MAX_SYNTHESIS_ROUNDS, 1, 8);
+  MAX_UNITS_PER_BATCH = readAiTuningValue('maxUnitsPerBatch', MAX_UNITS_PER_BATCH, AI_TUNING_LIMITS.maxUnitsPerBatch.min, AI_TUNING_LIMITS.maxUnitsPerBatch.max);
+  OPTIMIZATION_SPLIT_THRESHOLD = readAiTuningValue('optimizationSplitThreshold', OPTIMIZATION_SPLIT_THRESHOLD, AI_TUNING_LIMITS.optimizationSplitThreshold.min, AI_TUNING_LIMITS.optimizationSplitThreshold.max);
+  MAX_SYNTHESIS_ROUNDS = readAiTuningValue('synthesisMaxRounds', MAX_SYNTHESIS_ROUNDS, AI_TUNING_LIMITS.synthesisMaxRounds.min, AI_TUNING_LIMITS.synthesisMaxRounds.max);
   MAX_REQUEST_CHARACTERS = readAiTuningValue('maxRequestCharacters', MAX_REQUEST_CHARACTERS, 12000, 128000);
   AI_OUTPUT_LIMITS.proposals = readAiTuningValue('maxProposalsPerResponse', AI_OUTPUT_LIMITS.proposals, 5, 100);
   AI_OUTPUT_LIMITS.questions = readAiTuningValue('maxQuestionsPerResponse', AI_OUTPUT_LIMITS.questions, 1, 10);
@@ -212,10 +214,6 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
   try {
     const saved = JSON.parse(localStorage.getItem('classEditorTestPreferences') || '{}');
     if (saved.responseMode === 'proposal' || saved.responseMode === 'evaluation') currentResponseMode = saved.responseMode;
-  } catch {}
-  let proposalViewMode = 'compact';
-  try {
-    if (localStorage.getItem(proposalViewStorageKey) === 'legacy') proposalViewMode = 'legacy';
   } catch {}
   // テスト調整機能の接続点。削除時は test-preferences.js とこの連携を一緒に外す。
   window.addEventListener('class-editor-test-preferences-change', (event) => {
@@ -238,9 +236,9 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
     SYNTHESIS_OUTPUT_TOKENS = readBoundedOutput('synthesisOutputTokens', SYNTHESIS_OUTPUT_TOKENS);
     CROSS_SCOPE_OUTPUT_TOKENS = readBoundedOutput('crossScopeOutputTokens', CROSS_SCOPE_OUTPUT_TOKENS);
     const unitsPerBatch = Number(event.detail?.maxUnitsPerBatch);
-    if (Number.isInteger(unitsPerBatch) && unitsPerBatch >= 1 && unitsPerBatch <= 4) MAX_UNITS_PER_BATCH = unitsPerBatch;
+    if (Number.isInteger(unitsPerBatch) && unitsPerBatch >= AI_TUNING_LIMITS.maxUnitsPerBatch.min && unitsPerBatch <= AI_TUNING_LIMITS.maxUnitsPerBatch.max) MAX_UNITS_PER_BATCH = unitsPerBatch;
     const splitThreshold = Number(event.detail?.optimizationSplitThreshold);
-    if (Number.isInteger(splitThreshold) && splitThreshold >= 1 && splitThreshold <= 20) OPTIMIZATION_SPLIT_THRESHOLD = splitThreshold;
+    if (Number.isInteger(splitThreshold) && splitThreshold >= AI_TUNING_LIMITS.optimizationSplitThreshold.min && splitThreshold <= AI_TUNING_LIMITS.optimizationSplitThreshold.max) OPTIMIZATION_SPLIT_THRESHOLD = splitThreshold;
     if (typeof event.detail?.aiSplitEnabled === 'boolean') AI_SPLIT_ENABLED = event.detail.aiSplitEnabled;
     const inputLimit = Number(event.detail?.maxRequestCharacters);
     if (Number.isInteger(inputLimit) && inputLimit >= 12000 && inputLimit <= 128000) MAX_REQUEST_CHARACTERS = inputLimit;
@@ -258,7 +256,7 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
     });
     refreshResponseOutputLimits();
     const synthesisRounds = Number(event.detail?.synthesisMaxRounds);
-    if (Number.isInteger(synthesisRounds) && synthesisRounds >= 1 && synthesisRounds <= 8) MAX_SYNTHESIS_ROUNDS = synthesisRounds;
+    if (Number.isInteger(synthesisRounds) && synthesisRounds >= AI_TUNING_LIMITS.synthesisMaxRounds.min && synthesisRounds <= AI_TUNING_LIMITS.synthesisMaxRounds.max) MAX_SYNTHESIS_ROUNDS = synthesisRounds;
     const strategy = event.detail?.crossScopeStrategy;
     if (crossScopeStrategies.has(strategy)) {
       crossScopeStrategy = strategy;
@@ -267,12 +265,6 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
     }
     const responseMode = event.detail?.responseMode;
     if (responseMode === 'proposal' || responseMode === 'evaluation') currentResponseMode = responseMode;
-    const mode = event.detail?.proposalMode;
-    if (mode === 'legacy' || mode === 'compact') {
-      proposalViewMode = mode;
-      try { localStorage.setItem(proposalViewStorageKey, mode); } catch {}
-      if (currentConversation) renderConversation();
-    }
   });
   const responseModeInstruction = (mode) => mode === 'proposal'
     ? '利用者が改善提案モードを選択しています。依頼内容を評価し、必要で妥当な変更案があれば提案してください。許可された操作は全種類です。依頼文から操作許可を推測・制限せず、削除を含む操作も提案できます。ただし依頼の条件に反する変更や根拠の弱い変更は提案しないでください。'
@@ -442,6 +434,8 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
   } catch {}
   let currentConversation = null;
   let proposalPreview = null;
+  let proposalView = null;
+  let conversationRenderer = null;
   const requestProgress = createRequestProgress({ messages, getCurrentConversation: () => currentConversation });
   let sourceDataVersion = '';
   let isSending = false;
@@ -715,83 +709,7 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
   });
   const renderMessage = (item) => conversationView.renderMessage(item);
   const updateHistoryList = () => conversationView.updateHistoryList();
-  const renderConversation = ({ scrollToBottom = false, scrollToResponseGroupId = '' } = {}) => {
-    const previousScrollTop = messages.scrollTop;
-    const currentClasses = editor.getState().classes;
-    classLabelsById = new Map(currentClasses.map((item) => [item.id, item.label]));
-    classTypesById = new Map(currentClasses.map((item) => [item.id, item.type]));
-    temporaryLabelsById = new Map(currentConversation.items
-      .filter((item) => item.type === 'proposal')
-      .flatMap((item) => item.proposal.operations || [])
-      .filter((operation) => operation.type === 'addClass' && operation.temporaryId)
-      .map((operation) => [operation.temporaryId, operation.label]));
-    messages.replaceChildren();
-    const renderedResponseGroups = new Set();
-    currentConversation.items.forEach((item) => {
-      if (item.type === 'message') renderMessage(item);
-      else if (item.type === 'scope-summary') {
-        const details = document.createElement('details');
-        details.className = 'ai-scope-summary';
-        const summary = document.createElement('summary');
-        const selectedCount = item.classes.filter((entry) => entry.shareType === '選択中').length;
-        const referenceCount = item.classes.length - selectedCount;
-        summary.textContent = `依頼対象範囲（選択中 ${selectedCount}件・選択外の参照 ${referenceCount}件）`;
-        details.append(summary);
-        const note = document.createElement('p');
-        note.className = 'ai-scope-summary-note';
-        note.textContent = '対象範囲の一覧です。実際の送信本文、差分・要約の再利用、分割ごとの内容は表示していません。';
-        details.append(note);
-        const list = document.createElement('ul');
-        item.classes.forEach((entry) => {
-          const row = document.createElement('li');
-          row.textContent = `${entry.shareType}：${entry.typeLabel}「${entry.label || '(ラベルなし)'}」 (${entry.id}) / 親クラスID: ${entry.parentId || 'なし'}`;
-          list.append(row);
-        });
-        details.append(list);
-        messages.append(details);
-      }
-      else if (item.type === 'workflow-status') {
-        const indicator = document.createElement('div');
-        indicator.className = 'ai-thinking-indicator is-complete ai-workflow-status';
-        indicator.setAttribute('role', 'status');
-        indicator.setAttribute('aria-live', 'polite');
-        indicator.textContent = item.text;
-        messages.append(indicator);
-      }
-      else if (item.type === 'proposal' || item.type === 'questions') {
-        const responseGroupId = item.responseGroupId || item;
-        if (renderedResponseGroups.has(responseGroupId)) return;
-        renderedResponseGroups.add(responseGroupId);
-        const groupItems = currentConversation.items.filter((entry) =>
-          (entry.type === 'proposal' || entry.type === 'questions')
-          && (entry.responseGroupId || entry) === responseGroupId);
-        const proposalItems = groupItems.filter((entry) => entry.type === 'proposal');
-        const questionItems = groupItems.filter((entry) => entry.type === 'questions');
-        const responseGroup = document.createElement('section');
-        responseGroup.className = 'ai-response-group';
-        if (item.responseGroupId) responseGroup.dataset.responseGroupId = item.responseGroupId;
-        const readyProposalItems = proposalItems.filter((proposalItem) => proposalItem.status !== 'awaiting-answers');
-        if (readyProposalItems.length) renderProposalQueue(readyProposalItems, responseGroup);
-        questionItems.forEach((questionItem) => renderQuestionQueue(questionItem, responseGroup));
-        messages.append(responseGroup);
-      }
-    });
-    if (currentConversation.isThinking) {
-      messages.append(requestProgress.createThinkingIndicator(currentConversation));
-    }
-    if (scrollToResponseGroupId) {
-      const target = [...messages.querySelectorAll('[data-response-group-id]')]
-        .find((element) => element.dataset.responseGroupId === scrollToResponseGroupId);
-      if (target) {
-        const offset = target.getBoundingClientRect().top - messages.getBoundingClientRect().top + messages.scrollTop;
-        messages.scrollTo({ top: offset, behavior: 'smooth' });
-      } else messages.scrollTop = previousScrollTop;
-    } else messages.scrollTop = scrollToBottom ? messages.scrollHeight : previousScrollTop;
-    status.textContent = currentConversation.isThinking ? '' : (currentConversation.status || '');
-    updateUsageSummary();
-    updateHistoryList();
-    if (currentConversation.saved) persistSavedConversations();
-  };
+  const renderConversation = (options = {}) => conversationRenderer.render(options);
   const activateConversation = (conversation) => {
     if (isSending || !conversation) return;
     currentConversation = conversation;
@@ -1086,493 +1004,6 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
       document.getElementById('ai-apply-proposal').disabled = true;
     }
   };
-  const renderProposalCardLegacy = (item) => {
-    const proposal = item.proposal;
-    const card = document.createElement('article'); card.className = `ai-proposal-card is-${item.status}`;
-    if (['chunk', 'cross_scope', 'combined', 'global_plan'].includes(item.sourceType)) {
-      const sourceLabel = document.createElement('span');
-      sourceLabel.className = 'ai-proposal-source';
-      sourceLabel.textContent = item.sourceType === 'global_plan' ? '全体プラン'
-        : item.sourceType === 'combined' ? '個別案と横断案を統合'
-        : item.sourceType === 'chunk' ? '範囲別の個別案' : '全範囲の横断提案';
-      card.append(sourceLabel);
-    }
-    if (item.alternativeGroupId) {
-      const alternativeNotice = document.createElement('p');
-      alternativeNotice.className = 'ai-proposal-alternative';
-      const isGlobalPlanGroup = item.alternativeGroupId === 'global_plan_alternatives';
-      const alternativeNumber = item.alternativeGroupId.replace(/^split_alternative_/, '');
-      const label = isGlobalPlanGroup
-        ? item.sourceType === 'global_plan' ? '全体プランの代替案' : '全体プランと競合する個別案'
-        : `代替案グループ${alternativeNumber}`;
-      alternativeNotice.textContent = `${label}です。他の同グループ案とは同時適用できず、適用後は無効になります。`;
-      card.append(alternativeNotice);
-    }
-    const contentLabel = document.createElement('strong'); contentLabel.className = 'ai-proposal-label'; contentLabel.textContent = '変更内容';
-    const summary = document.createElement('p'); summary.className = 'ai-proposal-summary'; summary.textContent = excerpt(proposal.summary || proposal.title);
-    card.append(contentLabel, summary);
-
-    const actions = document.createElement('div'); actions.className = 'ai-proposal-actions';
-    const preview = document.createElement('button'); preview.type = 'button'; preview.className = 'ai-proposal-preview'; preview.textContent = 'プレビュー';
-    const statusLabel = document.createElement('span'); statusLabel.className = 'ai-proposal-status';
-    const statusText = { pending: '未判断', previewed: '未判断', stale: '再確認が必要', applied: '適用済み', dismissed: '見送り', 'awaiting-answers': '確認事項への回答待ち', superseded: '回答を送信済み。更新後の案を確認してください。', 'alternative-rejected': '別の代替案を適用済み' };
-    statusLabel.textContent = statusText[item.status] || '';
-    const unavailable = ['awaiting-answers', 'superseded', 'alternative-rejected'].includes(item.status);
-    preview.disabled = unavailable || item.status === 'invalid';
-    const updateStatus = () => {
-      statusLabel.textContent = statusText[item.status] || '';
-      card.className = `ai-proposal-card is-${item.status}`;
-    };
-    preview.addEventListener('click', () => {
-      void proposalPreview.showPreview(item, false).then(() => { updateStatus(); renderConversation(); }).catch(reportPreviewError);
-    });
-    actions.append(preview, statusLabel);
-    card.append(actions);
-    return card;
-  };
-  const renderProposalQueueLegacy = (items, host = messages) => {
-    const proposalGroup = items[0];
-    const details = document.createElement('details');
-    details.className = 'ai-proposal-queue';
-    details.open = proposalGroup.proposalsOpen !== false;
-    details.addEventListener('toggle', () => { proposalGroup.proposalsOpen = details.open; });
-    const counts = items.reduce((summary, item) => {
-      if (item.status === 'applied') summary.applied += 1;
-      else if (item.status === 'dismissed') summary.dismissed += 1;
-      else if (item.status === 'alternative-rejected') { summary.dismissed += 1; summary.alternatives += 1; }
-      else if (item.status === 'previewed') summary.pending += 1;
-      else if (item.status === 'awaiting-answers') summary.awaiting += 1;
-      else if (item.status === 'superseded') summary.answered += 1;
-      else if (item.status !== 'invalid') summary.pending += 1;
-      return summary;
-    }, { pending: 0, applied: 0, dismissed: 0, awaiting: 0, answered: 0, alternatives: 0 });
-    const summary = document.createElement('summary');
-    const statusParts = [`未判断${counts.pending}件`, `適用済み${counts.applied}件`, `見送り${counts.dismissed}件`];
-    if (counts.awaiting) statusParts.push(`回答待ち${counts.awaiting}件`);
-    if (counts.answered) statusParts.push(`回答済み${counts.answered}件`);
-    if (counts.alternatives) statusParts.push(`代替案から除外${counts.alternatives}件`);
-    const title = document.createElement('span');
-    title.className = 'ai-proposal-queue-title';
-    title.textContent = `変更案（${items.length}件・${statusParts.join('・')}）`;
-    summary.append(title);
-    const pageIndex = Math.max(0, Math.min(items.length - 1, proposalGroup.proposalPageIndex || 0));
-    proposalGroup.proposalPageIndex = pageIndex;
-    const navigation = document.createElement('div');
-    navigation.className = 'ai-proposal-page-navigation';
-    const previous = document.createElement('button'); previous.type = 'button'; previous.textContent = '前へ'; previous.disabled = pageIndex === 0;
-    previous.addEventListener('click', () => { proposalGroup.proposalPageIndex = pageIndex - 1; renderConversation(); });
-    const position = document.createElement('span'); position.textContent = `${pageIndex + 1} / ${items.length}`;
-    const next = document.createElement('button'); next.type = 'button'; next.textContent = '次へ'; next.disabled = pageIndex >= items.length - 1;
-    next.addEventListener('click', () => { proposalGroup.proposalPageIndex = pageIndex + 1; renderConversation(); });
-    navigation.append(previous, position, next);
-    navigation.hidden = items.length < 2;
-    details.append(summary, renderProposalCardLegacy(items[pageIndex]), navigation);
-    host.append(details);
-  };
-  const proposalDisplayState = (item) => {
-    if (item.status === 'applied') return { key: 'applied', label: '適用済み' };
-    if (item.status === 'dismissed' || item.status === 'alternative-rejected') return { key: 'dismissed', label: '見送り' };
-    if (item.status === 'awaiting-answers') return { key: 'unjudged', label: '回答待ち' };
-    if (item.status === 'stale') return { key: 'unjudged', label: '再確認が必要' };
-    if (item.status === 'superseded') return { key: 'unjudged', label: '更新待ち' };
-    if (item.status === 'invalid') return { key: 'unjudged', label: '適用不可' };
-    return { key: 'unjudged', label: '未判断' };
-  };
-  const renderProposalQueueCompact = (items, host = messages) => {
-    const proposalGroup = items[0];
-    const queue = document.createElement('section');
-    queue.className = 'ai-proposal-queue ai-proposal-queue-compact';
-    const heading = document.createElement('div');
-    heading.className = 'ai-proposal-queue-heading';
-    const disclosure = document.createElement('details');
-    disclosure.className = 'ai-proposal-queue-disclosure';
-    disclosure.open = proposalGroup.proposalListOpen === true;
-    disclosure.addEventListener('toggle', () => { proposalGroup.proposalListOpen = disclosure.open; });
-    const summary = document.createElement('summary');
-    const title = document.createElement('span');
-    title.className = 'ai-proposal-queue-title';
-    title.textContent = `変更案 ${items.length}件`;
-    const statusCounts = items.reduce((counts, item) => {
-      const state = proposalDisplayState(item).key;
-      counts[state] += 1;
-      return counts;
-    }, { unjudged: 0, applied: 0, dismissed: 0 });
-    const statusBadges = document.createElement('span');
-    statusBadges.className = 'ai-proposal-queue-status-counts';
-    [
-      ['unjudged', '未判断', statusCounts.unjudged],
-      ['applied', '適用済み', statusCounts.applied],
-      ['dismissed', '見送り', statusCounts.dismissed]
-    ].forEach(([key, label, count]) => {
-      const badge = document.createElement('span');
-      badge.className = `ai-proposal-status-badge is-${key}`;
-      badge.textContent = `${label} ${count}件`;
-      statusBadges.append(badge);
-    });
-    summary.append(title, statusBadges);
-    const content = document.createElement('div');
-    content.className = 'ai-proposal-queue-content';
-    const proposalList = document.createElement('div');
-    proposalList.className = 'ai-proposal-list';
-    const sortedItems = [...items].sort((a, b) =>
-      Number(proposalDisplayState(b).key === 'unjudged') - Number(proposalDisplayState(a).key === 'unjudged'));
-    const listEntries = [];
-    const alternativeGroups = new Map();
-    sortedItems.forEach((item) => {
-      if (!item.alternativeGroupId) {
-        listEntries.push({ type: 'proposal', item });
-        return;
-      }
-      let group = alternativeGroups.get(item.alternativeGroupId);
-      if (!group) {
-        group = { type: 'alternative-group', id: item.alternativeGroupId, items: [] };
-        alternativeGroups.set(item.alternativeGroupId, group);
-        listEntries.push(group);
-      }
-      group.items.push(item);
-    });
-    const renderProposalListItem = (item) => {
-      const proposal = item.proposal;
-      const displayState = proposalDisplayState(item);
-      const row = document.createElement('article');
-      row.className = `ai-proposal-list-item is-${displayState.key}`;
-      const main = document.createElement('div');
-      main.className = 'ai-proposal-list-main';
-      const meta = document.createElement('div');
-      meta.className = 'ai-proposal-list-meta';
-      if (item.sourceType === 'global_plan' || item.sourceType === 'chunk') {
-        const sourceLabel = document.createElement('span');
-        sourceLabel.className = 'ai-proposal-source';
-        sourceLabel.textContent = item.sourceType === 'global_plan' ? '全体プラン' : '範囲別の個別案';
-        meta.append(sourceLabel);
-      }
-      const proposalTitle = document.createElement('strong');
-      proposalTitle.className = 'ai-proposal-list-title';
-      proposalTitle.textContent = proposal.title || `提案${items.indexOf(item) + 1}`;
-      meta.append(proposalTitle);
-      meta.append(...renderOperationCountBadges(proposal.operations || [], 'ai-preview-type-badge', { hideZero: true }));
-      const description = document.createElement('p');
-      description.className = 'ai-proposal-list-description';
-      description.textContent = excerpt(proposal.summary || proposal.title, 240);
-      main.append(meta, description);
-      const actions = document.createElement('div');
-      actions.className = 'ai-proposal-list-actions';
-      const stateBadge = document.createElement('span');
-      stateBadge.className = `ai-proposal-status-badge is-${displayState.key}`;
-      stateBadge.textContent = displayState.label;
-      const preview = document.createElement('button');
-      preview.type = 'button';
-      preview.className = 'ai-proposal-preview';
-      preview.textContent = 'プレビュー';
-      const unavailable = ['awaiting-answers', 'superseded', 'alternative-rejected', 'invalid'].includes(item.status);
-      preview.disabled = unavailable;
-      preview.addEventListener('click', () => {
-        void proposalPreview.showPreview(item, false).then(() => renderConversation()).catch(reportPreviewError);
-      });
-      actions.append(stateBadge, preview);
-      row.append(main, actions);
-      return row;
-    };
-    listEntries.forEach((entry) => {
-      if (entry.type === 'proposal') {
-        proposalList.append(renderProposalListItem(entry.item));
-        return;
-      }
-      const group = document.createElement('section');
-      group.className = 'ai-proposal-alternative-group';
-      const header = document.createElement('div');
-      header.className = 'ai-proposal-alternative-group-heading';
-      const groupTitle = document.createElement('strong');
-      const isGlobalPlanGroup = entry.id === 'global_plan_alternatives';
-      const groupNumber = entry.id.replace(/^split_alternative_/, '');
-      const hasGlobalPlans = entry.items.some((item) => item.sourceType === 'global_plan');
-      const hasIndividualPlans = entry.items.some((item) => item.sourceType !== 'global_plan');
-      groupTitle.textContent = isGlobalPlanGroup
-        ? hasGlobalPlans && hasIndividualPlans ? '全体プランと個別案の比較' : '全体プランの比較'
-        : `代替案グループ${groupNumber}`;
-      const groupNote = document.createElement('span');
-      groupNote.textContent = `${entry.items.length}案・いずれか1案を選択`;
-      groupNote.title = '1案を適用すると、同じグループの他の案は適用できません。';
-      header.append(groupTitle, groupNote);
-      const alternatives = document.createElement('div');
-      alternatives.className = 'ai-proposal-alternative-group-items';
-      entry.items.forEach((item) => alternatives.append(renderProposalListItem(item)));
-      group.append(header, alternatives);
-      proposalList.append(group);
-    });
-    content.append(proposalList);
-    disclosure.append(summary, content);
-    const preview = document.createElement('button');
-    preview.type = 'button';
-    preview.className = 'ai-proposal-preview ai-proposal-queue-preview';
-    preview.textContent = 'プレビュー';
-    const isPreviewable = (item) => !['awaiting-answers', 'superseded', 'alternative-rejected', 'invalid'].includes(item.status);
-    preview.disabled = !items.some(isPreviewable);
-    preview.addEventListener('click', () => {
-      const requestedIndex = Math.max(0, Math.min(items.length - 1, proposalGroup.proposalPageIndex || 0));
-      const current = items[requestedIndex];
-      const start = current && isPreviewable(current) ? current : items.find(isPreviewable);
-      if (start) void proposalPreview.showPreview(start).then(() => renderConversation()).catch(reportPreviewError);
-    });
-    heading.append(disclosure, preview);
-    const updateHeaderPreviewVisibility = () => { preview.hidden = disclosure.open; };
-    disclosure.addEventListener('toggle', updateHeaderPreviewVisibility);
-    updateHeaderPreviewVisibility();
-    queue.append(heading);
-    host.append(queue);
-  };
-  const renderProposalQueue = (items, host = messages) => {
-    if (proposalViewMode === 'legacy') renderProposalQueueLegacy(items, host);
-    else renderProposalQueueCompact(items, host);
-  };
-  const renderQuestionQueue = (item, host = messages) => {
-    const details = document.createElement('details');
-    details.className = 'ai-question-queue';
-    details.open = Boolean(item.open);
-    details.addEventListener('toggle', () => { item.open = details.open; });
-    const summary = document.createElement('summary');
-    const answeredCount = item.questions.filter((question) => question.answer?.trim()).length;
-    summary.textContent = item.submitted
-      ? `確認事項（${item.questions.length}件・回答送信済み）`
-      : `確認事項（${item.questions.length}件・${answeredCount}件回答済み）`;
-    details.append(summary);
-    if (item.submitted) {
-      const review = document.createElement('div');
-      review.className = 'ai-question-review';
-      item.questions.forEach((question, index) => {
-        const entry = document.createElement('article');
-        entry.className = 'ai-question-review-item';
-        const prompt = document.createElement('p');
-        prompt.className = 'ai-question-prompt';
-        prompt.textContent = `${index + 1}. ${question.text}`;
-        const answer = document.createElement('p');
-        answer.className = 'ai-question-review-answer';
-        answer.textContent = `回答: ${question.answer || '（回答なし）'}`;
-        entry.append(prompt, answer);
-        review.append(entry);
-      });
-      details.append(review);
-      host.append(details);
-      return;
-    }
-    const question = item.questions[item.activeIndex] || item.questions[0];
-    const content = document.createElement('div'); content.className = 'ai-question-content';
-    const progress = document.createElement('p'); progress.className = 'ai-question-progress';
-    progress.textContent = `質問 ${item.activeIndex + 1} / ${item.questions.length}　Enterで次へ／送信・Shift+Enterで改行`;
-    content.append(progress);
-    if (question.proposalTitle) {
-      const context = document.createElement('p'); context.className = 'ai-question-context';
-      context.textContent = `変更案「${question.proposalTitle}」について`;
-      content.append(context);
-    }
-    const prompt = document.createElement('p'); prompt.className = 'ai-question-prompt'; prompt.textContent = question.text;
-    const answer = document.createElement('textarea'); answer.rows = 2; answer.className = 'ai-question-answer';
-    answer.placeholder = '回答を入力してください'; answer.value = question.answer || '';
-    answer.setAttribute('aria-label', `質問 ${item.activeIndex + 1} への回答`);
-    answer.addEventListener('input', () => { question.answer = answer.value; });
-    content.append(prompt, answer);
-    const actions = document.createElement('div'); actions.className = 'ai-question-actions';
-    const previous = document.createElement('button'); previous.type = 'button'; previous.textContent = '前へ';
-    previous.disabled = item.activeIndex === 0;
-    previous.addEventListener('click', () => { item.activeIndex -= 1; renderConversation(); });
-    const recommend = document.createElement('button'); recommend.type = 'button'; recommend.textContent = 'おすすめに任せる';
-    recommend.addEventListener('click', () => { question.answer = 'おすすめに任せる'; renderConversation(); });
-    const next = document.createElement('button'); next.type = 'button'; next.className = 'search-button';
-    const isLast = item.activeIndex === item.questions.length - 1;
-    next.textContent = isLast ? '回答をまとめて送る' : '次へ';
-    next.disabled = Boolean(item.submitting);
-    next.addEventListener('click', () => {
-      question.answer = answer.value.trim();
-      if (!question.answer) {
-        answer.setCustomValidity('回答を入力するか、「おすすめに任せる」を選んでください。');
-        answer.reportValidity();
-        return;
-      }
-      answer.setCustomValidity('');
-      if (!isLast) { item.activeIndex += 1; renderConversation(); return; }
-      void submitQuestionAnswers(item);
-    });
-    answer.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter' || event.shiftKey || event.isComposing || event.repeat) return;
-      event.preventDefault();
-      next.click();
-    });
-    actions.append(previous, recommend, next);
-    content.append(actions);
-    details.append(content);
-    host.append(details);
-  };
-  const renderDataRequest = (item) => {
-    const card = document.createElement('article');
-    card.className = `ai-data-request-card is-${item.status || 'pending'}`;
-    if (item.responseGroupId) card.dataset.responseGroupId = item.responseGroupId;
-    const candidateGroups = item.candidateGroups || [];
-    const hasShareRequest = item.requests.length > 0 || candidateGroups.length > 0;
-    const heading = document.createElement('strong');
-    heading.textContent = '追加クラス情報の共有確認';
-    card.append(heading);
-    if (item.unresolved?.length) {
-      const unresolved = document.createElement('p');
-      unresolved.textContent = `クラスを特定できませんでした: ${item.unresolved.join('、')}。ツリーから該当クラスを選択して、改めて依頼してください。`;
-      card.append(unresolved);
-    }
-    if (item.unavailableTargets?.length) {
-      const unavailable = document.createElement('p');
-      unavailable.textContent = `対象クラス「${item.unavailableTargets.join('、')}」は追加共有できません。共有する場合は、依頼を送り直す前に選択範囲へ含めてください。`;
-      card.append(unavailable);
-    }
-    if (hasShareRequest) {
-      const note = document.createElement('p');
-      note.textContent = '選んだクラス情報を許可すると、今回のAI相談に参照用として共有します。編集対象には追加されません。';
-      card.append(note);
-      if (item.requests.length) {
-        const list = document.createElement('ul');
-        item.requests.forEach(({ item: requestedClass, reason }) => {
-          const row = document.createElement('li');
-          const label = `${requestedClass.type === 'top' ? '上位' : requestedClass.type === 'middle' ? '中間' : '対象'}クラス「${requestedClass.label}」 (${requestedClass.id})`;
-          row.textContent = reason ? `${label} — ${reason}` : label;
-          list.append(row);
-        });
-        card.append(list);
-      }
-      candidateGroups.forEach((group, groupIndex) => {
-        const section = document.createElement('section');
-        section.className = 'ai-data-request-candidate-group';
-        const groupHeading = document.createElement('strong');
-        const typeLabel = { top: '上位', middle: '中間', class: '対象' }[group.query.classType] || '全種別';
-        groupHeading.textContent = `${typeLabel}クラスの候補${group.candidates.length ? `（${group.candidates.length}件）` : ''}`;
-        section.append(groupHeading);
-        const relationLabels = { any: '指定なし', parent: '選択クラスの親', child: '選択クラスの子', descendant: '選択クラスの配下', sibling: '選択クラスの兄弟', same_top_ancestor: '同じ上位クラス配下' };
-        const criteria = document.createElement('p');
-        const keywordText = group.query.nameKeywords.length ? `・名称キーワード: ${group.query.nameKeywords.join('、')}` : '';
-        criteria.className = 'ai-data-request-query';
-        criteria.textContent = `検索条件: ${typeLabel}クラス・${relationLabels[group.query.relationToSelection] || '指定なし'}${keywordText}`;
-        section.append(criteria);
-        if (group.reason) {
-          const reason = document.createElement('p');
-          reason.textContent = group.reason;
-          section.append(reason);
-        }
-        if (group.candidates.length) {
-          if (group.matchMode === 'without-keywords') {
-            const broadened = document.createElement('p');
-            broadened.className = 'ai-data-request-query-note';
-            broadened.textContent = '名称キーワードに一致する候補がなかったため、選択範囲との関係を保って候補を広げました。';
-            section.append(broadened);
-          } else if (group.matchMode === 'without-keywords-or-relation') {
-            const broadened = document.createElement('p');
-            broadened.className = 'ai-data-request-query-note';
-            broadened.textContent = '条件に完全一致する候補がなかったため、クラス種別だけで候補を広げました。所属先を確認して選んでください。';
-            section.append(broadened);
-          }
-          const list = document.createElement('ul');
-          group.candidates.forEach(({ item: candidate, path }) => {
-            const row = document.createElement('li');
-            const label = document.createElement('label');
-            label.className = 'ai-data-request-candidate';
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.checked = group.selectedIds.includes(candidate.id);
-            checkbox.disabled = Boolean(item.submitting) || item.status !== 'pending';
-            checkbox.addEventListener('change', () => {
-              group.selectedIds = checkbox.checked
-                ? [...new Set([...group.selectedIds, candidate.id])]
-                : group.selectedIds.filter((id) => id !== candidate.id);
-              allow.disabled = Boolean(item.submitting) || item.status !== 'pending'
-                || (!item.requests.length && !candidateGroups.some((entry) => entry.selectedIds.length));
-            });
-            const candidateName = document.createElement('span');
-            candidateName.className = 'ai-data-request-candidate-name';
-            candidateName.textContent = `${candidate.type === 'top' ? '上位' : '中間'}クラス「${candidate.label}」`;
-            const candidatePath = document.createElement('small');
-            candidatePath.textContent = path;
-            label.append(checkbox, candidateName, candidatePath);
-            row.append(label);
-            list.append(row);
-          });
-          section.append(list);
-        } else {
-          const empty = document.createElement('p');
-          empty.textContent = '条件に合う候補がありません。選択範囲を変えるか、ツリーから対象を選んでください。';
-          section.append(empty);
-        }
-        if (group.truncated) {
-          const limit = document.createElement('p');
-          limit.textContent = '候補が多いため一部のみ表示しています。検索条件を絞ってください。';
-          section.append(limit);
-        }
-        card.append(section);
-      });
-      const selectableCandidateGroups = candidateGroups.filter((group) => group.candidates.length);
-      if (selectableCandidateGroups.length) {
-        const selectionActions = document.createElement('div');
-        selectionActions.className = 'ai-data-request-selection-actions';
-        const selectAll = document.createElement('button');
-        selectAll.type = 'button'; selectAll.textContent = '表示中の候補を全選択';
-        selectAll.disabled = Boolean(item.submitting) || item.status !== 'pending';
-        selectAll.addEventListener('click', () => {
-          selectableCandidateGroups.forEach((group) => { group.selectedIds = group.candidates.map(({ item: candidate }) => candidate.id); });
-          renderConversation();
-        });
-        const clearAll = document.createElement('button');
-        clearAll.type = 'button'; clearAll.textContent = '選択をすべて解除';
-        clearAll.disabled = Boolean(item.submitting) || item.status !== 'pending'
-          || !selectableCandidateGroups.some((group) => group.selectedIds.length);
-        clearAll.addEventListener('click', () => {
-          selectableCandidateGroups.forEach((group) => { group.selectedIds = []; });
-          renderConversation();
-        });
-        selectionActions.append(selectAll, clearAll);
-        card.append(selectionActions);
-      }
-      const actions = document.createElement('div');
-      actions.className = 'ai-data-request-actions';
-      const allow = document.createElement('button');
-      allow.type = 'button';
-      allow.className = 'search-button';
-      allow.textContent = item.status === 'approved' ? '共有を許可しました' : '許可して共有';
-      allow.disabled = Boolean(item.submitting) || item.status !== 'pending'
-        || (!item.requests.length && !candidateGroups.some((entry) => entry.selectedIds.length));
-      allow.addEventListener('click', async () => {
-        if (item.submitting || item.status !== 'pending') return;
-        item.submitting = true;
-        renderConversation();
-        const approvedIds = [...new Set([
-          ...item.requests.map(({ item: requestedClass }) => requestedClass.id),
-          ...candidateGroups.flatMap((group) => group.selectedIds)
-        ])];
-        const approved = approvedIds.map((id) => editor.getState().classes.find((candidate) => candidate.id === id)).filter(Boolean);
-        const lines = approved.map(({ id, label }) => `${label} (${id})`).join('、');
-        const succeeded = await sendRequest(`追加クラス情報の共有を許可します。共有された情報を使って、最初の依頼を改めて評価してください。共有確認と確認事項を同じ返答で求めず、追加確認が必要なら確認事項だけを、変更案を作成できるなら変更案を返してください: ${lines}`, approved.map(({ id }) => id));
-        item.submitting = false;
-        if (succeeded) item.status = 'approved';
-        renderConversation();
-      });
-      const deny = document.createElement('button');
-      deny.type = 'button';
-      deny.textContent = '今回は共有しない';
-      deny.disabled = Boolean(item.submitting) || item.status !== 'pending';
-      deny.addEventListener('click', async () => {
-        if (item.submitting || item.status !== 'pending') return;
-        item.submitting = true;
-        renderConversation();
-        const succeeded = await sendRequest('追加クラス情報の共有は許可しません。同じ情報を再要求せず、現在利用できる情報だけで最初の依頼を改めて評価してください。共有確認と確認事項を同じ返答で求めず、安全に進められない場合は確認事項だけを返してください。');
-        item.submitting = false;
-        if (succeeded) item.status = 'denied';
-        renderConversation();
-      });
-      if (item.requests.length || candidateGroups.some((group) => group.candidates.length)) actions.append(allow);
-      actions.append(deny);
-      card.append(actions);
-    }
-    if (item.status === 'approved' || item.status === 'denied') {
-      const status = document.createElement('p');
-      status.className = 'ai-data-request-status';
-      status.textContent = item.status === 'approved' ? '共有を許可しました。' : '共有しないことをAIへ伝えました。';
-      card.append(status);
-    }
-    messages.append(card);
-  };
   const submitQuestionAnswers = async (item) => {
     if (item.submitting || item.submitted) return;
     item.submitting = true;
@@ -1611,7 +1042,36 @@ import { createRequestProgress } from './request-progress.js?v=20261111-processi
     verifyLoadedDataVersion,
     renderConversation,
     setStatus,
-    getProposalDisplayMode: () => proposalViewMode
+  });
+  proposalView = createProposalView({
+    messages,
+    getProposalPreview: () => proposalPreview,
+    renderConversation,
+    reportPreviewError,
+    renderOperationCountBadges,
+    excerpt
+  });
+  conversationRenderer = createConversationRenderer({
+    messages,
+    status,
+    getCurrentConversation: () => currentConversation,
+    getClasses: () => editor.getState().classes,
+    beforeRender: (conversation, currentClasses) => {
+      classLabelsById = new Map(currentClasses.map((item) => [item.id, item.label]));
+      classTypesById = new Map(currentClasses.map((item) => [item.id, item.type]));
+      temporaryLabelsById = new Map(conversation.items
+        .filter((item) => item.type === 'proposal')
+        .flatMap((item) => item.proposal.operations || [])
+        .filter((operation) => operation.type === 'addClass' && operation.temporaryId)
+        .map((operation) => [operation.temporaryId, operation.label]));
+    },
+    renderMessage,
+    renderProposalQueue: (...args) => proposalView.renderQueue(...args),
+    submitQuestionAnswers: (item) => submitQuestionAnswers(item),
+    requestProgress,
+    updateUsageSummary,
+    updateHistoryList,
+    persistSavedConversations
   });
   const createLocalConversationContext = (userText) =>
     `利用者の依頼・方針: ${String(userText || '').slice(0, 500)}`;

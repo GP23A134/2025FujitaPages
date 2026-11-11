@@ -1,3 +1,5 @@
+import { AI_TUNING_LIMITS } from './ai/tuning-limits.js?v=20261111-ai-tuning-limits-v1';
+
 (() => {
   // 開発用の調整UIは edit.html?dev=1 の場合だけ表示する。
   const testModeEnabled = new URLSearchParams(window.location.search).get('dev') === '1';
@@ -9,8 +11,7 @@
     document.getElementById('test-settings-dialog')?.remove();
   }
   const storageKey = 'classEditorTestPreferences';
-  const proposalModeKey = 'classEditorAiProposalView';
-  const defaults = { heldFontSize: 0.92, chatFontSize: 1, proposalFontSize: 0.9, treeTopFontSize: 0.95, treeMiddleFontSize: 0.95, treeTargetFontSize: 0.9, treeColorIntensity: 1, treeDisclosureSize: 0.85, treeTopColor: '#7dd3fc', treeTopTextColor: '#075985', treeTopBackgroundColor: '#e0f2fe', proposalMode: 'compact', responseMode: 'proposal', promptFlexibility: 5, crossScopeStrategy: 'exhaustive', aiConcurrency: 2, crossScopeTopLimit: 2, crossScopeMiddleLimit: 5, responseOutputTokens: 5000, maxProposalsPerResponse: 30, maxQuestionsPerResponse: 3, maxOperationsPerProposal: 40, maxUncertaintiesPerProposal: 5, maxChunkFindingsPerCategory: 3, maxComparisonFindingsPerCategory: 8, chunkOutputTokens: 3000, synthesisOutputTokens: 4500, crossScopeOutputTokens: 4000, aiSplitEnabled: true, maxRequestCharacters: 48000, maxUnitsPerBatch: 4, optimizationSplitThreshold: 20, synthesisMaxRounds: 8 };
+  const defaults = { heldFontSize: 0.92, chatFontSize: 1, proposalFontSize: 0.9, treeTopFontSize: 0.95, treeMiddleFontSize: 0.95, treeTargetFontSize: 0.9, treeColorIntensity: 1, treeDisclosureSize: 0.85, treeTopColor: '#7dd3fc', treeTopTextColor: '#075985', treeTopBackgroundColor: '#e0f2fe', responseMode: 'proposal', promptFlexibility: 5, crossScopeStrategy: 'exhaustive', aiConcurrency: 2, crossScopeTopLimit: 2, crossScopeMiddleLimit: 5, responseOutputTokens: 5000, maxProposalsPerResponse: 30, maxQuestionsPerResponse: 3, maxOperationsPerProposal: 40, maxUncertaintiesPerProposal: 5, maxChunkFindingsPerCategory: 3, maxComparisonFindingsPerCategory: 8, chunkOutputTokens: 3000, synthesisOutputTokens: 4500, crossScopeOutputTokens: 4000, aiSplitEnabled: true, maxRequestCharacters: 48000, maxUnitsPerBatch: AI_TUNING_LIMITS.maxUnitsPerBatch.default, optimizationSplitThreshold: AI_TUNING_LIMITS.optimizationSplitThreshold.default, synthesisMaxRounds: AI_TUNING_LIMITS.synthesisMaxRounds.default };
   const limits = {
     heldFontSize: [0.8, 1.3],
     chatFontSize: [0.85, 1.4],
@@ -35,9 +36,9 @@
     maxChunkFindingsPerCategory: [1, 8],
     maxComparisonFindingsPerCategory: [1, 12],
     maxRequestCharacters: [12000, 128000],
-    maxUnitsPerBatch: [1, 4],
-    optimizationSplitThreshold: [1, 20],
-    synthesisMaxRounds: [1, 8]
+    maxUnitsPerBatch: [AI_TUNING_LIMITS.maxUnitsPerBatch.min, AI_TUNING_LIMITS.maxUnitsPerBatch.max],
+    optimizationSplitThreshold: [AI_TUNING_LIMITS.optimizationSplitThreshold.min, AI_TUNING_LIMITS.optimizationSplitThreshold.max],
+    synthesisMaxRounds: [AI_TUNING_LIMITS.synthesisMaxRounds.min, AI_TUNING_LIMITS.synthesisMaxRounds.max]
   };
   const countSettings = new Set(['aiConcurrency', 'crossScopeTopLimit', 'crossScopeMiddleLimit', 'maxRequestCharacters', 'maxProposalsPerResponse', 'maxQuestionsPerResponse', 'maxOperationsPerProposal', 'maxUncertaintiesPerProposal', 'maxChunkFindingsPerCategory', 'maxComparisonFindingsPerCategory', 'maxUnitsPerBatch', 'optimizationSplitThreshold', 'synthesisMaxRounds']);
   const countUnits = { maxRequestCharacters: '文字', maxUnitsPerBatch: '単位', synthesisMaxRounds: '回' };
@@ -62,7 +63,6 @@
     for (const key of ['treeTopColor', 'treeTopTextColor', 'treeTopBackgroundColor']) {
       if (typeof saved[key] === 'string' && /^#[0-9a-f]{6}$/i.test(saved[key])) preferences[key] = saved[key];
     }
-    if (saved.proposalMode === 'legacy' || saved.proposalMode === 'compact') preferences.proposalMode = saved.proposalMode;
     if (saved.responseMode === 'proposal' || saved.responseMode === 'evaluation') preferences.responseMode = saved.responseMode;
     if (saved.crossScopeStrategy === 'exhaustive' || saved.crossScopeStrategy === 'hierarchical') {
       preferences.crossScopeStrategy = saved.crossScopeStrategy;
@@ -72,10 +72,6 @@
         if (oldStrategy === 'exhaustive' || oldStrategy === 'hierarchical') preferences.crossScopeStrategy = oldStrategy;
       } catch {}
     }
-    try {
-      const oldMode = localStorage.getItem(proposalModeKey);
-      if (!saved.proposalMode && (oldMode === 'legacy' || oldMode === 'compact')) preferences.proposalMode = oldMode;
-    } catch {}
     return preferences;
   };
   const apply = (preferences) => {
@@ -101,6 +97,10 @@
   const updateControls = () => controls.forEach((control) => {
     const key = control.dataset.preference;
     if (!(key in preferences)) return;
+    if (limits[key]) {
+      control.min = String(limits[key][0]);
+      control.max = String(limits[key][1]);
+    }
     if (control.type === 'checkbox') control.checked = Boolean(preferences[key]);
     else control.value = String(preferences[key]);
     const output = document.querySelector(`output[for="${control.id}"]`);
@@ -122,7 +122,6 @@
   const savePreferences = () => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(preferences));
-      localStorage.setItem(proposalModeKey, preferences.proposalMode);
       localStorage.setItem('classEditorAiCrossScopeStrategy', preferences.crossScopeStrategy);
       savedPreferences = { ...preferences };
       return true;

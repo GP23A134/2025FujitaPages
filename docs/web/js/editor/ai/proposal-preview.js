@@ -16,8 +16,7 @@ export const createProposalPreview = ({
   currentDataHash,
   verifyLoadedDataVersion,
   renderConversation,
-  setStatus,
-  getProposalDisplayMode = () => 'legacy'
+  setStatus
 }) => {
   let previewPlan = null;
   let previewPageIndex = 0;
@@ -878,18 +877,9 @@ export const createProposalPreview = ({
       ? `・確認事項${questionCount}件` : '';
     document.getElementById('ai-preview-proposal-heading').textContent = `変更案（${operationsCount}件・${status}${questionStatus}）`;
   };
-  const syncProposalPage = (proposalItem) => {
-    const groupItems = getCurrentConversation().items.filter((item) => item.type === 'proposal'
-      && (proposalItem.responseGroupId
-        ? item.responseGroupId === proposalItem.responseGroupId
-        : item === proposalItem));
-    const index = groupItems.indexOf(proposalItem);
-    if (index >= 0 && groupItems.length) groupItems[0].proposalPageIndex = index;
-  };
   const showPreview = async (proposalItem, applyRequested = false, fastUpdate = false) => {
     const previewColumns = document.querySelector('.ai-preview-columns');
     previewColumns?.classList.add('is-loading');
-    syncProposalPage(proposalItem);
     if (hasUnsubmittedQuestions(proposalItem.responseGroupId)) {
       if (previewDialog.open) closePreview();
       return false;
@@ -1250,10 +1240,7 @@ export const createProposalPreview = ({
       && (currentProposal.responseGroupId
         ? item.responseGroupId === currentProposal.responseGroupId
         : item === currentProposal));
-    if (proposalGroup) {
-      if (getProposalDisplayMode() === 'compact') proposalGroup.proposalListOpen = true;
-      else proposalGroup.proposalsOpen = false;
-    }
+    if (proposalGroup) proposalGroup.proposalListOpen = true;
     conversationItems.filter((item) => item.type === 'proposal' && item !== currentProposal
       && !['applied', 'dismissed'].includes(item.status))
       .forEach((item) => {
@@ -1283,10 +1270,7 @@ export const createProposalPreview = ({
         item.status = 'dismissed';
         const proposalGroup = getCurrentConversation().items.find((entry) => entry.type === 'proposal'
           && (item.responseGroupId ? entry.responseGroupId === item.responseGroupId : entry === item));
-        if (proposalGroup) {
-          if (getProposalDisplayMode() === 'compact') proposalGroup.proposalListOpen = true;
-          else proposalGroup.proposalsOpen = true;
-        }
+        if (proposalGroup) proposalGroup.proposalListOpen = true;
         return { currentProposal: item, nextProposal: nextUnjudgedProposal(item) };
       },
       clear() { previewPlan = null; previewPageIndex = 0; previewGroups = []; },

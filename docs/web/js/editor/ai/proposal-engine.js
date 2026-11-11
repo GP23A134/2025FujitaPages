@@ -158,15 +158,14 @@ const proposalChangesByClass = (proposal, relations, classesById) => {
 
 const mergeProposalRationale = (target, source) => {
   const additionalReason = String(source.reason || source.summary || '').trim();
-  const reasonLabel = source.sourceType === 'global_plan' ? '全体プラン' : source.sourceType === 'cross_scope' ? '横断確認' : '別範囲確認';
+  const reasonLabel = source.sourceType === 'cross_scope' ? '横断確認' : '別範囲確認';
   if (additionalReason && !String(target.reason || '').includes(additionalReason)) {
     target.reason = [target.reason, `${reasonLabel}: ${additionalReason}`].filter(Boolean).join('\n\n');
   }
   target.uncertainties = [...new Set([...(target.uncertainties || []), ...(source.uncertainties || [])])];
   target.questions = [...new Set([...(target.questions || []), ...(source.questions || [])])];
   if (source.alternativeGroupId) target.alternativeGroupId = source.alternativeGroupId;
-  if (source.sourceType === 'global_plan') target.sourceType = 'global_plan';
-  else if (target.sourceType !== source.sourceType
+  if (target.sourceType !== source.sourceType
     && [target.sourceType, source.sourceType].includes('cross_scope')) target.sourceType = 'combined';
 };
 
