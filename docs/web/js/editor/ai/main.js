@@ -1070,12 +1070,7 @@ let proposalPreview = null;
     const title = document.createElement('span');
     title.className = 'ai-proposal-queue-title';
     title.textContent = `変更案（${items.length}件・${statusParts.join('・')}）`;
-    const operations = items.flatMap((item) => item.proposal.operations || []);
-    const typeCounts = document.createElement('span');
-    typeCounts.className = 'ai-proposal-queue-type-counts';
-    typeCounts.setAttribute('aria-label', '変更種類ごとの件数');
-    typeCounts.append(...renderOperationCountBadges(operations, 'ai-preview-type-badge'));
-    summary.append(title, typeCounts);
+    summary.append(title);
     const pageIndex = Math.max(0, Math.min(items.length - 1, proposalGroup.proposalPageIndex || 0));
     proposalGroup.proposalPageIndex = pageIndex;
     const navigation = document.createElement('div');
@@ -1133,15 +1128,11 @@ let proposalPreview = null;
     summary.append(title, statusBadges);
     const content = document.createElement('div');
     content.className = 'ai-proposal-queue-content';
-    const operations = items.flatMap((item) => item.proposal.operations || []);
-    const typeCounts = document.createElement('div');
-    typeCounts.className = 'ai-proposal-queue-type-counts';
-    typeCounts.setAttribute('aria-label', '変更種類ごとの件数');
-    typeCounts.append(...renderOperationCountBadges(operations, 'ai-preview-type-badge', { hideZero: true }));
-    content.append(typeCounts);
     const proposalList = document.createElement('div');
     proposalList.className = 'ai-proposal-list';
-    items.forEach((item, index) => {
+    const sortedItems = [...items].sort((a, b) =>
+      Number(proposalDisplayState(b).key === 'unjudged') - Number(proposalDisplayState(a).key === 'unjudged'));
+    sortedItems.forEach((item, index) => {
       const proposal = item.proposal;
       const displayState = proposalDisplayState(item);
       const row = document.createElement('article');

@@ -30,6 +30,9 @@
 .ai-message strong { font-size: calc(var(--test-chat-font-size, 1rem) * 0.9); }
 .ai-message-heading { font-size: calc(var(--test-chat-font-size, 1rem) * 0.98); }
 .ai-proposal-card, .ai-proposal-list-item { font-size: var(--test-proposal-font-size, 0.9rem); }
+.ai-proposal-queue-title { font-size: calc(var(--test-proposal-font-size, 0.9rem) + 0.1rem); }
+.ai-proposal-status-badge { font-size: calc(var(--test-proposal-font-size, 0.9rem) - 0.14rem); }
+.ai-proposal-list-item.is-unjudged { background: #fff; }
 #edit-tree-panel .tree-top-class > summary { font-size: var(--test-tree-top-font-size, 0.95rem); }
 #edit-tree-panel .tree-middle-class > summary { font-size: var(--test-tree-middle-font-size, 0.95rem); }
 #edit-tree-panel .tree-top-class > summary::before,

@@ -312,7 +312,7 @@ export const createProposalPreview = ({
       const marker = document.createElementNS(namespace, 'marker');
       marker.id = `ai-preview-arrowhead-${kind}`;
       marker.setAttribute('viewBox', '0 0 10 10');
-      marker.setAttribute('refX', '9');
+      marker.setAttribute('refX', '8');
       marker.setAttribute('refY', '5');
       marker.setAttribute('markerWidth', '6');
       marker.setAttribute('markerHeight', '6');
@@ -418,6 +418,7 @@ export const createProposalPreview = ({
     const appendRoutePath = ({ commands, arrow, color, marker = true }) => {
       const path = document.createElementNS(namespace, 'path');
       path.setAttribute('d', commands.join(' '));
+      path.setAttribute('transform', `translate(${arrow.kind === 'is-move' ? -1.5 : -1} 0)`);
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke', color);
       path.setAttribute('stroke-width', '1.5');
@@ -435,8 +436,10 @@ export const createProposalPreview = ({
         : gutterLeft + trackBankInset + (routes.length - bendLaneIndex - 0.5) * trackGap;
       const channelY = height * (index + 1) / (routes.length + 1);
       const isAddition = arrow.kind === 'is-add' && !arrow.from;
-      const startX = source ? (isAddition ? source.left + source.width / 2 : source.right) - bounds.left : laneX;
-      const endX = target ? target.left - bounds.left : laneX;
+      const sourceOffset = ['is-rename', 'is-move'].includes(arrow.kind) ? 2.5 : 0;
+      const startX = source ? (isAddition ? source.left + source.width / 2 : source.right) - bounds.left + sourceOffset : laneX;
+      const targetArrowOffset = ['is-add', 'is-rename'].includes(arrow.kind) ? 13 : 14;
+      const endX = target ? target.left - bounds.left - targetArrowOffset : laneX;
       const startY = isAddition && source
         ? source.bottom - bounds.top
         : routes[index].startY ?? (target ? target.top + target.height / 2 - bounds.top : channelY);
@@ -840,7 +843,11 @@ export const createProposalPreview = ({
   const previewableProposals = () => getCurrentConversation().items.filter((item) => item.type === 'proposal'
     && item.proposal.operations.length
     && !['awaiting-answers', 'superseded', 'alternative-rejected', 'invalid'].includes(item.status));
-  const previewNavigationProposals = () => previewableProposals();
+  const previewNavigationProposals = () => [...previewableProposals()].sort((a, b) => {
+    const aUnjudged = ['pending', 'previewed', 'stale'].includes(a.status);
+    const bUnjudged = ['pending', 'previewed', 'stale'].includes(b.status);
+    return Number(bUnjudged) - Number(aUnjudged);
+  });
   const hasUnsubmittedQuestions = (responseGroupId) => getCurrentConversation().items.some((item) =>
     item.type === 'questions' && !item.submitted && item.responseGroupId === responseGroupId);
   const updatePreviewNavigation = (proposalItem) => {
