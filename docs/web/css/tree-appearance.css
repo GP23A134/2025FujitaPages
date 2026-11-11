@@ -461,7 +461,7 @@ body.is-ai-chat-open #edit-tree .move-held-button { display: none !important; }
 #edit-tree-panel .tree .tree-leaf-label {
   min-width: 0;
   overflow-wrap: anywhere;
-  font-size: 0.9rem;
+  font-size: var(--test-tree-target-font-size, 0.9rem);
   font-weight: 650;
 }
 #edit-tree-panel .tree .tree-leaf-id {
@@ -597,7 +597,7 @@ body.browse-hide-target-classes #tree-panel .tree-target-row { display: none !im
   row-gap: 0.1rem;
 }
 .edit-show-ids #edit-tree-panel .tree .tree-leaf-id { grid-area: id; font-size: 0.58rem; white-space: normal; overflow-wrap: anywhere; }
-.edit-show-ids #edit-tree-panel .tree .tree-leaf-label { grid-area: label; font-size: 0.9rem; }
+.edit-show-ids #edit-tree-panel .tree .tree-leaf-label { grid-area: label; font-size: var(--test-tree-target-font-size, 0.9rem); }
 .edit-show-ids #edit-tree-panel .tree .target-instance-count-badge { grid-area: count; }
 .edit-show-ids #edit-tree-panel .tree .tree-level-content {
   display: grid;

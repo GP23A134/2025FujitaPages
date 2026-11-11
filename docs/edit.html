@@ -9,7 +9,7 @@
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261109-tree-filter-disclosure-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261111-prompt-examples-groups-v2">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261111-ai-chat-settings-v1">
   <link rel="stylesheet" href="web/css/test-preferences.css?v=20261109-test-preferences-v20">
   <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261111-tree-drag-move-v2">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-held-panel-fixed-v2">
@@ -126,6 +126,7 @@
             </div>
             <div class="held-panel-header-actions">
               <div class="ai-history-anchor" hidden>
+                <button type="button" id="ai-chat-settings" class="held-panel-icon-button ai-history-button" aria-label="AIチャット設定" title="AIチャット設定">設定</button>
                 <button type="button" id="ai-show-history" class="held-panel-icon-button ai-history-button" aria-expanded="false" aria-controls="ai-history-popover" title="過去の相談">履歴</button>
                 <div id="ai-history-popover" class="ai-history-popover" hidden>
                   <h3>過去の相談</h3>
@@ -169,7 +170,7 @@
             </header>
             <div id="ai-chat-messages" class="ai-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
             <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
-            <p id="ai-key-guidance" class="ai-key-guidance" hidden>AIチャットを使うにはAPIキーが必要です。<button type="button" id="ai-open-settings" class="ai-settings-inline-link">設定</button>から入力してください。</p>
+            <p id="ai-key-guidance" class="ai-key-guidance" hidden>AIチャットを使うにはAPIキーが必要です。<button type="button" id="ai-open-settings" class="ai-settings-inline-link">AIチャット設定</button>から入力してください。</p>
             <p id="ai-usage-summary" class="ai-usage-summary" aria-live="polite"><span class="ai-usage-label">合計</span><strong class="ai-usage-cost">$0.000000</strong><span class="ai-usage-detail">入力 0 / 出力 0 tokens</span><span class="ai-usage-requests">送信 0回</span></p>
             <form id="ai-chat-form" class="ai-chat-form">
               <div class="ai-prompt-examples">
@@ -201,6 +202,37 @@
       <h2 id="edit-settings-title">設定</h2>
       <button type="button" id="close-edit-settings" class="target-instance-dialog-close" aria-label="設定を閉じる">×</button>
     </div>
+    <section class="edit-settings-section" aria-labelledby="edit-display-settings-title">
+      <h3 id="edit-display-settings-title">表示・編集</h3>
+      <label class="edit-settings-toggle"><input type="checkbox" id="toggle-edit-ids"> クラスIDを表示する</label>
+      <label class="edit-settings-toggle"><input type="checkbox" id="toggle-tree-edit-mode"> クラス編集を有効にする</label>
+      <label class="edit-settings-toggle"><input type="checkbox" id="toggle-json-export"> JSON書き出しを有効にする</label>
+      <label for="setting-ai-chat-font-size">AIチャットの文字サイズ</label>
+      <div class="test-range-row"><input id="setting-ai-chat-font-size" type="range" min="0.85" max="1.4" step="0.05" data-preference="chatFontSize"><output for="setting-ai-chat-font-size"></output></div>
+      <p class="edit-settings-note">チャットの返答文と入力欄の文字サイズを調整します。変更はすぐに反映され、ブラウザーに保存されます。</p>
+      <label for="setting-tree-top-font-size">上位クラスの文字サイズ</label>
+      <div class="test-range-row"><input id="setting-tree-top-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeTopFontSize"><output for="setting-tree-top-font-size"></output></div>
+      <label for="setting-tree-middle-font-size">中間クラスの文字サイズ</label>
+      <div class="test-range-row"><input id="setting-tree-middle-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeMiddleFontSize"><output for="setting-tree-middle-font-size"></output></div>
+      <label for="setting-tree-target-font-size">対象クラスの文字サイズ</label>
+      <div class="test-range-row"><input id="setting-tree-target-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeTargetFontSize"><output for="setting-tree-target-font-size"></output></div>
+    </section>
+    <section class="edit-settings-section" aria-labelledby="edit-proposal-display-title">
+      <h3 id="edit-proposal-display-title">提案表示</h3>
+      <label for="setting-proposal-font-size">提案の文字サイズ</label>
+      <div class="test-range-row"><input id="setting-proposal-font-size" type="range" min="0.8" max="1.3" step="0.05" data-preference="proposalFontSize"><output for="setting-proposal-font-size"></output></div>
+    </section>
+    <section class="edit-settings-section" aria-labelledby="edit-held-display-title">
+      <h3 id="edit-held-display-title">保持欄</h3>
+      <label for="setting-held-font-size">保持欄の文字サイズ</label>
+      <div class="test-range-row"><input id="setting-held-font-size" type="range" min="0.8" max="1.3" step="0.05" data-preference="heldFontSize"><output for="setting-held-font-size"></output></div>
+    </section>
+  </dialog>
+  <dialog id="ai-chat-settings-dialog" class="edit-settings-dialog" aria-labelledby="ai-chat-settings-title">
+    <div class="ai-preview-header">
+      <h2 id="ai-chat-settings-title">AIチャット設定</h2>
+      <button type="button" id="close-ai-chat-settings" class="target-instance-dialog-close" aria-label="AIチャット設定を閉じる">×</button>
+    </div>
     <section class="edit-settings-section" aria-labelledby="ai-connection-settings-title">
       <h3 id="ai-connection-settings-title">AI接続</h3>
       <label for="ai-api-key">OpenAI APIキー</label>
@@ -214,16 +246,10 @@
       <p id="ai-model-description" class="edit-settings-note">モデル候補は設定ファイルで管理します。</p>
       <p id="ai-settings-status" class="ai-status" role="status" aria-live="polite"></p>
     </section>
-    <section class="edit-settings-section" aria-labelledby="edit-display-settings-title">
-      <h3 id="edit-display-settings-title">表示・編集</h3>
-      <label class="edit-settings-toggle"><input type="checkbox" id="toggle-edit-ids"> クラスIDを表示する</label>
-      <label class="edit-settings-toggle"><input type="checkbox" id="toggle-tree-edit-mode"> クラス編集を有効にする</label>
-      <label class="edit-settings-toggle"><input type="checkbox" id="toggle-json-export"> JSON書き出しを有効にする</label>
-      <label class="edit-settings-toggle"><input type="checkbox" id="ai-confirm-before-send" checked> AIチャットの送信前に内容を確認する</label>
-      <p class="edit-settings-note">ONにすると送信前に内容を確認します。確認画面で「これ以降表示しない」を選ぶと、次回以降はOFFになります。</p>
-    </section>
     <section class="edit-settings-section" aria-labelledby="edit-ai-behavior-settings-title">
       <h3 id="edit-ai-behavior-settings-title">AIチャットの動作</h3>
+      <label class="edit-settings-toggle"><input type="checkbox" id="ai-confirm-before-send" checked> 送信前に内容を確認する</label>
+      <p class="edit-settings-note">ONにすると送信前に内容を確認します。確認画面で「これ以降表示しない」を選ぶと、次回以降はOFFになります。</p>
       <div class="edit-ai-behavior-grid">
         <div class="edit-ai-setting-card">
           <h4>回答</h4>
@@ -277,24 +303,18 @@
     <section class="edit-settings-section" aria-labelledby="test-ai-chat-title">
       <h3 id="test-ai-chat-title">AIチャット</h3>
       <div class="test-settings-group" role="group" aria-labelledby="test-ai-response-title">
-        <h4 id="test-ai-response-title">提案表示と文字サイズ</h4>
+        <h4 id="test-ai-response-title">提案表示</h4>
         <label for="test-proposal-mode">提案一覧の表示</label>
         <select id="test-proposal-mode" class="edit-settings-select" data-preference="proposalMode">
           <option value="compact">新しい一覧</option>
           <option value="legacy">従来表示</option>
         </select>
-        <label for="test-chat-font-size">AIチャットの文字サイズ</label>
-        <div class="test-range-row"><input id="test-chat-font-size" type="range" min="0.85" max="1.4" step="0.05" data-preference="chatFontSize"><output for="test-chat-font-size"></output></div>
       </div>
     </section>
     <section class="edit-settings-section" aria-labelledby="test-tree-display-title">
       <h3 id="test-tree-display-title">ツリー表示</h3>
       <div class="test-settings-group" role="group" aria-labelledby="test-tree-size-title">
-        <h4 id="test-tree-size-title">文字・開閉表示</h4>
-        <label for="test-tree-top-font-size">上位クラスの文字サイズ</label>
-        <div class="test-range-row"><input id="test-tree-top-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeTopFontSize"><output for="test-tree-top-font-size"></output></div>
-        <label for="test-tree-middle-font-size">中間クラスの文字サイズ</label>
-        <div class="test-range-row"><input id="test-tree-middle-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeMiddleFontSize"><output for="test-tree-middle-font-size"></output></div>
+        <h4 id="test-tree-size-title">開閉表示</h4>
         <label for="test-tree-disclosure-size">開閉ボタンの三角表示サイズ</label>
         <div class="test-range-row"><input id="test-tree-disclosure-size" type="range" min="0.6" max="1.4" step="0.05" data-preference="treeDisclosureSize"><output for="test-tree-disclosure-size"></output></div>
       </div>
@@ -309,16 +329,6 @@
         <label for="test-tree-top-background-color">上位クラスの背景色</label>
         <div class="test-range-row"><input id="test-tree-top-background-color" type="color" data-preference="treeTopBackgroundColor"></div>
       </div>
-    </section>
-    <section class="edit-settings-section" aria-labelledby="test-proposal-display-title">
-      <h3 id="test-proposal-display-title">提案表示</h3>
-      <label for="test-proposal-font-size">提案の文字サイズ</label>
-      <div class="test-range-row"><input id="test-proposal-font-size" type="range" min="0.8" max="1.3" step="0.05" data-preference="proposalFontSize"><output for="test-proposal-font-size"></output></div>
-    </section>
-    <section class="edit-settings-section" aria-labelledby="test-held-display-title">
-      <h3 id="test-held-display-title">保持欄</h3>
-      <label for="test-held-font-size">保持欄の文字サイズ</label>
-      <div class="test-range-row"><input id="test-held-font-size" type="range" min="0.8" max="1.3" step="0.05" data-preference="heldFontSize"><output for="test-held-font-size"></output></div>
     </section>
     <div class="test-settings-actions">
       <button type="button" id="test-preferences-reset" class="search-button secondary-search-button">初期値に戻す</button>
@@ -465,6 +475,6 @@
     <div class="data-import-actions"><button type="button" id="reset-to-default" class="search-button secondary-search-button">初期状態</button><button type="button" id="data-import-cancel" class="search-button secondary-search-button">キャンセル</button><button type="button" id="data-import-confirm" class="search-button" disabled>このデータで開始</button></div>
   </dialog>
   <script data-app-script="web/js/shared/data-upload.js?v=20261110-file-summary-type-fix-v1"></script>
-  <script data-app-script="web/js/editor/ai/main.js?v=20261111-split-global-plans-v1" data-app-type="module"></script>
+  <script data-app-script="web/js/editor/ai/main.js?v=20261111-ai-chat-settings-v1" data-app-type="module"></script>
 </body>
 </html>

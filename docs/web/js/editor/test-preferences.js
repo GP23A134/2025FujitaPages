@@ -10,13 +10,14 @@
   }
   const storageKey = 'classEditorTestPreferences';
   const proposalModeKey = 'classEditorAiProposalView';
-  const defaults = { heldFontSize: 0.92, chatFontSize: 1, proposalFontSize: 0.9, treeTopFontSize: 0.95, treeMiddleFontSize: 0.95, treeColorIntensity: 1, treeDisclosureSize: 0.85, treeTopColor: '#7dd3fc', treeTopTextColor: '#075985', treeTopBackgroundColor: '#e0f2fe', proposalMode: 'compact', responseMode: 'proposal', promptFlexibility: 5, crossScopeStrategy: 'exhaustive', aiConcurrency: 2, crossScopeTopLimit: 2, crossScopeMiddleLimit: 5 };
+  const defaults = { heldFontSize: 0.92, chatFontSize: 1, proposalFontSize: 0.9, treeTopFontSize: 0.95, treeMiddleFontSize: 0.95, treeTargetFontSize: 0.9, treeColorIntensity: 1, treeDisclosureSize: 0.85, treeTopColor: '#7dd3fc', treeTopTextColor: '#075985', treeTopBackgroundColor: '#e0f2fe', proposalMode: 'compact', responseMode: 'proposal', promptFlexibility: 5, crossScopeStrategy: 'exhaustive', aiConcurrency: 2, crossScopeTopLimit: 2, crossScopeMiddleLimit: 5 };
   const limits = {
     heldFontSize: [0.8, 1.3],
     chatFontSize: [0.85, 1.4],
     proposalFontSize: [0.8, 1.3],
     treeTopFontSize: [0.8, 1.4],
     treeMiddleFontSize: [0.8, 1.4],
+    treeTargetFontSize: [0.8, 1.4],
     treeColorIntensity: [0, 1],
     treeDisclosureSize: [0.6, 1.4],
     aiConcurrency: [1, 4],
@@ -66,6 +67,7 @@
     root.style.setProperty('--test-proposal-font-size', `${preferences.proposalFontSize}rem`);
     root.style.setProperty('--test-tree-top-font-size', `${preferences.treeTopFontSize}rem`);
     root.style.setProperty('--test-tree-middle-font-size', `${preferences.treeMiddleFontSize}rem`);
+    root.style.setProperty('--test-tree-target-font-size', `${preferences.treeTargetFontSize}rem`);
     window.testTreeColorIntensity = preferences.treeColorIntensity;
     root.style.setProperty('--test-tree-disclosure-size', `${preferences.treeDisclosureSize}rem`);
     root.style.setProperty('--test-tree-top-color', preferences.treeTopColor);
