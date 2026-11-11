@@ -1879,7 +1879,8 @@ let proposalPreview = null;
     // 小さな全体スナップショットより要約の方が長い場合は、トークンを増やさないよう全体データを送ります。
     const usesAnalysisMemory = Boolean(analysisMemoryContent && analysisMemoryContent.length < fullScopeContent.length);
     const userContent = usesAnalysisMemory ? analysisMemoryContent : fullScopeContent;
-    const crossScopeCandidateMode = responseMode === 'proposal' && crossScopeStrategy === 'hierarchical'
+    const effectiveCrossScopeStrategy = promptFlexibility <= 3 ? 'exhaustive' : crossScopeStrategy;
+    const crossScopeCandidateMode = responseMode === 'proposal' && effectiveCrossScopeStrategy === 'hierarchical'
       && scope.scopeCoverage === 'all_classes'
       && scope.classes.some((item) => item.type === 'class' && scope.editableIds.includes(item.id));
     let splitTasks = null;
@@ -1975,7 +1976,7 @@ let proposalPreview = null;
       + responseFormat.crossScopeOperationInstructions.length + responseModeInstruction(responseMode).length + 1200;
     const crossScopePlan = crossScopeStructure && !crossScopeCandidateMode
       ? crossScopeProposalSynthesizer.plan({ request: userText, conversationContext: conversation.localContext || '',
-        scope: crossScopeStructure, fixedPromptCharacters: crossScopeFixedPromptCharacters, strategy: crossScopeStrategy,
+        scope: crossScopeStructure, fixedPromptCharacters: crossScopeFixedPromptCharacters, strategy: effectiveCrossScopeStrategy,
         candidateUpperClassLimit: crossScopeCandidateUpperLimit, candidateMiddleClassLimit: crossScopeCandidateMiddleLimit })
       : null;
     const crossScopePreflightInputs = crossScopePlan?.status === 'completed'
@@ -2375,7 +2376,7 @@ let proposalPreview = null;
                 : crossScopeStructure;
               const executionPlan = crossScopeCandidateMode
                 ? crossScopeProposalSynthesizer.plan({ request: userText, conversationContext: conversation.localContext || '',
-                  scope: executionScope, fixedPromptCharacters: crossScopeFixedPromptCharacters, strategy: crossScopeStrategy,
+                  scope: executionScope, fixedPromptCharacters: crossScopeFixedPromptCharacters, strategy: effectiveCrossScopeStrategy,
                   candidateUpperClassLimit: crossScopeCandidateUpperLimit, candidateMiddleClassLimit: crossScopeCandidateMiddleLimit })
                 : crossScopePlan;
               if (crossScopeCandidateMode) console.info('[AIチャット] 横断確認候補を絞り込みました', {
@@ -2620,7 +2621,7 @@ let proposalPreview = null;
           } else if (splitState.synthesisStatus !== 'completed') {
             userFacingLimitations.push('確認結果を全体としてまとめられなかったため、以下は確認できた範囲ごとの内容です。');
           }
-          if (crossScopeStrategy === 'hierarchical' && crossScopeOperationStatus === 'completed') {
+          if (crossScopeCandidateMode && crossScopeOperationStatus === 'completed') {
             const candidateCount = crossScopeCandidateMode
               ? crossScopeEditableTargets.filter((id) => crossScopeCandidateIds.has(id)).length : crossScopeEditableTargets.length;
             userFacingLimitations.push(`別上位クラスへの移動確認は、候補となった対象${candidateCount}件に限っています。各対象の移動先候補も名称の類似から絞っており、全対象・全分類先の網羅確認ではありません。`);
