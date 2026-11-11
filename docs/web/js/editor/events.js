@@ -900,6 +900,22 @@ window.classEditorAI = {
       const temporaryId = temporaryIds.get(id) || id;
       return convertedIds.get(temporaryId) || temporaryId;
     };
+    const promoteChildToRoot = (childId) => {
+      const child = byId.get(childId);
+      if (!child || child.type !== 'middle') throw new Error('配下クラスを上位化できません。');
+      const newId = newClassId('top');
+      relationByChild.delete(childId);
+      [...relationByChild.values()].forEach((relation) => {
+        if (relation.parent === childId) relation.parent = newId;
+      });
+      child.id = newId;
+      child.type = 'top';
+      byId.delete(childId);
+      byId.set(newId, child);
+      convertedIds.set(childId, newId);
+      editable.delete(childId);
+      editable.add(newId);
+    };
     operations.forEach((operation) => {
       if (!operation || typeof operation !== 'object') throw new Error('提案操作の形式が不正です。');
       assertPolicyAllows(operation);
@@ -1025,6 +1041,31 @@ window.classEditorAI = {
         if (!item || !['top', 'middle'].includes(item.type) || item.label === '未分類') throw new Error('削除できるのは未分類以外の上位・中間クラスだけです。');
         if (operationPolicy?.requireAllDescendantsEditableForDelete !== false && hasUneditableOriginalDescendant(id)) {
           throw new Error(`「${item.label}」の配下に未選択のクラスがあるため削除できません。`);
+        }
+        if (operationPolicy?.reparentDescendantsOnDelete) {
+          const directChildren = [...relationByChild.values()].filter((relation) => relation.parent === id);
+          if (directChildren.length) {
+            if (item.type === 'top') {
+              const unclassified = candidateClasses.find((candidate) => candidate.type === 'top' && candidate.label === '未分類');
+              if (!unclassified) throw new Error('配下を移す未分類の上位クラスがありません。');
+              directChildren.forEach((relation) => {
+                const child = byId.get(relation.child);
+                if (child?.type === 'middle') promoteChildToRoot(child.id);
+                else if (child?.type === 'class') relationByChild.set(child.id, { ...relation, parent: unclassified.id });
+                else throw new Error('上位クラスの配下を安全に移動できません。');
+              });
+            } else {
+              const parentId = relationByChild.get(id)?.parent;
+              const parent = byId.get(parentId);
+              if (!parent || !['top', 'middle'].includes(parent.type)) throw new Error('中間クラスの配下を移す親クラスがありません。');
+              directChildren.forEach((relation) => {
+                const child = byId.get(relation.child);
+                if (child?.type === 'middle' && parent.label === '未分類') promoteChildToRoot(child.id);
+                else if (child && ['middle', 'class'].includes(child.type)) relationByChild.set(child.id, { ...relation, parent: parentId });
+                else throw new Error('中間クラスの配下を安全に移動できません。');
+              });
+            }
+          }
         }
         if ([...relationByChild.values()].some((relation) => relation.parent === id)) throw new Error(`「${item.label}」の配下を先に移動してください。`);
         relationByChild.delete(id);

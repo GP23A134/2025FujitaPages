@@ -1,7 +1,7 @@
 // 回答モードと分割タスクから、許可する操作を一元的に決めます。
 const ALL_OPERATIONS = ['addClass', 'renameClass', 'moveClass', 'moveChildren', 'promoteClass', 'deleteClass'];
 
-export const createOperationPolicy = ({ allowProposals = true, taskKind = 'selected_scope', scope = {} }) => {
+export const createOperationPolicy = ({ allowProposals = true, taskKind = 'selected_scope', scope = {}, proposalFreedom = 5 }) => {
   let allowedTypes = allowProposals ? [...ALL_OPERATIONS] : [];
   let addClassTypes = ['top', 'middle'];
   let moveSourceTypes = ['top', 'middle', 'class'];
@@ -36,7 +36,8 @@ export const createOperationPolicy = ({ allowProposals = true, taskKind = 'selec
     addClassTypes,
     moveSourceTypes,
     allowDelete,
-    requireAllDescendantsEditableForDelete: true
+    requireAllDescendantsEditableForDelete: proposalFreedom !== 1,
+    reparentDescendantsOnDelete: proposalFreedom === 1
   };
 };
 
@@ -157,13 +158,15 @@ const proposalChangesByClass = (proposal, relations, classesById) => {
 
 const mergeProposalRationale = (target, source) => {
   const additionalReason = String(source.reason || source.summary || '').trim();
-  const reasonLabel = source.sourceType === 'cross_scope' ? '横断確認' : '別範囲確認';
+  const reasonLabel = source.sourceType === 'global_plan' ? '全体プラン' : source.sourceType === 'cross_scope' ? '横断確認' : '別範囲確認';
   if (additionalReason && !String(target.reason || '').includes(additionalReason)) {
     target.reason = [target.reason, `${reasonLabel}: ${additionalReason}`].filter(Boolean).join('\n\n');
   }
   target.uncertainties = [...new Set([...(target.uncertainties || []), ...(source.uncertainties || [])])];
   target.questions = [...new Set([...(target.questions || []), ...(source.questions || [])])];
-  if (target.sourceType !== source.sourceType
+  if (source.alternativeGroupId) target.alternativeGroupId = source.alternativeGroupId;
+  if (source.sourceType === 'global_plan') target.sourceType = 'global_plan';
+  else if (target.sourceType !== source.sourceType
     && [target.sourceType, source.sourceType].includes('cross_scope')) target.sourceType = 'combined';
 };
 
@@ -182,12 +185,13 @@ export const reconcileSplitProposals = (chunkProposals, crossScopeProposals, cla
     result.push(proposal);
   };
   chunkProposals.forEach((proposal) => {
-    if (proposal.operations?.length) addOrMerge(proposal, 'chunk');
-    else { proposal.sourceType = 'chunk'; result.push(proposal); }
+    const sourceType = proposal.sourceType || 'chunk';
+    if (proposal.operations?.length) addOrMerge(proposal, sourceType);
+    else { proposal.sourceType = sourceType; result.push(proposal); }
   });
   crossScopeProposals.filter((proposal) => proposal.operations?.length).forEach((proposal, index) => {
-    proposal.id = `cross_scope_proposal_${index + 1}`;
-    addOrMerge(proposal, 'cross_scope');
+    if (!proposal.id) proposal.id = `cross_scope_proposal_${index + 1}`;
+    addOrMerge(proposal, proposal.sourceType || 'cross_scope');
   });
 
   const classesById = new Map(classes.map((item) => [item.id, item]));
@@ -199,6 +203,13 @@ export const reconcileSplitProposals = (chunkProposals, crossScopeProposals, cla
     return parentByIndex[index];
   };
   const union = (left, right) => { parentByIndex[find(right)] = find(left); };
+  const alternativeGroupById = new Map();
+  result.forEach((proposal, index) => {
+    if (!proposal.alternativeGroupId) return;
+    const previousIndex = alternativeGroupById.get(proposal.alternativeGroupId);
+    if (previousIndex === undefined) alternativeGroupById.set(proposal.alternativeGroupId, index);
+    else union(previousIndex, index);
+  });
   for (let left = 0; left < result.length; left += 1) {
     for (let right = left + 1; right < result.length; right += 1) {
       const leftChanges = changesByProposal[left];
@@ -220,7 +231,8 @@ export const reconcileSplitProposals = (chunkProposals, crossScopeProposals, cla
   let alternativeIndex = 0;
   groups.forEach((proposals) => {
     if (proposals.length < 2) return;
-    const alternativeGroupId = `split_alternative_${++alternativeIndex}`;
+    const alternativeGroupId = proposals.find((proposal) => proposal.alternativeGroupId)?.alternativeGroupId
+      || `split_alternative_${++alternativeIndex}`;
     proposals.forEach((proposal) => { proposal.alternativeGroupId = alternativeGroupId; });
   });
   return result;
@@ -487,6 +499,10 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
             : `${operation.type || '不明'}は今回の依頼または編集範囲で許可されていません。`;
           excludedOperations.push({ proposal: proposal.title || proposal.summary || proposal.id,
             type: operation.type || '不明', classId: operation.classId || operation.from || '', reason });
+        } else if (operation.type === 'deleteClass' && policy.reparentDescendantsOnDelete
+          && (childrenByParent.get(operation.classId) || []).length) {
+          const reparentNotice = '配下クラスは削除せず、削除対象の階層に応じて移動・上位化します。適用前にプレビューで移動結果を確認してください。';
+          if (!proposal.uncertainties.includes(reparentNotice)) proposal.uncertainties.push(reparentNotice);
         }
         return allowed;
       });

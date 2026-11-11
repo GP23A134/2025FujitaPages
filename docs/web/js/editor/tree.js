@@ -8,6 +8,9 @@ let treeCountRangeTouched = false;
 let treeRenderFrame = 0;
 let treeSearchDebounceTimer = 0;
 let treeHierarchyEditModeEnabled = false;
+let activeTreeDragIds = [];
+let temporaryTreeDragSelection = null;
+let touchTreeDrag = { timer: 0, source: null, startX: 0, startY: 0, active: false, destination: null, ids: [] };
 // 画面には選択中の条件だけ表示し、件数条件は一度設定した後もキーワード条件と併用する。
 let treeCountFilterEnabled = false;
 function scheduleTargetConnectorLayout() {
@@ -277,6 +280,8 @@ function renderTree() {
     button.dataset.instanceId = item.id;
     button.dataset.selectionId = item.id;
     button.dataset.selectionKind = 'target';
+    button.dataset.dragClassId = item.id;
+    button.draggable = true;
     button.title = 'クリックで選択・解除、Shift＋クリックで連続範囲を選択';
     button.style.setProperty('--tree-level-color', window.treeDepthColor(depth));
     const id = document.createElement('span');
@@ -315,6 +320,8 @@ function renderTree() {
   const decorateSummary = (summary, levelContent, node, depth) => {
     const item = classById.get(node.id);
     if (!item) return;
+    summary.dataset.dragClassId = item.id;
+    summary.draggable = true;
     if (classKind(item) === 'middle') {
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
@@ -474,6 +481,164 @@ function renderTree() {
     }
   });
 }
+
+// 選択済みの階層項目をまとめてドラッグし、別の上位・中間クラスへ移動する。
+const editTree = document.getElementById('edit-tree');
+const selectedTreeClassIds = () => [
+  ...heldTopClasses.keys(), ...heldMiddleClasses.keys(), ...heldInstances.keys()
+];
+const beginTreeDrag = (id) => {
+  const item = classById.get(id);
+  const kind = item ? classKind(item) : null;
+  const selection = kind === 'top' ? heldTopClasses : kind === 'middle' ? heldMiddleClasses : kind === 'class' ? heldInstances : null;
+  if (!item || !selection) return false;
+  if (!selection.has(id)) {
+    temporaryTreeDragSelection = {
+      before: snapshotEditState(),
+      historyLength: editUndoStack.length,
+      hadUnsavedChanges: hasUnsavedChanges
+    };
+    heldInstances.clear();
+    heldMiddleClasses.clear();
+    heldTopClasses.clear();
+    applyTreeSubtreeSelection([id], true);
+    syncTargetButtonAvailability();
+    renderInstances();
+  } else {
+    temporaryTreeDragSelection = null;
+  }
+  activeTreeDragIds = selectedTreeClassIds();
+  return activeTreeDragIds.length > 0;
+};
+const finishTreeDrag = () => {
+  if (!temporaryTreeDragSelection) return;
+  if (editUndoStack.length > temporaryTreeDragSelection.historyLength) {
+    editUndoStack.at(-1).before = temporaryTreeDragSelection.before;
+  } else {
+    restoreEditState(temporaryTreeDragSelection.before);
+    hasUnsavedChanges = temporaryTreeDragSelection.hadUnsavedChanges;
+    syncTreeSelectionAppearance();
+    syncTargetButtonAvailability();
+    renderInstances();
+    render();
+  }
+  temporaryTreeDragSelection = null;
+};
+const setTreeDropTarget = (destination) => {
+  editTree.querySelectorAll('.is-drop-target').forEach((element) => element.classList.remove('is-drop-target'));
+  touchTreeDrag.destination = destination || null;
+  destination?.classList.add('is-drop-target');
+};
+const applyTreeDrop = (destination) => {
+  const destinationItem = classById.get(destination?.dataset.dragClassId);
+  if (!destinationItem) return;
+  if (classKind(destinationItem) === 'middle') {
+    moveHeldToMiddle(destinationItem.id);
+  } else if (classKind(destinationItem) === 'top' && isUnclassified(destinationItem)) {
+    if (heldMiddleClasses.size || heldTopClasses.size) {
+      logEditAction('未分類には対象クラスだけを移動できます。', 'warn');
+      return;
+    }
+    moveHeldToTop(destinationItem.id);
+  } else if (classKind(destinationItem) === 'top') {
+    if (heldTopClasses.size) moveHeldToMiddle(destinationItem.id);
+    else moveHeldClassesToTop(destinationItem.id);
+  }
+};
+editTree?.addEventListener('dragstart', (event) => {
+  const source = event.target.closest('[data-drag-class-id]');
+  const id = source?.dataset.dragClassId;
+  if (!id || !beginTreeDrag(id)) {
+    event.preventDefault();
+    return;
+  }
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', id);
+  source.classList.add('is-dragging');
+});
+editTree?.addEventListener('dragend', (event) => {
+  event.target.closest('[data-drag-class-id]')?.classList.remove('is-dragging');
+  setTreeDropTarget(null);
+  finishTreeDrag();
+  activeTreeDragIds = [];
+});
+editTree?.addEventListener('dragover', (event) => {
+  const destination = event.target.closest('summary[data-drag-class-id]');
+  if (!destination || !activeTreeDragIds.length) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  setTreeDropTarget(destination);
+});
+editTree?.addEventListener('dragleave', (event) => {
+  const destination = event.target.closest('summary[data-drag-class-id]');
+  if (destination && !destination.contains(event.relatedTarget)) setTreeDropTarget(null);
+});
+editTree?.addEventListener('drop', (event) => {
+  const destination = event.target.closest('summary[data-drag-class-id]');
+  if (!destination || !activeTreeDragIds.length) return;
+  event.preventDefault();
+  event.stopPropagation();
+  applyTreeDrop(destination);
+  finishTreeDrag();
+});
+editTree?.addEventListener('touchstart', (event) => {
+  if (event.touches.length !== 1) return;
+  const source = event.target.closest('[data-drag-class-id]');
+  const control = event.target.closest('input, button');
+  if (control && control !== source) return;
+  const id = source?.dataset.dragClassId;
+  if (!id || !classById.has(id)) return;
+  const touch = event.touches[0];
+  touchTreeDrag.source = source;
+  touchTreeDrag.startX = touch.clientX;
+  touchTreeDrag.startY = touch.clientY;
+  touchTreeDrag.active = false;
+  touchTreeDrag.timer = window.setTimeout(() => {
+    if (!touchTreeDrag.source?.isConnected || !beginTreeDrag(id)) return;
+    touchTreeDrag.ids = [...activeTreeDragIds];
+    touchTreeDrag.active = true;
+    touchTreeDrag.source.classList.add('is-dragging');
+    document.body.classList.add('is-tree-touch-dragging');
+  }, 500);
+}, { passive: true });
+editTree?.addEventListener('touchmove', (event) => {
+  if (!touchTreeDrag.source) return;
+  const touch = event.touches[0];
+  if (!touchTreeDrag.active) {
+    if (Math.hypot(touch.clientX - touchTreeDrag.startX, touch.clientY - touchTreeDrag.startY) > 10) {
+      window.clearTimeout(touchTreeDrag.timer);
+      touchTreeDrag.source = null;
+    }
+    return;
+  }
+  event.preventDefault();
+  const element = document.elementFromPoint(touch.clientX, touch.clientY);
+  setTreeDropTarget(element?.closest('summary[data-drag-class-id]') || null);
+}, { passive: false });
+editTree?.addEventListener('touchend', (event) => {
+  window.clearTimeout(touchTreeDrag.timer);
+  if (touchTreeDrag.active) {
+    event.preventDefault();
+    if (touchTreeDrag.destination && touchTreeDrag.ids.length) applyTreeDrop(touchTreeDrag.destination);
+    finishTreeDrag();
+    touchTreeDrag.source?.classList.remove('is-dragging');
+    document.body.classList.remove('is-tree-touch-dragging');
+    setTreeDropTarget(null);
+  }
+  touchTreeDrag = { timer: 0, source: null, startX: 0, startY: 0, active: false, destination: null, ids: [] };
+}, { passive: false });
+editTree?.addEventListener('touchcancel', () => {
+  window.clearTimeout(touchTreeDrag.timer);
+  touchTreeDrag.source?.classList.remove('is-dragging');
+  document.body.classList.remove('is-tree-touch-dragging');
+  setTreeDropTarget(null);
+  finishTreeDrag();
+  touchTreeDrag = { timer: 0, source: null, startX: 0, startY: 0, active: false, destination: null, ids: [] };
+});
+editTree?.addEventListener('contextmenu', (event) => {
+  if (touchTreeDrag.active) event.preventDefault();
+});
+
 window.addEventListener('class-editor-test-preferences-change', (event) => {
   if (event.detail && 'treeColorIntensity' in event.detail) renderTree();
 });

@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261109-tree-filter-disclosure-v1">
   <link rel="stylesheet" href="web/css/editor-panels.css?v=20261111-prompt-examples-groups-v2">
   <link rel="stylesheet" href="web/css/test-preferences.css?v=20261109-test-preferences-v20">
-  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261109-restore-tree-plus-v1">
+  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261111-tree-drag-move-v2">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-held-panel-fixed-v2">
   <script data-app-script="web/data/generated/class-data.js"></script>
   <script data-app-script="web/data/generated/instance-data.js"></script>
@@ -21,9 +21,9 @@
   <script data-app-script="web/js/shared/tree.js?v=20261110-upload-class-types-v1"></script>
   <script data-app-script="web/js/editor/state.js?v=20261111-json-export-toggle-v2"></script>
   <script data-app-script="web/js/editor/panels.js?v=20261111-held-table-fixed-header-v2"></script>
-  <script data-app-script="web/js/editor/tree.js?v=20261109-tree-color-intensity-v1"></script>
-  <script data-app-script="web/js/editor/events.js?v=20261111-save-and-export-v4"></script>
-  <script data-app-script="web/js/editor/test-preferences.js?v=20261110-chat-settings-move-v1"></script>
+  <script data-app-script="web/js/editor/tree.js?v=20261111-tree-drag-move-v3"></script>
+  <script data-app-script="web/js/editor/events.js?v=20261111-proposal-freedom-v1"></script>
+  <script data-app-script="web/js/editor/test-preferences.js?v=20261111-proposal-freedom-v1"></script>
   <script src="web/js/shared/app-startup.js?v=20261111-tab-session-v1"></script>
 </head>
 <body class="edit-panes-pinned" data-mode="edit">
@@ -112,6 +112,7 @@
               <div id="tree-filter-keyword-chips" class="search-hierarchy-selected tree-filter-active-summary" aria-label="検索ワード"></div>
             </div>
           </details>
+          <p class="tree-drag-help">行を左ドラッグ（タッチ画面では長押し）して移動先へドロップできます。複数選択中の行なら選択項目をまとめて移動し、未選択の行ならその項目と配下を移動します。</p>
           <div id="edit-tree" class="tree" role="tree"></div>
           <button type="button" id="scroll-to-top" class="scroll-to-top-button" title="ページの一番上に戻る" aria-label="ページの一番上に戻る" hidden>↑</button>
         </div>
@@ -232,6 +233,10 @@
             <option value="evaluation">評価モード</option>
           </select>
           <p class="edit-settings-note">次の依頼から適用します。確認事項への回答中は、その相談で使っているモードを引き継ぎます。</p>
+          <label for="test-ai-prompt-flexibility">AI提案の自由度</label>
+          <div class="test-range-row"><input id="test-ai-prompt-flexibility" type="range" min="1" max="5" step="1" data-preference="promptFlexibility"><output for="test-ai-prompt-flexibility"></output></div>
+          <p class="edit-settings-note">1: 大幅な再編・複数案・価値のないクラスの削除 / 2: 関連する再編・統合 / 3: 一通りの編集操作 / 4: 必要な補助操作 / 5: 明示された変更のみ</p>
+          <p class="edit-settings-note">数値が小さいほど自由度が高くなります。入力範囲や安全性などの必須ルールは変わりません。</p>
         </div>
         <div class="edit-ai-setting-card">
           <h4>リクエスト処理</h4>
@@ -460,6 +465,6 @@
     <div class="data-import-actions"><button type="button" id="reset-to-default" class="search-button secondary-search-button">初期状態</button><button type="button" id="data-import-cancel" class="search-button secondary-search-button">キャンセル</button><button type="button" id="data-import-confirm" class="search-button" disabled>このデータで開始</button></div>
   </dialog>
   <script data-app-script="web/js/shared/data-upload.js?v=20261110-file-summary-type-fix-v1"></script>
-  <script data-app-script="web/js/editor/ai/main.js?v=20261111-prompt-examples-groups-v2" data-app-type="module"></script>
+  <script data-app-script="web/js/editor/ai/main.js?v=20261111-split-global-plans-v1" data-app-type="module"></script>
 </body>
 </html>

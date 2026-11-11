@@ -293,6 +293,11 @@
 .tree > details { position: relative; z-index: 1; }
 
 /* クラス追加ボタンと保持クラスの移動操作 */
+.tree-drag-help { margin: 0 0 0.4rem; color: #64748b; font-size: 0.78rem; }
+#edit-tree [data-drag-class-id] { cursor: grab; }
+#edit-tree [data-drag-class-id].is-dragging { opacity: 0.5; cursor: grabbing; }
+#edit-tree summary.is-drop-target { outline: 2px dashed #0284c7; outline-offset: 2px; background: #e0f2fe; }
+body.is-tree-touch-dragging #edit-tree { user-select: none; -webkit-user-select: none; }
 #toggle-tree-edit-mode[aria-pressed="true"] { border-color: #2563eb; color: #1d4ed8; background: #eff6ff; }
 .tree-class-edit-actions { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 0.25rem; margin-left: 0.35rem; }
 body.is-ai-chat-open #edit-tree .rename-class-button,

@@ -10,7 +10,7 @@
   }
   const storageKey = 'classEditorTestPreferences';
   const proposalModeKey = 'classEditorAiProposalView';
-  const defaults = { heldFontSize: 0.92, chatFontSize: 1, proposalFontSize: 0.9, treeTopFontSize: 0.95, treeMiddleFontSize: 0.95, treeColorIntensity: 1, treeDisclosureSize: 0.85, treeTopColor: '#7dd3fc', treeTopTextColor: '#075985', treeTopBackgroundColor: '#e0f2fe', proposalMode: 'compact', responseMode: 'proposal', crossScopeStrategy: 'exhaustive', aiConcurrency: 2, crossScopeTopLimit: 2, crossScopeMiddleLimit: 5 };
+  const defaults = { heldFontSize: 0.92, chatFontSize: 1, proposalFontSize: 0.9, treeTopFontSize: 0.95, treeMiddleFontSize: 0.95, treeColorIntensity: 1, treeDisclosureSize: 0.85, treeTopColor: '#7dd3fc', treeTopTextColor: '#075985', treeTopBackgroundColor: '#e0f2fe', proposalMode: 'compact', responseMode: 'proposal', promptFlexibility: 5, crossScopeStrategy: 'exhaustive', aiConcurrency: 2, crossScopeTopLimit: 2, crossScopeMiddleLimit: 5 };
   const limits = {
     heldFontSize: [0.8, 1.3],
     chatFontSize: [0.85, 1.4],
@@ -20,10 +20,12 @@
     treeColorIntensity: [0, 1],
     treeDisclosureSize: [0.6, 1.4],
     aiConcurrency: [1, 4],
+    promptFlexibility: [1, 5],
     crossScopeTopLimit: [1, 5],
     crossScopeMiddleLimit: [1, 10]
   };
   const countSettings = new Set(['aiConcurrency', 'crossScopeTopLimit', 'crossScopeMiddleLimit']);
+  const flexibilityLabels = ['最大限自由', '柔軟', '標準', '厳密', '非常に厳密'];
   const percentageSettings = new Set(['treeColorIntensity']);
   const read = () => {
     let saved = {};
@@ -81,7 +83,8 @@
     if (!(key in preferences)) return;
     control.value = String(preferences[key]);
     const output = document.querySelector(`output[for="${control.id}"]`);
-    if (output) output.value = countSettings.has(key) ? `${preferences[key]}件`
+    if (output) output.value = key === 'promptFlexibility' ? `${preferences[key]}：${flexibilityLabels[preferences[key] - 1]}`
+      : countSettings.has(key) ? `${preferences[key]}件`
       : percentageSettings.has(key) ? `${Math.round(preferences[key] * 100)}%` : `${Number(preferences[key]).toFixed(2)}rem`;
   });
   updateControls();
