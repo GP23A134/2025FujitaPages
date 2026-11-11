@@ -16,8 +16,10 @@
       const transaction = database.transaction(STORE, mode);
       const request = operation(transaction.objectStore(STORE));
       let result;
-      request.onsuccess = () => { result = request.result; };
-      request.onerror = () => reject(request.error);
+      if (request) {
+        request.onsuccess = () => { result = request.result; };
+        request.onerror = () => reject(request.error);
+      }
       transaction.oncomplete = () => { database.close(); resolve(result); };
       transaction.onerror = () => { database.close(); reject(transaction.error); };
       transaction.onabort = () => { database.close(); reject(transaction.error || new Error('IndexedDB transaction aborted')); };
