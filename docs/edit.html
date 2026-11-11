@@ -23,7 +23,7 @@
   <script data-app-script="web/js/editor/panels.js?v=20261111-held-table-fixed-header-v2"></script>
   <script data-app-script="web/js/editor/tree.js?v=20261111-tree-drag-move-v3"></script>
   <script data-app-script="web/js/editor/events.js?v=20261111-proposal-freedom-v1"></script>
-  <script data-app-script="web/js/editor/test-preferences.js?v=20261111-ai-split-toggle-v1"></script>
+  <script data-app-script="web/js/editor/test-preferences.js?v=20261111-input-limit-setting-v1"></script>
   <script src="web/js/shared/app-startup.js?v=20261111-tab-session-v1"></script>
 </head>
 <body class="edit-panes-pinned" data-mode="edit">
@@ -311,15 +311,10 @@
         </select>
       </div>
       <div class="test-settings-group" role="group" aria-labelledby="test-ai-tuning-title">
-        <h4 id="test-ai-tuning-title">AI処理の調整</h4>
-        <label for="dev-ai-prompt-flexibility">提案の自由度</label>
-        <div class="test-range-row"><input id="dev-ai-prompt-flexibility" type="range" min="1" max="5" step="1" data-preference="promptFlexibility"><output for="dev-ai-prompt-flexibility"></output></div>
-        <label for="dev-ai-concurrency">同時処理数</label>
-        <div class="test-range-row"><input id="dev-ai-concurrency" type="range" min="1" max="4" step="1" data-preference="aiConcurrency"><output for="dev-ai-concurrency"></output></div>
-        <label for="dev-cross-scope-top-limit">横断確認で調べる上位クラス数</label>
-        <div class="test-range-row"><input id="dev-cross-scope-top-limit" type="range" min="1" max="5" step="1" data-preference="crossScopeTopLimit"><output for="dev-cross-scope-top-limit"></output></div>
-        <label for="dev-cross-scope-middle-limit">上位ごとに調べる中間クラス数</label>
-        <div class="test-range-row"><input id="dev-cross-scope-middle-limit" type="range" min="1" max="10" step="1" data-preference="crossScopeMiddleLimit"><output for="dev-cross-scope-middle-limit"></output></div>
+        <h4 id="test-ai-tuning-title">送信入力上限</h4>
+        <label for="test-ai-input-limit">1回の送信で扱う最大文字数</label>
+        <div class="test-range-row"><input id="test-ai-input-limit" type="range" min="12000" max="128000" step="4000" data-preference="maxRequestCharacters"><output for="test-ai-input-limit"></output></div>
+        <p class="edit-settings-note">送信入力の上限です。モデルのコンテキスト上限を超えた場合は、API側で受け付けられないことがあります。</p>
       </div>
       <div class="test-settings-group" role="group" aria-labelledby="test-ai-output-title">
         <h4 id="test-ai-output-title">出力トークン上限</h4>
@@ -509,6 +504,6 @@
     <div class="data-import-actions"><button type="button" id="reset-to-default" class="search-button secondary-search-button">初期状態</button><button type="button" id="data-import-cancel" class="search-button secondary-search-button">キャンセル</button><button type="button" id="data-import-confirm" class="search-button" disabled>このデータで開始</button></div>
   </dialog>
   <script data-app-script="web/js/shared/data-upload.js?v=20261110-file-summary-type-fix-v1"></script>
-  <script data-app-script="web/js/editor/ai/main.js?v=20261111-ai-split-toggle-v1" data-app-type="module"></script>
+  <script data-app-script="web/js/editor/ai/main.js?v=20261111-input-limit-setting-v1" data-app-type="module"></script>
 </body>
 </html>

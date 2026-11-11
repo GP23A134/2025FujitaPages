@@ -1,10 +1,10 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261109-test-tuning-v2';
+import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261111-input-limit-setting-v1';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261111-split-global-plans-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261110-first-line-workflow-status-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261111-ai-proposal-undo-sync-v1';
-import { createAIClient } from './ai-client.js?v=20261111-unified-processing-display-v1';
+import { createAIClient } from './ai-client.js?v=20261111-input-limit-setting-v1';
 import { createRequestProgress } from './request-progress.js?v=20261111-request-progress-module-v1';
 
 (() => {
@@ -30,7 +30,7 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
   const yieldToBrowser = () => new Promise((resolve) => window.setTimeout(resolve, 0));
 
   // Context tokenization varies by model and language; reserve headroom for prompts and output.
-  const MAX_REQUEST_CHARACTERS = 48000;
+  let MAX_REQUEST_CHARACTERS = 48000;
   let MAX_OUTPUT_TOKENS = 5000;
   let CHUNK_OUTPUT_TOKENS = 3000;
   let SYNTHESIS_OUTPUT_TOKENS = 4500;
@@ -195,6 +195,7 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
   MAX_UNITS_PER_BATCH = readAiTuningValue('maxUnitsPerBatch', MAX_UNITS_PER_BATCH, 1, 4);
   OPTIMIZATION_SPLIT_THRESHOLD = readAiTuningValue('optimizationSplitThreshold', OPTIMIZATION_SPLIT_THRESHOLD, 1, 20);
   MAX_SYNTHESIS_ROUNDS = readAiTuningValue('synthesisMaxRounds', MAX_SYNTHESIS_ROUNDS, 1, 8);
+  MAX_REQUEST_CHARACTERS = readAiTuningValue('maxRequestCharacters', MAX_REQUEST_CHARACTERS, 12000, 128000);
   try {
     const saved = JSON.parse(localStorage.getItem('classEditorTestPreferences') || '{}');
     if (typeof saved.aiSplitEnabled === 'boolean') AI_SPLIT_ENABLED = saved.aiSplitEnabled;
@@ -233,6 +234,8 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
     const splitThreshold = Number(event.detail?.optimizationSplitThreshold);
     if (Number.isInteger(splitThreshold) && splitThreshold >= 1 && splitThreshold <= 20) OPTIMIZATION_SPLIT_THRESHOLD = splitThreshold;
     if (typeof event.detail?.aiSplitEnabled === 'boolean') AI_SPLIT_ENABLED = event.detail.aiSplitEnabled;
+    const inputLimit = Number(event.detail?.maxRequestCharacters);
+    if (Number.isInteger(inputLimit) && inputLimit >= 12000 && inputLimit <= 128000) MAX_REQUEST_CHARACTERS = inputLimit;
     const synthesisRounds = Number(event.detail?.synthesisMaxRounds);
     if (Number.isInteger(synthesisRounds) && synthesisRounds >= 1 && synthesisRounds <= 8) MAX_SYNTHESIS_ROUNDS = synthesisRounds;
     const strategy = event.detail?.crossScopeStrategy;
@@ -806,7 +809,7 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
   const { responseFormat, createIdCodec, shortenInputIds, responsesClient } = createAIClient({
     editor,
     outputLimits: AI_OUTPUT_LIMITS,
-    maxInputCharacters: MAX_REQUEST_CHARACTERS,
+    getMaxInputCharacters: () => MAX_REQUEST_CHARACTERS,
     digest
   });
   const {
@@ -877,8 +880,8 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
       targetContext: scope.targetContext || { descendantTargetClassCounts: {} }
     };
   };
-  const chunkSynthesizer = createChunkSynthesizer({ MAX_REQUEST_CHARACTERS, getMaxRounds: () => MAX_SYNTHESIS_ROUNDS });
-  const crossScopeProposalSynthesizer = createCrossScopeProposalSynthesizer({ MAX_REQUEST_CHARACTERS, shortenInputIds, createIdCodec });
+  const chunkSynthesizer = createChunkSynthesizer({ getMaxRequestCharacters: () => MAX_REQUEST_CHARACTERS, getMaxRounds: () => MAX_SYNTHESIS_ROUNDS });
+  const crossScopeProposalSynthesizer = createCrossScopeProposalSynthesizer({ getMaxRequestCharacters: () => MAX_REQUEST_CHARACTERS, shortenInputIds, createIdCodec });
   const diffScope = (before, after) => {
     const current = compactScope(after);
     if (!before) return { kind: 'initial_snapshot', data: current };
@@ -931,7 +934,7 @@ import { createRequestProgress } from './request-progress.js?v=20261111-request-
   };
   const requestPlanner = createRequestPlanner({
     editor,
-    MAX_REQUEST_CHARACTERS,
+    getMaxRequestCharacters: () => MAX_REQUEST_CHARACTERS,
     diffScope,
     shortenInputIds,
     getMaxUnitsPerBatch: () => MAX_UNITS_PER_BATCH,

@@ -334,7 +334,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
 
 // Responses APIのリクエスト構築と応答の受け渡しを担当します。
 // 進捗表示・使用量更新・会話状態は呼び出し側から渡します。
-export const createResponsesClient = ({ responseFormat, digest, shortenInputIds, createIdCodec, maxInputCharacters = 48000 }) => ({
+export const createResponsesClient = ({ responseFormat, digest, shortenInputIds, createIdCodec, maxInputCharacters = 48000, getMaxInputCharacters = () => maxInputCharacters }) => ({
   async send(input, {
     apiKey,
     model,
@@ -370,8 +370,9 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
           : grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions;
     const instructions = [promptOverride || systemPrompt, formatInstructions, ...requestPolicies].join('\n\n');
     const inputCharacterCount = instructions.length + apiInput.length;
-    if (inputCharacterCount > maxInputCharacters) {
-      throw new Error(`プロンプト・依頼データを含む送信入力が上限を超えました（${inputCharacterCount.toLocaleString()} / ${maxInputCharacters.toLocaleString()}文字）。範囲を小さくして再依頼してください。過去の応答IDに含まれる会話履歴はこの文字数に含まれません。`);
+    const inputLimit = Math.max(1, Math.floor(Number(getMaxInputCharacters()) || maxInputCharacters));
+    if (inputCharacterCount > inputLimit) {
+      throw new Error(`プロンプト・依頼データを含む送信入力が上限を超えました（${inputCharacterCount.toLocaleString()} / ${inputLimit.toLocaleString()}文字）。範囲を小さくして再依頼してください。過去の応答IDに含まれる会話履歴はこの文字数に含まれません。`);
     }
     const promptCacheKey = `class-editor-ai-${(await digest(`${model}\n${instructions}`)).slice(0, 48)}`;
     const body = {
@@ -426,10 +427,10 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
 });
 
 // AI入出力の構成点。ID変換・応答形式・API通信をひとつの境界として公開します。
-export const createAIClient = ({ editor, outputLimits, maxInputCharacters, digest }) => {
+export const createAIClient = ({ editor, outputLimits, maxInputCharacters, getMaxInputCharacters, digest }) => {
   const responseFormat = createResponseFormat(outputLimits);
   const createIdCodec = () => createClassIdCodec(editor.getState().classes);
   const shortenInputIds = (input) => createIdCodec().shortenText(input);
-  const responsesClient = createResponsesClient({ responseFormat, digest, shortenInputIds, createIdCodec, maxInputCharacters });
+  const responsesClient = createResponsesClient({ responseFormat, digest, shortenInputIds, createIdCodec, maxInputCharacters, getMaxInputCharacters });
   return { responseFormat, createIdCodec, shortenInputIds, responsesClient };
 };

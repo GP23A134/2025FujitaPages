@@ -10,7 +10,7 @@
   }
   const storageKey = 'classEditorTestPreferences';
   const proposalModeKey = 'classEditorAiProposalView';
-  const defaults = { heldFontSize: 0.92, chatFontSize: 1, proposalFontSize: 0.9, treeTopFontSize: 0.95, treeMiddleFontSize: 0.95, treeTargetFontSize: 0.9, treeColorIntensity: 1, treeDisclosureSize: 0.85, treeTopColor: '#7dd3fc', treeTopTextColor: '#075985', treeTopBackgroundColor: '#e0f2fe', proposalMode: 'compact', responseMode: 'proposal', promptFlexibility: 5, crossScopeStrategy: 'exhaustive', aiConcurrency: 2, crossScopeTopLimit: 2, crossScopeMiddleLimit: 5, responseOutputTokens: 5000, chunkOutputTokens: 3000, synthesisOutputTokens: 4500, crossScopeOutputTokens: 4000, aiSplitEnabled: true, maxUnitsPerBatch: 4, optimizationSplitThreshold: 20, synthesisMaxRounds: 8 };
+  const defaults = { heldFontSize: 0.92, chatFontSize: 1, proposalFontSize: 0.9, treeTopFontSize: 0.95, treeMiddleFontSize: 0.95, treeTargetFontSize: 0.9, treeColorIntensity: 1, treeDisclosureSize: 0.85, treeTopColor: '#7dd3fc', treeTopTextColor: '#075985', treeTopBackgroundColor: '#e0f2fe', proposalMode: 'compact', responseMode: 'proposal', promptFlexibility: 5, crossScopeStrategy: 'exhaustive', aiConcurrency: 2, crossScopeTopLimit: 2, crossScopeMiddleLimit: 5, responseOutputTokens: 5000, chunkOutputTokens: 3000, synthesisOutputTokens: 4500, crossScopeOutputTokens: 4000, aiSplitEnabled: true, maxRequestCharacters: 48000, maxUnitsPerBatch: 4, optimizationSplitThreshold: 20, synthesisMaxRounds: 8 };
   const limits = {
     heldFontSize: [0.8, 1.3],
     chatFontSize: [0.85, 1.4],
@@ -28,12 +28,13 @@
     chunkOutputTokens: [500, 128000],
     synthesisOutputTokens: [500, 128000],
     crossScopeOutputTokens: [500, 128000],
+    maxRequestCharacters: [12000, 128000],
     maxUnitsPerBatch: [1, 4],
     optimizationSplitThreshold: [1, 20],
     synthesisMaxRounds: [1, 8]
   };
-  const countSettings = new Set(['aiConcurrency', 'crossScopeTopLimit', 'crossScopeMiddleLimit', 'maxUnitsPerBatch', 'optimizationSplitThreshold', 'synthesisMaxRounds']);
-  const countUnits = { maxUnitsPerBatch: '単位', synthesisMaxRounds: '回' };
+  const countSettings = new Set(['aiConcurrency', 'crossScopeTopLimit', 'crossScopeMiddleLimit', 'maxRequestCharacters', 'maxUnitsPerBatch', 'optimizationSplitThreshold', 'synthesisMaxRounds']);
+  const countUnits = { maxRequestCharacters: '文字', maxUnitsPerBatch: '単位', synthesisMaxRounds: '回' };
   const outputTokenSettings = new Set(['responseOutputTokens', 'chunkOutputTokens', 'synthesisOutputTokens', 'crossScopeOutputTokens']);
   const flexibilityLabels = ['最大限自由', '柔軟', '標準', '厳密', '非常に厳密'];
   const percentageSettings = new Set(['treeColorIntensity']);

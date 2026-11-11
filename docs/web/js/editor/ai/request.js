@@ -1,6 +1,6 @@
 // 現在の選択範囲を依頼JSONへ変換し、大きすぎる範囲を処理単位へ分割します。
 // scope固有の指示はJSON内に一時的に載せ、送信層が固定プロンプトの後ろへ移します。
-export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope, shortenInputIds,
+export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxRequestCharacters = () => MAX_REQUEST_CHARACTERS, diffScope, shortenInputIds,
   getMaxUnitsPerBatch = () => 4, getOptimizationSplitThreshold = () => 20 }) => {
   // 長い全体分析の計画中も、ブラウザーに描画と入力イベントの処理を返します。
   const yieldToBrowser = () => new Promise((resolve) => window.setTimeout(resolve, 0));
@@ -29,11 +29,12 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
   };
   // 全体参照が上限を超える場合、階層範囲と対象クラス範囲を分割して漏れなく計画します。
   const makeLargeScopePlan = async (userText, scope, conversation, { promptOverhead = 0 } = {}) => {
+    const maxRequestCharacters = Number(getMaxRequestCharacters()) || MAX_REQUEST_CHARACTERS;
     const hierarchyParentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
     const hierarchyRows = scope.classes.filter((item) => ['top', 'middle'].includes(item.type))
       .map((item) => [item.id, item.type, item.label, hierarchyParentByChild.get(item.id) || null]);
     const contextCharacterCount = shortenInputIds(JSON.stringify({ scopeCoverage: 'hierarchy_reference', hierarchy: hierarchyRows })).length;
-    const taskCharacterLimit = MAX_REQUEST_CHARACTERS - contextCharacterCount - promptOverhead;
+    const taskCharacterLimit = maxRequestCharacters - contextCharacterCount - promptOverhead;
     if (taskCharacterLimit <= 0) throw new Error('上位・中間クラスの全体情報が送信上限を超えています。');
     const upperClassBatchCount = 10;
     const upperClassBatchIndex = (id) => {
@@ -389,7 +390,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
     return tasks;
   };
     const packAnalysisUnits = async (units, userText, conversation) => {
-      const taskCharacterLimit = MAX_REQUEST_CHARACTERS - (units[0]?.contextCharacterCount || 0);
+      const taskCharacterLimit = (Number(getMaxRequestCharacters()) || MAX_REQUEST_CHARACTERS) - (units[0]?.contextCharacterCount || 0);
       const mergeScopes = (left, right) => {
         const classesById = new Map([...left.classes, ...right.classes].map((item) => [item.id, item]));
         const relationsByKey = new Map([...left.relations, ...right.relations]
@@ -460,7 +461,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, diffScope
 
 // 分割回答と範囲根拠を統合し、カテゴリ別の横断比較状態も返します。
 // チャンクの検証・提案・会話状態は呼び出し側が管理します。
-export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRounds = () => 8 }) => {
+export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCharacters = () => MAX_REQUEST_CHARACTERS, getMaxRounds = () => 8 }) => {
   const categoryKeys = ['duplicates', 'imbalance', 'gaps', 'other'];
   const insufficientComparison = (expectedScopes, requiredScopesByCategory, reason) => Object.fromEntries(categoryKeys.map((key) => [key, {
     status: 'insufficient',
@@ -506,7 +507,7 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRounds = 
     const requiredScopesByCategory = Object.fromEntries(categoryKeys.map((key) => [key, [...new Set(
       Array.isArray(requiredScopeIdsByCategory?.[key]) ? requiredScopeIdsByCategory[key] : expectedScopes
     )]]));
-    const payloadLimit = MAX_REQUEST_CHARACTERS - fixedPromptCharacters;
+    const payloadLimit = (Number(getMaxRequestCharacters()) || MAX_REQUEST_CHARACTERS) - fixedPromptCharacters;
     const failureResult = (message) => ({
       message,
       synthesisStatus: 'failed',
@@ -668,7 +669,7 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRounds = 
 };
 
 // 完了済み分割結果と全階層を使い、横断操作案だけを生成します。
-export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, shortenInputIds, createIdCodec }) => {
+export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCharacters = () => MAX_REQUEST_CHARACTERS, shortenInputIds, createIdCodec }) => {
   const plan = ({ request, conversationContext = '', scope, fixedPromptCharacters = 0, strategy = 'exhaustive',
     candidateUpperClassLimit = 2, candidateMiddleClassLimit = 5 }) => {
     candidateUpperClassLimit = Math.max(1, Math.min(5, Math.floor(Number(candidateUpperClassLimit) || 2)));
@@ -794,7 +795,7 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, sh
     const candidateIdsFor = (targets) => [...new Set(targets.flatMap((item) => candidateHierarchyIdsByTarget.get(item.id) || []))];
     const candidateItemsFor = (targets) => candidateIdsFor(targets).map((id) => hierarchyById.get(id)).filter(Boolean);
     const fits = (batchId, targets, hierarchy, targetCandidates = null) => shortenInput(batchInput(batchId, targets, hierarchy, targetCandidates)).length
-      + fixedPromptCharacters <= MAX_REQUEST_CHARACTERS;
+      + fixedPromptCharacters <= (Number(getMaxRequestCharacters()) || MAX_REQUEST_CHARACTERS);
     const pack = (items, canFit) => {
       const groups = [];
       let current = [];
