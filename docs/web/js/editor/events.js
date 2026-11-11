@@ -1010,7 +1010,7 @@ window.classEditorAI = {
     });
     return { classes: candidateClasses, relations: candidateRelations, fingerprint, idRemaps: convertedIds };
   },
-  commitCandidate(candidate) {
+  commitCandidate(candidate, historyMetadata = {}) {
     const before = snapshotEditState();
     classes.splice(0, classes.length, ...candidate.classes.map((item) => ({ ...item })));
     data.classData.relations = candidate.relations.map((item) => ({ ...item, relation: 'subClassOf' }));
@@ -1031,8 +1031,9 @@ window.classEditorAI = {
       else heldTopClasses.set(id, item);
     });
     hasUnsavedChanges = true;
-    recordEditHistory(before, '', 'AI提案の適用');
+    const historyEntry = recordEditHistory(before, '', 'AI提案の適用', historyMetadata);
     render();
+    return historyEntry;
   },
   render
 };

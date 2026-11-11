@@ -690,6 +690,8 @@ export const createProposalPreview = ({
       const row = document.createElement('li');
       row.className = `ai-preview-change-item${excluded ? ' is-excluded' : ''}`;
       row.dataset.operationIndex = String(index);
+      const rowControl = document.createElement('label');
+      rowControl.className = 'ai-preview-change-label';
       if (operation.type === 'moveClass' || operation.type === 'moveChildren') {
         row.tabIndex = 0;
         row.setAttribute('aria-label', operationLabel(operation));
@@ -720,7 +722,8 @@ export const createProposalPreview = ({
         type.title = category.label;
       }
       const status = document.createElement('span'); status.className = 'ai-preview-change-status'; status.textContent = excluded ? '除外' : '適用';
-      row.append(type, toggle, text, status);
+      rowControl.append(type, toggle, text, status);
+      row.append(rowControl);
       return row;
     });
     list.replaceChildren(...rows);
@@ -848,6 +851,8 @@ export const createProposalPreview = ({
     const bUnjudged = ['pending', 'previewed', 'stale'].includes(b.status);
     return Number(bUnjudged) - Number(aUnjudged);
   });
+  const nextUnjudgedProposal = (currentProposal) => previewNavigationProposals().find((item) => item !== currentProposal
+    && ['pending', 'previewed', 'stale'].includes(item.status)) || null;
   const hasUnsubmittedQuestions = (responseGroupId) => getCurrentConversation().items.some((item) =>
     item.type === 'questions' && !item.submitted && item.responseGroupId === responseGroupId);
   const updatePreviewNavigation = (proposalItem) => {
@@ -1223,19 +1228,23 @@ export const createProposalPreview = ({
       return null;
     }
     const currentProposal = plan.proposalItem;
-    const proposals = previewableProposals();
-    const currentProposalIndex = proposals.indexOf(currentProposal);
-    const nextProposal = currentProposalIndex >= 0 ? proposals[currentProposalIndex + 1] : null;
     await verifyLoadedDataVersion();
     const currentHash = await currentDataHash();
     if (currentHash !== plan.expectedBaseHash) throw new Error('提案の作成後にデータが変更されました。最新データで提案し直してください。');
     const candidate = editor.applyOperations(plan.operations, plan.expectedFingerprint, currentProposal.editableIds, currentProposal.availableIds, currentProposal.operationPolicy);
+    const conversationItems = getCurrentConversation().items;
+    const proposalStatusesBefore = conversationItems.filter((item) => item.type === 'proposal')
+      .map((item) => ({ item, status: item.status }));
     const beforeSnapshot = editor.getState();
     currentProposal.appliedPreviewSnapshot = {
       before: { classes: beforeSnapshot.classes.map((item) => ({ ...item })), relations: beforeSnapshot.relations.map((item) => ({ ...item })), counts: beforeSnapshot.counts },
       after: { classes: candidate.classes.map((item) => ({ ...item })), relations: candidate.relations.map((item) => ({ ...item })), idRemaps: new Map(candidate.idRemaps || []) }
     };
-    editor.commitCandidate(candidate);
+    const editHistory = editor.commitCandidate(candidate, {
+      aiProposalId: currentProposal.id,
+      aiProposalItem: currentProposal,
+      proposalStatusesBefore
+    });
     currentProposal.status = 'applied';
     const proposalGroup = getCurrentConversation().items.find((item) => item.type === 'proposal'
       && (currentProposal.responseGroupId
@@ -1245,7 +1254,6 @@ export const createProposalPreview = ({
       if (getProposalDisplayMode() === 'compact') proposalGroup.proposalListOpen = true;
       else proposalGroup.proposalsOpen = false;
     }
-    const conversationItems = getCurrentConversation().items;
     conversationItems.filter((item) => item.type === 'proposal' && item !== currentProposal
       && !['applied', 'dismissed'].includes(item.status))
       .forEach((item) => {
@@ -1254,6 +1262,9 @@ export const createProposalPreview = ({
         item.status = item.alternativeGroupId && (item.alternativeGroupId === currentProposal.alternativeGroupId || alternativeAlreadyChosen)
           ? 'alternative-rejected' : 'stale';
       });
+    if (editHistory) editHistory.proposalStatusesAfter = conversationItems.filter((item) => item.type === 'proposal')
+      .map((item) => ({ item, status: item.status }));
+    const nextProposal = nextUnjudgedProposal(currentProposal);
     return { currentProposal, nextProposal };
   };
     return {
@@ -1276,7 +1287,7 @@ export const createProposalPreview = ({
           if (getProposalDisplayMode() === 'compact') proposalGroup.proposalListOpen = true;
           else proposalGroup.proposalsOpen = true;
         }
-        return item;
+        return { currentProposal: item, nextProposal: nextUnjudgedProposal(item) };
       },
       clear() { previewPlan = null; previewPageIndex = 0; previewGroups = []; },
       get plan() { return previewPlan; },

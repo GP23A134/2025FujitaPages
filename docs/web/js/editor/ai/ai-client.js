@@ -399,7 +399,7 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
     onStage(stage);
     const responseBody = await sendOpenAIRequest({ apiKey, body, signal });
     onUsage(responseBody);
-    onStage('結果を処理中');
+    onStage('回答処理中');
     await new Promise((resolve) => requestAnimationFrame(resolve));
     const result = responseFormat.parseAIResponse(responseBody, grouped, summaryOnly, chunked, comparisonSynthesis, crossScopeOperation);
     const restoreId = createIdCodec().restore;

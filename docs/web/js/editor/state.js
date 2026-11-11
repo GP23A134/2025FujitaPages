@@ -264,18 +264,20 @@ function snapshotEditState() {
   };
   return { ...state, fingerprint: JSON.stringify(state), recentDestinations: [...recentHeldDestinationIds] };
 }
-function recordEditHistory(before, destinationId = '', actionLabel = '編集') {
+function recordEditHistory(before, destinationId = '', actionLabel = '編集', metadata = {}) {
   const recentDestinationsBefore = [...recentHeldDestinationIds];
   if (destinationId && classById.has(destinationId)) {
     recentHeldDestinationIds = [destinationId, ...recentHeldDestinationIds.filter((id) => id !== destinationId)].slice(0, 5);
   }
   before.recentDestinations = recentDestinationsBefore;
   const after = snapshotEditState();
-  if (before.fingerprint === after.fingerprint) return;
-  editUndoStack.push({ before, after, actionLabel });
+  if (before.fingerprint === after.fingerprint) return null;
+  const edit = { before, after, actionLabel, ...metadata };
+  editUndoStack.push(edit);
   if (editUndoStack.length > EDIT_HISTORY_LIMIT) editUndoStack.shift();
   editRedoStack.length = 0;
   window.dataWorkspace?.clearRedo?.();
+  return edit;
 }
 function restoreEditState(snapshot) {
   // 描画用Mapはクラス配列を参照するため、配列とMapを同時に作り直す。
@@ -320,6 +322,7 @@ async function undoLastEdit() {
   editRedoStack.push(edit);
   logEditAction(`「${edit.actionLabel}」を元に戻しました。`);
   render();
+  if (edit.aiProposalId) await window.aiAssistant?.onAIProposalHistoryChange?.(edit, 'undo');
 }
 async function redoLastEdit() {
   const edit = editRedoStack.at(-1);
@@ -339,6 +342,7 @@ async function redoLastEdit() {
   editUndoStack.push(edit);
   logEditAction(`「${edit.actionLabel}」をやり直しました。`);
   render();
+  if (edit.aiProposalId) await window.aiAssistant?.onAIProposalHistoryChange?.(edit, 'redo');
 }
 
 // ============================================================

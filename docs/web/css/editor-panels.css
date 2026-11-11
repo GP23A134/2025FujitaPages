@@ -546,7 +546,8 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-change-list-details[open] > summary { border-radius: 7px 7px 0 0; }
 .ai-preview-change-list-details[open] > summary::before { content: "▾"; }
 .ai-preview-change-list { margin: 0; padding: 0; border: 1px solid #dbe3ec; border-top: 0; border-radius: 0 0 7px 7px; list-style: none; }
-.ai-preview-change-item { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 0.15rem 0.5rem; padding: 0.3rem 0.5rem; border-bottom: 1px solid #e2e8f0; font-size: 0.74rem; }
+.ai-preview-change-item { display: block; padding: 0; border-bottom: 1px solid #e2e8f0; font-size: 0.74rem; }
+.ai-preview-change-label { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 0.15rem 0.5rem; padding: 0.3rem 0.5rem; cursor: pointer; }
 .ai-preview-change-item:last-child { border-bottom: 0; }
 .ai-preview-change-item.is-excluded { color: #64748b; background: #f1f5f9; }
 .ai-preview-change-item:hover { background: #eff6ff; }
@@ -592,6 +593,11 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-proposal-list-item.is-unjudged { border-color: #cbd5e1; background: #fff; }
 .ai-proposal-list-item.is-applied { border-color: #86efac; background: #dcfce7; }
 .ai-proposal-list-item.is-dismissed { border-color: #fca5a5; background: #fee2e2; }
+.ai-proposal-alternative-group { display: grid; gap: 0.4rem; min-width: 0; padding: 0.45rem; border: 1px solid #fdba74; border-radius: 8px; background: #fff7ed; }
+.ai-proposal-alternative-group-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 0.5rem; padding: 0 0.1rem; color: #9a3412; font-size: 0.76rem; }
+.ai-proposal-alternative-group-heading > span { color: #7c2d12; font-size: 0.9em; }
+.ai-proposal-alternative-group-heading > span[title] { cursor: help; }
+.ai-proposal-alternative-group-items { display: grid; gap: 0.35rem; min-width: 0; }
 .ai-proposal-list-main { display: grid; min-width: 0; gap: 0.15rem; align-content: center; }
 .ai-proposal-list-meta { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
 .ai-proposal-list-title { min-width: 0; overflow-wrap: anywhere; color: #1e293b; }
