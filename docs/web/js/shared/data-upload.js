@@ -113,8 +113,18 @@
     const classes = normalizeClassRecords(data.classes, 'classes');
     const classIds = new Set(classes.map((item) => item.id));
     const instanceIds = records(data.instances, 'instances');
-    const classRelations = validateClassRelations(data.classRelations || [], classIds);
-    const instanceClassRelations = validateInstanceRelations(data.instanceClassRelations || data.relations, classIds, instanceIds);
+    const relations = Array.isArray(data.relations) ? data.relations : [];
+    const sharedClassRelations = relations.every((relation) => relation && typeof relation.child === 'string' && typeof relation.parent === 'string')
+      ? relations
+      : [];
+    const sharedInstanceClassRelations = relations.every((relation) => relation && typeof relation.instance === 'string' && typeof relation.class === 'string')
+      ? relations
+      : [];
+    if (relations.length && !sharedClassRelations.length && !sharedInstanceClassRelations.length) {
+      throw new Error('relationsはchild/parent形式またはinstance/class形式で指定してください。');
+    }
+    const classRelations = validateClassRelations(data.classRelations || sharedClassRelations, classIds);
+    const instanceClassRelations = validateInstanceRelations(data.instanceClassRelations || sharedInstanceClassRelations, classIds, instanceIds);
     return { classes, instances: data.instances, classRelations, instanceClassRelations };
   };
   const parseHierarchyData = (data) => {

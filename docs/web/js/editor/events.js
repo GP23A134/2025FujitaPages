@@ -7,6 +7,7 @@ const saveValidationBaseline = {
   relations: data.classData.relations.map(({ child, parent }) => ({ child, parent }))
 };
 const saveValidationDialog = document.getElementById('edit-validation-dialog');
+let pendingSaveAction = 'indexeddb';
 const collectSaveValidationIssues = (graph) => {
   const issues = [];
   const addIssue = (code, severity, ids, detail, message) => {
@@ -106,7 +107,8 @@ const collectSaveValidationIssues = (graph) => {
   });
   return issues;
 };
-const showSaveValidation = (issues) => {
+const showSaveValidation = (issues, action) => {
+  pendingSaveAction = action;
   const baselineKeys = new Set(collectSaveValidationIssues(saveValidationBaseline).map((item) => item.key));
   const currentIssues = issues.map((issue) => baselineKeys.has(issue.key)
     ? { ...issue, severity: 'warning', preExisting: true }
@@ -114,9 +116,10 @@ const showSaveValidation = (issues) => {
   const errors = currentIssues.filter((issue) => issue.severity === 'error');
   const warnings = currentIssues.filter((issue) => issue.severity === 'warning');
   const summary = document.getElementById('edit-validation-summary');
+  const actionLabel = action === 'indexeddb' ? '保存' : 'JSON書き出し';
   summary.textContent = errors.length
-    ? `編集で新たに発生したエラーが${errors.length}件あります。修正してから保存してください。警告 ${warnings.length}件。`
-    : `保存前に確認したい警告が${warnings.length}件あります。元データから存在する問題も警告として表示しています。`;
+    ? `編集で新たに発生したエラーが${errors.length}件あります。修正してから${actionLabel}してください。警告 ${warnings.length}件。`
+    : `${actionLabel}前に確認したい警告が${warnings.length}件あります。元データから存在する問題も警告として表示しています。`;
   const list = document.getElementById('edit-validation-issues');
   const rows = currentIssues.map((issue) => {
     const row = document.createElement('li');
@@ -145,10 +148,25 @@ const showSaveValidation = (issues) => {
   list.replaceChildren(...rows);
   const exportButton = document.getElementById('edit-validation-export');
   exportButton.hidden = errors.length > 0;
-  exportButton.textContent = '警告を確認して保存';
+  exportButton.textContent = action === 'indexeddb' ? '警告を確認して保存' : '警告を確認してJSONを書き出す';
   saveValidationDialog.showModal();
 };
-async function saveEditChanges(skipValidation = false) {
+function downloadJson(name, value) {
+  const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function classUpdateFilename() {
+  const now = new Date();
+  const pad = (value, width = 2) => String(value).padStart(width, '0');
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}-${pad(now.getMilliseconds(), 3)}`;
+  return `class-update-${stamp}.json`;
+}
+async function saveEditChanges(skipValidation = false, action = 'indexeddb') {
   if (!skipValidation) {
     const currentGraph = {
       classes: classes.map((item) => ({ id: item.id, type: classKind(item), label: item.label })),
@@ -156,30 +174,45 @@ async function saveEditChanges(skipValidation = false) {
     };
     const issues = collectSaveValidationIssues(currentGraph);
     if (issues.length) {
-      showSaveValidation(issues);
+      showSaveValidation(issues, action);
       return;
     }
   }
-  const saveButton = document.getElementById('save-edit-changes');
+  const isJsonExport = action !== 'indexeddb';
+  const buttonId = action === 'export' ? 'export-edit-data' : 'save-edit-changes';
+  const saveButton = document.getElementById(buttonId);
   const originalSaveLabel = saveButton.textContent;
   saveButton.disabled = true;
-  saveButton.textContent = '保存中…';
+  saveButton.textContent = isJsonExport ? 'JSON作成中…' : '保存中…';
   try {
-    const workspace = JSON.parse(JSON.stringify(window.appData));
-    workspace.classData.classes = classes.map((item) => ({ ...item }));
-    workspace.classData.relations = data.classData.relations.map((relation) => ({ ...relation }));
-    workspace.targetClassData = { ...(workspace.targetClassData || {}), classes: [] };
-    workspace.workspaceMeta = { ...(workspace.workspaceMeta || {}), kind: 'uploaded', fileName: '編集済み作業データ' };
-    await window.dataWorkspace.save(workspace, null, window.classEditorAI?.selectionSnapshot || []);
-    hasUnsavedChanges = false;
-    window.__dataWorkspaceUndoAvailable = true;
-    window.__dataWorkspaceRedoAvailable = false;
-    saveButton.textContent = '保存しました';
-    logEditAction('編集内容をブラウザーの作業データ（IndexedDB）に保存しました。閲覧画面にも反映されています。');
+    if (action === 'export') {
+      const exportData = {
+        classes: classes.map((item) => ({ id: item.id, label: item.label, type: classKind(item) })),
+        instances: data.instanceData.instances.map((item) => ({ ...item })),
+        relations: data.classData.relations.map(({ child, parent }) => ({ child, parent })),
+        instanceClassRelations: data.instanceClassData.relations.map(({ instance, class: classId }) => ({ instance, class: classId }))
+      };
+      const filename = classUpdateFilename();
+      downloadJson(filename, exportData);
+      saveButton.textContent = 'JSONを作成しました';
+      logEditAction(`${filename}を書き出しました。JavaのClassDataUpdateと、他のPCの「データ」読み込みの両方で使えます。`);
+    } else {
+      const workspace = JSON.parse(JSON.stringify(window.appData));
+      workspace.classData.classes = classes.map((item) => ({ ...item }));
+      workspace.classData.relations = data.classData.relations.map((relation) => ({ ...relation }));
+      workspace.targetClassData = { ...(workspace.targetClassData || {}), classes: [] };
+      workspace.workspaceMeta = { ...(workspace.workspaceMeta || {}), kind: 'uploaded', fileName: '編集済み作業データ' };
+      await window.dataWorkspace.save(workspace, null, window.classEditorAI?.selectionSnapshot || []);
+      hasUnsavedChanges = false;
+      window.__dataWorkspaceUndoAvailable = true;
+      window.__dataWorkspaceRedoAvailable = false;
+      saveButton.textContent = '保存しました';
+      logEditAction('編集内容をブラウザーの作業データ（IndexedDB）に保存しました。閲覧画面にも反映されています。');
+    }
   } catch (error) {
-    console.error('[クラス編集] IndexedDBへの保存に失敗しました。', error);
-    saveButton.textContent = '保存に失敗';
-    logEditAction('IndexedDBへの保存に失敗しました。ブラウザーの保存領域を確認してください。', 'error');
+    console.error(`[クラス編集] ${isJsonExport ? 'JSONの書き出し' : 'IndexedDBへの保存'}に失敗しました。`, error);
+    saveButton.textContent = isJsonExport ? 'JSON作成に失敗' : '保存に失敗';
+    logEditAction(isJsonExport ? 'JSONの書き出しに失敗しました。' : 'IndexedDBへの保存に失敗しました。ブラウザーの保存領域を確認してください。', 'error');
   } finally {
     saveButton.disabled = false;
     window.setTimeout(() => { saveButton.textContent = originalSaveLabel; }, 2500);
@@ -189,13 +222,14 @@ document.getElementById('edit-validation-close').addEventListener('click', () =>
 document.getElementById('edit-validation-cancel').addEventListener('click', () => saveValidationDialog.close());
 document.getElementById('edit-validation-export').addEventListener('click', () => {
   saveValidationDialog.close();
-  void saveEditChanges(true);
+  void saveEditChanges(true, pendingSaveAction);
 });
 // ============================================================
 // 編集操作のイベント登録
 // ============================================================
 // 保存と編集履歴
 document.getElementById('save-edit-changes').addEventListener('click', () => { void saveEditChanges(); });
+document.getElementById('export-edit-data').addEventListener('click', () => { void saveEditChanges(false, 'export'); });
 
 const scrollToTopButton = document.getElementById('scroll-to-top');
 const treePaneForScrollButton = document.querySelector('#edit-tree-panel .edit-tree-pane');

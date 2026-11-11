@@ -22,7 +22,7 @@
   <script data-app-script="web/js/editor/state.js?v=20261111-ai-proposal-undo-sync-v1"></script>
   <script data-app-script="web/js/editor/panels.js?v=20261111-held-table-fixed-header-v2"></script>
   <script data-app-script="web/js/editor/tree.js?v=20261109-tree-color-intensity-v1"></script>
-  <script data-app-script="web/js/editor/events.js?v=20261111-save-indexeddb-v1"></script>
+  <script data-app-script="web/js/editor/events.js?v=20261111-save-and-export-v3"></script>
   <script data-app-script="web/js/editor/test-preferences.js?v=20261110-chat-settings-move-v1"></script>
   <script src="web/js/shared/app-startup.js?v=20261110-default-data-v1"></script>
 </head>
@@ -62,6 +62,7 @@
         <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="chat" role="tab" aria-selected="false" aria-controls="ai-assistant-panel"><span class="edit-taskbar-icon" aria-hidden="true">◉</span>AIチャット</button>
       </div>
     </div>
+    <button type="button" id="export-edit-data" class="edit-taskbar-button" title="ClassDataUpdateと、別のPCでの続きの編集に使えるJSONをダウンロードします">JSONを書き出す</button>
     <button type="button" id="save-edit-changes" class="edit-taskbar-button edit-header-save">編集内容を保存</button>
   </div>
 
@@ -429,7 +430,7 @@
   </dialog>
   <dialog id="edit-validation-dialog" class="edit-validation-dialog" aria-labelledby="edit-validation-title">
     <div class="ai-preview-header">
-      <h2 id="edit-validation-title">保存前の構造チェック</h2>
+      <h2 id="edit-validation-title">保存・JSON書き出し前の構造チェック</h2>
       <button type="button" id="edit-validation-close" class="target-instance-dialog-close" aria-label="閉じる">×</button>
     </div>
     <p id="edit-validation-summary" class="edit-validation-summary" role="status" aria-live="polite"></p>
