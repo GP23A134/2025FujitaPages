@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261104-aggregation-preview-v18">
   <script data-app-script="web/data/generated/class-data.js"></script>
   <script data-app-script="web/data/generated/instance-data.js"></script>
-  <script data-app-script="web/js/shared/data-workspace.js?v=20261110-default-data-v1"></script>
+  <script data-app-script="web/js/shared/data-workspace.js?v=20261111-tab-session-v1"></script>
   <!-- defer付きクラシックスクリプトをこの順で実行する。各画面ファイルは共有グローバル状態を使う。 -->
   <script data-app-script="web/js/shared/tree.js?v=20261110-upload-class-types-v1"></script>
   <script data-app-script="web/js/browse/bootstrap.js?v=20261103-open-all-tree-v1"></script>
@@ -21,7 +21,7 @@
   <script data-app-script="web/js/browse/aggregation.js?v=20261110-upload-class-types-v1"></script>
   <script data-app-script="web/js/browse/tree.js?v=20261103-keyword-enter-chips-v1"></script>
   <script data-app-script="web/js/browse/main.js?v=20261103-keyword-enter-chips-v1"></script>
-  <script src="web/js/shared/app-startup.js?v=20261110-default-data-v1"></script>
+  <script src="web/js/shared/app-startup.js?v=20261111-tab-session-v1"></script>
 </head>
 <body data-mode="browse">
   <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>
@@ -299,7 +299,7 @@
   </dialog>
   <dialog id="data-import-dialog" class="data-import-dialog" aria-labelledby="data-import-title">
     <div class="data-import-header"><h2 id="data-import-title">データの読み込み</h2><button type="button" id="data-import-close" aria-label="閉じる">×</button></div>
-    <p class="data-import-description">クラス・インスタンスのデータを選びます。クラス階層のデータもある場合は、2つを一度に選択してください。</p>
+    <p class="data-import-description">クラス・インスタンスのデータを選びます。クラス階層のデータもある場合は、2つを一度に選択してください。作業データは同じタブの間だけ復元され、新しく開いた時に前回分を消去します。残す場合はタブを閉じる前にJSONを書き出してください。</p>
     <fieldset id="data-import-mode" class="data-import-mode"><legend>作業方法</legend>
       <div class="data-import-mode-options">
         <label class="data-import-mode-option"><input type="radio" name="data-import-mode" value="replace" checked><span><strong>新規作成</strong><small>このデータから新しい作業を始めます</small></span></label>

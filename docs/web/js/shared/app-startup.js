@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       placeholder.replaceWith(script);
     });
     if (script.src.includes('/shared/data-workspace.js')) {
+      await window.dataWorkspace.beginSession();
       await window.dataWorkspace.rememberDefault(window.appData);
       const workspace = await window.dataWorkspace.restore();
       if (workspace) window.appData = workspace;

@@ -3,6 +3,7 @@
   const DATABASE = 'fujita-editor-workspace';
   const STORE = 'workspaces';
   const KEY = 'current';
+  const SESSION_KEY = 'fujita-editor-workspace-session-v1';
   const openDatabase = () => new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE, 1);
     request.onupgradeneeded = () => request.result.createObjectStore(STORE);
@@ -49,8 +50,27 @@
       transaction.onabort = () => { database.close(); reject(transaction.error || new Error('IndexedDB transaction aborted')); };
     });
   };
+  const beginSession = async () => {
+    // sessionStorage survives same-tab navigation/reloads and is cleared when the tab closes.
+    // Clear workspace data left by an earlier browser-tab session before restoring anything.
+    try {
+      if (sessionStorage.getItem(SESSION_KEY) === 'active') return;
+      await withStore('readwrite', (store) => {
+        store.delete(KEY);
+        store.delete('undo');
+        store.delete('redo');
+        store.delete('selection-to-restore');
+      });
+      sessionStorage.setItem(SESSION_KEY, 'active');
+    } catch (error) {
+      // If session storage is unavailable, retain the current workspace rather than
+      // clearing it on every navigation in this tab.
+      console.warn('[データ読み込み] タブ内セッションを確認できません。', error);
+    }
+  };
   window.dataWorkspace = {
     key: KEY,
+    beginSession,
     rememberDefault: async (workspace) => {
       const database = await openDatabase();
       return new Promise((resolve, reject) => {

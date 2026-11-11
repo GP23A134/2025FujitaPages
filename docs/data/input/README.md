@@ -1,6 +1,6 @@
 # クラス分類の更新
 
-クラス分類を更新するときは、編集画面から全件JSONを保存する方法と、AIに変更差分だけを作成させる方法があります。編集画面の保存ボタンは`class-update-YYYYMMDD-HHmmss-SSS.json`として出力します。ファイルをこのフォルダーに置き、`ClassDataUpdate`を実行してください。AI差分JSONは従来名の`class-update.json`でも読み込めます。入力ファイルは一時データとしてGit追跡対象外です。反映後は統合データをコミットしてください。AI用の指示は[`classification-prompt.md`](classification-prompt.md)を参照してください。
+クラス分類を更新するときは、編集画面から全件JSONを保存する方法と、AIに変更差分だけを作成させる方法があります。編集画面のJSON書き出しは分類更新用の`class-update-YYYYMMDD-HHmmss-SSS.json`だけを出力します。対象クラスのラベル、インスタンス、インスタンス所属関係は含みません。ファイルをこのフォルダーに置き、`ClassDataUpdate`を実行してください。AI差分JSONは従来名の`class-update.json`でも読み込めます。入力ファイルは一時データとしてGit追跡対象外です。反映後は統合データをコミットしてください。AI用の指示は[`classification-prompt.md`](classification-prompt.md)を参照してください。
 
 差分JSONには、現在のクラス階層データから生成した内部版情報を`baseDataHash`として含めます。差分作成後に元データが更新されていた場合や版情報がない場合、更新プログラムは適用を止め、差分の作り直しを促します。全件JSONによる復元には`baseDataHash`は不要です。
 
@@ -24,7 +24,7 @@ Javaのコンパイルと実行コマンドは[JavaツールREADME](../../java/)
 6. 循環する親子関係や重複した関係を作らない
 ```
 
-この確認内容と操作単位は、`edit.html`と`web/js/editor/`の編集画面に対応します。編集画面の保存ボタンから、クラス一覧と親子関係を1つのJSONとしてダウンロードできます。
+この確認内容と操作単位は、`edit.html`と`web/js/editor/`の編集画面に対応します。編集画面の保存ボタンから、分類更新用JSONをダウンロードできます。
 
 ## 編集操作とJSONの対応
 
@@ -41,7 +41,7 @@ Javaのコンパイルと実行コマンドは[JavaツールREADME](../../java/)
 
 ## 入力ファイル
 
-入力ファイル名は編集画面の日時付き形式`class-update-YYYYMMDD-HHmmss-SSS.json`または従来名`class-update.json`です。UTF-8のJSONオブジェクトを指定します。複数の入力がある場合は日時が最も新しい1件だけを適用します。検証成功後、他の分類更新入力JSONは削除します。編集画面は全件の`classes`と`relations`を出力します。AI用の差分形式では、次の6配列で変更内容だけを指定します。差分は最新の`data/integrated/`へ適用されます。
+入力ファイル名は編集画面の日時付き形式`class-update-YYYYMMDD-HHmmss-SSS.json`または従来名`class-update.json`です。UTF-8のJSONオブジェクトを指定します。複数の入力がある場合は日時が最も新しい1件だけを適用します。検証成功後、他の分類更新入力JSONは削除します。編集画面は全件の`classes`と`relations`を出力し、対象クラスにはラベルを含めません。インスタンスとインスタンス所属関係も出力しません。AI用の差分形式では、次の6配列で変更内容だけを指定します。差分は最新の`data/integrated/`へ適用されます。
 
 ```json
 {

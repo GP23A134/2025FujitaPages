@@ -194,16 +194,19 @@ async function saveEditChanges(skipValidation = false, action = 'indexeddb') {
     window.__dataWorkspaceUndoAvailable = true;
     window.__dataWorkspaceRedoAvailable = false;
     if (exportJson) {
-      const exportData = {
-        classes: classes.map((item) => ({ id: item.id, label: item.label, type: classKind(item) })),
-        instances: data.instanceData.instances.map((item) => ({ ...item })),
-        relations: data.classData.relations.map(({ child, parent }) => ({ child, parent })),
-        instanceClassRelations: data.instanceClassData.relations.map(({ instance, class: classId }) => ({ instance, class: classId }))
+      const stamp = classUpdateFilename().slice('class-update-'.length, -'.json'.length);
+      const classUpdateData = {
+        classes: classes.map((item) => ({
+          id: item.id,
+          type: classKind(item),
+          ...(classKind(item) === 'class' ? {} : { label: item.label })
+        })),
+        relations: data.classData.relations.map(({ child, parent }) => ({ child, parent }))
       };
-      const filename = classUpdateFilename();
-      downloadJson(filename, exportData);
+      const filename = `class-update-${stamp}.json`;
+      downloadJson(filename, classUpdateData);
       saveButton.textContent = '保存・JSON出力完了';
-      logEditAction(`編集内容をIndexedDBに保存し、${filename}を書き出しました。JavaのClassDataUpdateと、他のPCの「データ」読み込みの両方で使えます。`);
+      logEditAction(`編集内容をIndexedDBに保存し、分類更新用の${filename}を書き出しました。対象クラスのラベルとインスタンス情報は含まれません。`);
     } else {
       saveButton.textContent = '保存しました';
       logEditAction('編集内容をブラウザーの作業データ（IndexedDB）に保存しました。閲覧画面にも反映されています。');
