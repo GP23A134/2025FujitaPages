@@ -1,6 +1,6 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261112-class-type-normalization-policy-v1';
+import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261112-class-type-normalization-policy-v3';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261112-class-type-normalization-policy-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261110-first-line-workflow-status-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261111-ai-chat-responsibilities-v1';
@@ -879,8 +879,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     shortenInputIds,
     getMaxUnitsPerBatch: () => MAX_UNITS_PER_BATCH,
     getOptimizationSplitThreshold: () => OPTIMIZATION_SPLIT_THRESHOLD,
-    getProposalFreedom: () => promptFlexibility,
-    getAllowProposals: () => responseMode === 'proposal'
+    getProposalFreedom: () => promptFlexibility
   });
   const getPayloadSnapshot = (additionalContextIds = [], includeAllClasses = false) => {
     const selectedIds = editor.selectedIds;

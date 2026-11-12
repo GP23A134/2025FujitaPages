@@ -7,9 +7,9 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
   getMaxUnitsPerBatch = () => AI_TUNING_LIMITS.maxUnitsPerBatch.default,
   getOptimizationSplitThreshold = () => AI_TUNING_LIMITS.optimizationSplitThreshold.default,
   getProposalFreedom = () => 5,
-  getAllowProposals = () => true }) => {
+  getAllowProposals = (scope) => Boolean(scope?.allowProposals) }) => {
   const operationInstruction = (taskKind, scope) => describeOperationPolicy(createOperationPolicy({
-    allowProposals: Boolean(getAllowProposals()), taskKind, scope, proposalFreedom: getProposalFreedom()
+    allowProposals: Boolean(getAllowProposals(scope)), taskKind, scope, proposalFreedom: getProposalFreedom()
   }));
   // 長い全体分析の計画中も、ブラウザーに描画と入力イベントの処理を返します。
   const yieldToBrowser = () => new Promise((resolve) => window.setTimeout(resolve, 0));
@@ -82,7 +82,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
         return '';
       };
       const targetOperationPolicy = createOperationPolicy({
-        allowProposals: Boolean(getAllowProposals()), taskKind: 'upper_class_unit', scope, proposalFreedom: getProposalFreedom()
+        allowProposals: Boolean(getAllowProposals(scope)), taskKind: 'upper_class_unit', scope, proposalFreedom: getProposalFreedom()
       });
       const targetInstruction = `この分割範囲に含まれる上位クラス配下の対象クラスを評価してください。${describeOperationPolicy(targetOperationPolicy)}既存の階層を優先し、許可された追加と対象クラスの移動が必要なら同じ提案にまとめて対象との関連を説明してください。${targetOperationPolicy.allowedTypes.includes('deleteClass') ? '削除を提案する場合は、配下の既存クラスがすべて今回の編集範囲に含まれ、子を安全な親へ移動できる場合だけにし、子の移動を先、親の削除を後に置いてください。' : ''}無関係な階層変更、入力にないクラスや関係の推測、範囲外の操作は禁止します。別の上位クラスをまたぐ判断は最終統合に委ねてください。`;
       const buildTargetTask = (targets, groupHierarchy, topClassId) => {
@@ -155,7 +155,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
       return targetTasks;
     }
 
-    const hierarchyScope = scope.allowHierarchyEdits
+    const hierarchyScopeBase = scope.allowHierarchyEdits
       ? {
         ...scope,
         mode: 'hierarchy_scope',
@@ -165,9 +165,10 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
         allowHierarchyEdits: true
       }
       : editor.getHierarchyScopedState(scope.selectedIds);
-    if (!hierarchyScope) return null;
+    if (!hierarchyScopeBase) return null;
+    const hierarchyScope = { ...hierarchyScopeBase, allowProposals: Boolean(scope.allowProposals) };
     const hierarchyOperationPolicy = createOperationPolicy({
-      allowProposals: Boolean(getAllowProposals()), taskKind: 'hierarchy', scope: hierarchyScope, proposalFreedom: getProposalFreedom()
+      allowProposals: Boolean(getAllowProposals(hierarchyScope)), taskKind: 'hierarchy', scope: hierarchyScope, proposalFreedom: getProposalFreedom()
     });
     const hierarchyInstruction = `この分割範囲を評価してください。${describeOperationPolicy(hierarchyOperationPolicy)}対象クラスの個別IDや全件情報は含まれないため、対象クラスの操作は提案しないでください。targetContextの対象クラス数は読み取り専用の参考情報です。入力にない情報を推測しないでください。${hierarchyOperationPolicy.allowedTypes.includes('moveClass') && hierarchyOperationPolicy.moveSourceTypes.includes('top') ? 'selectionRootsの上位クラスを中間クラスへ移す場合は配下の親子関係を保ってください。' : ''}`;
     const hierarchyClasses = scope.classes.filter((item) => ['top', 'middle'].includes(item.type));
@@ -309,7 +310,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
     const targetTasks = [];
     const targetUnits = [];
     const targetOperationPolicy = createOperationPolicy({
-      allowProposals: Boolean(getAllowProposals()), taskKind: 'upper_class_targets', scope, proposalFreedom: getProposalFreedom()
+      allowProposals: Boolean(getAllowProposals(scope)), taskKind: 'upper_class_targets', scope, proposalFreedom: getProposalFreedom()
     });
     const targetOperationInstruction = `この分割範囲に含まれる対象クラスと対応する上位・中間クラスを評価してください。${describeOperationPolicy(targetOperationPolicy)}${targetOperationPolicy.allowedTypes.includes('addClass') && targetOperationPolicy.addClassTypes.includes('middle') && targetOperationPolicy.allowedTypes.includes('moveClass') ? '新設した中間クラスへ対象クラスを割り当てる場合は同じ提案にまとめ、親は入力中の上位・中間クラスIDまたは先に追加した中間クラスのtemporaryIdを指定してください。' : ''}入力にない対象クラスや親子関係は推測せず、この分割範囲を超えた全体判断は保留してください。この制約は今回の対象クラス分割範囲だけに適用され、全体として新設が不要と結論するには全チャンクの評価を使ってください。`;
     targetClasses.forEach((target) => {
