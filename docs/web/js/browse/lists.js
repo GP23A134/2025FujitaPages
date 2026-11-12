@@ -73,11 +73,10 @@ function appendEntityIds(container, ids) {
   const details = document.createElement('details');
   details.className = 'list-id-details';
   const summary = document.createElement('summary');
-  summary.append(representative, representativeCopy);
+  summary.append(representative);
   const expandLabel = document.createElement('span');
   expandLabel.className = 'list-id-expand-label';
   expandLabel.textContent = `ほか${ids.length - 1}件`;
-  summary.append(expandLabel);
   const list = document.createElement('div');
   list.className = 'list-id-detail-list';
   ids.slice(1).forEach((id) => {
@@ -88,7 +87,7 @@ function appendEntityIds(container, ids) {
     entry.append(value, createCopyIdButton(id));
     list.append(entry);
   });
-  details.append(summary, list);
+  details.append(summary, representativeCopy, expandLabel, list);
   container.append(details);
 }
 

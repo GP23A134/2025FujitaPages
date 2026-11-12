@@ -204,7 +204,9 @@ h2 { margin: 1.25rem 0 0.75rem; color: #334155; font-size: 1.2rem; }
 .list-entity-cell { min-width: 13rem; text-align: left; }
 .list-entity-label { display: block; font-weight: 650; text-align: left; }
 .list-entity-id { display: block; min-width: 0; max-width: 28rem; margin-top: 0.15rem; color: #64748b; font-size: 0.72rem; font-weight: 400; }
-.list-id-single-row, .list-id-details > summary { display: flex; min-width: 0; align-items: center; justify-content: flex-start; gap: 0.35rem; white-space: nowrap; }
+.list-id-single-row, .list-id-details { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 0.35rem; white-space: nowrap; }
+.list-id-details > summary { display: flex; min-width: 0; flex: 0 1 auto; align-items: center; gap: 0.35rem; white-space: nowrap; }
+.list-id-details > .list-id-detail-list { flex: 1 0 100%; }
 .list-id-representative { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .list-id-details { color: #075985; }
 .list-id-details > summary { cursor: pointer; list-style: none; }
