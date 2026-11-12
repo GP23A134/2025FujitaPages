@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     if (script.src.includes('/shared/data-workspace.js')) {
       await window.dataWorkspace.beginSession();
+      window.addEventListener('pagehide', () => window.dataWorkspace.releaseSession(), { once: true });
       window.normalizeAppClassTypes?.(window.appData);
       await window.dataWorkspace.rememberDefault(window.appData);
       const workspace = await window.dataWorkspace.restore();

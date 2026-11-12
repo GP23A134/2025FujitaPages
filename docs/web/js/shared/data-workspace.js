@@ -5,6 +5,7 @@
   const SESSION_KEY = 'fujita-editor-workspace-session-v2';
   const LEGACY_SESSION_KEY = 'fujita-editor-workspace-session-v1';
   const WINDOW_NAME_PREFIX = 'fujita-workspace-session:';
+  const FALLBACK_LOCK_CHANNEL = 'fujita-editor-workspace-session-lock';
   const DEFAULT_KEY = 'default';
   let sessionId = '';
   let sessionKeys = null;
@@ -55,6 +56,25 @@
     const result = await acquired;
     if (result) releaseSessionLock = release;
     return result;
+  };
+  const claimBroadcastSession = async (id) => {
+    if (typeof globalThis.BroadcastChannel !== 'function') return false;
+    const channel = new globalThis.BroadcastChannel(FALLBACK_LOCK_CHANNEL);
+    const token = makeId();
+    let occupied = false;
+    channel.onmessage = ({ data }) => {
+      if (!data || data.id !== id || data.token === token) return;
+      if (data.type === 'claim') channel.postMessage({ type: 'occupied', id, owner: data.token, token });
+      if (data.type === 'occupied' && data.owner === token) occupied = true;
+    };
+    channel.postMessage({ type: 'claim', id, token });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    if (occupied) {
+      channel.close();
+      return false;
+    }
+    releaseSessionLock = () => channel.close();
+    return true;
   };
   const readSessionValue = (key) => {
     try { return sessionStorage.getItem(key); } catch { return null; }
@@ -107,6 +127,27 @@
     });
     writeSessionValue(`${SESSION_KEY}:legacy-migrated`, 'yes');
   };
+  const copySessionToCurrent = async (sourceId) => {
+    if (!sourceId || sourceId === sessionId) return;
+    const sourceKeys = createSessionKeys(sourceId);
+    const targetKeys = requireSession();
+    const slots = ['current', 'undo', 'redo', 'selectionToRestore'];
+    const database = await openDatabase();
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(STORE, 'readwrite');
+      const store = transaction.objectStore(STORE);
+      slots.forEach((slot) => {
+        const request = store.get(sourceKeys[slot]);
+        request.onsuccess = () => {
+          if (request.result !== undefined) store.put(request.result, targetKeys[slot]);
+        };
+        request.onerror = () => transaction.abort();
+      });
+      transaction.oncomplete = () => { database.close(); resolve(); };
+      transaction.onerror = () => { database.close(); reject(transaction.error); };
+      transaction.onabort = () => { database.close(); reject(transaction.error || new Error('IndexedDB transaction aborted')); };
+    });
+  };
   const switchWorkspace = async (fromSlot, toSlot, currentSelection = []) => {
     const database = await openDatabase();
     return new Promise((resolve, reject) => {
@@ -140,21 +181,43 @@
     const namedId = typeof window.name === 'string' && window.name.startsWith(WINDOW_NAME_PREFIX)
       ? window.name.slice(WINDOW_NAME_PREFIX.length) : '';
     const supportsTabLocks = Boolean(navigator.locks?.request);
-    let candidate = supportsTabLocks
+    const supportsBroadcastChannel = typeof globalThis.BroadcastChannel === 'function';
+    const sourceSessionId = storedId || namedId;
+    let candidate = supportsTabLocks || supportsBroadcastChannel
       ? (storedId || namedId || makeId())
-      : (namedId || makeId());
-    let lockResult = await claimTabLock(candidate);
-    if (lockResult !== true) {
-      candidate = makeId();
+      : makeId();
+    let lockResult = false;
+    if (supportsTabLocks) {
       lockResult = await claimTabLock(candidate);
+      if (lockResult !== true) {
+        candidate = makeId();
+        lockResult = await claimTabLock(candidate);
+      }
     }
-    if (lockResult === false) throw new Error('このタブの作業領域を確保できませんでした。ページを再読み込みしてください。');
+    if (lockResult !== true && supportsBroadcastChannel) {
+      // If the Web Locks API failed, do not reuse its candidate: peers using
+      // Web Locks do not participate in the BroadcastChannel handshake.
+      if (supportsTabLocks) candidate = makeId();
+      lockResult = await claimBroadcastSession(candidate);
+      if (lockResult !== true) {
+        candidate = makeId();
+        lockResult = await claimBroadcastSession(candidate);
+      }
+    } else if (lockResult !== true && !supportsTabLocks) {
+      // Without a cross-tab lock primitive, a fresh key prevents copied
+      // window.name/sessionStorage values from sharing an IndexedDB workspace.
+      // Copy the last saved snapshot so reloads still resume their prior data.
+      console.warn('[データ読み込み] タブ間の重複を確認できないため、保存済みデータを分離した作業領域へ引き継ぎます。');
+      lockResult = true;
+    }
+    if (lockResult !== true) throw new Error('このタブの作業領域を安全に確保できませんでした。ページを再読み込みしてください。');
     sessionId = candidate;
     sessionKeys = createSessionKeys(sessionId);
     writeSessionValue(SESSION_KEY, sessionId);
     if (!namedId || namedId !== sessionId) {
       try { window.name = `${WINDOW_NAME_PREFIX}${sessionId}`; } catch { /* sessionStorage remains the fallback */ }
     }
+    if (!supportsTabLocks && !supportsBroadcastChannel) await copySessionToCurrent(sourceSessionId);
     await copyLegacySession();
     return sessionId;
   };

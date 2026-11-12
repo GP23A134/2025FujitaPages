@@ -22,6 +22,8 @@
 #test-settings-dialog .edit-settings-section h3 { font-size: 1rem; }
 #test-settings-dialog .edit-settings-section[aria-labelledby="test-ai-chat-title"] { grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 0.55rem; }
 #test-settings-dialog .edit-settings-section[aria-labelledby="test-ai-chat-title"] > h3,
+#test-settings-dialog .edit-settings-section[aria-labelledby="test-ai-chat-title"] > [aria-labelledby="test-ai-output-title"],
+#test-settings-dialog .edit-settings-section[aria-labelledby="test-ai-chat-title"] > [aria-labelledby="test-ai-response-limits-title"],
 #test-settings-dialog .edit-settings-section[aria-labelledby="test-ai-chat-title"] > [aria-labelledby="test-ai-split-title"] { grid-column: 1 / -1; }
 #test-settings-dialog .test-settings-group { display: grid; gap: 0.4rem; padding: 0.6rem; border: 1px solid #dbe3ec; border-radius: 8px; background: #fff; }
 #test-settings-dialog .test-settings-group h4 { margin: 0 0 0.1rem; color: #334155; font-size: 0.9rem; }

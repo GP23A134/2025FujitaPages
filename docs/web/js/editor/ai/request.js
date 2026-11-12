@@ -1,5 +1,5 @@
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261111-ai-tuning-limits-v1';
-import { createOperationPolicy, describeOperationPolicy } from './proposal-engine.js?v=20261112-class-type-normalization-policy-v3';
+import { createOperationPolicy, describeOperationPolicy } from './proposal-engine.js?v=20261112-review-fixes-v1';
 
 // 現在の選択範囲を依頼JSONへ変換し、大きすぎる範囲を処理単位へ分割します。
 // scope固有の指示はJSON内に一時的に載せ、送信層が固定プロンプトの後ろへ移します。

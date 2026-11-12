@@ -7,10 +7,10 @@ const test = require('node:test');
 const sourcePath = path.join(__dirname, '../web/js/editor/ai/proposal-engine.js');
 const source = fs.readFileSync(sourcePath, 'utf8')
   .replace(/^export /gm, '')
-  .concat('\nmodule.exports = { reconcileSplitProposals, composeProposalOperations, conflictChoicesComplete };');
+  .concat('\nmodule.exports = { reconcileSplitProposals, composeProposalOperations, conflictChoicesComplete, buildQuestionQueue };');
 const moduleSandbox = { exports: {} };
 vm.runInNewContext(source, { module: moduleSandbox, exports: moduleSandbox.exports, console });
-const { reconcileSplitProposals, composeProposalOperations, conflictChoicesComplete } = moduleSandbox.exports;
+const { reconcileSplitProposals, composeProposalOperations, conflictChoicesComplete, buildQuestionQueue } = moduleSandbox.exports;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 const classes = [
@@ -137,4 +137,23 @@ test('requires an explicit valid choice for every conflict before applying', () 
   assert.equal(conflictChoicesComplete(composed, { a: 0 }), false);
   assert.equal(conflictChoicesComplete(composed, { a: 4, b: 0 }), false);
   assert.equal(conflictChoicesComplete(composed, { a: 1, b: 0 }), true);
+});
+
+test('applies the question limit to top-level and proposal questions together', () => {
+  const first = proposal('p1', [move('c1', 'm2')]);
+  first.questions = ['提案Aの確認'];
+  const omitted = proposal('p2', [move('c2', 'm3')]);
+  omitted.questions = ['提案Bの確認'];
+  const result = buildQuestionQueue({
+    questions: ['全体確認1', '全体確認2'],
+    proposals: [first, omitted],
+    maximum: 3,
+    deduplicate: (items) => [...new Set(items)]
+  });
+
+  assert.equal(result.queuedQuestions.length, 3);
+  assert.deepEqual(plain(result.queuedQuestions.map(({ text }) => text)), ['全体確認1', '全体確認2', '提案Aの確認']);
+  assert.deepEqual(plain(result.queuedProposals.map(({ id }) => id)), ['p1']);
+  assert.deepEqual(plain(result.omittedProposals.map(({ id }) => id)), ['p2']);
+  assert.deepEqual(plain(omitted.questions), ['提案Bの確認']);
 });

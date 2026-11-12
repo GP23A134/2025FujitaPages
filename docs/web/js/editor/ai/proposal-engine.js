@@ -185,6 +185,29 @@ export const conflictChoicesComplete = (proposal, selectedChoices = {}) => (prop
   Number.isInteger(selectedChoices[group.id]) && selectedChoices[group.id] >= 0
     && selectedChoices[group.id] < (group.choices || []).length);
 
+export const buildQuestionQueue = ({ questions = [], proposals = [], maximum = 0, deduplicate = (items) => items }) => {
+  const limit = Math.max(0, Math.floor(Number(maximum) || 0));
+  const queuedQuestions = deduplicate(questions).slice(0, limit)
+    .map((text) => ({ text, proposalTitle: '', proposalId: '' }));
+  const queuedProposals = [];
+  const omittedProposals = [];
+  proposals.forEach((proposal) => {
+    const proposalQuestions = deduplicate(proposal.questions || []);
+    if (proposalQuestions.length > limit - queuedQuestions.length) {
+      omittedProposals.push(proposal);
+      return;
+    }
+    proposal.questions = proposalQuestions;
+    proposalQuestions.forEach((text) => queuedQuestions.push({
+      text,
+      proposalTitle: proposal.title,
+      proposalId: proposal.id
+    }));
+    queuedProposals.push(proposal);
+  });
+  return { queuedQuestions, queuedProposals, omittedProposals };
+};
+
 export const reconcileSplitProposals = (chunkProposals, crossScopeProposals, classes, relations) => {
   const result = [];
   const canonical = new Map();

@@ -64,24 +64,42 @@ const createMemoryIndexedDB = () => {
   };
 };
 
-const createTab = (id, indexedDB = {}) => {
+const createTab = (id, indexedDB = {}, tabLocks = locks, BroadcastChannelImpl = null, windowName = '') => {
   const storage = new Map([['fujita-editor-workspace-session-v2', id]]);
   const sessionStorage = {
     getItem: (key) => storage.get(key) ?? null,
     setItem: (key, value) => storage.set(key, String(value))
   };
-  const window = { name: '' };
-  vm.runInNewContext(source, {
+  const window = { name: windowName };
+  const context = {
     window,
-    navigator: { locks },
+    navigator: tabLocks ? { locks: tabLocks } : {},
     sessionStorage,
     indexedDB,
     crypto: { randomUUID: () => `new-tab-${++nextId}`, subtle: webcrypto.subtle },
     TextEncoder,
     Uint8Array,
+    setTimeout,
     console
+  };
+  if (BroadcastChannelImpl) context.BroadcastChannel = BroadcastChannelImpl;
+  vm.runInNewContext(source, {
+    ...context
   });
   return window.dataWorkspace;
+};
+
+const createBroadcastChannel = () => {
+  const channels = new Set();
+  return class {
+    constructor(name) { this.name = name; channels.add(this); }
+    postMessage(data) {
+      channels.forEach((channel) => {
+        if (channel !== this && channel.name === this.name) queueMicrotask(() => channel.onmessage?.({ data }));
+      });
+    }
+    close() { channels.delete(this); }
+  };
 };
 
 test('uses different IndexedDB keys for distinct tabs', () => {
@@ -101,6 +119,53 @@ test('detects a duplicated session id and assigns the second tab a new workspace
   assert.notEqual(first.key, second.key);
   first.releaseSession();
   second.releaseSession();
+});
+
+test('detects duplicated workspaces with BroadcastChannel when Web Locks are unavailable', async () => {
+  const BroadcastChannelImpl = createBroadcastChannel();
+  const first = createTab('copied-session', {}, null, BroadcastChannelImpl);
+  const second = createTab('copied-session', {}, null, BroadcastChannelImpl);
+  const [firstId, secondId] = await Promise.all([first.beginSession(), second.beginSession()]);
+
+  assert.notEqual(firstId, secondId);
+  assert.notEqual(first.key, second.key);
+  first.releaseSession();
+  second.releaseSession();
+});
+
+test('reuses a workspace after same-tab navigation in the BroadcastChannel fallback', async () => {
+  const BroadcastChannelImpl = createBroadcastChannel();
+  const sessionName = 'fujita-workspace-session:same-tab-fallback';
+  const first = createTab('same-tab-fallback', {}, null, BroadcastChannelImpl, sessionName);
+  const firstId = await first.beginSession();
+  first.releaseSession();
+  const nextPage = createTab(firstId, {}, null, BroadcastChannelImpl, `fujita-workspace-session:${firstId}`);
+  const nextId = await nextPage.beginSession();
+
+  assert.equal(nextId, firstId);
+  nextPage.releaseSession();
+});
+
+test('uses a fresh workspace instead of reusing a copied id when no tab lock API exists', async () => {
+  const indexedDB = createMemoryIndexedDB();
+  const seed = createTab('copied-session', indexedDB);
+  await seed.beginSession();
+  const savedWorkspace = {
+    classData: { classes: [{ id: 't1', type: 'top', label: '保存済み' }], relations: [] },
+    instanceData: { instances: [] }
+  };
+  await seed.save(savedWorkspace);
+  seed.releaseSession();
+
+  const copiedName = 'fujita-workspace-session:copied-session';
+  const first = createTab('copied-session', indexedDB, null, null, copiedName);
+  const second = createTab('copied-session', indexedDB, null, null, copiedName);
+  const [firstId, secondId] = await Promise.all([first.beginSession(), second.beginSession()]);
+
+  assert.notEqual(firstId, 'copied-session');
+  assert.notEqual(firstId, secondId);
+  assert.deepEqual((await first.restore()).classData.classes, savedWorkspace.classData.classes);
+  assert.deepEqual((await second.restore()).classData.classes, savedWorkspace.classData.classes);
 });
 
 test('reuses a session id after same-tab navigation releases its lock', async () => {

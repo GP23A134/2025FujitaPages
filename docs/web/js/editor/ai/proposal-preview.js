@@ -1,4 +1,4 @@
-import { composeProposalOperations, conflictChoicesComplete } from './proposal-engine.js?v=20261112-class-type-normalization-policy-v3';
+import { composeProposalOperations, conflictChoicesComplete } from './proposal-engine.js?v=20261112-review-fixes-v1';
 
 // 提案のプレビュー、操作の選択、対象クラスへの移動・適用を担当します。
 // 呼び出し元が検証した提案を表示し、適用操作は利用者の明示操作後にだけ実行します。
@@ -741,77 +741,6 @@ export const createProposalPreview = ({
     const operations = proposalOperationsFor(proposalItem);
     const commonCount = (proposalItem.proposal.operations || []).length;
     return [{ key: 'common', kind: 'common', indexes: operations.slice(0, commonCount).map((_, index) => index), title: '共通する変更' }];
-    const parentByChild = new Map(state.relations.map(({ child, parent }) => [child, parent]));
-    const typeById = new Map(state.classes.map(({ id, type }) => [id, type]));
-    const topAncestorFor = (id) => {
-      let current = id;
-      const seen = new Set();
-      while (parentByChild.has(current) && !seen.has(current)) {
-        seen.add(current);
-        current = parentByChild.get(current);
-      }
-      return typeById.get(current) === 'top' ? current : id;
-    };
-    const addGroupByTemporaryId = new Map(operations
-      .filter((operation) => operation.type === 'addClass' && operation.temporaryId)
-      .map((operation) => [operation.temporaryId, `add:${operation.temporaryId}`]));
-    const deletedIds = new Set(operations.filter((operation) => operation.type === 'deleteClass').map((operation) => operation.classId));
-    const groupsByKey = new Map();
-    operations.forEach((operation, index) => {
-      const refs = ['classId', 'destinationId', 'parentId', 'from', 'to'].map((key) => operation[key]).filter(Boolean);
-      const linkedAdd = refs.map((id) => addGroupByTemporaryId.get(id)).find(Boolean);
-      let key = linkedAdd;
-      let kind = linkedAdd ? 'addition' : '';
-      if (!key && operation.type === 'addClass') {
-        key = addGroupByTemporaryId.get(operation.temporaryId) || `operation:${index}`;
-        kind = 'addition';
-      } else if (!key && operation.type === 'deleteClass') {
-        key = `delete:${operation.classId}`;
-        kind = 'deletion';
-      } else if (!key && operation.type === 'moveChildren' && deletedIds.has(operation.from)) {
-        key = `delete:${operation.from}`;
-        kind = 'deletion';
-      } else if (!key && operation.type === 'moveClass' && deletedIds.has(parentByChild.get(operation.classId))) {
-        key = `delete:${parentByChild.get(operation.classId)}`;
-        kind = 'deletion';
-      } else if (!key && operation.type === 'promoteClass') {
-        key = `promote:${operation.classId}`;
-        kind = 'class';
-      } else if (!key && operation.type === 'moveClass') {
-        key = `destination:${operation.destinationId || ''}`;
-        kind = 'destination';
-      } else if (!key && operation.type === 'moveChildren') {
-        key = `children:${operation.from || ''}:${operation.to || ''}`;
-        kind = 'children';
-      } else if (!key && operation.type === 'renameClass') {
-        key = `rename-branch:${topAncestorFor(operation.classId)}`;
-        kind = 'rename-branch';
-      } else if (!key) {
-        key = `class:${operation.classId || index}`;
-        kind = 'class';
-      }
-      if (!groupsByKey.has(key)) groupsByKey.set(key, { key, kind, indexes: [] });
-      groupsByKey.get(key).indexes.push(index);
-    });
-    return [...groupsByKey.values()].sort((left, right) => left.indexes[0] - right.indexes[0]).map((group) => {
-      const first = operations[group.indexes[0]];
-      let title = operationLabel(first);
-      if (group.kind === 'destination' && group.indexes.length > 1) {
-        title = `移動先「${getClassLabelsById().get(first.destinationId) || first.destinationId}」への移動`;
-      } else if (group.kind === 'addition' && group.indexes.length > 1) {
-        const addition = group.indexes.map((index) => operations[index]).find((operation) => operation.type === 'addClass');
-        title = `「${addition?.label || '新しいクラス'}」の追加と関連する変更`;
-      } else if (group.kind === 'deletion' && group.indexes.length > 1) {
-        const deleted = operations.find((operation) => operation.type === 'deleteClass' && group.key === `delete:${operation.classId}`);
-        title = `「${getClassLabelsById().get(deleted?.classId) || deleted?.classId || ''}」の削除に伴う変更`;
-      } else if (group.kind === 'rename-branch' && group.indexes.length > 1) {
-        const topId = group.key.slice('rename-branch:'.length);
-        title = `「${getClassLabelsById().get(topId) || topId}」配下の名称変更`;
-      } else if (group.indexes.length > 1) {
-        title = `${title} ほか${group.indexes.length - 1}件`;
-      }
-      return { ...group, title };
-    });
   };
   const renderPreviewGroupOverview = (proposalItem) => {
     const host = document.getElementById('ai-preview-group-overview');

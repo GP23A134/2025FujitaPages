@@ -1,9 +1,9 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261112-class-type-normalization-policy-v4';
-import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations } from './proposal-engine.js?v=20261112-class-type-normalization-policy-v3';
+import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261112-review-fixes-v1';
+import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261112-review-fixes-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261110-first-line-workflow-status-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261112-conflict-alternatives-v1';
+import { createProposalPreview } from './proposal-preview.js?v=20261112-review-fixes-v1';
 import { createAIClient } from './ai-client.js?v=20261112-class-type-normalization-v1';
 import { createRequestProgress } from './request-progress.js?v=20261112-zero-second-display-v1';
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261111-ai-tuning-limits-v1';
@@ -2058,6 +2058,18 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       const hasShareRequest = resolvedDataRequests.requests.length > 0
         || resolvedDataRequests.candidateGroups.length > 0
         || resolvedDataRequests.unresolved.length > 0;
+      const questionQueue = buildQuestionQueue({
+        questions: result.questions,
+        proposals: hasShareRequest ? [] : result.proposals,
+        maximum: AI_OUTPUT_LIMITS.questions,
+        deduplicate: deduplicateQuestions
+      });
+      const { queuedQuestions, queuedProposals, omittedProposals } = questionQueue;
+      if (omittedProposals.length) {
+        result.message = [result.message,
+          `確認事項の合計上限（${AI_OUTPUT_LIMITS.questions}件）に収まらないため、確認事項が残る変更案${omittedProposals.length}件は表示しませんでした。依頼を分けて再度確認してください。`]
+          .filter(Boolean).join('\n\n');
+      }
       if (wantsClassificationOptimization) {
         const targetClassIds = new Set(scope.classes
           .filter((item) => item.type === 'class' && editableScopeIdSet.has(item.id))
@@ -2076,7 +2088,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
             }
           });
           const affectedTargetIds = new Set();
-           result.proposals.forEach((proposal) => composeProposalOperations(proposal).forEach((operation) => {
+          queuedProposals.forEach((proposal) => composeProposalOperations(proposal).forEach((operation) => {
             if (operation.type !== 'moveClass' && operation.type !== 'moveChildren') return;
             (targetsByAncestor.get(operation.classId || operation.from) || []).forEach((id) => affectedTargetIds.add(id));
           }));
@@ -2085,20 +2097,15 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
             .filter(Boolean).join('\n\n');
         }
       }
+      if (hasShareRequest) {
+        conversation.items.push({ type: 'data-requests', ...resolvedDataRequests, responseGroupId, status: 'pending', submitting: false });
+      }
       if (result.message && !hasShareRequest) conversation.items.push({
         type: 'message', role: 'assistant', text: result.message, responseGroupId,
         ...(splitState ? { splitState } : {})
       });
-      if (hasShareRequest) {
-        conversation.items.push({ type: 'data-requests', ...resolvedDataRequests, responseGroupId, status: 'pending', submitting: false });
-      }
-      const queuedQuestions = deduplicateQuestions(result.questions).slice(0, AI_OUTPUT_LIMITS.questions)
-        .map((question) => ({ text: question, proposalTitle: '', proposalId: '' }));
       const queuedProposalIds = [];
-      (hasShareRequest ? [] : result.proposals).forEach((proposal) => {
-        if (proposal.questions.length) {
-          proposal.questions.forEach((question) => queuedQuestions.push({ text: question, proposalTitle: proposal.title, proposalId: proposal.id }));
-        }
+      queuedProposals.forEach((proposal) => {
         const awaitingAnswers = proposal.questions.length > 0;
         conversation.items.push({
           type: 'proposal',
