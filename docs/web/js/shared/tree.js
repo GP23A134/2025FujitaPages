@@ -1,7 +1,7 @@
 // 閲覧・編集で共用するツリーのデータモデル、描画、検索処理。画面固有の操作は各ページ側に置く。
 /* 閲覧用・編集用で共有する階層モデルとクラス検索。 */
 (function (global) {
-  const treeDepthColors = ['#bae6fd', '#7dd3fc', '#38bdf8', '#0369a1', '#082f49', '#020617'];
+  const treeDepthColors = ['#93c5fd', '#3b82f6', '#1d4ed8', '#1e40af', '#1e3a8a', '#172554'];
   const treeDepthColor = (depth) => {
     const color = treeDepthColors[Math.min(depth, treeDepthColors.length - 1)];
     const intensity = Math.max(0, Math.min(1, Number(global.testTreeColorIntensity ?? 1)));
@@ -191,6 +191,7 @@
       });
       details.style.setProperty('--tree-level-color', treeDepthColor(depth));
       details.style.setProperty('--tree-own-level-color', treeDepthColor(depth));
+      details.style.setProperty('--tree-child-level-color', treeDepthColor(depth + 1));
       if (options.configureDetails) options.configureDetails(details, node, depth);
       details.open = options.isOpen
         ? options.isOpen(node, depth)

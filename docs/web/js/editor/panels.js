@@ -468,6 +468,17 @@ function moveHeldClassesToTop(topId) {
   }
   if (descendants.has(topId)) { logEditAction('選択クラスの配下には移動できません。', 'warn'); return true; }
 
+  // 親クラスを選択すると子孫も保持されるが、上位クラスへの移動では
+  // 選択範囲の最上位だけを付け替え、子孫の親子関係を維持する。
+  const belowSelectedTop = new Set();
+  selectedTopIds.forEach((id) => descendantIds(id).forEach((descendantId) => belowSelectedTop.add(descendantId)));
+  const movingMiddleIds = new Set([...selectedMiddleIds].filter((id) => !belowSelectedTop.has(id)));
+  const belowMovingMiddle = new Set();
+  movingMiddleIds.forEach((id) => descendantIds(id).forEach((descendantId) => belowMovingMiddle.add(descendantId)));
+  const movingTargetIds = new Set([...selectedTargetIds].filter((id) =>
+    !belowSelectedTop.has(id) && !belowMovingMiddle.has(id)));
+  const movingRootIds = new Set([...selectedTopIds, ...movingMiddleIds, ...movingTargetIds]);
+
   const undoBefore = snapshotEditState();
   const convertedIds = new Map();
   movableTopEntries.forEach(([, top]) => {
@@ -479,14 +490,13 @@ function moveHeldClassesToTop(topId) {
     top.type = 'middle';
     classById.set(newId, top);
   });
-  const movingIds = new Set([...movingHierarchyIds, ...selectedTargetIds]);
   data.classData.relations = data.classData.relations
-    .filter((relation) => !movingIds.has(relation.child))
+    .filter((relation) => !movingRootIds.has(relation.child))
     .map((relation) => ({ ...relation, parent: convertedIds.get(relation.parent) || relation.parent }));
   convertedIds.forEach((newId) => addRelation(newId, topId));
-  selectedMiddleIds.forEach((middleId) => addRelation(middleId, topId));
-  selectedTargetIds.forEach((targetId) => addRelation(targetId, topId));
-  const movedCount = selectedMiddleIds.size + selectedTopIds.size + selectedTargetIds.size;
+  movingMiddleIds.forEach((middleId) => addRelation(middleId, topId));
+  movingTargetIds.forEach((targetId) => addRelation(targetId, topId));
+  const movedCount = movingRootIds.size;
   heldMiddleClasses.clear();
   heldTopClasses.clear();
   unclassifiedEntries.forEach(([id, item]) => heldTopClasses.set(id, item));

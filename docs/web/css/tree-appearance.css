@@ -25,7 +25,7 @@
 #edit-tree-panel .tree-top-class > summary::before,
 #tree-panel .tree-middle-class > summary::before,
 #edit-tree-panel .tree-middle-class > summary::before {
-  content: "▸"; flex: 0 0 1rem; color: var(--tree-level-color, #075985); font-size: 0.85rem; text-align: center;
+  content: "▸"; flex: 0 0 1rem; color: var(--tree-child-level-color, var(--tree-level-color, #075985)); font-size: 0.85rem; text-align: center;
 }
 #tree-panel .tree-top-class[open] > summary::before,
 #edit-tree-panel .tree-top-class[open] > summary::before,
@@ -162,7 +162,7 @@
 :is(#tree-panel, #edit-tree-panel) .tree .tree-child-middle-row::before,
 :is(#tree-panel, #edit-tree-panel) .tree .tree-target-row::before { display: none; }
 :is(#tree-panel, #edit-tree-panel) .tree .tree-target-list > li.is-row-start::before { left: -1rem; width: 1rem; }
-:is(#tree-panel, #edit-tree-panel) .tree .tree-target-list > li:not(.is-row-start)::before { left: -3rem; width: 4rem; }
+:is(#tree-panel, #edit-tree-panel) .tree .tree-target-list > li:not(.is-row-start)::before { left: -3rem; width: 1rem; }
 /* 8. 編集ツリーの階層線・ノード（共通指定より後に編集用の差分を配置） */
 /* ツリー内の階層見出しと接続線 */
 .edit-tree-panel,
@@ -294,6 +294,41 @@
 
 /* クラス追加ボタンと保持クラスの移動操作 */
 .tree-drag-help { margin: 0 0 0.4rem; color: #64748b; font-size: 0.78rem; }
+.tree-drag-summary {
+  position: fixed;
+  z-index: 10000;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: calc(100vw - 1rem);
+  padding: 0.45rem 0.75rem;
+  border: 1px solid #15803d;
+  border-radius: 999px;
+  color: #14532d;
+  background: #f0fdf4;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.2);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+}
+.tree-drag-summary[hidden] { display: none; }
+.tree-drag-summary-count {
+  display: inline-flex;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.2rem;
+  border-radius: 50%;
+  color: #fff;
+  background: #16a34a;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1;
+}
 #edit-tree [data-drag-class-id] { cursor: grab; }
 #edit-tree [data-drag-class-id].is-dragging { opacity: 0.5; cursor: grabbing; }
 #edit-tree summary.is-drop-target { outline: 2px dashed #0284c7; outline-offset: 2px; background: #e0f2fe; }
@@ -361,6 +396,16 @@ body.is-ai-chat-open #edit-tree .move-held-button { display: none !important; }
   border-color: #9a3412;
   background: #ea580c;
   box-shadow: 0 0 0 2px #fed7aa;
+}
+#edit-tree-panel .tree summary.is-drop-target > .tree-add-button.move-held-middle-button {
+  border-color: #15803d;
+  background: #16a34a;
+}
+#edit-tree-panel .tree summary.is-drop-target > .tree-add-button.move-held-middle-button:hover,
+#edit-tree-panel .tree summary.is-drop-target > .tree-add-button.move-held-middle-button:focus-visible {
+  border-color: #166534;
+  background: #15803d;
+  box-shadow: 0 0 0 2px #bbf7d0;
 }
 
 #edit-tree-panel .tree .tree-add-button:hover {
@@ -447,7 +492,7 @@ body.is-ai-chat-open #edit-tree .move-held-button { display: none !important; }
 #edit-tree-panel .tree ul:has(> li > .tree-leaf-class) > li:not(.is-row-start)::before {
   /* 各行の左端以外に来るクラスの横線。 */
   left: -1rem;
-  width: 6.5rem;
+  width: 1rem;
 }
 
 #edit-tree-panel .tree .tree-leaf-class.is-selected {

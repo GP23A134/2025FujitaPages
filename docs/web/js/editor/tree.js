@@ -11,6 +11,12 @@ let treeHierarchyEditModeEnabled = false;
 let activeTreeDragIds = [];
 let temporaryTreeDragSelection = null;
 let touchTreeDrag = { timer: 0, source: null, startX: 0, startY: 0, active: false, destination: null, ids: [] };
+let treeDragHoverOpenTimer = 0;
+let treeDragHoverOpenTarget = null;
+let treeDragSummary = null;
+let treeDragSummaryLabel = '';
+let treeDragSummaryCount = 0;
+let treeDragRootIds = [];
 // 画面には選択中の条件だけ表示し、件数条件は一度設定した後もキーワード条件と併用する。
 let treeCountFilterEnabled = false;
 function scheduleTargetConnectorLayout() {
@@ -27,29 +33,30 @@ window.addEventListener('resize', scheduleTargetConnectorLayout);
 
 let pendingTreeViewportAnchor = null;
 function captureTreeViewportAnchor(details, closeAll = false) {
+  pendingTreeViewportAnchor = null;
   const tree = document.getElementById('edit-tree');
   if (!tree) return;
   const toolbarBottom = document.querySelector('.edit-taskbar')?.getBoundingClientRect().bottom ?? 0;
   const treeFilter = document.getElementById('tree-filter');
   const filterBottom = treeFilter && !treeFilter.hidden ? treeFilter.getBoundingClientRect().bottom : 0;
   const visibleTop = Math.max(toolbarBottom, filterBottom) + 4;
-  const candidates = [...tree.querySelectorAll('.tree-top-class > summary, .tree-middle-class > summary, .tree-leaf-class')]
+  const visibleTopClass = [...tree.querySelectorAll('.tree-top-class > summary')]
     .map((element) => ({ element, bounds: element.getBoundingClientRect() }))
     .filter(({ bounds }) => bounds.bottom > visibleTop && bounds.top < window.innerHeight)
-    .sort((a, b) => Math.abs(a.bounds.top - visibleTop) - Math.abs(b.bounds.top - visibleTop));
-  const visibleElement = candidates[0]?.element;
-  const fallback = closeAll
-    ? details?.closest('.tree-top-class')?.querySelector(':scope > summary')
+    .sort((a, b) => Math.abs(a.bounds.top - visibleTop) - Math.abs(b.bounds.top - visibleTop))[0]?.element;
+  const anchor = closeAll
+    ? visibleTopClass || details?.closest('.tree-top-class')?.querySelector(':scope > summary')
       || tree.querySelector('.tree-top-class > summary')
     : details?.querySelector(':scope > summary');
-  const anchor = visibleElement || fallback;
   if (!anchor) return;
+  const bounds = anchor.getBoundingClientRect();
   pendingTreeViewportAnchor = {
     details,
     closeAll,
     anchor,
-    fallback,
-    top: anchor.getBoundingClientRect().top
+    top: bounds.top,
+    visibleTop,
+    visibleBottom: window.innerHeight
   };
 }
 function restoreTreeViewportAnchor(details) {
@@ -57,18 +64,13 @@ function restoreTreeViewportAnchor(details) {
   if (!pending || (!pending.closeAll && pending.details !== details)) return;
   pendingTreeViewportAnchor = null;
   window.requestAnimationFrame(() => {
-    const closedHeading = !pending.closeAll ? details?.querySelector(':scope > summary') : null;
-    const anchor = closedHeading?.isConnected && closedHeading.getClientRects().length
-      ? closedHeading
-      : pending.anchor?.isConnected && pending.anchor.getClientRects().length
-        ? pending.anchor
-        : pending.fallback;
+    const anchor = pending.anchor;
     if (!anchor?.isConnected || !anchor.getClientRects().length) return;
-    const targetTop = pending.closeAll
-      ? pending.top
-      : Number.parseFloat(getComputedStyle(anchor).top) || 0;
-    const difference = anchor.getBoundingClientRect().top - targetTop;
-    if (Math.abs(difference) > 1) window.scrollBy(0, difference);
+    const bounds = anchor.getBoundingClientRect();
+    let difference = 0;
+    if (bounds.bottom <= pending.visibleTop) difference = bounds.top - pending.top;
+    else if (bounds.top >= pending.visibleBottom) difference = bounds.top - pending.top;
+    if (difference) window.scrollBy(0, difference);
   });
 }
 document.getElementById('edit-tree')?.addEventListener('click', (event) => {
@@ -321,7 +323,7 @@ function renderTree() {
     const item = classById.get(node.id);
     if (!item) return;
     summary.dataset.dragClassId = item.id;
-    summary.draggable = true;
+    summary.draggable = !isUnclassified(item);
     if (classKind(item) === 'middle') {
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
@@ -487,11 +489,70 @@ const editTree = document.getElementById('edit-tree');
 const selectedTreeClassIds = () => [
   ...heldTopClasses.keys(), ...heldMiddleClasses.keys(), ...heldInstances.keys()
 ];
+const syncTreeMoveButtonVisibility = () => {
+  const hasSelection = heldInstances.size > 0 || heldMiddleClasses.size > 0 || heldTopClasses.size > 0;
+  editTree.querySelectorAll('.move-held-button[data-destination-class-id]').forEach((button) => {
+    button.hidden = !hasSelection || activeTreeDragIds.includes(button.dataset.destinationClassId);
+  });
+};
+const showTreeDragSummary = (clientX = -10000, clientY = -10000) => {
+  if (!treeDragSummary) {
+    treeDragSummary = document.createElement('div');
+    treeDragSummary.className = 'tree-drag-summary';
+    treeDragSummary.setAttribute('role', 'status');
+    treeDragSummary.setAttribute('aria-live', 'polite');
+    document.body.append(treeDragSummary);
+  }
+  treeDragSummary.replaceChildren();
+  const label = document.createElement('span');
+  label.textContent = treeDragSummaryLabel;
+  treeDragSummary.append(label);
+  if (treeDragSummaryCount > 1) {
+    const count = document.createElement('span');
+    count.className = 'tree-drag-summary-count';
+    count.textContent = String(treeDragSummaryCount);
+    treeDragSummary.append(count);
+  }
+  treeDragSummary.hidden = false;
+  treeDragSummary.style.left = `${clientX + 14}px`;
+  treeDragSummary.style.top = `${clientY + 18}px`;
+  treeDragSummary.style.transform = 'none';
+};
+const hideTreeDragSummary = () => {
+  if (treeDragSummary) treeDragSummary.hidden = true;
+};
+const clearTreeDragSourceAppearance = () => {
+  editTree.querySelectorAll('[data-drag-class-id].is-dragging').forEach((element) => element.classList.remove('is-dragging'));
+  treeDragRootIds = [];
+};
+const clearTreeDragHoverOpen = () => {
+  window.clearTimeout(treeDragHoverOpenTimer);
+  treeDragHoverOpenTimer = 0;
+  treeDragHoverOpenTarget = null;
+};
+const scheduleTreeDragHoverOpen = (destination) => {
+  const details = destination?.parentElement;
+  if (!details?.matches('.tree-top-class, .tree-middle-class') || details.open
+    || activeTreeDragIds.includes(destination.dataset.dragClassId)) {
+    clearTreeDragHoverOpen();
+    return;
+  }
+  if (treeDragHoverOpenTarget === details) return;
+  clearTreeDragHoverOpen();
+  treeDragHoverOpenTarget = details;
+  treeDragHoverOpenTimer = window.setTimeout(() => {
+    treeDragHoverOpenTimer = 0;
+    if (treeDragHoverOpenTarget !== details || !details.isConnected || activeTreeDragIds.includes(details.dataset.classId)) return;
+    details.open = true;
+    treeDragHoverOpenTarget = null;
+  }, 650);
+};
 const beginTreeDrag = (id) => {
   const item = classById.get(id);
   const kind = item ? classKind(item) : null;
+  if (!item || isUnclassified(item)) return false;
   const selection = kind === 'top' ? heldTopClasses : kind === 'middle' ? heldMiddleClasses : kind === 'class' ? heldInstances : null;
-  if (!item || !selection) return false;
+  if (!selection) return false;
   if (!selection.has(id)) {
     temporaryTreeDragSelection = {
       before: snapshotEditState(),
@@ -508,9 +569,32 @@ const beginTreeDrag = (id) => {
     temporaryTreeDragSelection = null;
   }
   activeTreeDragIds = selectedTreeClassIds();
+  const selectedTopIds = [...heldTopClasses.keys()].filter((selectedId) => !isUnclassified(classById.get(selectedId)));
+  const belowSelectedTop = new Set(selectedTopIds.flatMap((selectedId) => [...descendantIds(selectedId)]));
+  const selectedMiddleIds = [...heldMiddleClasses.keys()].filter((selectedId) => !belowSelectedTop.has(selectedId));
+  const belowSelectedMiddle = new Set(selectedMiddleIds.flatMap((selectedId) => [...descendantIds(selectedId)]));
+  const selectedTargetIds = [...heldInstances.keys()].filter((selectedId) =>
+    !belowSelectedTop.has(selectedId) && !belowSelectedMiddle.has(selectedId));
+  const dragRoots = [...selectedTopIds, ...selectedMiddleIds, ...selectedTargetIds];
+  clearTreeDragSourceAppearance();
+  treeDragRootIds = dragRoots;
+  treeDragSummaryCount = dragRoots.length;
+  treeDragSummaryLabel = dragRoots.length === 1
+    ? String(classById.get(dragRoots[0])?.label || item.label)
+    : '複数クラス';
+  treeDragRootIds.forEach((rootId) => {
+    editTree.querySelectorAll('[data-drag-class-id]').forEach((element) => {
+      if (element.dataset.dragClassId === rootId) element.classList.add('is-dragging');
+    });
+  });
+  syncTreeMoveButtonVisibility();
+  showTreeDragSummary();
   return activeTreeDragIds.length > 0;
 };
 const finishTreeDrag = () => {
+  clearTreeDragHoverOpen();
+  hideTreeDragSummary();
+  clearTreeDragSourceAppearance();
   if (!temporaryTreeDragSelection) return;
   if (editUndoStack.length > temporaryTreeDragSelection.historyLength) {
     editUndoStack.at(-1).before = temporaryTreeDragSelection.before;
@@ -528,6 +612,18 @@ const setTreeDropTarget = (destination) => {
   editTree.querySelectorAll('.is-drop-target').forEach((element) => element.classList.remove('is-drop-target'));
   touchTreeDrag.destination = destination || null;
   destination?.classList.add('is-drop-target');
+  scheduleTreeDragHoverOpen(destination);
+};
+const scrollTreeDuringDrag = (clientY) => {
+  const edgeSize = 72;
+  const maxScroll = 24;
+  let delta = 0;
+  if (clientY < edgeSize) {
+    delta = -Math.ceil(maxScroll * Math.min(1, (edgeSize - clientY) / edgeSize));
+  } else if (clientY > window.innerHeight - edgeSize) {
+    delta = Math.ceil(maxScroll * Math.min(1, (clientY - (window.innerHeight - edgeSize)) / edgeSize));
+  }
+  if (delta) window.scrollBy({ top: delta, behavior: 'auto' });
 };
 const applyTreeDrop = (destination) => {
   const destinationItem = classById.get(destination?.dataset.dragClassId);
@@ -554,6 +650,16 @@ editTree?.addEventListener('dragstart', (event) => {
   }
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setData('text/plain', id);
+  showTreeDragSummary(event.clientX, event.clientY);
+  if (event.dataTransfer.setDragImage) {
+    const transparentDragImage = document.createElement('canvas');
+    transparentDragImage.width = 1;
+    transparentDragImage.height = 1;
+    transparentDragImage.style.cssText = 'position:fixed;left:-10000px;top:-10000px';
+    document.body.append(transparentDragImage);
+    event.dataTransfer.setDragImage(transparentDragImage, 0, 0);
+    window.setTimeout(() => transparentDragImage.remove(), 0);
+  }
   source.classList.add('is-dragging');
 });
 editTree?.addEventListener('dragend', (event) => {
@@ -563,11 +669,17 @@ editTree?.addEventListener('dragend', (event) => {
   activeTreeDragIds = [];
 });
 editTree?.addEventListener('dragover', (event) => {
-  const destination = event.target.closest('summary[data-drag-class-id]');
-  if (!destination || !activeTreeDragIds.length) return;
+  if (!activeTreeDragIds.length) return;
   event.preventDefault();
+  const destination = event.target.closest('summary[data-drag-class-id]');
   event.dataTransfer.dropEffect = 'move';
   setTreeDropTarget(destination);
+});
+document.addEventListener('dragover', (event) => {
+  if (!activeTreeDragIds.length) return;
+  showTreeDragSummary(event.clientX, event.clientY);
+  scrollTreeDuringDrag(event.clientY);
+  if (!editTree.contains(event.target)) setTreeDropTarget(null);
 });
 editTree?.addEventListener('dragleave', (event) => {
   const destination = event.target.closest('summary[data-drag-class-id]');
@@ -597,6 +709,7 @@ editTree?.addEventListener('touchstart', (event) => {
     if (!touchTreeDrag.source?.isConnected || !beginTreeDrag(id)) return;
     touchTreeDrag.ids = [...activeTreeDragIds];
     touchTreeDrag.active = true;
+    showTreeDragSummary(touch.clientX, touch.clientY);
     touchTreeDrag.source.classList.add('is-dragging');
     document.body.classList.add('is-tree-touch-dragging');
   }, 500);
@@ -612,6 +725,8 @@ editTree?.addEventListener('touchmove', (event) => {
     return;
   }
   event.preventDefault();
+  scrollTreeDuringDrag(touch.clientY);
+  showTreeDragSummary(touch.clientX, touch.clientY);
   const element = document.elementFromPoint(touch.clientX, touch.clientY);
   setTreeDropTarget(element?.closest('summary[data-drag-class-id]') || null);
 }, { passive: false });
