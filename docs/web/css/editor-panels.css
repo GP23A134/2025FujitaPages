@@ -241,16 +241,14 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
   #edit-settings-dialog { padding: 0.85rem; }
   .edit-settings-card-grid { grid-template-columns: minmax(0, 1fr); }
 }
-.edit-ai-behavior-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.edit-ai-behavior-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
 .edit-ai-setting-card { display: grid; align-content: start; gap: 0.55rem; min-width: 0; padding: 0.85rem; border: 1px solid #dbe3ec; border-radius: 8px; background: #fff; }
 .edit-ai-setting-card h4 { margin: 0; color: #334155; font-size: 0.9rem; }
 .edit-ai-setting-card > label { color: #334155; font-size: 0.84rem; font-weight: 650; }
 .edit-ai-setting-card .test-range-row { gap: 0.65rem; }
-.edit-ai-candidate-card { grid-column: 1 / -1; }
 .edit-ai-candidate-limits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .edit-ai-candidate-limits > div { display: grid; align-content: start; gap: 0.45rem; min-width: 0; }
 .edit-ai-candidate-limits label { color: #334155; font-size: 0.84rem; font-weight: 650; }
-@media (max-width: 680px) { .edit-ai-behavior-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 680px) { .edit-ai-candidate-limits { grid-template-columns: minmax(0, 1fr); } }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .ai-assistant-panel { display: flex; flex: 1 1 0; flex-direction: column; gap: 0.55rem; min-width: 0; min-height: 0; height: auto; }
@@ -504,11 +502,23 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-proposal h3 { margin: 0 0 0.3rem; color: #0369a1; font-size: 0.8rem; }
 .ai-preview-proposal p { margin: 0; color: #1e293b; font-size: 0.84rem; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ai-preview-proposal > .ai-preview-uncertainties { grid-column: 1 / -1; padding: 0.5rem 0.35rem 0; border-top: 1px solid #dbe3ec; border-radius: 0; background: transparent; }
+.ai-preview-conflict-selector { grid-column: 1 / -1; padding: 0.65rem 0.75rem; border: 1px solid #c4b5fd; border-radius: 8px; background: #f5f3ff; }
+.ai-preview-conflict-selector[hidden] { display: none; }
+.ai-preview-conflict-selector h3 { margin: 0 0 0.5rem; color: #5b21b6; font-size: 0.84rem; }
+.ai-preview-conflict-controls { display: flex; flex-wrap: wrap; gap: 0.65rem 1rem; align-items: center; }
+.ai-preview-conflict-control-group { display: inline-flex; gap: 0.35rem; align-items: center; color: #475569; font-size: 0.8rem; }
+.ai-preview-conflict-control-group button { min-width: 2rem; border: 1px solid #c4b5fd; border-radius: 5px; color: #5b21b6; background: #fff; cursor: pointer; }
+.ai-preview-conflict-control-group button:disabled { opacity: 0.45; cursor: default; }
+.ai-preview-conflict-control-group #ai-preview-conflict-select-choice { min-width: 0; padding: 0.25rem 0.55rem; }
+.ai-preview-conflict-control-group #ai-preview-conflict-select-choice.is-selected { border-color: #15803d; color: #166534; background: #f0fdf4; }
+.ai-preview-conflict-badge { display: inline-flex; align-items: center; padding: 0.1rem 0.4rem; border: 1px solid #c4b5fd; border-radius: 999px; color: #5b21b6; background: #f5f3ff; font-size: 0.68rem; }
+#ai-preview-conflict-choice-summary, #ai-preview-conflict-selection-status { margin: 0.45rem 0 0; color: #334155; font-size: 0.8rem; line-height: 1.5; }
+#ai-preview-conflict-selection-status { color: #6d28d9; }
 @media (max-width: 760px) {
   .ai-preview-proposal { grid-template-columns: minmax(0, 1fr); }
   .ai-preview-proposal > div:first-child { padding: 0.35rem 0.45rem 0.65rem; border-right: 0; border-bottom: 1px solid #cbd5e1; border-radius: 6px 6px 0 0; }
   .ai-preview-proposal > div:nth-child(2) { padding-left: 0.45rem; border-radius: 0 0 6px 6px; }
-  .ai-preview-proposal > .ai-preview-uncertainties { grid-column: auto; }
+  .ai-preview-proposal > .ai-preview-uncertainties, .ai-preview-conflict-selector { grid-column: auto; }
 }
 .ai-preview-page[hidden] { display: none; }
 .ai-preview-page-heading { margin: 0.75rem 0 0.45rem; color: #0f3d63; font-size: 0.95rem; }

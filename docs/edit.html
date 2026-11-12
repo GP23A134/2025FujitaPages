@@ -9,7 +9,7 @@
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
   <link rel="stylesheet" href="web/css/tree-structure.css?v=20261109-tree-filter-disclosure-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261111-ai-chat-responsibilities-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261112-conflict-alternatives-v1">
   <link rel="stylesheet" href="web/css/test-preferences.css?v=20261111-test-settings-layout-v1">
   <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261111-tree-drag-move-v2">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-held-panel-fixed-v2">
@@ -25,7 +25,7 @@
   <script data-app-script="web/js/editor/panels.js?v=20261111-held-table-fixed-header-v2"></script>
   <script data-app-script="web/js/editor/tree.js?v=20261111-tree-drag-move-v3"></script>
   <script data-app-script="web/js/editor/events.js?v=20261112-shared-validation-v1"></script>
-  <script data-app-script="web/js/editor/test-preferences.js?v=20261111-ai-tuning-limits-v1" data-app-type="module"></script>
+  <script data-app-script="web/js/editor/test-preferences.js?v=20261112-response-count-limits-v1" data-app-type="module"></script>
   <script src="web/js/shared/app-startup.js?v=20261112-class-type-normalization-v1"></script>
 </head>
 <body class="edit-panes-pinned" data-mode="edit">
@@ -275,31 +275,6 @@
           <p class="edit-settings-note">1: 大幅な再編・複数案・価値のないクラスの削除 / 2: 関連する再編・統合 / 3: 一通りの編集操作 / 4: 必要な補助操作 / 5: 明示された変更のみ</p>
           <p class="edit-settings-note">数値が小さいほど自由度が高くなります。入力範囲や安全性などの必須ルールは変わりません。</p>
         </div>
-        <div class="edit-ai-setting-card">
-          <h4>リクエスト処理</h4>
-          <label for="test-ai-concurrency">AIリクエストの同時処理数</label>
-          <div class="test-range-row"><input id="test-ai-concurrency" type="range" min="1" max="4" step="1" data-preference="aiConcurrency"><output for="test-ai-concurrency"></output></div>
-          <p class="edit-settings-note">分割分析と全範囲の横断確認で、同時に処理するリクエスト数です。初期値は2件です。</p>
-        </div>
-        <div class="edit-ai-setting-card edit-ai-candidate-card">
-          <h4>移動先候補を探す</h4>
-          <label for="ai-cross-scope-strategy">候補の検索方法</label>
-          <select id="ai-cross-scope-strategy" class="edit-settings-select" aria-describedby="ai-cross-scope-strategy-description" data-preference="crossScopeStrategy">
-            <option value="exhaustive">全階層を比較</option>
-            <option value="hierarchical">階層から候補を検索</option>
-          </select>
-          <p id="ai-cross-scope-strategy-description" class="edit-settings-note">提案自由度にかかわらず、この設定を使って移動先を探します。「全階層を比較」は入力中の全階層を確認し、「階層から候補を検索」は名称が近い上位クラスと中間クラスに候補を絞ります。候補検索では候補外を網羅的に確認しません。</p>
-          <div class="edit-ai-candidate-limits">
-            <div>
-              <label for="test-cross-scope-top-limit">確認する上位クラス数</label>
-              <div class="test-range-row"><input id="test-cross-scope-top-limit" type="range" min="1" max="5" step="1" data-preference="crossScopeTopLimit"><output for="test-cross-scope-top-limit"></output></div>
-            </div>
-            <div>
-              <label for="test-cross-scope-middle-limit">上位クラスごとの中間クラス数</label>
-              <div class="test-range-row"><input id="test-cross-scope-middle-limit" type="range" min="1" max="10" step="1" data-preference="crossScopeMiddleLimit"><output for="test-cross-scope-middle-limit"></output></div>
-            </div>
-          </div>
-        </div>
       </div>
       <p id="test-preferences-settings-status" class="ai-status" role="status" aria-live="polite"></p>
     </section>
@@ -332,12 +307,12 @@
       <div class="test-settings-group" role="group" aria-labelledby="test-ai-response-limits-title">
         <h4 id="test-ai-response-limits-title">応答件数上限</h4>
         <div class="test-tuning-grid">
-          <div class="test-tuning-control"><label for="test-ai-proposal-limit">1回の回答で返す提案数</label><div class="test-range-row"><input id="test-ai-proposal-limit" type="range" min="5" max="100" step="5" data-preference="maxProposalsPerResponse"><output for="test-ai-proposal-limit"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-question-limit">確認事項数</label><div class="test-range-row"><input id="test-ai-question-limit" type="range" min="1" max="10" step="1" data-preference="maxQuestionsPerResponse"><output for="test-ai-question-limit"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-operation-limit">1提案あたりの操作数</label><div class="test-range-row"><input id="test-ai-operation-limit" type="range" min="5" max="100" step="5" data-preference="maxOperationsPerProposal"><output for="test-ai-operation-limit"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-uncertainty-limit">1提案あたりの不確実点数</label><div class="test-range-row"><input id="test-ai-uncertainty-limit" type="range" min="1" max="10" step="1" data-preference="maxUncertaintiesPerProposal"><output for="test-ai-uncertainty-limit"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-chunk-findings-limit">分割回答の所見数／カテゴリ</label><div class="test-range-row"><input id="test-ai-chunk-findings-limit" type="range" min="1" max="8" step="1" data-preference="maxChunkFindingsPerCategory"><output for="test-ai-chunk-findings-limit"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-comparison-findings-limit">統合結果の所見数／カテゴリ</label><div class="test-range-row"><input id="test-ai-comparison-findings-limit" type="range" min="1" max="12" step="1" data-preference="maxComparisonFindingsPerCategory"><output for="test-ai-comparison-findings-limit"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-proposal-limit">1回の回答で返す提案数</label><div class="test-range-row"><input id="test-ai-proposal-limit" type="range" min="5" max="1000" step="5" data-preference="maxProposalsPerResponse"><output for="test-ai-proposal-limit"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-question-limit">確認事項数</label><div class="test-range-row"><input id="test-ai-question-limit" type="range" min="1" max="100" step="1" data-preference="maxQuestionsPerResponse"><output for="test-ai-question-limit"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-operation-limit">1提案あたりの操作数</label><div class="test-range-row"><input id="test-ai-operation-limit" type="range" min="5" max="1000" step="5" data-preference="maxOperationsPerProposal"><output for="test-ai-operation-limit"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-uncertainty-limit">1提案あたりの不確実点数</label><div class="test-range-row"><input id="test-ai-uncertainty-limit" type="range" min="1" max="100" step="1" data-preference="maxUncertaintiesPerProposal"><output for="test-ai-uncertainty-limit"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-chunk-findings-limit">分割回答の所見数／カテゴリ</label><div class="test-range-row"><input id="test-ai-chunk-findings-limit" type="range" min="1" max="80" step="1" data-preference="maxChunkFindingsPerCategory"><output for="test-ai-chunk-findings-limit"></output></div></div>
+          <div class="test-tuning-control"><label for="test-ai-comparison-findings-limit">統合結果の所見数／カテゴリ</label><div class="test-range-row"><input id="test-ai-comparison-findings-limit" type="range" min="1" max="120" step="1" data-preference="maxComparisonFindingsPerCategory"><output for="test-ai-comparison-findings-limit"></output></div></div>
         </div>
         <p class="edit-settings-note">件数を増やすと、出力トークン上限に達して回答が完了しない場合があります。</p>
       </div>
@@ -350,6 +325,31 @@
           <div class="test-tuning-control"><label for="test-ai-split-threshold">構造最適化で分割を始める対象数</label><div class="test-range-row"><input id="test-ai-split-threshold" type="range" step="1" data-preference="optimizationSplitThreshold"><output for="test-ai-split-threshold"></output></div></div>
           <div class="test-tuning-control"><label for="test-ai-synthesis-rounds">結果統合の最大回数</label><div class="test-range-row"><input id="test-ai-synthesis-rounds" type="range" step="1" data-preference="synthesisMaxRounds"><output for="test-ai-synthesis-rounds"></output></div></div>
         </div>
+      </div>
+      <div class="test-settings-group" role="group" aria-labelledby="test-ai-candidate-title">
+        <h4 id="test-ai-candidate-title">移動先候補を探す</h4>
+        <label for="ai-cross-scope-strategy">候補の検索方法</label>
+        <select id="ai-cross-scope-strategy" class="edit-settings-select" aria-describedby="ai-cross-scope-strategy-description" data-preference="crossScopeStrategy">
+          <option value="exhaustive">全階層を比較</option>
+          <option value="hierarchical">階層から候補を検索</option>
+        </select>
+        <p id="ai-cross-scope-strategy-description" class="edit-settings-note">提案自由度にかかわらず、この設定を使って移動先を探します。「全階層を比較」は入力中の全階層を確認し、「階層から候補を検索」は名称が近い上位クラスと中間クラスに候補を絞ります。候補検索では候補外を網羅的に確認しません。</p>
+        <div class="edit-ai-candidate-limits">
+          <div>
+            <label for="test-cross-scope-top-limit">確認する上位クラス数</label>
+            <div class="test-range-row"><input id="test-cross-scope-top-limit" type="range" min="1" max="5" step="1" data-preference="crossScopeTopLimit"><output for="test-cross-scope-top-limit"></output></div>
+          </div>
+          <div>
+            <label for="test-cross-scope-middle-limit">上位クラスごとの中間クラス数</label>
+            <div class="test-range-row"><input id="test-cross-scope-middle-limit" type="range" min="1" max="10" step="1" data-preference="crossScopeMiddleLimit"><output for="test-cross-scope-middle-limit"></output></div>
+          </div>
+        </div>
+      </div>
+      <div class="test-settings-group" role="group" aria-labelledby="test-ai-concurrency-title">
+        <h4 id="test-ai-concurrency-title">リクエスト処理</h4>
+        <label for="test-ai-concurrency">AIリクエストの同時処理数</label>
+        <div class="test-range-row"><input id="test-ai-concurrency" type="range" min="1" max="4" step="1" data-preference="aiConcurrency"><output for="test-ai-concurrency"></output></div>
+        <p class="edit-settings-note">分割分析と全範囲の横断確認で、同時に処理するリクエスト数です。初期値は2件です。</p>
       </div>
     </section>
     <section class="edit-settings-section" aria-labelledby="test-tree-display-title">
@@ -405,6 +405,26 @@
           <div><h3>変更内容</h3><p id="ai-preview-summary"></p></div>
           <div><h3>理由</h3><p id="ai-preview-reason"></p></div>
           <div class="ai-preview-uncertainties"><h3>不確かな点</h3><p id="ai-preview-uncertainties"></p></div>
+          <section id="ai-preview-conflict-selector" class="ai-preview-conflict-selector" aria-label="競合候補の選択" hidden>
+            <h3>競合する変更の候補</h3>
+            <div class="ai-preview-conflict-controls">
+              <div class="ai-preview-conflict-control-group">
+                <span>競合箇所</span>
+                <button type="button" id="ai-preview-conflict-previous-group" aria-label="前の競合箇所">‹</button>
+                <span id="ai-preview-conflict-group-position" aria-live="polite"></span>
+                <button type="button" id="ai-preview-conflict-next-group" aria-label="次の競合箇所">›</button>
+              </div>
+              <div class="ai-preview-conflict-control-group">
+                <span>候補</span>
+                <button type="button" id="ai-preview-conflict-previous-choice" aria-label="前の候補">‹</button>
+                <span id="ai-preview-conflict-choice-position" aria-live="polite"></span>
+                <button type="button" id="ai-preview-conflict-next-choice" aria-label="次の候補">›</button>
+                <button type="button" id="ai-preview-conflict-select-choice" class="search-button">この候補を選択</button>
+              </div>
+            </div>
+            <p id="ai-preview-conflict-choice-summary"></p>
+            <p id="ai-preview-conflict-selection-status" role="status" aria-live="polite"></p>
+          </section>
         </section>
       </details>
     </section>
@@ -516,6 +536,6 @@
     <div class="data-import-actions"><button type="button" id="reset-to-default" class="search-button secondary-search-button">初期状態</button><button type="button" id="data-import-cancel" class="search-button secondary-search-button">キャンセル</button><button type="button" id="data-import-confirm" class="search-button" disabled>このデータで開始</button></div>
   </dialog>
   <script data-app-script="web/js/shared/data-upload.js?v=20261112-shared-validation-v2"></script>
-  <script data-app-script="web/js/editor/ai/main.js?v=20261112-class-type-normalization-policy-v3" data-app-type="module"></script>
+  <script data-app-script="web/js/editor/ai/main.js?v=20261112-response-count-limits-v1" data-app-type="module"></script>
 </body>
 </html>

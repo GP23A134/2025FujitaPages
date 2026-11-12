@@ -1,13 +1,13 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261112-class-type-normalization-policy-v3';
-import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261112-class-type-normalization-policy-v1';
+import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261112-class-type-normalization-policy-v4';
+import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations } from './proposal-engine.js?v=20261112-class-type-normalization-policy-v3';
 import { createConversationStore, createConversationView } from './chat.js?v=20261110-first-line-workflow-status-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261111-ai-chat-responsibilities-v1';
+import { createProposalPreview } from './proposal-preview.js?v=20261112-conflict-alternatives-v1';
 import { createAIClient } from './ai-client.js?v=20261112-class-type-normalization-v1';
-import { createRequestProgress } from './request-progress.js?v=20261111-processing-text-v1';
+import { createRequestProgress } from './request-progress.js?v=20261112-zero-second-display-v1';
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261111-ai-tuning-limits-v1';
-import { createProposalView } from './proposal-view.js?v=20261111-ai-chat-view-separation-v1';
+import { createProposalView } from './proposal-view.js?v=20261112-conflict-alternatives-v1';
 import { createConversationRenderer } from './conversation-renderer.js?v=20261111-ai-chat-renderer-v1';
 
 (() => {
@@ -200,12 +200,12 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   OPTIMIZATION_SPLIT_THRESHOLD = readAiTuningValue('optimizationSplitThreshold', OPTIMIZATION_SPLIT_THRESHOLD, AI_TUNING_LIMITS.optimizationSplitThreshold.min, AI_TUNING_LIMITS.optimizationSplitThreshold.max);
   MAX_SYNTHESIS_ROUNDS = readAiTuningValue('synthesisMaxRounds', MAX_SYNTHESIS_ROUNDS, AI_TUNING_LIMITS.synthesisMaxRounds.min, AI_TUNING_LIMITS.synthesisMaxRounds.max);
   MAX_REQUEST_CHARACTERS = readAiTuningValue('maxRequestCharacters', MAX_REQUEST_CHARACTERS, 12000, 128000);
-  AI_OUTPUT_LIMITS.proposals = readAiTuningValue('maxProposalsPerResponse', AI_OUTPUT_LIMITS.proposals, 5, 100);
-  AI_OUTPUT_LIMITS.questions = readAiTuningValue('maxQuestionsPerResponse', AI_OUTPUT_LIMITS.questions, 1, 10);
-  AI_OUTPUT_LIMITS.operationsPerProposal = readAiTuningValue('maxOperationsPerProposal', AI_OUTPUT_LIMITS.operationsPerProposal, 5, 100);
-  AI_OUTPUT_LIMITS.uncertaintiesPerProposal = readAiTuningValue('maxUncertaintiesPerProposal', AI_OUTPUT_LIMITS.uncertaintiesPerProposal, 1, 10);
-  AI_OUTPUT_LIMITS.chunkFindingsPerCategory = readAiTuningValue('maxChunkFindingsPerCategory', AI_OUTPUT_LIMITS.chunkFindingsPerCategory, 1, 8);
-  AI_OUTPUT_LIMITS.comparisonFindingsPerCategory = readAiTuningValue('maxComparisonFindingsPerCategory', AI_OUTPUT_LIMITS.comparisonFindingsPerCategory, 1, 12);
+  AI_OUTPUT_LIMITS.proposals = readAiTuningValue('maxProposalsPerResponse', AI_OUTPUT_LIMITS.proposals, 5, 1000);
+  AI_OUTPUT_LIMITS.questions = readAiTuningValue('maxQuestionsPerResponse', AI_OUTPUT_LIMITS.questions, 1, 100);
+  AI_OUTPUT_LIMITS.operationsPerProposal = readAiTuningValue('maxOperationsPerProposal', AI_OUTPUT_LIMITS.operationsPerProposal, 5, 1000);
+  AI_OUTPUT_LIMITS.uncertaintiesPerProposal = readAiTuningValue('maxUncertaintiesPerProposal', AI_OUTPUT_LIMITS.uncertaintiesPerProposal, 1, 100);
+  AI_OUTPUT_LIMITS.chunkFindingsPerCategory = readAiTuningValue('maxChunkFindingsPerCategory', AI_OUTPUT_LIMITS.chunkFindingsPerCategory, 1, 80);
+  AI_OUTPUT_LIMITS.comparisonFindingsPerCategory = readAiTuningValue('maxComparisonFindingsPerCategory', AI_OUTPUT_LIMITS.comparisonFindingsPerCategory, 1, 120);
   try {
     const saved = JSON.parse(localStorage.getItem('classEditorTestPreferences') || '{}');
     if (typeof saved.aiSplitEnabled === 'boolean') AI_SPLIT_ENABLED = saved.aiSplitEnabled;
@@ -243,12 +243,12 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     const inputLimit = Number(event.detail?.maxRequestCharacters);
     if (Number.isInteger(inputLimit) && inputLimit >= 12000 && inputLimit <= 128000) MAX_REQUEST_CHARACTERS = inputLimit;
     const responseCountSettings = [
-      ['maxProposalsPerResponse', 'proposals', 5, 100],
-      ['maxQuestionsPerResponse', 'questions', 1, 10],
-      ['maxOperationsPerProposal', 'operationsPerProposal', 5, 100],
-      ['maxUncertaintiesPerProposal', 'uncertaintiesPerProposal', 1, 10],
-      ['maxChunkFindingsPerCategory', 'chunkFindingsPerCategory', 1, 8],
-      ['maxComparisonFindingsPerCategory', 'comparisonFindingsPerCategory', 1, 12]
+      ['maxProposalsPerResponse', 'proposals', 5, 1000],
+      ['maxQuestionsPerResponse', 'questions', 1, 100],
+      ['maxOperationsPerProposal', 'operationsPerProposal', 5, 1000],
+      ['maxUncertaintiesPerProposal', 'uncertaintiesPerProposal', 1, 100],
+      ['maxChunkFindingsPerCategory', 'chunkFindingsPerCategory', 1, 80],
+      ['maxComparisonFindingsPerCategory', 'comparisonFindingsPerCategory', 1, 120]
     ];
     responseCountSettings.forEach(([preferenceKey, limitKey, minimum, maximum]) => {
       const value = Number(event.detail?.[preferenceKey]);
@@ -1576,6 +1576,28 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       const proposalPreviewScopes = new Map();
       const proposalAvailableScopes = new Map();
       const proposalOperationPolicies = new Map();
+      const inheritComposedProposalMetadata = (proposals) => proposals.forEach((proposal) => {
+        const sourceIds = proposal.sourceProposalIds || [proposal.id];
+        const values = (map) => sourceIds.map((id) => map.get(id)).filter(Boolean);
+        const unionValues = (map) => [...new Set(values(map).flat())];
+        const editableIds = unionValues(proposalScopes);
+        const previewIds = unionValues(proposalPreviewScopes);
+        const availableIds = unionValues(proposalAvailableScopes);
+        if (editableIds.length) proposalScopes.set(proposal.id, editableIds);
+        if (previewIds.length) proposalPreviewScopes.set(proposal.id, previewIds);
+        if (availableIds.length) proposalAvailableScopes.set(proposal.id, availableIds);
+        const policies = values(proposalOperationPolicies);
+        if (policies.length) proposalOperationPolicies.set(proposal.id, {
+          taskKind: 'selected_scope',
+          allowProposals: policies.every((policy) => policy.allowProposals),
+          allowedTypes: [...new Set(policies.flatMap((policy) => policy.allowedTypes || []))],
+          addClassTypes: [...new Set(policies.flatMap((policy) => policy.addClassTypes || []))],
+          moveSourceTypes: [...new Set(policies.flatMap((policy) => policy.moveSourceTypes || []))],
+          allowDelete: policies.some((policy) => policy.allowDelete),
+          requireAllDescendantsEditableForDelete: policies.some((policy) => policy.requireAllDescendantsEditableForDelete),
+          reparentDescendantsOnDelete: policies.every((policy) => policy.reparentDescendantsOnDelete)
+        });
+      });
       let completeCoverageRetryFailed = false;
       if (splitTasks) {
         const hierarchyContextId = needHierarchyReference ? (await sendApiRequest(hierarchyReferenceInput, '', 128,
@@ -1885,6 +1907,10 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
                   responseHandler.suppressNoopMoveOperations(crossResult, crossScopeEditScope);
                   const crossOperationWarnings = [];
                   crossResult.proposals.forEach((proposal) => {
+                    proposalScopes.set(proposal.id, [...crossScopeEditScope.editableIds]);
+                    proposalPreviewScopes.set(proposal.id, availableClassIds);
+                    proposalAvailableScopes.set(proposal.id, availableClassIds);
+                    proposalOperationPolicies.set(proposal.id, crossOperationPolicy);
                     if (!proposal.operations.length) return;
                     try {
                       editor.applyOperations(proposal.operations, fingerprintBeforeRequest, crossScopeEditScope.editableIds, availableClassIds, crossOperationPolicy);
@@ -1954,6 +1980,8 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
         conversation.initialSnapshotSent = false;
         conversation.previousScope = null;
         conversation.localContext = createLocalConversationContext(userText);
+        result.proposals = reconcileSplitProposals(result.proposals, [], scope.classes, scope.relations);
+        inheritComposedProposalMetadata(result.proposals);
       } else {
         let response = await sendApiRequest(userContent, usesAnalysisMemory ? '' : conversation.responseId);
         if (!usesAnalysisMemory) response = await retryCompleteScopeDataRequest(response);
@@ -2011,6 +2039,8 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
           proposalAvailableScopes.set(proposal.id, scope.classes.map((item) => item.id));
           proposalOperationPolicies.set(proposal.id, operationPolicy);
         });
+        result.proposals = reconcileSplitProposals(result.proposals, [], scope.classes, scope.relations);
+        inheritComposedProposalMetadata(result.proposals);
         if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
       }
       if (automaticStructureReanalysis) {
@@ -2046,7 +2076,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
             }
           });
           const affectedTargetIds = new Set();
-          result.proposals.forEach((proposal) => proposal.operations.forEach((operation) => {
+           result.proposals.forEach((proposal) => composeProposalOperations(proposal).forEach((operation) => {
             if (operation.type !== 'moveClass' && operation.type !== 'moveChildren') return;
             (targetsByAncestor.get(operation.classId || operation.from) || []).forEach((id) => affectedTargetIds.add(id));
           }));
@@ -2074,6 +2104,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
           type: 'proposal',
           responseGroupId,
           proposal,
+          selectedConflictChoices: {},
           sourceType: proposal.sourceType || (splitTasks ? 'chunk' : 'single'),
           alternativeGroupId: proposal.alternativeGroupId || '',
           editableIds: proposalScopes.get(proposal.id) || [...scope.editableIds],
@@ -2259,6 +2290,11 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   });
   document.getElementById('ai-preview-previous').addEventListener('click', () => proposalPreview.navigatePreview(-1));
   document.getElementById('ai-preview-next').addEventListener('click', () => proposalPreview.navigatePreview(1));
+  document.getElementById('ai-preview-conflict-previous-group').addEventListener('click', () => proposalPreview.navigateConflictGroup(-1));
+  document.getElementById('ai-preview-conflict-next-group').addEventListener('click', () => proposalPreview.navigateConflictGroup(1));
+  document.getElementById('ai-preview-conflict-previous-choice').addEventListener('click', () => proposalPreview.navigateConflictChoice(-1));
+  document.getElementById('ai-preview-conflict-next-choice').addEventListener('click', () => proposalPreview.navigateConflictChoice(1));
+  document.getElementById('ai-preview-conflict-select-choice').addEventListener('click', () => proposalPreview.selectConflictChoice());
   document.getElementById('ai-preview-page-previous').addEventListener('click', () => proposalPreview.navigatePreviewPage(-1));
   document.getElementById('ai-preview-page-next').addEventListener('click', () => proposalPreview.navigatePreviewPage(1));
   document.getElementById('ai-preview-group-include').addEventListener('click', () => {

@@ -86,6 +86,12 @@ export const createProposalView = ({ messages, getProposalPreview, renderConvers
       proposalTitle.textContent = proposal.title || `提案${items.indexOf(item) + 1}`;
       meta.append(proposalTitle);
       meta.append(...renderOperationCountBadges(proposal.operations || [], 'ai-preview-type-badge', { hideZero: true }));
+      if (proposal.conflictGroups?.length) {
+        const conflictBadge = document.createElement('span');
+        conflictBadge.className = 'ai-preview-conflict-badge';
+        conflictBadge.textContent = `競合箇所 ${proposal.conflictGroups.length}件`;
+        meta.append(conflictBadge);
+      }
       const description = document.createElement('p');
       description.className = 'ai-proposal-list-description';
       description.textContent = excerpt(proposal.summary || proposal.title, 240);

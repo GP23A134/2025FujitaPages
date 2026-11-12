@@ -1,5 +1,5 @@
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261111-ai-tuning-limits-v1';
-import { createOperationPolicy, describeOperationPolicy } from './proposal-engine.js?v=20261112-class-type-normalization-policy-v1';
+import { createOperationPolicy, describeOperationPolicy } from './proposal-engine.js?v=20261112-class-type-normalization-policy-v3';
 
 // 現在の選択範囲を依頼JSONへ変換し、大きすぎる範囲を処理単位へ分割します。
 // scope固有の指示はJSON内に一時的に載せ、送信層が固定プロンプトの後ろへ移します。
@@ -84,7 +84,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
       const targetOperationPolicy = createOperationPolicy({
         allowProposals: Boolean(getAllowProposals(scope)), taskKind: 'upper_class_unit', scope, proposalFreedom: getProposalFreedom()
       });
-      const targetInstruction = `この分割範囲に含まれる上位クラス配下の対象クラスを評価してください。${describeOperationPolicy(targetOperationPolicy)}既存の階層を優先し、許可された追加と対象クラスの移動が必要なら同じ提案にまとめて対象との関連を説明してください。${targetOperationPolicy.allowedTypes.includes('deleteClass') ? '削除を提案する場合は、配下の既存クラスがすべて今回の編集範囲に含まれ、子を安全な親へ移動できる場合だけにし、子の移動を先、親の削除を後に置いてください。' : ''}無関係な階層変更、入力にないクラスや関係の推測、範囲外の操作は禁止します。別の上位クラスをまたぐ判断は最終統合に委ねてください。`;
+      const targetInstruction = `この分割範囲に含まれる上位クラス配下の対象クラスを評価してください。${describeOperationPolicy(targetOperationPolicy)}既存の階層を優先し、許可された追加と対象クラスの移動が必要なら同じ提案にまとめて対象との関連を説明してください。移動元は、この分割単位でrole=e（編集可能）として示された対象クラスだけにしてください。role=cは参照用であり、移動元にできません。別の分割単位に属する対象クラスも移動元に含めず、分割単位をまたぐ移動案は最終統合に委ねてください。同じ対象を同じ移動先へ移す操作は1回だけ提案してください。${targetOperationPolicy.allowedTypes.includes('deleteClass') ? '削除を提案する場合は、配下の既存クラスがすべて今回の編集範囲に含まれ、子を安全な親へ移動できる場合だけにし、子の移動を先、親の削除を後に置いてください。' : ''}無関係な階層変更、入力にないクラスや関係の推測、範囲外の操作は禁止します。`;
       const buildTargetTask = (targets, groupHierarchy, topClassId) => {
         const targetIds = new Set(targets.map((item) => item.id));
         const hierarchyIds = new Set(groupHierarchy.map((item) => item.id));
@@ -170,7 +170,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
     const hierarchyOperationPolicy = createOperationPolicy({
       allowProposals: Boolean(getAllowProposals(hierarchyScope)), taskKind: 'hierarchy', scope: hierarchyScope, proposalFreedom: getProposalFreedom()
     });
-    const hierarchyInstruction = `この分割範囲を評価してください。${describeOperationPolicy(hierarchyOperationPolicy)}対象クラスの個別IDや全件情報は含まれないため、対象クラスの操作は提案しないでください。targetContextの対象クラス数は読み取り専用の参考情報です。入力にない情報を推測しないでください。${hierarchyOperationPolicy.allowedTypes.includes('moveClass') && hierarchyOperationPolicy.moveSourceTypes.includes('top') ? 'selectionRootsの上位クラスを中間クラスへ移す場合は配下の親子関係を保ってください。' : ''}`;
+    const hierarchyInstruction = `この分割範囲を評価してください。${describeOperationPolicy(hierarchyOperationPolicy)}操作の変更元はrole=e（編集可能）の上位・中間クラスだけにしてください。role=cは参照用で、変更元にできません。対象クラスの個別IDや全件情報は含まれないため、対象クラスの操作は提案しないでください。targetContextの対象クラス数は読み取り専用の参考情報です。入力にない情報を推測しないでください。${hierarchyOperationPolicy.allowedTypes.includes('moveClass') && hierarchyOperationPolicy.moveSourceTypes.includes('top') ? 'selectionRootsの上位クラスを中間クラスへ移す場合は配下の親子関係を保ってください。' : ''}`;
     const hierarchyClasses = scope.classes.filter((item) => ['top', 'middle'].includes(item.type));
     const hierarchyChunkLimit = taskCharacterLimit;
     const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
@@ -312,7 +312,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
     const targetOperationPolicy = createOperationPolicy({
       allowProposals: Boolean(getAllowProposals(scope)), taskKind: 'upper_class_targets', scope, proposalFreedom: getProposalFreedom()
     });
-    const targetOperationInstruction = `この分割範囲に含まれる対象クラスと対応する上位・中間クラスを評価してください。${describeOperationPolicy(targetOperationPolicy)}${targetOperationPolicy.allowedTypes.includes('addClass') && targetOperationPolicy.addClassTypes.includes('middle') && targetOperationPolicy.allowedTypes.includes('moveClass') ? '新設した中間クラスへ対象クラスを割り当てる場合は同じ提案にまとめ、親は入力中の上位・中間クラスIDまたは先に追加した中間クラスのtemporaryIdを指定してください。' : ''}入力にない対象クラスや親子関係は推測せず、この分割範囲を超えた全体判断は保留してください。この制約は今回の対象クラス分割範囲だけに適用され、全体として新設が不要と結論するには全チャンクの評価を使ってください。`;
+    const targetOperationInstruction = `この分割範囲に含まれる対象クラスと対応する上位・中間クラスを評価してください。${describeOperationPolicy(targetOperationPolicy)}移動元は、この分割単位でrole=e（編集可能）として示された対象クラスだけにしてください。role=cの上位・中間クラスは参照用であり、変更元にできません。別の分割単位に属する対象クラスも移動元に含めず、分割単位をまたぐ移動案は最終統合に委ねてください。同じ対象を同じ移動先へ移す操作は1回だけ提案してください。${targetOperationPolicy.allowedTypes.includes('addClass') && targetOperationPolicy.addClassTypes.includes('middle') && targetOperationPolicy.allowedTypes.includes('moveClass') ? '新設した中間クラスへ対象クラスを割り当てる場合は同じ提案にまとめ、親は入力中の上位・中間クラスIDまたは先に追加した中間クラスのtemporaryIdを指定してください。' : ''}入力にない対象クラスや親子関係は推測せず、この分割範囲を超えた全体判断は保留してください。この制約は今回の対象クラス分割範囲だけに適用され、全体として新設が不要と結論するには全チャンクの評価を使ってください。`;
     targetClasses.forEach((target) => {
       let parentId = parentByChild.get(target.id);
       let hierarchyTask = null;

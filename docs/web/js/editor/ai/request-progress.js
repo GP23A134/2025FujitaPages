@@ -6,7 +6,7 @@ export const createRequestProgress = ({ messages, getCurrentConversation }) => {
   let preparationLabel = '';
 
   const formatElapsedTime = (totalSeconds) => {
-    if (totalSeconds < 1) return '<1s';
+    if (totalSeconds < 1) return '0s';
     let remaining = Math.max(0, Math.floor(totalSeconds));
     const hours = Math.floor(remaining / 3600);
     remaining %= 3600;

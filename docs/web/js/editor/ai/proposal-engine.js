@@ -156,24 +156,6 @@ const affectedClassIds = (operation, classesById, childrenByParent) => {
   return affected;
 };
 
-const proposalChangesByClass = (proposal, relations, classesById) => {
-  const childrenByParent = new Map();
-  relations.forEach(({ child, parent }) => {
-    if (!childrenByParent.has(parent)) childrenByParent.set(parent, []);
-    childrenByParent.get(parent).push(child);
-  });
-  const normalized = normalizeOperationSequence(proposal.operations);
-  const changes = new Map();
-  normalized.forEach((operation, index) => {
-    const original = proposal.operations[index];
-    affectedClassIds(original, classesById, childrenByParent).forEach((classId) => {
-      if (!changes.has(classId)) changes.set(classId, []);
-      changes.get(classId).push(operation);
-    });
-  });
-  return changes;
-};
-
 const mergeProposalRationale = (target, source) => {
   const additionalReason = String(source.reason || source.summary || '').trim();
   const reasonLabel = source.sourceType === 'cross_scope' ? '横断確認' : '別範囲確認';
@@ -186,6 +168,22 @@ const mergeProposalRationale = (target, source) => {
   if (target.sourceType !== source.sourceType
     && [target.sourceType, source.sourceType].includes('cross_scope')) target.sourceType = 'combined';
 };
+
+export const composeProposalOperations = (proposal, selectedChoices = {}, previewChoice = null) => {
+  const operations = [...(proposal?.operations || [])];
+  (proposal?.conflictGroups || []).forEach((group) => {
+    const preview = previewChoice?.groupId === group.id ? previewChoice.choiceIndex : undefined;
+    const selected = selectedChoices[group.id];
+    const choiceIndex = Number.isInteger(preview) ? preview : Number.isInteger(selected) ? selected : 0;
+    const choice = group.choices?.[choiceIndex];
+    if (choice) operations.push(...choice.operations);
+  });
+  return operations;
+};
+
+export const conflictChoicesComplete = (proposal, selectedChoices = {}) => (proposal?.conflictGroups || []).every((group) =>
+  Number.isInteger(selectedChoices[group.id]) && selectedChoices[group.id] >= 0
+    && selectedChoices[group.id] < (group.choices || []).length);
 
 export const reconcileSplitProposals = (chunkProposals, crossScopeProposals, classes, relations) => {
   const result = [];
@@ -212,47 +210,165 @@ export const reconcileSplitProposals = (chunkProposals, crossScopeProposals, cla
   });
 
   const classesById = new Map(classes.map((item) => [item.id, item]));
-  const changesByProposal = result.map((proposal) => proposalChangesByClass(proposal, relations, classesById));
-  const dependenciesByProposal = result.map(proposalDeletionDependencies);
-  const parentByIndex = result.map((_, index) => index);
-  const find = (index) => {
-    if (parentByIndex[index] !== index) parentByIndex[index] = find(parentByIndex[index]);
-    return parentByIndex[index];
-  };
-  const union = (left, right) => { parentByIndex[find(right)] = find(left); };
-  const alternativeGroupById = new Map();
-  result.forEach((proposal, index) => {
-    if (!proposal.alternativeGroupId) return;
-    const previousIndex = alternativeGroupById.get(proposal.alternativeGroupId);
-    if (previousIndex === undefined) alternativeGroupById.set(proposal.alternativeGroupId, index);
-    else union(previousIndex, index);
+  const childrenByParent = new Map();
+  relations.forEach(({ child, parent }) => {
+    if (!childrenByParent.has(parent)) childrenByParent.set(parent, []);
+    childrenByParent.get(parent).push(child);
   });
-  for (let left = 0; left < result.length; left += 1) {
-    for (let right = left + 1; right < result.length; right += 1) {
-      const leftChanges = changesByProposal[left];
-      const rightChanges = changesByProposal[right];
-      const hasOverlappingChange = [...leftChanges.keys()].some((classId) => rightChanges.has(classId));
-      const leftDependencies = dependenciesByProposal[left];
-      const rightDependencies = dependenciesByProposal[right];
-      const hasDeletionDependency = [...leftDependencies.deletedIds].some((id) => rightDependencies.referencedIds.has(id))
-        || [...rightDependencies.deletedIds].some((id) => leftDependencies.referencedIds.has(id));
-      if (hasOverlappingChange || hasDeletionDependency) union(left, right);
+  const bundles = [];
+  result.forEach((proposal, proposalIndex) => {
+    const originalOperations = proposal.operations || [];
+    const temporaryIdAliases = new Map(originalOperations
+      .filter((operation) => operation.type === 'addClass' && operation.temporaryId)
+      .map((operation) => [operation.temporaryId, `temporary:${proposal.id || proposalIndex}:${operation.temporaryId}`]));
+    const operations = originalOperations.map((operation) => {
+      const normalized = { ...operation };
+      ['temporaryId', 'parentId', 'classId', 'destinationId', 'from', 'to'].forEach((key) => {
+        if (temporaryIdAliases.has(normalized[key])) normalized[key] = temporaryIdAliases.get(normalized[key]);
+      });
+      return normalized;
+    });
+    const affected = operations.map((operation) => affectedClassIds(operation, classesById, childrenByParent));
+    const parents = operations.map((operation, index) => index);
+    const find = (index) => parents[index] === index ? index : (parents[index] = find(parents[index]));
+    const union = (left, right) => { parents[find(right)] = find(left); };
+    const temporaryIds = operations.filter((operation) => operation.type === 'addClass' && operation.temporaryId)
+      .map((operation) => operation.temporaryId);
+    operations.forEach((operation, index) => {
+      const refs = ['temporaryId', 'classId', 'destinationId', 'parentId', 'from', 'to'].map((key) => operation[key]).filter(Boolean);
+      operations.forEach((other, otherIndex) => {
+        if (otherIndex <= index) return;
+        const otherRefs = ['temporaryId', 'classId', 'destinationId', 'parentId', 'from', 'to'].map((key) => other[key]).filter(Boolean);
+        const sharesTemporaryDependency = refs.some((id) => temporaryIds.includes(id) && otherRefs.includes(id));
+        const sharesAffectedClass = [...affected[index]].some((id) => affected[otherIndex].has(id));
+        if (sharesTemporaryDependency || sharesAffectedClass) union(index, otherIndex);
+      });
+    });
+    const byRoot = new Map();
+    operations.forEach((operation, operationIndex) => {
+      const root = find(operationIndex);
+      if (!byRoot.has(root)) byRoot.set(root, { proposalIndex, proposal, operations: [], affectedIds: new Set() });
+      const bundle = byRoot.get(root);
+      bundle.operations.push(operation);
+      affected[operationIndex].forEach((id) => bundle.affectedIds.add(id));
+    });
+    byRoot.forEach((bundle) => bundles.push(bundle));
+  });
+
+  const parents = bundles.map((_, index) => index);
+  const find = (index) => parents[index] === index ? index : (parents[index] = find(parents[index]));
+  const union = (left, right) => { parents[find(right)] = find(left); };
+  for (let left = 0; left < bundles.length; left += 1) {
+    for (let right = left + 1; right < bundles.length; right += 1) {
+      const a = bundles[left]; const b = bundles[right];
+      if (a.proposalIndex === b.proposalIndex) continue;
+      const explicitAlternative = a.proposal.alternativeGroupId
+        && a.proposal.alternativeGroupId === b.proposal.alternativeGroupId;
+      const overlappingChange = [...a.affectedIds].some((id) => b.affectedIds.has(id));
+      const aDependencies = proposalDeletionDependencies({ id: a.proposal.id, operations: a.operations });
+      const bDependencies = proposalDeletionDependencies({ id: b.proposal.id, operations: b.operations });
+      const deletionDependency = [...aDependencies.deletedIds].some((id) => bDependencies.referencedIds.has(id))
+        || [...bDependencies.deletedIds].some((id) => aDependencies.referencedIds.has(id));
+      if (explicitAlternative || overlappingChange || deletionDependency) union(left, right);
     }
   }
-  const groups = new Map();
-  result.forEach((proposal, index) => {
+  const conflictComponents = new Map();
+  bundles.forEach((bundle, index) => {
     const root = find(index);
-    if (!groups.has(root)) groups.set(root, []);
-    groups.get(root).push(proposal);
+    if (!conflictComponents.has(root)) conflictComponents.set(root, []);
+    conflictComponents.get(root).push(bundle);
   });
-  let alternativeIndex = 0;
-  groups.forEach((proposals) => {
-    if (proposals.length < 2) return;
-    const alternativeGroupId = proposals.find((proposal) => proposal.alternativeGroupId)?.alternativeGroupId
-      || `split_alternative_${++alternativeIndex}`;
-    proposals.forEach((proposal) => { proposal.alternativeGroupId = alternativeGroupId; });
+  const conflicts = [...conflictComponents.values()].filter((component) =>
+    new Set(component.map((bundle) => bundle.proposalIndex)).size > 1);
+  if (!conflicts.length) return result;
+
+  const involvedIndexes = new Set(conflicts.flatMap((component) => component.map((bundle) => bundle.proposalIndex)));
+  let combinedTemporarySequence = 0;
+  const canonicalizeTemporaryOperations = (operations) => {
+    const aliases = new Map();
+    const additionKeys = new Map();
+    operations.forEach((operation) => {
+      if (operation.type !== 'addClass' || !operation.temporaryId) return;
+      const parentId = aliases.get(operation.parentId) || operation.parentId || '';
+      const key = `${operation.classType || ''}\u0000${String(operation.label || '').trim()}\u0000${parentId}`;
+      if (additionKeys.has(key)) aliases.set(operation.temporaryId, additionKeys.get(key));
+      else {
+        const canonicalId = `combined_tmp_${++combinedTemporarySequence}`;
+        additionKeys.set(key, canonicalId);
+        aliases.set(operation.temporaryId, canonicalId);
+      }
+    });
+    return operations.map((operation) => {
+      const normalized = { ...operation };
+      ['temporaryId', 'parentId', 'classId', 'destinationId', 'from', 'to'].forEach((key) => {
+        if (aliases.has(normalized[key])) normalized[key] = aliases.get(normalized[key]);
+      });
+      return normalized;
+    });
+  };
+  const commonOperations = [];
+  const conflictGroups = [];
+  conflicts.forEach((component, index) => {
+    const byProposal = new Map();
+    component.forEach((bundle) => {
+      if (!byProposal.has(bundle.proposalIndex)) byProposal.set(bundle.proposalIndex, { proposal: bundle.proposal, operations: [] });
+      byProposal.get(bundle.proposalIndex).operations.push(...bundle.operations);
+    });
+    const uniqueChoices = new Map();
+    [...byProposal.values()].forEach(({ proposal, operations }) => {
+      const key = JSON.stringify(normalizeOperationSequence(operations));
+      const existing = uniqueChoices.get(key);
+      if (existing) {
+        const rationale = proposal.reason || proposal.summary || proposal.title || '';
+        if (rationale && !existing.reason.includes(rationale)) existing.reason = [existing.reason, rationale].filter(Boolean).join('\n\n');
+        return;
+      }
+      uniqueChoices.set(key, {
+        label: proposal.title || proposal.summary || '変更案',
+        summary: proposal.summary || proposal.title || '',
+        reason: proposal.reason || '',
+        operations: canonicalizeTemporaryOperations(operations)
+      });
+    });
+    const choices = [...uniqueChoices.values()];
+    if (choices.length > 1) conflictGroups.push({ id: `conflict_${conflictGroups.length + 1}`, label: `競合箇所${conflictGroups.length + 1}`, choices });
+    else if (choices.length === 1) commonOperations.push(...choices[0].operations);
   });
-  return result;
+  const conflictingBundles = new Set(conflicts.flat());
+  bundles.forEach((bundle) => {
+    if (!involvedIndexes.has(bundle.proposalIndex) || conflictingBundles.has(bundle)) return;
+    commonOperations.push(...bundle.operations);
+  });
+  const commonKeys = new Set();
+  const uniqueCommonOperations = canonicalizeTemporaryOperations(commonOperations).filter((operation) => {
+    const key = JSON.stringify(normalizeOperationSequence([operation])[0]);
+    if (commonKeys.has(key)) return false;
+    commonKeys.add(key);
+    return true;
+  });
+  const sourceProposals = [...involvedIndexes].map((index) => result[index]);
+  const sourceProposalIds = sourceProposals.map((proposal) => proposal.id).filter(Boolean);
+  const combined = {
+    id: `conflict_combined_${sourceProposalIds.join('_') || '1'}`,
+    title: conflictGroups.length ? '競合する変更を選んで適用' : '共通する変更をまとめて適用',
+    summary: conflictGroups.length
+      ? '共通する変更に加え、競合箇所ごとに候補を選択できます。'
+      : '重複する候補をまとめ、両立する変更を一緒に適用できます。',
+    reason: sourceProposals.map((proposal) => proposal.reason || proposal.summary || proposal.title).filter(Boolean).join('\n\n'),
+    uncertainties: [...new Set(sourceProposals.flatMap((proposal) => proposal.uncertainties || []))],
+    questions: [...new Set(sourceProposals.flatMap((proposal) => proposal.questions || []))],
+    operations: uniqueCommonOperations,
+    conflictGroups,
+    sourceProposalIds,
+    sourceType: 'combined'
+  };
+  const insertionIndex = Math.min(...involvedIndexes);
+  const reconciled = [];
+  result.forEach((proposal, index) => {
+    if (index === insertionIndex) reconciled.push(combined);
+    if (!involvedIndexes.has(index)) reconciled.push(proposal);
+  });
+  return reconciled;
 };
 
 // AI応答を内部形式で検証し、操作の安全性を確認します。
@@ -461,6 +577,13 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
           proposal.uncertainties.push('改名先と同じ種類・名称のクラスが既にあるため、その改名操作を除外しました。');
         }
       }
+      const seenOperations = new Set();
+      proposal.operations = proposal.operations.filter((operation) => {
+        const key = JSON.stringify(normalizeOperationSequence([operation])[0]);
+        if (seenOperations.has(key)) return false;
+        seenOperations.add(key);
+        return true;
+      });
     });
   };
   const enforceOperationPolicy = (result, scope, policy) => {
