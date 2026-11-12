@@ -587,17 +587,18 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCh
     }));
 
     const truncate = (value, limit) => String(value || '').slice(0, limit);
-    const compactAssessments = assessments.map((entry) => {
+    const compactAssessments = (messageLimit = 2400, findingLimit = 500, limitationLimit = 300, operationLimit = 12) => assessments.map((entry) => {
       const operations = Array.isArray(entry.operations) ? entry.operations : [];
-      const operationExamples = operations.slice(0, 12).map(({ type, classId, destinationId }) => ({ type, classId, destinationId }));
+      const operationExamples = operations.slice(0, operationLimit).map(({ type, classId, destinationId }) => ({ type, classId, destinationId }));
       const referencedClassIds = new Set(operationExamples.flatMap((operation) => [operation.classId, operation.destinationId]).filter(Boolean));
       const comparisonSummary = entry.comparisonSummary && Object.fromEntries(categoryKeys.map((key) => {
         const category = entry.comparisonSummary[key] || {};
         const findings = (category.findings || []).map((finding) => {
           (finding.classes || []).forEach((item) => referencedClassIds.add(item.id));
-          return { ...finding, text: truncate(finding.text, 500), evidence: truncate(finding.evidence, 500), limitations: truncate(finding.limitations, 300) };
+          return { ...finding, text: truncate(finding.text, findingLimit), evidence: truncate(finding.evidence, findingLimit),
+            limitations: truncate(finding.limitations, limitationLimit) };
         });
-        return [key, { ...category, findings, limitation: truncate(category.limitation, 300) }];
+        return [key, { ...category, findings, limitation: truncate(category.limitation, limitationLimit) }];
       }));
       const evidenceClasses = (entry.scopeEvidence?.classes || []).filter((item) => referencedClassIds.has(item.id)
         || referencedClassIds.has(item.parentId));
@@ -611,17 +612,26 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCh
         scopeEvidence: { upperClasses: entry.scopeEvidence?.upperClasses || [],
           targetClassCounts: entry.scopeEvidence?.targetClassCounts || {}, classes: evidenceClasses },
         comparisonSummary,
-        message: truncate(entry.message, 2400),
+        message: truncate(entry.message, messageLimit),
         ...(operations.length ? { operationSummary: { total: operations.length, byType: operationsByType }, operations: operationExamples } : {})
       };
     });
-    let entries = compactAssessments;
+    let entries = compactAssessments();
     let round = 1;
     const maxRounds = Math.min(AI_TUNING_LIMITS.synthesisMaxRounds.max,
       Math.max(AI_TUNING_LIMITS.synthesisMaxRounds.min, Math.floor(Number(getMaxRounds()) || AI_TUNING_LIMITS.synthesisMaxRounds.default)));
     const initialInput = prompt && entries.length ? buildInput(request, sourceScopeCoverage, entries, round, expectedScopes, requiredScopesByCategory) : '';
     let ready = payloadLimit > 0 && Boolean(initialInput) && initialInput.length <= payloadLimit;
     if (!ready && prompt && entries.length) ready = Boolean(packInputs(entries, round, request, sourceScopeCoverage, payloadLimit, expectedScopes, requiredScopesByCategory));
+    // A single chunk can exceed the remaining synthesis budget even after the
+    // normal compaction. Shrink its prose and evidence progressively so the
+    // other chunks can still be synthesized instead of falling back to a raw
+    // concatenation of their messages.
+    for (const limits of [[1600, 300, 180, 8], [900, 180, 120, 4], [500, 100, 80, 2], [250, 60, 50, 1]]) {
+      if (ready || !prompt || !entries.length) break;
+      entries = compactAssessments(...limits);
+      ready = Boolean(packInputs(entries, round, request, sourceScopeCoverage, payloadLimit, expectedScopes, requiredScopesByCategory));
+    }
 
     if (!ready) {
       onError(new Error('個別範囲の根拠を圧縮しても統合入力上限に収まりませんでした。'));
