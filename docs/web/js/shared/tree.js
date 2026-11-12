@@ -14,10 +14,7 @@
   const treeLabel = (value) => String(value || '').replace(/^"|"@[^@]+$/g, '');
 
   function classType(value) {
-    if (value && typeof value === 'object' && ['top', 'middle', 'class'].includes(value.type)) return value.type;
-    const id = value && typeof value === 'object' ? value.id : value;
-    const shortId = String(id).split('/').pop().replace(/^new-/, '');
-    return shortId.startsWith('t_') ? 'top' : shortId.startsWith('m_') ? 'middle' : 'class';
+    return global.getClassType ? global.getClassType(value) : 'class';
   }
 
   function buildTreeModel(classData, targetIds = null, preserveHierarchy = false) {

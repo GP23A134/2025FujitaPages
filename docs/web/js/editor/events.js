@@ -20,20 +20,6 @@ const collectSaveValidationIssues = (graph) => {
       message
     });
   };
-  const classesById = new Map();
-  graph.classes.forEach((item) => {
-    if (!item.id) {
-      addIssue('empty-id', 'error', [], '', 'IDが空のクラスがあります。');
-      return;
-    }
-    const entries = classesById.get(item.id) || [];
-    entries.push(item);
-    classesById.set(item.id, entries);
-  });
-  classesById.forEach((items, id) => {
-    if (items.length > 1) addIssue('duplicate-id', 'error', [id], String(items.length), `ID「${id}」のクラスが複数あります。`);
-  });
-  const byId = new Map(graph.classes.filter((item) => item.id).map((item) => [item.id, item]));
   const parentByChild = new Map(graph.relations.map(({ child, parent }) => [child, parent]));
   const labelsByType = new Map();
   graph.classes.forEach((item) => {
@@ -53,58 +39,7 @@ const collectSaveValidationIssues = (graph) => {
       `同じ種類のクラス名「${items[0].label}」が重複しています（${ids.join('、')}）。`);
   });
 
-  const seenRelations = new Set();
-  const parentsByChild = new Map();
-  graph.relations.forEach(({ child, parent }) => {
-    const relationKey = `${child}\u0000${parent}`;
-    if (seenRelations.has(relationKey)) addIssue('duplicate-relation', 'warning', [child, parent], '', `「${child}」から「${parent}」への親子関係が重複しています。`);
-    seenRelations.add(relationKey);
-    const childClass = byId.get(child);
-    const parentClass = byId.get(parent);
-    if (!childClass || !parentClass) {
-      addIssue('missing-reference', 'error', [child, parent], `${child}\u0000${parent}`, `親子関係「${child} → ${parent}」に存在しないクラスIDがあります。`);
-      return;
-    }
-    const parents = parentsByChild.get(child) || [];
-    parents.push(parent);
-    parentsByChild.set(child, parents);
-    if (!['middle', 'class'].includes(childClass.type) || !['top', 'middle'].includes(parentClass.type)) {
-      addIssue('invalid-type-edge', 'error', [child, parent], `${childClass.type}\u0000${parentClass.type}`,
-        `「${childClass.label}」から「${parentClass.label}」への階層種別が不正です。`);
-    }
-    if (parentClass.label === '未分類' && childClass.type === 'middle') {
-      addIssue('unclassified-middle', 'error', [child, parent], '', '中間クラスを「未分類」の下に置くことはできません。');
-    }
-  });
-  parentsByChild.forEach((parents, child) => {
-    if (new Set(parents).size > 1) addIssue('multiple-parents', 'error', [child, ...parents], '', `「${child}」が複数の親クラスを持っています。`);
-  });
-  graph.classes.filter((item) => ['middle', 'class'].includes(item.type)).forEach((item) => {
-    if (!parentsByChild.has(item.id)) addIssue('missing-parent', 'error', [item.id], item.type, `「${item.label || item.id}」に親クラスがありません。`);
-  });
-  const singleParent = new Map([...parentsByChild]
-    .filter(([, parents]) => new Set(parents).size === 1)
-    .map(([child, parents]) => [child, parents[0]]));
-  const reportedCycles = new Set();
-  graph.classes.forEach((item) => {
-    const path = [];
-    const pathIndex = new Map();
-    let current = item.id;
-    while (singleParent.has(current)) {
-      if (pathIndex.has(current)) {
-        const cycleIds = path.slice(pathIndex.get(current)).sort();
-        const cycleKey = cycleIds.join('\u0000');
-        if (!reportedCycles.has(cycleKey)) {
-          reportedCycles.add(cycleKey);
-          addIssue('cycle', 'error', cycleIds, '', `親子関係が循環しています（${cycleIds.join('、')}）。`);
-        }
-        break;
-      }
-      pathIndex.set(current, path.length);
-      path.push(current);
-      current = singleParent.get(current);
-    }
-  });
+  window.validateHierarchyGraph(graph.classes, graph.relations).forEach((issue) => issues.push(issue));
   return issues;
 };
 const showSaveValidation = (issues, action) => {

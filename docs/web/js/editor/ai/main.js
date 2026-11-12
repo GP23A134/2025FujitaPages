@@ -1,10 +1,10 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261111-ai-tuning-limits-v1';
-import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261111-ai-chat-responsibilities-v1';
+import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261112-class-type-normalization-policy-v1';
+import { createResponseHandler, createOperationPolicy, reconcileSplitProposals } from './proposal-engine.js?v=20261112-class-type-normalization-policy-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261110-first-line-workflow-status-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261111-ai-chat-responsibilities-v1';
-import { createAIClient } from './ai-client.js?v=20261111-response-count-limits-v1';
+import { createAIClient } from './ai-client.js?v=20261112-class-type-normalization-v1';
 import { createRequestProgress } from './request-progress.js?v=20261111-processing-text-v1';
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261111-ai-tuning-limits-v1';
 import { createProposalView } from './proposal-view.js?v=20261111-ai-chat-view-separation-v1';
@@ -267,7 +267,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     if (responseMode === 'proposal' || responseMode === 'evaluation') currentResponseMode = responseMode;
   });
   const responseModeInstruction = (mode) => mode === 'proposal'
-    ? '利用者が改善提案モードを選択しています。依頼内容を評価し、必要で妥当な変更案があれば提案してください。許可された操作は全種類です。依頼文から操作許可を推測・制限せず、削除を含む操作も提案できます。ただし依頼の条件に反する変更や根拠の弱い変更は提案しないでください。'
+    ? `利用者が改善提案モードを選択しています。依頼内容を評価し、必要で妥当な変更案があれば提案してください。許可された操作は全種類です。依頼文から操作許可を推測・制限せず、削除を含む操作も提案できます。${promptFlexibility <= 4 ? `分類先の整理や所属の見直しでは、自由度${promptFlexibility}の指示に従って候補を探し、該当候補があれば所属のずれを確定できなくても暫定案を提示して不確実性を明記してください。自由度1は直接説明しにくい関連も仮説として検討し、自由度2〜4はクラス名と階層から関連を説明できる候補に限ります。自由度4は依頼された変更範囲内で扱ってください。` : '自由度5では依頼で明示された移動だけを提案してください。'}依頼の条件、編集範囲、操作安全性は守ってください。`
     : '利用者が評価モードを選択しています。変更操作を含む提案や確認質問を出さず、評価・説明だけを返してください。情報が足りない場合は、判断できない点と理由をmessageに記載してください。';
   const addResponseModeToInput = (input, mode) => {
     const payload = JSON.parse(input);
@@ -276,7 +276,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   };
   const isFullGraphScopeEnabled = () => fullGraphScopeToggle.getAttribute('aria-checked') === 'true';
   const defaultPromptExamples = [
-    { id: 'target-membership', category: '基本', title: '所属を見直す', prompt: '選択範囲に対象クラスが含まれる場合、各対象の現在の所属が内容に合っているか確認してください。明確な所属のずれがある場合だけ、対象・適切な移動先・判断理由を示してください。所属を判断できない場合は、変更案を出さず不足している情報を説明してください。', showWhen: { always: true } },
+    { id: 'target-membership', category: '基本', title: '所属を見直す', prompt: '選択範囲に対象クラスが含まれる場合、対象・中間・上位クラスのラベルと親子関係を使って各対象の所属を確認してください。実体内容がない場合もラベルからの推定を示してください。提案モードでは適用中の自由度に従い、自由度1は直接説明しにくい関連も仮説として検討し、自由度2〜4はクラス名と階層から関連を説明できる移動先候補に限って、該当候補があれば所属のずれを確定できなくても暫定案を提示し根拠と不確実性を示してください。候補が複数の場合の案の幅は自由度に従い、自由度4は依頼された変更範囲内で候補を扱います。自由度5では依頼で明示された移動だけを扱ってください。評価モードでは変更案を作成しません。', showWhen: { always: true } },
     { id: 'common-summary', category: '基本', title: '選択範囲を要約', prompt: '選択範囲のクラスと親子関係を要約し、各クラスの役割と分類の特徴を説明してください。変更案は出さないでください。', showWhen: { always: true } }
   ];
   let availablePromptExamples = defaultPromptExamples;
@@ -878,7 +878,9 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     diffScope,
     shortenInputIds,
     getMaxUnitsPerBatch: () => MAX_UNITS_PER_BATCH,
-    getOptimizationSplitThreshold: () => OPTIMIZATION_SPLIT_THRESHOLD
+    getOptimizationSplitThreshold: () => OPTIMIZATION_SPLIT_THRESHOLD,
+    getProposalFreedom: () => promptFlexibility,
+    getAllowProposals: () => responseMode === 'proposal'
   });
   const getPayloadSnapshot = (additionalContextIds = [], includeAllClasses = false) => {
     const selectedIds = editor.selectedIds;
@@ -1355,7 +1357,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     // 小さな全体スナップショットより要約の方が長い場合は、トークンを増やさないよう全体データを送ります。
     const usesAnalysisMemory = Boolean(analysisMemoryContent && analysisMemoryContent.length < fullScopeContent.length);
     const userContent = usesAnalysisMemory ? analysisMemoryContent : fullScopeContent;
-    const effectiveCrossScopeStrategy = promptFlexibility <= 3 ? 'exhaustive' : crossScopeStrategy;
+    const effectiveCrossScopeStrategy = crossScopeStrategy;
     const crossScopeCandidateMode = responseMode === 'proposal' && effectiveCrossScopeStrategy === 'hierarchical'
       && scope.scopeCoverage === 'all_classes'
       && scope.classes.some((item) => item.type === 'class' && scope.editableIds.includes(item.id));
@@ -1457,7 +1459,8 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     const crossScopePlan = crossScopeStructure && !crossScopeCandidateMode
       ? crossScopeProposalSynthesizer.plan({ request: userText, conversationContext: conversation.localContext || '',
         scope: crossScopeStructure, fixedPromptCharacters: crossScopeFixedPromptCharacters, strategy: effectiveCrossScopeStrategy,
-        candidateUpperClassLimit: crossScopeCandidateUpperLimit, candidateMiddleClassLimit: crossScopeCandidateMiddleLimit })
+        candidateUpperClassLimit: crossScopeCandidateUpperLimit, candidateMiddleClassLimit: crossScopeCandidateMiddleLimit,
+        proposalFreedom: promptFlexibility })
       : null;
     const crossScopePreflightInputs = crossScopePlan?.status === 'completed'
       ? crossScopePlan.batches.map((batch) => batch.input) : [];
@@ -1839,7 +1842,8 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
               const executionPlan = crossScopeCandidateMode
                 ? crossScopeProposalSynthesizer.plan({ request: userText, conversationContext: conversation.localContext || '',
                   scope: executionScope, fixedPromptCharacters: crossScopeFixedPromptCharacters, strategy: effectiveCrossScopeStrategy,
-                  candidateUpperClassLimit: crossScopeCandidateUpperLimit, candidateMiddleClassLimit: crossScopeCandidateMiddleLimit })
+                  candidateUpperClassLimit: crossScopeCandidateUpperLimit, candidateMiddleClassLimit: crossScopeCandidateMiddleLimit,
+                  proposalFreedom: promptFlexibility })
                 : crossScopePlan;
               if (crossScopeCandidateMode) console.info('[AIチャット] 横断確認候補を絞り込みました', {
                 editableTargetCount: crossScopeEditableTargets.length,

@@ -3,7 +3,7 @@ const aggregationNumber = (value) => Number(value || 0).toLocaleString('ja-JP');
 const aggregationPercent = (part, whole) => whole ? `${(part / whole * 100).toFixed(1)}%` : '—';
 const aggregationClassTypesById = new Map();
 const aggregationClassType = (id) => aggregationClassTypesById.get(id)
-  || (/\/(?:new-)?t[_-]/.test(id) ? 'top' : /\/(?:new-)?m[_-]/.test(id) ? 'middle' : 'class');
+  || window.getClassType?.(id) || 'class';
 const aggregationClassLevel = (id) => aggregationClassType(id) === 'top' ? '上位'
   : aggregationClassType(id) === 'middle' ? '中間'
     : aggregationClassType(id) === 'class' ? '対象' : '不明';
@@ -392,7 +392,7 @@ function renderAggregation(data) {
   const classes = aggregationUniqueById(rawClasses);
   const instances = aggregationUniqueById(rawInstances);
   aggregationClassTypesById.clear();
-  classes.forEach((item) => aggregationClassTypesById.set(item.id, item.type || (/\/(?:new-)?t[_-]/.test(item.id) ? 'top' : /\/(?:new-)?m[_-]/.test(item.id) ? 'middle' : 'class')));
+  classes.forEach((item) => aggregationClassTypesById.set(item.id, window.getClassType?.(item) || 'class'));
   const classIds = new Set(classes.map((item) => item.id));
   const instanceIds = new Set(instances.map((item) => item.id));
   const classById = new Map(classes.map((item) => [item.id, item]));

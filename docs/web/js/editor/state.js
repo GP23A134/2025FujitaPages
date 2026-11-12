@@ -224,17 +224,6 @@ function applyTreeSelectionRange(control, event, selected) {
   renderInstances();
 }
 
-// 未分類の上位クラスは予約ID t_0 に統一する（旧データの t_16 なども移行）。
-const unclassifiedTop = classes.find((item) => classKind(item) === 'top' && item.label === '未分類');
-if (unclassifiedTop && unclassifiedTop.id !== 't_0') {
-  const oldId = unclassifiedTop.id;
-  unclassifiedTop.id = 't_0';
-  data.classData.relations.forEach((relation) => {
-    if (relation.parent === oldId) relation.parent = unclassifiedTop.id;
-    if (relation.child === oldId) relation.child = unclassifiedTop.id;
-  });
-}
-
 // 旧データに残っている「未分類」中間クラス(m_17)を読み込み時に除去する。
 // クラスは失わず、上位クラス「未分類」へ直接付け替える。
 const legacyUnclassifiedMiddleIds = new Set(
@@ -369,14 +358,11 @@ async function redoLastEdit() {
 // IDの命名規則からクラスの階層を判定する。new- で始まる編集中のIDも、
 // 保存前から通常の上位・中間・クラスと同じように扱う。
 function kind(id) {
-  const segment = String(id).split('/').pop();
-  if (/^(?:new-)?t[_-]/.test(segment)) return 'top';
-  if (/^(?:new-)?m[_-]/.test(segment)) return 'middle';
-  return 'class';
+  return window.getClassType ? window.getClassType(id) : 'class';
 }
 
 function classKind(item) {
-  return item.type || kind(item.id);
+  return window.getClassType ? window.getClassType(item) : item.type || kind(item.id);
 }
 
 function isUnclassified(item) {

@@ -36,11 +36,13 @@ export const createClassIdCodec = (classes) => {
     const aliasToId = new Map();
     const uriPrefixes = new Set();
     const plainIds = [];
+    let hasUncategorizedTopAlias = false;
 
     classes.forEach((item) => {
       const type = Object.hasOwn(prefixes, item.type) ? item.type : 'class';
-      // t_0 is the stable ID for the uncategorized top class, not a positional alias.
-      const isUncategorizedTop = type === 'top' && /(?:^|\/)t_0$/.test(item.id);
+      // t_0 is reserved as the request alias for the first uncategorized top class.
+      const isUncategorizedTop = type === 'top' && item.label === '未分類' && !hasUncategorizedTopAlias;
+      if (isUncategorizedTop) hasUncategorizedTopAlias = true;
       const alias = isUncategorizedTop ? 't_0' : `${prefixes[type]}_${++counts[type]}`;
       idToAlias.set(item.id, alias);
       aliasToId.set(alias, item.id);

@@ -41,6 +41,24 @@ export const createOperationPolicy = ({ allowProposals = true, taskKind = 'selec
   };
 };
 
+export const describeOperationPolicy = (policy) => {
+  if (!policy?.allowProposals || !policy.allowedTypes.length) return '変更案は作成せず、評価と説明だけを返してください。';
+  const instructions = [];
+  if (policy.allowedTypes.includes('addClass')) {
+    const types = policy.addClassTypes.map((type) => type === 'top' ? '上位クラス' : '中間クラス');
+    instructions.push(`${types.join('・')}を追加できます`);
+  }
+  if (policy.allowedTypes.includes('renameClass')) instructions.push('既存クラスを改名できます');
+  if (policy.allowedTypes.includes('moveClass')) {
+    const sources = policy.moveSourceTypes.map((type) => type === 'top' ? '上位クラス' : type === 'middle' ? '中間クラス' : '対象クラス');
+    instructions.push(`${sources.join('・')}を移動できます`);
+  }
+  if (policy.allowedTypes.includes('moveChildren')) instructions.push('中間クラスの子をまとめて移動できます');
+  if (policy.allowedTypes.includes('promoteClass')) instructions.push('中間クラスを上位クラスへ移せます');
+  if (policy.allowedTypes.includes('deleteClass')) instructions.push('クラスを削除できます');
+  return `この範囲で許可する操作: ${instructions.join('。')}。`;
+};
+
 export const operationAllowedByPolicy = (operation, policy, classesById, editableIds) => {
   if (!operation) return false;
   if (operation.type === 'moveClass' && !policy?.allowedTypes?.includes('moveClass')) {

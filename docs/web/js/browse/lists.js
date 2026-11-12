@@ -274,7 +274,7 @@ async function copyIdentifier(value, button) {
 
 function renderClassLists(data) {
   const allClasses = [...new Map((data.classData?.classes || []).map((item) => [item.id, item])).values()];
-  const classTypeById = new Map(allClasses.map((item) => [item.id, item.type || (/\/(?:new-)?t[_-]/.test(item.id) ? 'top' : /\/(?:new-)?m[_-]/.test(item.id) ? 'middle' : 'class')]));
+  const classTypeById = new Map(allClasses.map((item) => [item.id, window.getClassType?.(item) || 'class']));
   const classType = (id) => classTypeById.get(id) || 'class';
   const topClasses = [...new Map((data.topClassList?.classes || allClasses.filter((item) => classType(item.id) === 'top'))
     .map((item) => [item.id, item])).values()];

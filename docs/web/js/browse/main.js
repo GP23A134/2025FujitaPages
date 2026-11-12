@@ -45,19 +45,6 @@ if (window.appData) {
     ...(window.appData.classData.classes || []),
     ...(window.appData.targetClassData?.classes || [])
   ];
-  const unclassified = window.appData.classData.classes.find((item) =>
-    item.id.includes('/t_') && item.label === '未分類');
-  if (unclassified) {
-    const oldId = unclassified.id;
-    unclassified.id = oldId.replace(/\/t_\d+$/, '/t_0');
-    window.appData.classData.relations.forEach((relation) => {
-      if (relation.parent === oldId) relation.parent = unclassified.id;
-      if (relation.child === oldId) relation.child = unclassified.id;
-    });
-    [window.appData.topClassList].forEach((list) => list?.classes?.forEach((item) => {
-      if (item.id === oldId) item.id = unclassified.id;
-    }));
-  }
 }
 let hierarchyRows = [];
 

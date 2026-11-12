@@ -60,39 +60,14 @@
   const normalizeClassRecords = (items, label) => {
     records(items, label);
     return items.map((item) => {
-      const segment = item.id.split('/').pop();
-      const inferredType = /^(?:new-)?t[_-]/.test(segment)
-        ? 'top'
-        : /^(?:new-)?m[_-]/.test(segment) ? 'middle' : 'class';
-      const type = item.type || inferredType;
-      if (!['top', 'middle', 'class'].includes(type)) throw new Error(`${label}のtypeが不正です: ${item.id}`);
-      return { ...item, type };
+      if (item.type != null && !['top', 'middle', 'class'].includes(item.type)) throw new Error(`${label}のtypeが不正です: ${item.id}`);
+      return window.normalizeAppClassTypes({ classData: { classes: [item] } }).classData.classes[0];
     });
   };
-  const validateClassRelations = (relations, classIds) => {
-    if (!Array.isArray(relations)) throw new Error('クラス階層の関係は配列で指定してください。');
-    const classChildren = new Set();
-    const parentByChild = new Map();
-    relations.forEach((relation, index) => {
-      if (!relation || typeof relation.child !== 'string' || typeof relation.parent !== 'string') throw new Error(`クラス階層の${index + 1}件目を読み取れません。`);
-      if (!classIds.has(relation.child) || !classIds.has(relation.parent)) throw new Error(`クラス階層の参照先がありません: ${relation.child} → ${relation.parent}`);
-      if (relation.child === relation.parent || classChildren.has(relation.child)) throw new Error(`クラス階層の親子関係が不正または重複しています: ${relation.child}`);
-      classChildren.add(relation.child);
-      parentByChild.set(relation.child, relation.parent);
-    });
-    const completed = new Set();
-    for (const startId of parentByChild.keys()) {
-      const path = [];
-      const pathIds = new Set();
-      let currentId = startId;
-      while (parentByChild.has(currentId) && !completed.has(currentId)) {
-        if (pathIds.has(currentId)) throw new Error(`クラス階層に循環があります: ${currentId}`);
-        pathIds.add(currentId);
-        path.push(currentId);
-        currentId = parentByChild.get(currentId);
-      }
-      path.forEach((id) => completed.add(id));
-    }
+  const validateClassRelations = (relations, classes, options = {}) => {
+    const issues = window.validateHierarchyGraph(classes, relations, options);
+    const error = issues[0];
+    if (error) throw new Error(error.message);
     return relations;
   };
   const validateInstanceRelations = (relations, classIds, instanceIds) => {
@@ -123,7 +98,7 @@
     if (relations.length && !sharedClassRelations.length && !sharedInstanceClassRelations.length) {
       throw new Error('relationsはchild/parent形式またはinstance/class形式で指定してください。');
     }
-    const classRelations = validateClassRelations(data.classRelations || sharedClassRelations, classIds);
+    const classRelations = validateClassRelations(data.classRelations || sharedClassRelations, classes, { requireParents: false });
     const instanceClassRelations = validateInstanceRelations(data.instanceClassRelations || sharedInstanceClassRelations, classIds, instanceIds);
     return { classes, instances: data.instances, classRelations, instanceClassRelations };
   };
@@ -155,7 +130,7 @@
       relationByChild.set(relation.child, relation.parent);
     });
     const classRelations = [...relationByChild].map(([child, parent]) => ({ child, parent }));
-    validateClassRelations(classRelations, classIds);
+    validateClassRelations(classRelations, classes);
     const instanceIds = new Set(instanceData.instances.map((item) => item.id));
     const instanceClassRelations = validateInstanceRelations(instanceData.instanceClassRelations, classIds, instanceIds);
     return { classes, instances: instanceData.instances, classRelations, instanceClassRelations };

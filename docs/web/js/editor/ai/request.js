@@ -1,10 +1,16 @@
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261111-ai-tuning-limits-v1';
+import { createOperationPolicy, describeOperationPolicy } from './proposal-engine.js?v=20261112-class-type-normalization-policy-v1';
 
 // 現在の選択範囲を依頼JSONへ変換し、大きすぎる範囲を処理単位へ分割します。
 // scope固有の指示はJSON内に一時的に載せ、送信層が固定プロンプトの後ろへ移します。
 export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxRequestCharacters = () => MAX_REQUEST_CHARACTERS, diffScope, shortenInputIds,
   getMaxUnitsPerBatch = () => AI_TUNING_LIMITS.maxUnitsPerBatch.default,
-  getOptimizationSplitThreshold = () => AI_TUNING_LIMITS.optimizationSplitThreshold.default }) => {
+  getOptimizationSplitThreshold = () => AI_TUNING_LIMITS.optimizationSplitThreshold.default,
+  getProposalFreedom = () => 5,
+  getAllowProposals = () => true }) => {
+  const operationInstruction = (taskKind, scope) => describeOperationPolicy(createOperationPolicy({
+    allowProposals: Boolean(getAllowProposals()), taskKind, scope, proposalFreedom: getProposalFreedom()
+  }));
   // 長い全体分析の計画中も、ブラウザーに描画と入力イベントの処理を返します。
   const yieldToBrowser = () => new Promise((resolve) => window.setTimeout(resolve, 0));
   // 通常依頼では前回スナップショットとの差分を使い、初回・強制更新では全体を送ります。
@@ -75,9 +81,10 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
         }
         return '';
       };
-      const targetInstruction = scope.allowHierarchyEdits
-        ? `この分割範囲に含まれる上位クラス配下の対象クラスを評価してください。既存の階層を優先し、必要な追加・改名・移動はこの上位クラスの範囲に限って提案します。${scope.allowProposals ? '削除も許可されていますが、配下の既存クラスがすべて今回の編集範囲に含まれ、子を安全な親へ移動できる場合だけ提案し、子の移動を先、親の削除を後に置いてください。' : '削除を含む変更案は作りません。'}新しいクラスと対象クラスの移動は同じ提案にまとめ、対象との関連を説明してください。無関係な階層変更や入力にないクラス・関係の推測は禁止します。`
-        : 'この分割範囲に含まれる上位クラス配下の対象クラスを評価し、必要な移動を提案してください。利用者が新設を求めた場合は、この範囲に含まれる上位・中間クラスの下へ中間クラスを追加できます。新設クラスと対象クラスの移動は同じ提案にまとめます。入力にないクラスや関係の推測、範囲外のクラス操作は禁止します。別の上位クラスをまたぐ判断は最終統合に委ねてください。';
+      const targetOperationPolicy = createOperationPolicy({
+        allowProposals: Boolean(getAllowProposals()), taskKind: 'upper_class_unit', scope, proposalFreedom: getProposalFreedom()
+      });
+      const targetInstruction = `この分割範囲に含まれる上位クラス配下の対象クラスを評価してください。${describeOperationPolicy(targetOperationPolicy)}既存の階層を優先し、許可された追加と対象クラスの移動が必要なら同じ提案にまとめて対象との関連を説明してください。${targetOperationPolicy.allowedTypes.includes('deleteClass') ? '削除を提案する場合は、配下の既存クラスがすべて今回の編集範囲に含まれ、子を安全な親へ移動できる場合だけにし、子の移動を先、親の削除を後に置いてください。' : ''}無関係な階層変更、入力にないクラスや関係の推測、範囲外の操作は禁止します。別の上位クラスをまたぐ判断は最終統合に委ねてください。`;
       const buildTargetTask = (targets, groupHierarchy, topClassId) => {
         const targetIds = new Set(targets.map((item) => item.id));
         const hierarchyIds = new Set(groupHierarchy.map((item) => item.id));
@@ -159,9 +166,10 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
       }
       : editor.getHierarchyScopedState(scope.selectedIds);
     if (!hierarchyScope) return null;
-    const hierarchyInstruction = scope.allowHierarchyEdits
-      ? `この分割範囲では上位・中間クラスの追加・改名・移動を提案できます。${scope.allowProposals ? '削除も許可されていますが、配下を安全に移動して構造が成立する場合だけ提案してください。' : '削除を含む変更案は作りません。'}対象クラスの個別IDや全件情報は含まれないため、対象クラスの操作は提案しないでください。targetContextの対象クラス数は規模を示す参考情報です。入力にない情報を推測しないでください。selectionRootsの上位クラスは必要なら中間クラスへ移動できます。その場合は上位を中間化し、配下の親子関係を保って移動してください。`
-      : 'この分割範囲では上位・中間クラスの追加・改名・移動・削除を提案できます。対象クラスの個別IDや全件情報は含まれません。targetContextに対象クラス数がある場合は読み取り専用の参考として使えますが、対象クラスの変更案は作らず、入力にない情報を推測しないでください。この制約は今回の階層分割範囲だけに適用し、AIシステム全体が対象クラスの移動しかできないなどと説明してはいけません。selectionRootsの上位クラスは中間クラスへ移動できます。その場合は上位を中間化し、配下の親子関係を保って移動してください。';
+    const hierarchyOperationPolicy = createOperationPolicy({
+      allowProposals: Boolean(getAllowProposals()), taskKind: 'hierarchy', scope: hierarchyScope, proposalFreedom: getProposalFreedom()
+    });
+    const hierarchyInstruction = `この分割範囲を評価してください。${describeOperationPolicy(hierarchyOperationPolicy)}対象クラスの個別IDや全件情報は含まれないため、対象クラスの操作は提案しないでください。targetContextの対象クラス数は読み取り専用の参考情報です。入力にない情報を推測しないでください。${hierarchyOperationPolicy.allowedTypes.includes('moveClass') && hierarchyOperationPolicy.moveSourceTypes.includes('top') ? 'selectionRootsの上位クラスを中間クラスへ移す場合は配下の親子関係を保ってください。' : ''}`;
     const hierarchyClasses = scope.classes.filter((item) => ['top', 'middle'].includes(item.type));
     const hierarchyChunkLimit = taskCharacterLimit;
     const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
@@ -300,7 +308,10 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
     const targetInstruction = 'この分割範囲に含まれる対象クラスだけを評価してください。この範囲で許可する操作は対象クラスの移動だけです。上位・中間クラスの追加・改名・移動・削除や、入力にない対象クラスの操作は提案しないでください。移動先は入力にある上位・中間クラスのIDだけを使ってください。この制約は今回の対象クラス分割範囲だけに適用されます。AIシステム全体が上位・中間クラスを再編できない、または新しい中間クラスを作成できないと説明してはいけません。階層の再編が今回必要だが入力に階層クラスがない場合は、今回の範囲に階層情報がないため別途階層クラスの選択が必要だと説明してください。';
     const targetTasks = [];
     const targetUnits = [];
-    const targetOperationInstruction = 'この分割範囲に含まれる対象クラスと対応する上位・中間クラスを評価してください。既存の対象クラスを移動するだけでなく、利用者が求める場合は新しい中間クラスを作成して対象クラスを割り当ててください。新しい中間クラスはaddClass（classType=middle）で追加し、parentIdには入力中の上位・中間クラスID、または先に追加した中間クラスのtemporaryIdを使います。中間クラスを別の新しい中間クラスの下に作る場合は親を先に追加してください。必要な対象クラスは同じ提案内でmoveClassし、destinationIdには入力中の上位・中間クラスIDか同じ提案で追加した中間クラスのtemporaryIdを指定してください。既存の上位・中間クラスの改名・移動・削除は提案しません。入力にない対象クラスや親子関係は推測せず、この分割範囲を超えた全体判断は保留してください。この制約は今回の対象クラス分割範囲だけに適用され、全体として新設が不要と結論するには全チャンクの評価を使ってください。';
+    const targetOperationPolicy = createOperationPolicy({
+      allowProposals: Boolean(getAllowProposals()), taskKind: 'upper_class_targets', scope, proposalFreedom: getProposalFreedom()
+    });
+    const targetOperationInstruction = `この分割範囲に含まれる対象クラスと対応する上位・中間クラスを評価してください。${describeOperationPolicy(targetOperationPolicy)}${targetOperationPolicy.allowedTypes.includes('addClass') && targetOperationPolicy.addClassTypes.includes('middle') && targetOperationPolicy.allowedTypes.includes('moveClass') ? '新設した中間クラスへ対象クラスを割り当てる場合は同じ提案にまとめ、親は入力中の上位・中間クラスIDまたは先に追加した中間クラスのtemporaryIdを指定してください。' : ''}入力にない対象クラスや親子関係は推測せず、この分割範囲を超えた全体判断は保留してください。この制約は今回の対象クラス分割範囲だけに適用され、全体として新設が不要と結論するには全チャンクの評価を使ってください。`;
     targetClasses.forEach((target) => {
       let parentId = parentByChild.get(target.id);
       let hierarchyTask = null;
@@ -677,7 +688,7 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCh
 // 完了済み分割結果と全階層を使い、横断操作案だけを生成します。
 export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCharacters = () => MAX_REQUEST_CHARACTERS, shortenInputIds, createIdCodec }) => {
   const plan = ({ request, conversationContext = '', scope, fixedPromptCharacters = 0, strategy = 'exhaustive',
-    candidateUpperClassLimit = 2, candidateMiddleClassLimit = 5 }) => {
+    candidateUpperClassLimit = 2, candidateMiddleClassLimit = 5, proposalFreedom = 5 }) => {
     candidateUpperClassLimit = Math.max(1, Math.min(5, Math.floor(Number(candidateUpperClassLimit) || 2)));
     candidateMiddleClassLimit = Math.max(1, Math.min(10, Math.floor(Number(candidateMiddleClassLimit) || 5)));
     const classById = new Map((scope.classes || []).map((item) => [item.id, item]));
@@ -693,6 +704,9 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
     const roots = new Set(scope.selectedRoots || []);
     const parentByChild = new Map((scope.relations || []).map(({ child, parent }) => [child, parent]));
     const hierarchyById = new Map(hierarchyItems.map((item) => [item.id, item]));
+    const moveCandidateInstruction = proposalFreedom <= 4
+      ? `自由度${proposalFreedom}では、候補として渡された移動先の中から該当候補を探してください。${proposalFreedom === 1 ? '直接説明しにくい関連も仮説として候補にできます。' : 'クラス名と階層から関連を説明できる候補に限ります。'}該当候補があれば所属のずれを確定できなくても暫定的な移動操作を提案し、根拠と不確実性を示してください。候補が複数なら${proposalFreedom <= 3 ? '候補先ごとの代替案' : '適用可能な候補ごとの案'}を出します。該当候補がない対象だけ操作を作りません。`
+      : '自由度5では、依頼に明示された移動だけを提案してください。';
     const topAncestorFor = (id) => {
       let currentId = id;
       const seen = new Set();
@@ -794,8 +808,8 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
           allowHierarchyEdits: Boolean(scope.allowHierarchyEdits), allowProposals: Boolean(scope.allowProposals)
         } },
         instruction: strategy === 'hierarchical'
-          ? `階層を使った移動先候補の検索です。同じ上位クラス内は分割評価で確認済みのため、この横断工程では各editableIdについてcrossScopeBatch.targetCandidatesのtopIdsとmiddleIdsだけを移動先候補として比較してください。候補は名称が近い別の上位クラス最大${candidateUpperClassLimit}件と、その配下で名称が近い中間クラス（各最大${candidateMiddleClassLimit}件）です。候補外の階層を網羅的に確認したとは扱いません。role=cは親や選択ルートの文脈です。入力にない移動先や関係は推測しません。根拠が明確な場合だけ操作案を作ります。変更元はeditableIdsのクラスだけにし、移動先はその対象に指定されたtopIdsまたはmiddleIds内の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。質問は出さず、mに候補検索の限界を含む簡潔な判断、pに操作案、xにバッチIDと確認件数を返してください。`
-          : '全体の横断操作検討です。このバッチに含まれるeditableIdsをすべて確認し、selectedScope.data.classesのrole=hで示された全top/middleを候補として比較してください。role=cは親や選択ルートの文脈であり、このバッチの判定対象数には含めません。アプリは全対象と全階層の組み合わせを漏れなくバッチ化しています。入力にない移動先や関係は推測しません。根拠がある場合だけ操作案を作ります。変更元はeditableIdsのクラスだけにし、移動先は入力中の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。削除は配下全体を安全に編集できる場合だけにします。質問は出さず、mに簡潔な判断、pにこのバッチの操作案、xにバッチIDと実際に確認した件数を返してください。'
+          ? `階層を使った移動先候補の検索です。同じ上位クラス内は分割評価で確認済みのため、この横断工程では各editableIdについてcrossScopeBatch.targetCandidatesのtopIdsとmiddleIdsだけを移動先候補として比較してください。候補は名称が近い別の上位クラス最大${candidateUpperClassLimit}件と、その配下で名称が近い中間クラス（各最大${candidateMiddleClassLimit}件）です。候補外の階層を網羅的に確認したとは扱いません。role=cは親や選択ルートの文脈です。入力にない移動先や関係は推測しません。${moveCandidateInstruction}変更元はeditableIdsのクラスだけにし、移動先はその対象に指定されたtopIdsまたはmiddleIds内の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。質問は出さず、mに候補検索の限界を含む簡潔な判断、pに操作案、xにバッチIDと確認件数を返してください。`
+          : `全体の横断操作検討です。このバッチに含まれるeditableIdsをすべて確認し、selectedScope.data.classesのrole=hで示された全top/middleを候補として比較してください。role=cは親や選択ルートの文脈であり、このバッチの判定対象数には含めません。アプリは全対象と全階層の組み合わせを漏れなくバッチ化しています。入力にない移動先や関係は推測しません。${moveCandidateInstruction}変更元はeditableIdsのクラスだけにし、移動先は入力中の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。削除は配下全体を安全に編集できる場合だけにします。質問は出さず、mに簡潔な判断、pにこのバッチの操作案、xにバッチIDと実際に確認した件数を返してください。`
       });
     };
     const candidateIdsFor = (targets) => [...new Set(targets.flatMap((item) => candidateHierarchyIdsByTarget.get(item.id) || []))];

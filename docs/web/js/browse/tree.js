@@ -33,7 +33,7 @@ function buildHierarchyRows(data) {
       const leaf = path[path.length - 1] || classInfo;
       // 更新データによってはクラスが上位クラスへ直接つながる。
       // 階層の深さだけで判定すると、クラス(c_)自身を中間クラスとして表示してしまう。
-      const isTargetClass = leaf.id.includes('/c_');
+      const isTargetClass = leaf.type === 'class';
       const middle = path.length > 2
         ? path.slice(1, -1).map((item) => item.label).join(' / ')
         : (isTargetClass ? '（上位クラス直下）' : (path[1] ? path[1].label : '未分類'));
