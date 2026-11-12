@@ -517,6 +517,22 @@ body.is-ai-chat-open #edit-tree .move-held-button { display: none !important; }
 }
 
 #edit-tree-panel .tree .tree-leaf-class.is-selected .tree-leaf-id { color: #dbeafe; }
+#edit-tree .tree-top-class > summary.is-range-select-preview,
+#edit-tree .tree-middle-class > summary.is-range-select-preview,
+#edit-tree-panel .tree .tree-leaf-class.is-range-select-preview {
+  outline: 2px solid #16a34a;
+  outline-offset: 1px;
+  color: #166534;
+  background-color: #dcfce7;
+}
+#edit-tree .tree-top-class > summary.is-range-deselect-preview,
+#edit-tree .tree-middle-class > summary.is-range-deselect-preview,
+#edit-tree-panel .tree .tree-leaf-class.is-range-deselect-preview {
+  outline: 2px dashed #dc2626;
+  outline-offset: 1px;
+  color: #991b1b;
+  background-color: #fee2e2;
+}
 #edit-tree-panel .tree .tree-leaf-label {
   min-width: 0;
   overflow-wrap: anywhere;

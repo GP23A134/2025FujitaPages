@@ -684,42 +684,8 @@ const getTreeSelectionHits = (left, top, right, bottom) => {
     })
     .map((element) => element.dataset.selectionId);
 };
-const updateTreeSelectionMarquee = (selection, clientX, clientY) => {
-  const left = Math.min(selection.startX, clientX);
-  const top = Math.min(selection.startY, clientY);
-  const right = Math.max(selection.startX, clientX);
-  const bottom = Math.max(selection.startY, clientY);
-  selection.moved = right - left >= 4 || bottom - top >= 4;
-  if (!selection.moved) return;
-  if (!treeSelectionMarquee) {
-    treeSelectionMarquee = document.createElement('div');
-    treeSelectionMarquee.className = 'tree-selection-marquee';
-    treeSelectionMarquee.setAttribute('aria-hidden', 'true');
-    document.body.append(treeSelectionMarquee);
-  }
-  treeSelectionMarquee.hidden = false;
-  treeSelectionMarquee.style.left = `${left}px`;
-  treeSelectionMarquee.style.top = `${top}px`;
-  treeSelectionMarquee.style.width = `${right - left}px`;
-  treeSelectionMarquee.style.height = `${bottom - top}px`;
-};
-const finishTreeSelectionMarquee = (selection, clientX, clientY) => {
-  window.clearTimeout(selection.timer);
-  if (!selection.active) {
-    if (treeSelectionMarquee) treeSelectionMarquee.hidden = true;
-    return;
-  }
-  updateTreeSelectionMarquee(selection, clientX, clientY);
-  if (!selection.moved) {
-    if (treeSelectionMarquee) treeSelectionMarquee.hidden = true;
-    return;
-  }
-  const left = Math.min(selection.startX, clientX);
-  const top = Math.min(selection.startY, clientY);
-  const right = Math.max(selection.startX, clientX);
-  const bottom = Math.max(selection.startY, clientY);
-  const hitIds = getTreeSelectionHits(left, top, right, bottom);
-  const selectionBefore = snapshotEditState();
+const getTreeSelectionPlan = (rect) => {
+  const hitIds = getTreeSelectionHits(rect.left, rect.top, rect.right, rect.bottom);
   const hitSet = new Set(hitIds);
   const parentByChild = new Map(data.classData.relations.map(({ child, parent }) => [child, parent]));
   const selectionRoots = hitIds.filter((id) => {
@@ -740,6 +706,66 @@ const finishTreeSelectionMarquee = (selection, clientX, clientY) => {
     const selected = kind === 'class' ? heldInstances : kind === 'middle' ? heldMiddleClasses : heldTopClasses;
     return selected.has(item.id);
   });
+  return { selectionRoots, affectedItems, allSelected };
+};
+const clearTreeSelectionPreview = () => {
+  editTree?.querySelectorAll('.is-range-select-preview, .is-range-deselect-preview').forEach((element) => {
+    element.classList.remove('is-range-select-preview', 'is-range-deselect-preview');
+  });
+};
+const showTreeSelectionPreview = (rect) => {
+  clearTreeSelectionPreview();
+  const { affectedItems, allSelected } = getTreeSelectionPlan(rect);
+  if (!affectedItems.length) return;
+  const previewClass = allSelected ? 'is-range-deselect-preview' : 'is-range-select-preview';
+  const elementById = new Map([...editTree.querySelectorAll(
+    '.tree-top-class > summary[data-selection-id], .tree-middle-class > summary[data-selection-id], .tree-leaf-class[data-selection-id]'
+  )].map((element) => [element.dataset.selectionId, element]));
+  affectedItems.forEach((item) => elementById.get(item.id)?.classList.add(previewClass));
+};
+const updateTreeSelectionMarquee = (selection, clientX, clientY) => {
+  const startX = (selection.startPageX ?? selection.startX) - window.scrollX;
+  const startY = (selection.startPageY ?? selection.startY) - window.scrollY;
+  const left = Math.min(startX, clientX);
+  const top = Math.min(startY, clientY);
+  const right = Math.max(startX, clientX);
+  const bottom = Math.max(startY, clientY);
+  selection.moved = right - left >= 4 || bottom - top >= 4;
+  if (!selection.moved) {
+    clearTreeSelectionPreview();
+    return;
+  }
+  if (!treeSelectionMarquee) {
+    treeSelectionMarquee = document.createElement('div');
+    treeSelectionMarquee.className = 'tree-selection-marquee';
+    treeSelectionMarquee.setAttribute('aria-hidden', 'true');
+    document.body.append(treeSelectionMarquee);
+  }
+  treeSelectionMarquee.hidden = false;
+  treeSelectionMarquee.style.left = `${left}px`;
+  treeSelectionMarquee.style.top = `${top}px`;
+  treeSelectionMarquee.style.width = `${right - left}px`;
+  treeSelectionMarquee.style.height = `${bottom - top}px`;
+  showTreeSelectionPreview({ left, top, right, bottom });
+};
+const finishTreeSelectionMarquee = (selection, clientX, clientY) => {
+  window.clearTimeout(selection.timer);
+  if (selection.autoScrollFrame) window.cancelAnimationFrame(selection.autoScrollFrame);
+  selection.autoScrollFrame = 0;
+  if (!selection.active) {
+    clearTreeSelectionPreview();
+    if (treeSelectionMarquee) treeSelectionMarquee.hidden = true;
+    return;
+  }
+  updateTreeSelectionMarquee(selection, clientX, clientY);
+  if (!selection.moved) {
+    clearTreeSelectionPreview();
+    if (treeSelectionMarquee) treeSelectionMarquee.hidden = true;
+    return;
+  }
+  const bounds = treeSelectionMarquee.getBoundingClientRect();
+  const { selectionRoots, affectedItems, allSelected } = getTreeSelectionPlan(bounds);
+  const selectionBefore = snapshotEditState();
   const shouldSelect = !allSelected;
   affectedItems.forEach((item) => {
     const kind = classKind(item);
@@ -756,6 +782,7 @@ const finishTreeSelectionMarquee = (selection, clientX, clientY) => {
   syncTargetButtonAvailability();
   renderInstances();
   recordEditHistory(selectionBefore, '', allSelected ? '範囲選択解除' : '範囲選択');
+  clearTreeSelectionPreview();
   if (treeSelectionMarquee) treeSelectionMarquee.hidden = true;
 };
 editTreeSelectionRoot?.addEventListener('pointerdown', (event) => {
@@ -765,6 +792,10 @@ editTreeSelectionRoot?.addEventListener('pointerdown', (event) => {
     pointerId: event.pointerId,
     startX: event.clientX,
     startY: event.clientY,
+    startPageX: event.clientX + window.scrollX,
+    startPageY: event.clientY + window.scrollY,
+    currentX: event.clientX,
+    currentY: event.clientY,
     moved: false,
     active: true,
     timer: 0
@@ -776,7 +807,10 @@ editTreeSelectionRoot?.addEventListener('pointerdown', (event) => {
 editTreeSelectionRoot?.addEventListener('pointermove', (event) => {
   if (!touchRangeSelection?.active || touchRangeSelection.pointerId !== event.pointerId) return;
   event.preventDefault();
+  touchRangeSelection.currentX = event.clientX;
+  touchRangeSelection.currentY = event.clientY;
   updateTreeSelectionMarquee(touchRangeSelection, event.clientX, event.clientY);
+  continueTreeSelectionAutoScroll(touchRangeSelection);
 });
 editTreeSelectionRoot?.addEventListener('pointerup', (event) => {
   if (!touchRangeSelection?.active || touchRangeSelection.pointerId !== event.pointerId) return;
@@ -797,6 +831,10 @@ editTreeSelectionRoot?.addEventListener('touchstart', (event) => {
     pointerId: null,
     startX: touch.clientX,
     startY: touch.clientY,
+    startPageX: touch.clientX + window.scrollX,
+    startPageY: touch.clientY + window.scrollY,
+    currentX: touch.clientX,
+    currentY: touch.clientY,
     moved: false,
     active: false,
     timer: 0
@@ -817,7 +855,10 @@ editTreeSelectionRoot?.addEventListener('touchmove', (event) => {
     return;
   }
   event.preventDefault();
+  touchRangeSelection.currentX = touch.clientX;
+  touchRangeSelection.currentY = touch.clientY;
   updateTreeSelectionMarquee(touchRangeSelection, touch.clientX, touch.clientY);
+  continueTreeSelectionAutoScroll(touchRangeSelection);
 }, { passive: false });
 editTreeSelectionRoot?.addEventListener('touchend', (event) => {
   if (!touchRangeSelection) return;
@@ -842,6 +883,18 @@ const scrollTreeDuringDrag = (clientY) => {
     delta = Math.ceil(maxScroll * Math.min(1, (clientY - (window.innerHeight - edgeSize)) / edgeSize));
   }
   if (delta) window.scrollBy({ top: delta, behavior: 'auto' });
+  return delta;
+};
+const continueTreeSelectionAutoScroll = (selection) => {
+  if (selection.autoScrollFrame) return;
+  const scroll = () => {
+    selection.autoScrollFrame = 0;
+    if (!selection.active || touchRangeSelection !== selection) return;
+    if (!scrollTreeDuringDrag(selection.currentY)) return;
+    updateTreeSelectionMarquee(selection, selection.currentX, selection.currentY);
+    selection.autoScrollFrame = window.requestAnimationFrame(scroll);
+  };
+  selection.autoScrollFrame = window.requestAnimationFrame(scroll);
 };
 const applyTreeDrop = (destination) => {
   const destinationItem = classById.get(destination?.dataset.dragClassId);
