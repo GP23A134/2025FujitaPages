@@ -11,12 +11,15 @@ let treeHierarchyEditModeEnabled = false;
 let activeTreeDragIds = [];
 let temporaryTreeDragSelection = null;
 let touchTreeDrag = { timer: 0, source: null, startX: 0, startY: 0, active: false, destination: null, ids: [] };
+let touchRangeSelection = null;
+let treeSelectionMarquee = null;
 let treeDragHoverOpenTimer = 0;
 let treeDragHoverOpenTarget = null;
 let treeDragSummary = null;
 let treeDragSummaryLabel = '';
 let treeDragSummaryCount = 0;
 let treeDragRootIds = [];
+let pendingSummaryOpen = null;
 // 画面には選択中の条件だけ表示し、件数条件は一度設定した後もキーワード条件と併用する。
 let treeCountFilterEnabled = false;
 function scheduleTargetConnectorLayout() {
@@ -73,12 +76,73 @@ function restoreTreeViewportAnchor(details) {
     if (difference) window.scrollBy(0, difference);
   });
 }
+function isTreeItemSelected(id) {
+  const item = classById.get(id);
+  if (!item || isUnclassified(item)) return false;
+  const kind = classKind(item);
+  const selection = kind === 'class' ? heldInstances : kind === 'middle' ? heldMiddleClasses : heldTopClasses;
+  return selection.has(id);
+}
+function applySummarySelection(id, kind, selected, event) {
+  const control = { dataset: { selectionId: id, selectionKind: kind } };
+  applyTreeSelectionRange(control, event, selected);
+}
+function finishPendingSummaryOpen() {
+  if (!pendingSummaryOpen) return;
+  const pending = pendingSummaryOpen;
+  pendingSummaryOpen = null;
+  window.clearTimeout(pending.timer);
+  if (pending.details.open) captureTreeViewportAnchor(pending.details);
+  pending.details.open = !pending.details.open;
+}
+
 document.getElementById('edit-tree')?.addEventListener('click', (event) => {
   const summary = event.target.closest('summary');
   const details = summary?.parentElement;
-  if (!details?.matches('.tree-top-class, .tree-middle-class') || !details.open) return;
+  if (!details?.matches('.tree-top-class, .tree-middle-class')) return;
   if (event.target.closest('button, input, select, textarea, a')) return;
-  captureTreeViewportAnchor(details);
+  if (event.detail === 0) {
+    if (details.open) captureTreeViewportAnchor(details);
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  const node = { id: summary.dataset.selectionId, details };
+  if (!node.id) return;
+  if (event.detail > 1) {
+    if (pendingSummaryOpen?.id === node.id) {
+      window.clearTimeout(pendingSummaryOpen.timer);
+      pendingSummaryOpen = null;
+    }
+    return;
+  }
+  finishPendingSummaryOpen();
+  const pending = { ...node, timer: 0 };
+  pending.timer = window.setTimeout(() => {
+    if (pendingSummaryOpen !== pending) return;
+    if (!pending.details.isConnected) {
+      pendingSummaryOpen = null;
+      return;
+    }
+    finishPendingSummaryOpen();
+  }, 250);
+  pendingSummaryOpen = pending;
+}, true);
+document.getElementById('edit-tree')?.addEventListener('dblclick', (event) => {
+  const summary = event.target.closest('summary');
+  const details = summary?.parentElement;
+  if (!details?.matches('.tree-top-class, .tree-middle-class')
+    || event.target.closest('button, input, select, textarea, a')) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (pendingSummaryOpen?.id === summary.dataset.selectionId) {
+    window.clearTimeout(pendingSummaryOpen.timer);
+    pendingSummaryOpen = null;
+  } else finishPendingSummaryOpen();
+  const selection = { id: summary.dataset.selectionId, kind: summary.dataset.selectionKind };
+  if (isUnclassified(classById.get(selection.id))) return;
+  const selected = isTreeItemSelected(selection.id);
+  applySummarySelection(selection.id, selection.kind, !selected, event);
 }, true);
 
 function renderTree() {
@@ -89,6 +153,8 @@ function renderTree() {
       .filter(Boolean)
   );
   targetButtonById.clear();
+  middleTreeNodeById.clear();
+  topTreeNodeById.clear();
   middleCheckboxById.clear();
   topCheckboxById.clear();
 
@@ -325,15 +391,15 @@ function renderTree() {
     const controls = document.createElement('div');
     controls.className = 'tree-summary-controls';
     controls.addEventListener('click', (event) => event.stopPropagation());
-    const leadingControls = document.createElement('span');
-    leadingControls.className = 'tree-summary-leading-controls';
     const trailingControls = document.createElement('span');
     trailingControls.className = 'tree-summary-trailing-controls';
-    controls.append(leadingControls, trailingControls);
-    summary.parentElement.append(controls);
+    controls.append(trailingControls);
     summary.dataset.dragClassId = item.id;
+    summary.dataset.selectionId = item.id;
     summary.draggable = !isUnclassified(item);
     if (classKind(item) === 'middle') {
+      middleTreeNodeById.set(item.id, summary);
+      summary.dataset.selectionKind = 'middle';
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.className = 'tree-level-selection-checkbox';
@@ -341,88 +407,57 @@ function renderTree() {
       checkbox.dataset.selectionId = item.id;
       checkbox.dataset.selectionKind = 'middle';
       checkbox.title = '配下もまとめて選択・解除します。Shift＋クリックで連続範囲を選択します';
-      checkbox.disabled = false;
-      middleCheckboxById.set(item.id, checkbox);
       checkbox.setAttribute('aria-label', `${item.label}と配下を選択`);
       checkbox.addEventListener('click', (event) => { event.stopPropagation(); checkbox.dataset.shiftKey = String(event.shiftKey); });
       checkbox.addEventListener('change', (event) => applyTreeSelectionRange(checkbox, event, checkbox.checked));
-      leadingControls.append(checkbox);
+      middleCheckboxById.set(item.id, checkbox);
+      summary.insertBefore(checkbox, summary.firstChild);
     }
     if (classKind(item) === 'top') {
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.className = 'tree-level-selection-checkbox';
-      checkbox.checked = heldTopClasses.has(item.id);
-      checkbox.dataset.selectionId = item.id;
-      checkbox.dataset.selectionKind = 'top';
-      checkbox.title = '配下もまとめて選択・解除します。Shift＋クリックで連続範囲を選択します';
-      checkbox.disabled = false;
-      topCheckboxById.set(item.id, checkbox);
-      checkbox.setAttribute('aria-label', isUnclassified(item)
-        ? '未分類を選択（未分類自体は移動できません）'
-        : `${item.label}と配下を選択`);
-      checkbox.addEventListener('click', (event) => { event.stopPropagation(); checkbox.dataset.shiftKey = String(event.shiftKey); });
-      checkbox.addEventListener('change', (event) => applyTreeSelectionRange(checkbox, event, checkbox.checked));
-      leadingControls.append(checkbox);
+      topTreeNodeById.set(item.id, summary);
+      summary.dataset.selectionKind = 'top';
+      if (!isUnclassified(item)) {
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'tree-level-selection-checkbox';
+        checkbox.checked = heldTopClasses.has(item.id);
+        checkbox.dataset.selectionId = item.id;
+        checkbox.dataset.selectionKind = 'top';
+        checkbox.title = '配下もまとめて選択・解除します。Shift＋クリックで連続範囲を選択します';
+        checkbox.setAttribute('aria-label', `${item.label}と配下を選択`);
+        checkbox.addEventListener('click', (event) => { event.stopPropagation(); checkbox.dataset.shiftKey = String(event.shiftKey); });
+        checkbox.addEventListener('change', (event) => applyTreeSelectionRange(checkbox, event, checkbox.checked));
+        topCheckboxById.set(item.id, checkbox);
+        summary.insertBefore(checkbox, summary.firstChild);
+      }
     }
-    if (classKind(item) === 'top' || classKind(item) === 'middle') {
+    if ((classKind(item) === 'top' || classKind(item) === 'middle')
+      && treeHierarchyEditModeEnabled && item.label !== '未分類') {
       const actions = document.createElement('span');
       actions.className = 'tree-class-edit-actions';
       actions.addEventListener('click', (event) => event.stopPropagation());
-      const selectDescendants = document.createElement('button');
-      selectDescendants.type = 'button';
-      selectDescendants.className = 'select-descendants-button tree-class-edit-button';
-      selectDescendants.dataset.selectionRootId = item.id;
-      selectDescendants.textContent = '配下を選択';
-      selectDescendants.setAttribute('aria-label', `${item.label}の配下を選択・解除`);
-      selectDescendants.title = '配下を選択。すべて選択済みの場合は解除';
-      selectDescendants.addEventListener('click', (event) => {
+      const rename = document.createElement('button');
+      rename.type = 'button';
+      rename.className = 'rename-class-button tree-class-edit-button';
+      rename.textContent = '名称変更';
+      rename.setAttribute('aria-label', `${item.label}の名称変更`);
+      rename.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        const descendants = [...descendantIds(item.id)]
-          .map((id) => classById.get(id))
-          .filter(Boolean);
-        const isSelected = (descendant) => {
-          const kind = classKind(descendant);
-          const selection = kind === 'class' ? heldInstances : kind === 'middle' ? heldMiddleClasses : heldTopClasses;
-          return selection.has(descendant.id);
-        };
-        const clearSelection = descendants.length > 0 && descendants.every(isSelected);
-        descendants.forEach((descendant) => {
-          const kind = classKind(descendant);
-          const selection = kind === 'class' ? heldInstances : kind === 'middle' ? heldMiddleClasses : heldTopClasses;
-          if (clearSelection) selection.delete(descendant.id);
-          else selection.set(descendant.id, descendant);
-        });
-        syncTreeSelectionAppearance();
-        syncTargetButtonAvailability();
-        renderInstances();
+        renameClass(item);
       });
-      actions.append(selectDescendants);
-      if (treeHierarchyEditModeEnabled && item.label !== '未分類') {
-        const rename = document.createElement('button');
-        rename.type = 'button';
-        rename.className = 'rename-class-button tree-class-edit-button';
-        rename.textContent = '名称変更';
-        rename.setAttribute('aria-label', `${item.label}の名称変更`);
-        rename.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          renameClass(item);
-        });
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'delete-class-button tree-class-edit-button';
-        remove.textContent = '削除';
-        remove.disabled = item.label === '未分類';
-        remove.setAttribute('aria-label', `${item.label}を削除`);
-        remove.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          deleteClass(item);
-        });
-        actions.append(rename, remove);
-      }
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'delete-class-button tree-class-edit-button';
+      remove.textContent = '削除';
+      remove.disabled = item.label === '未分類';
+      remove.setAttribute('aria-label', `${item.label}を削除`);
+      remove.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteClass(item);
+      });
+      actions.append(rename, remove);
       trailingControls.append(actions);
     }
     if (classKind(item) === 'middle') {
@@ -454,13 +489,15 @@ function renderTree() {
       }
       addButton.hidden = isUnclassified
         ? heldInstances.size === 0
-        : heldMiddleClasses.size === 0 && heldTopClasses.size === 0 && heldInstances.size === 0;
+        : (heldMiddleClasses.size === 0 && heldTopClasses.size === 0 && heldInstances.size === 0)
+          || heldTopClasses.has(item.id) || heldMiddleClasses.has(item.id);
       addButton.setAttribute('aria-label', 'ここへ移動');
       addButton.title = isUnclassified
         ? '保持中のクラスを未分類へ移動'
         : '保持中のクラスをここへ移動';
       trailingControls.append(addButton);
     }
+    summary.append(controls);
   };
   window.renderHierarchyTree(tree, model, {
     displayId: displayClassId,
@@ -495,13 +532,16 @@ function renderTree() {
 
 // 選択済みの階層項目をまとめてドラッグし、別の上位・中間クラスへ移動する。
 const editTree = document.getElementById('edit-tree');
+const editTreeSelectionRoot = document.documentElement;
 const selectedTreeClassIds = () => [
   ...heldTopClasses.keys(), ...heldMiddleClasses.keys(), ...heldInstances.keys()
 ];
 const syncTreeMoveButtonVisibility = () => {
   const hasSelection = heldInstances.size > 0 || heldMiddleClasses.size > 0 || heldTopClasses.size > 0;
   editTree.querySelectorAll('.move-held-button[data-destination-class-id]').forEach((button) => {
-    button.hidden = !hasSelection || activeTreeDragIds.includes(button.dataset.destinationClassId);
+    const destinationId = button.dataset.destinationClassId;
+    button.hidden = !hasSelection || activeTreeDragIds.includes(destinationId)
+      || heldTopClasses.has(destinationId) || heldMiddleClasses.has(destinationId);
   });
 };
 const showTreeDragSummary = (clientX = -10000, clientY = -10000) => {
@@ -623,6 +663,175 @@ const setTreeDropTarget = (destination) => {
   destination?.classList.add('is-drop-target');
   scheduleTreeDragHoverOpen(destination);
 };
+const isTreeSelectionWhitespace = (target, clientX, clientY) => {
+  if (target.closest('summary, button, input, select, textarea, a, [data-drag-class-id], .tree-summary-controls')) return false;
+  if (editTree.contains(target)) return true;
+  const treeBounds = editTree.getBoundingClientRect();
+  const firstSummary = editTree.querySelector('.tree-top-class > summary');
+  const selectionGutterRight = firstSummary?.getBoundingClientRect().left ?? treeBounds.left;
+  return clientX >= 0 && clientX <= selectionGutterRight
+    && clientY >= treeBounds.top && clientY <= treeBounds.bottom;
+};
+const getTreeSelectionHits = (left, top, right, bottom) => {
+  const rect = { left, top, right, bottom };
+  return [...editTree.querySelectorAll('.tree-top-class > summary[data-selection-id], .tree-middle-class > summary[data-selection-id], .tree-leaf-class')]
+    .filter((element) => {
+      if (isUnclassified(classById.get(element.dataset.selectionId))) return false;
+      const bounds = element.getBoundingClientRect();
+      return bounds.width > 0 && bounds.height > 0
+        && bounds.right >= rect.left && bounds.left <= rect.right
+        && bounds.bottom >= rect.top && bounds.top <= rect.bottom;
+    })
+    .map((element) => element.dataset.selectionId);
+};
+const updateTreeSelectionMarquee = (selection, clientX, clientY) => {
+  const left = Math.min(selection.startX, clientX);
+  const top = Math.min(selection.startY, clientY);
+  const right = Math.max(selection.startX, clientX);
+  const bottom = Math.max(selection.startY, clientY);
+  selection.moved = right - left >= 4 || bottom - top >= 4;
+  if (!selection.moved) return;
+  if (!treeSelectionMarquee) {
+    treeSelectionMarquee = document.createElement('div');
+    treeSelectionMarquee.className = 'tree-selection-marquee';
+    treeSelectionMarquee.setAttribute('aria-hidden', 'true');
+    document.body.append(treeSelectionMarquee);
+  }
+  treeSelectionMarquee.hidden = false;
+  treeSelectionMarquee.style.left = `${left}px`;
+  treeSelectionMarquee.style.top = `${top}px`;
+  treeSelectionMarquee.style.width = `${right - left}px`;
+  treeSelectionMarquee.style.height = `${bottom - top}px`;
+};
+const finishTreeSelectionMarquee = (selection, clientX, clientY) => {
+  window.clearTimeout(selection.timer);
+  if (!selection.active) {
+    if (treeSelectionMarquee) treeSelectionMarquee.hidden = true;
+    return;
+  }
+  updateTreeSelectionMarquee(selection, clientX, clientY);
+  if (!selection.moved) {
+    if (treeSelectionMarquee) treeSelectionMarquee.hidden = true;
+    return;
+  }
+  const left = Math.min(selection.startX, clientX);
+  const top = Math.min(selection.startY, clientY);
+  const right = Math.max(selection.startX, clientX);
+  const bottom = Math.max(selection.startY, clientY);
+  const hitIds = getTreeSelectionHits(left, top, right, bottom);
+  const selectionBefore = snapshotEditState();
+  const hitSet = new Set(hitIds);
+  const parentByChild = new Map(data.classData.relations.map(({ child, parent }) => [child, parent]));
+  const selectionRoots = hitIds.filter((id) => {
+    const visited = new Set();
+    let parentId = parentByChild.get(id);
+    while (parentId && !visited.has(parentId)) {
+      if (hitSet.has(parentId)) return false;
+      visited.add(parentId);
+      parentId = parentByChild.get(parentId);
+    }
+    return true;
+  });
+  const affectedItems = [...new Set(selectionRoots.flatMap((id) => [id, ...descendantIds(id)]))]
+    .map((id) => classById.get(id))
+    .filter((item) => item && !isUnclassified(item));
+  const allSelected = affectedItems.length > 0 && affectedItems.every((item) => {
+    const kind = classKind(item);
+    const selected = kind === 'class' ? heldInstances : kind === 'middle' ? heldMiddleClasses : heldTopClasses;
+    return selected.has(item.id);
+  });
+  const shouldSelect = !allSelected;
+  affectedItems.forEach((item) => {
+    const kind = classKind(item);
+    const selected = kind === 'class' ? heldInstances : kind === 'middle' ? heldMiddleClasses : heldTopClasses;
+    if (shouldSelect) selected.set(item.id, item);
+    else selected.delete(item.id);
+  });
+  if (selectionRoots.length) {
+    const lastItem = classById.get(selectionRoots.at(-1));
+    heldKindView = classKind(lastItem) === 'class' ? 'target' : classKind(lastItem) === 'middle' ? 'middle' : 'top';
+    selectionRangeAnchorId = selectionRoots.at(-1);
+  }
+  syncTreeSelectionAppearance();
+  syncTargetButtonAvailability();
+  renderInstances();
+  recordEditHistory(selectionBefore, '', allSelected ? '範囲選択解除' : '範囲選択');
+  if (treeSelectionMarquee) treeSelectionMarquee.hidden = true;
+};
+editTreeSelectionRoot?.addEventListener('pointerdown', (event) => {
+  if (event.pointerType !== 'mouse' || event.button !== 0
+    || !isTreeSelectionWhitespace(event.target, event.clientX, event.clientY)) return;
+  const selection = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    moved: false,
+    active: true,
+    timer: 0
+  };
+  touchRangeSelection = selection;
+  event.preventDefault();
+  editTreeSelectionRoot.setPointerCapture(event.pointerId);
+});
+editTreeSelectionRoot?.addEventListener('pointermove', (event) => {
+  if (!touchRangeSelection?.active || touchRangeSelection.pointerId !== event.pointerId) return;
+  event.preventDefault();
+  updateTreeSelectionMarquee(touchRangeSelection, event.clientX, event.clientY);
+});
+editTreeSelectionRoot?.addEventListener('pointerup', (event) => {
+  if (!touchRangeSelection?.active || touchRangeSelection.pointerId !== event.pointerId) return;
+  event.preventDefault();
+  finishTreeSelectionMarquee(touchRangeSelection, event.clientX, event.clientY);
+  touchRangeSelection = null;
+});
+editTreeSelectionRoot?.addEventListener('pointercancel', (event) => {
+  if (!touchRangeSelection || touchRangeSelection.pointerId !== event.pointerId) return;
+  finishTreeSelectionMarquee({ ...touchRangeSelection, active: false }, event.clientX, event.clientY);
+  touchRangeSelection = null;
+});
+editTreeSelectionRoot?.addEventListener('touchstart', (event) => {
+  if (event.touches.length !== 1 || !isTreeSelectionWhitespace(event.target,
+    event.touches[0].clientX, event.touches[0].clientY)) return;
+  const touch = event.touches[0];
+  const selection = {
+    pointerId: null,
+    startX: touch.clientX,
+    startY: touch.clientY,
+    moved: false,
+    active: false,
+    timer: 0
+  };
+  selection.timer = window.setTimeout(() => {
+    if (touchRangeSelection === selection) selection.active = true;
+  }, 500);
+  touchRangeSelection = selection;
+}, { passive: true });
+editTreeSelectionRoot?.addEventListener('touchmove', (event) => {
+  if (!touchRangeSelection) return;
+  const touch = event.touches[0];
+  if (!touchRangeSelection.active) {
+    if (Math.hypot(touch.clientX - touchRangeSelection.startX, touch.clientY - touchRangeSelection.startY) > 10) {
+      window.clearTimeout(touchRangeSelection.timer);
+      touchRangeSelection = null;
+    }
+    return;
+  }
+  event.preventDefault();
+  updateTreeSelectionMarquee(touchRangeSelection, touch.clientX, touch.clientY);
+}, { passive: false });
+editTreeSelectionRoot?.addEventListener('touchend', (event) => {
+  if (!touchRangeSelection) return;
+  const touch = event.changedTouches[0];
+  if (touchRangeSelection.active) event.preventDefault();
+  finishTreeSelectionMarquee(touchRangeSelection, touch.clientX, touch.clientY);
+  touchRangeSelection = null;
+}, { passive: false });
+editTreeSelectionRoot?.addEventListener('touchcancel', () => {
+  if (!touchRangeSelection) return;
+  window.clearTimeout(touchRangeSelection.timer);
+  touchRangeSelection = null;
+  if (treeSelectionMarquee) treeSelectionMarquee.hidden = true;
+});
 const scrollTreeDuringDrag = (clientY) => {
   const edgeSize = 72;
   const maxScroll = 24;
@@ -708,8 +917,9 @@ editTree?.addEventListener('touchstart', (event) => {
   const control = event.target.closest('input, button');
   if (control && control !== source) return;
   const id = source?.dataset.dragClassId;
-  if (!id || !classById.has(id)) return;
   const touch = event.touches[0];
+  if (!id) return;
+  if (!classById.has(id)) return;
   touchTreeDrag.source = source;
   touchTreeDrag.startX = touch.clientX;
   touchTreeDrag.startY = touch.clientY;

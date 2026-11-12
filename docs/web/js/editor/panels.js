@@ -117,7 +117,7 @@ function renderInstances() {
   document.querySelectorAll('#edit-tree .tree-add-button.move-held-button').forEach((button) => {
     button.hidden = aiChatOpen;
   });
-  document.querySelectorAll('#edit-tree .tree-class-edit-button:not(.select-descendants-button)').forEach((button) => {
+  document.querySelectorAll('#edit-tree .tree-class-edit-button').forEach((button) => {
     button.disabled = aiChatOpen;
   });
   const heldListView = document.getElementById('held-list-view');
@@ -424,12 +424,6 @@ function syncTargetButtonAvailability() {
   targetButtonById.forEach((button) => {
     button.disabled = false;
     button.title = '';
-  });
-  middleCheckboxById.forEach((checkbox) => {
-    checkbox.disabled = false;
-  });
-  topCheckboxById.forEach((checkbox) => {
-    checkbox.disabled = false;
   });
 }
 

@@ -378,17 +378,11 @@ document.getElementById('clear-held').addEventListener('click', () => {
 function updateVisibleTreeSelection(select) {
   const selectionBefore = snapshotEditState();
   const roots = [
-    ...middleCheckboxById.keys(),
-    ...topCheckboxById.keys(),
+    ...middleTreeNodeById.keys(),
+    ...topTreeNodeById.keys(),
     ...targetButtonById.keys()
   ];
   applyTreeSubtreeSelection(roots, select);
-  middleCheckboxById.forEach((checkbox, id) => {
-    checkbox.checked = heldMiddleClasses.has(id);
-  });
-  topCheckboxById.forEach((checkbox, id) => {
-    checkbox.checked = heldTopClasses.has(id);
-  });
   targetButtonById.forEach((button, id) => {
     button.classList.toggle('is-selected', heldInstances.has(id));
   });
@@ -637,7 +631,7 @@ window.classEditorAI = {
       const item = classById.get(id);
       if (!item) return;
       const type = classKind(item);
-      if (type === 'top') heldTopClasses.set(id, item);
+      if (type === 'top' && !isUnclassified(item)) heldTopClasses.set(id, item);
       else if (type === 'middle') heldMiddleClasses.set(id, item);
       else heldInstances.set(id, item);
     });
@@ -648,7 +642,7 @@ window.classEditorAI = {
     const selectionBefore = snapshotEditState();
     classes.forEach((item) => {
     const type = classKind(item);
-    if (type === 'top') heldTopClasses.set(item.id, item);
+    if (type === 'top' && !isUnclassified(item)) heldTopClasses.set(item.id, item);
     else if (type === 'middle') heldMiddleClasses.set(item.id, item);
     else heldInstances.set(item.id, item);
     });
@@ -1044,7 +1038,7 @@ window.classEditorAI = {
     });
     [...heldTopClasses.keys()].forEach((id) => {
       const item = classById.get(id);
-      if (!item || classKind(item) !== 'top') heldTopClasses.delete(id);
+      if (!item || classKind(item) !== 'top' || isUnclassified(item)) heldTopClasses.delete(id);
       else heldTopClasses.set(id, item);
     });
     hasUnsavedChanges = true;

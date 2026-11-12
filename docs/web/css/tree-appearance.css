@@ -25,7 +25,7 @@
 #edit-tree-panel .tree-top-class > summary::before,
 #tree-panel .tree-middle-class > summary::before,
 #edit-tree-panel .tree-middle-class > summary::before {
-  content: "▸"; flex: 0 0 1rem; color: var(--tree-child-level-color, var(--tree-level-color, #075985)); font-size: 0.85rem; text-align: center;
+  content: "▸"; flex: 0 0 1.4rem; color: var(--tree-child-level-color, var(--tree-level-color, #075985)); font-size: 1.3rem; text-align: center;
 }
 #tree-panel .tree-top-class[open] > summary::before,
 #edit-tree-panel .tree-top-class[open] > summary::before,
@@ -38,8 +38,8 @@
 }
 :is(#tree-panel, #edit-tree-panel) .tree-top-class > summary:hover,
 :is(#tree-panel, #edit-tree-panel) .tree-middle-class > summary:hover,
-:is(#tree-panel, #edit-tree-panel) .tree-top-class > summary:has(+ .tree-summary-controls:hover),
-:is(#tree-panel, #edit-tree-panel) .tree-middle-class > summary:has(+ .tree-summary-controls:hover) {
+:is(#tree-panel, #edit-tree-panel) .tree-top-class > summary:has(.tree-summary-controls:hover),
+:is(#tree-panel, #edit-tree-panel) .tree-middle-class > summary:has(.tree-summary-controls:hover) {
   filter: brightness(0.96);
   box-shadow: 0 3px 8px rgba(15, 23, 42, 0.18);
 }
@@ -186,6 +186,7 @@
 
 #edit-tree-panel .tree details { margin: 0.45rem 0; }
 #edit-tree-panel .tree > .tree-top-class { margin-top: 0; }
+#edit-tree-panel .tree > .tree-top-class > .tree-level-rows { margin-left: 1.7rem; }
 
 #edit-tree-panel .tree summary {
   display: flex;
@@ -200,7 +201,14 @@
   padding: 0.25rem 0.55rem;
   font-size: 0.95rem;
 }
-#edit-tree-panel .tree-top-class > summary { top: var(--edit-top-class-sticky-top, 0px); }
+#edit-tree-panel .tree-top-class > summary {
+  top: var(--edit-top-class-sticky-top, 0px);
+  width: calc(100% - 0.5rem);
+  margin-left: 0.5rem;
+  box-sizing: border-box;
+}
+#edit-tree-panel .tree-top-class > summary::before,
+#edit-tree-panel .tree-middle-class > summary::before { flex-basis: 1rem; font-size: 1rem; }
 #edit-tree-panel .tree-middle-class > summary {
   top: calc(var(--edit-top-class-sticky-top, 0px) + var(--middle-sticky-top, var(--edit-top-sticky-offset, 3.35rem)));
   margin-top: 0;
@@ -226,7 +234,7 @@
 }
 
 /* 最上位の追加行は階層項目ではないため、リスト点と接続線を表示しない。 */
-#edit-tree-panel .tree > .tree-root-add-row { list-style: none; }
+#edit-tree-panel .tree > .tree-root-add-row { width: calc(100% - 0.5rem); margin-left: 0.5rem; list-style: none; }
 #edit-tree-panel .tree > .tree-root-add-row::marker { content: none; }
 #edit-tree-panel .tree > .tree-root-add-row::before { content: none; display: none; }
 
@@ -274,8 +282,9 @@
 #edit-tree-panel .tree .tree-child-middle-list { display: grid; row-gap: 0.1rem; }
 #edit-tree-panel .tree .tree-child-middle-list > li { margin: 0; }
 #edit-tree-panel .tree li:has(> .tree-middle-class) { margin-left: 0; padding: 0.05rem 0; background: #f8fafc; }
-#edit-tree-panel .tree .tree-target-list { row-gap: 0.1rem; }
+#edit-tree-panel .tree ul.tree-target-list:has(> li > .tree-leaf-class) { row-gap: 0.1rem; column-gap: 1rem; }
 #edit-tree-panel .tree .tree-target-list > li { margin-block: 0.075rem; }
+#edit-tree-panel .tree .tree-target-list > li::before { left: -1.2rem; width: 1.2rem; }
 #edit-tree-panel .tree li:has(> .tree-middle-class)::before { display: none; }
 #edit-tree-panel .tree .tree-middle-class { width: auto; max-width: 100%; margin-block: 0; }
 #edit-tree-panel .tree .tree-middle-class > summary,
@@ -334,15 +343,15 @@
 #edit-tree [data-drag-class-id] { cursor: grab; }
 #edit-tree [data-drag-class-id].is-dragging { opacity: 0.5; cursor: grabbing; }
 #edit-tree summary.is-drop-target { outline: 2px dashed #0284c7; outline-offset: 2px; background: #e0f2fe; }
+#edit-tree .tree-top-class > summary.is-selected,
+#edit-tree .tree-middle-class > summary.is-selected { outline: 2px solid #f59e0b; outline-offset: 1px; background-color: #fef3c7; }
 body.is-tree-touch-dragging #edit-tree { user-select: none; -webkit-user-select: none; }
 #toggle-tree-edit-mode[aria-pressed="true"] { border-color: #2563eb; color: #1d4ed8; background: #eff6ff; }
-.tree-summary-controls { position: sticky; top: calc(var(--edit-top-class-sticky-top, var(--browse-tree-heading-sticky-top, 0px)) + 0.15rem); z-index: 12; display: flex; width: 100%; height: 2rem; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 0.25rem; margin-top: -2rem; padding-right: 0.55rem; pointer-events: none; }
+.tree-summary-controls { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 0.25rem; margin-left: auto; padding-right: 0.1rem; pointer-events: none; }
 .tree-summary-controls > * { pointer-events: auto; }
-.tree-summary-leading-controls { display: flex; flex: 0 0 auto; align-items: center; margin-left: 1.55rem; }
 .tree-summary-trailing-controls { display: flex; flex: 0 0 auto; align-items: center; gap: 0.25rem; }
-#edit-tree-panel .tree-middle-class > .tree-summary-controls { top: calc(var(--edit-top-class-sticky-top, 0px) + var(--middle-sticky-top, var(--edit-top-sticky-offset, 3.35rem)) + 0.15rem); }
-#tree-panel .tree-top-class > .tree-summary-controls { top: calc(var(--browse-tree-heading-sticky-top, 0px) + 0.15rem); }
-#tree-panel .tree-middle-class > .tree-summary-controls { top: calc(var(--browse-tree-heading-sticky-top, 0px) + var(--middle-sticky-top, 3.35rem) + 0.15rem); }
+.tree-level-selection-checkbox { flex: 0 0 auto; align-self: center; width: 1rem; height: 1rem; margin: 0 0 0 0.35rem; accent-color: #2563eb; cursor: pointer; }
+.tree-selection-marquee { position: fixed; z-index: 10000; box-sizing: border-box; border: 1px solid #2563eb; background: rgb(37 99 235 / 16%); pointer-events: none; }
 .tree-class-edit-actions { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 0.25rem; margin-left: 0.35rem; }
 body.is-ai-chat-open #edit-tree .rename-class-button,
 body.is-ai-chat-open #edit-tree .delete-class-button { display: none !important; }
@@ -353,10 +362,6 @@ body.is-ai-chat-open #edit-tree .move-held-button { display: none !important; }
 .delete-class-button { border: 1px solid #dc2626; border-radius: 999px; padding: 0.15rem 0.4rem; color: #b91c1c; background: #fff; cursor: pointer; font: inherit; font-size: 0.68rem; font-weight: 700; line-height: 1.25; }
 .delete-class-button:hover:not(:disabled) { color: #fff; background: #dc2626; }
 .delete-class-button:disabled { opacity: 0.45; cursor: not-allowed; }
-.select-descendants-button { flex: 0 0 auto; padding: 0.15rem 0.4rem; border: 1px solid #0f6a9d; border-radius: 999px; color: #0f6a9d; background: #effaff; cursor: pointer; font: inherit; font-size: 0.68rem; font-weight: 700; line-height: 1.25; }
-.select-descendants-button:hover { color: #fff; background: #0f6a9d; }
-.select-descendants-button.is-selected { border-color: #15803d; color: #fff; background: #16a34a; }
-.select-descendants-button.is-partially-selected { border-color: #d97706; color: #78350f; background: #fef3c7; }
 #edit-tree-panel .tree .tree-add-button {
   box-sizing: border-box;
   width: min(100%, 640px);
@@ -406,12 +411,12 @@ body.is-ai-chat-open #edit-tree .move-held-button { display: none !important; }
   background: #ea580c;
   box-shadow: 0 0 0 2px #fed7aa;
 }
-#edit-tree-panel .tree summary.is-drop-target + .tree-summary-controls > .tree-add-button.move-held-middle-button {
+#edit-tree-panel .tree summary.is-drop-target .tree-summary-controls > .tree-add-button.move-held-middle-button {
   border-color: #15803d;
   background: #16a34a;
 }
-#edit-tree-panel .tree summary.is-drop-target + .tree-summary-controls > .tree-add-button.move-held-middle-button:hover,
-#edit-tree-panel .tree summary.is-drop-target + .tree-summary-controls > .tree-add-button.move-held-middle-button:focus-visible {
+#edit-tree-panel .tree summary.is-drop-target .tree-summary-controls > .tree-add-button.move-held-middle-button:hover,
+#edit-tree-panel .tree summary.is-drop-target .tree-summary-controls > .tree-add-button.move-held-middle-button:focus-visible {
   border-color: #166534;
   background: #15803d;
   box-shadow: 0 0 0 2px #bbf7d0;
@@ -666,8 +671,6 @@ body.browse-hide-target-classes #tree-panel .tree-target-row { display: none !im
   max-width: 100%;
   white-space: normal;
 }
-.edit-show-ids #edit-tree-panel .tree .tree-level-selection-checkbox { grid-area: select; align-self: center; }
-.edit-show-ids #edit-tree-panel .tree .tree-summary-controls { height: 3rem; margin-top: -3rem; }
 .edit-show-ids #edit-tree-panel .tree .tree-level-id { grid-area: id; font-size: 0.58rem; white-space: normal; overflow-wrap: anywhere; }
 .edit-show-ids #edit-tree-panel .tree .tree-level-label { grid-area: label; font-size: 1rem; }
 .edit-show-ids #edit-tree-panel .tree .edit-count { grid-area: count; }

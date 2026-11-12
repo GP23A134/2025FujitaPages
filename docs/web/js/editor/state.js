@@ -138,6 +138,8 @@ function showRelatedInstances(targetClass) {
   targetInstanceDialog.showModal();
 }
 const targetButtonById = new Map();
+const middleTreeNodeById = new Map();
+const topTreeNodeById = new Map();
 const middleCheckboxById = new Map();
 const topCheckboxById = new Map();
 let hasUnsavedChanges = false;
@@ -170,7 +172,7 @@ function applyTreeSubtreeSelection(rootIds, selected) {
     if (item) {
       const type = classKind(item);
       const selection = type === 'class' ? heldInstances : type === 'middle' ? heldMiddleClasses : heldTopClasses;
-      if (selected) selection.set(id, item);
+      if (selected && !(type === 'top' && isUnclassified(item))) selection.set(id, item);
       else selection.delete(id);
     }
     pending.push(...(childrenByParent.get(id) || []));
@@ -179,29 +181,20 @@ function applyTreeSubtreeSelection(rootIds, selected) {
 }
 
 function syncTreeSelectionAppearance() {
+  heldTopClasses.forEach((item, id) => { if (isUnclassified(item)) heldTopClasses.delete(id); });
+  middleTreeNodeById.forEach((summary, id) => summary.classList.toggle('is-selected', heldMiddleClasses.has(id)));
+  topTreeNodeById.forEach((summary, id) => summary.classList.toggle('is-selected', heldTopClasses.has(id)));
   middleCheckboxById.forEach((checkbox, id) => { checkbox.checked = heldMiddleClasses.has(id); });
   topCheckboxById.forEach((checkbox, id) => { checkbox.checked = heldTopClasses.has(id); });
   targetButtonById.forEach((button, id) => button.classList.toggle('is-selected', heldInstances.has(id)));
-  document.querySelectorAll('#edit-tree .select-descendants-button').forEach((button) => {
-    const descendants = [...descendantIds(button.dataset.selectionRootId)];
-    const selectedCount = descendants.filter((id) => {
-      const item = classById.get(id);
-      if (!item) return false;
-      const kind = classKind(item);
-      const selection = kind === 'class' ? heldInstances : kind === 'middle' ? heldMiddleClasses : heldTopClasses;
-      return selection.has(id);
-    }).length;
-    const allSelected = descendants.length > 0 && selectedCount === descendants.length;
-    button.classList.toggle('is-selected', allSelected);
-    button.classList.toggle('is-partially-selected', selectedCount > 0 && !allSelected);
-    button.setAttribute('aria-pressed', allSelected ? 'true' : 'false');
-  });
+  syncTreeMoveButtonVisibility();
 }
 
 function applyTreeSelectionRange(control, event, selected) {
   const selectionBefore = snapshotEditState();
   const tree = document.getElementById('edit-tree');
-  const controls = [...tree.querySelectorAll('.tree-level-selection-checkbox, .tree-leaf-class')];
+  const controls = [...tree.querySelectorAll('.tree-top-class > summary[data-selection-id], .tree-middle-class > summary[data-selection-id], .tree-leaf-class')]
+    .filter((element) => !isUnclassified(classById.get(element.dataset.selectionId)));
   const ids = controls.map((element) => element.dataset.selectionId);
   const index = ids.indexOf(control.dataset.selectionId);
   const anchorIndex = ids.indexOf(selectionRangeAnchorId);
@@ -254,7 +247,7 @@ const restoredSelection = window.__workspaceSelectionToRestore;
 if (restoredSelection) {
   restoredSelection.instances?.forEach((id) => { const item = classById.get(id); if (item && classKind(item) === 'class') heldInstances.set(id, item); });
   restoredSelection.middleClasses?.forEach((id) => { const item = classById.get(id); if (item && classKind(item) === 'middle') heldMiddleClasses.set(id, item); });
-  restoredSelection.topClasses?.forEach((id) => { const item = classById.get(id); if (item && classKind(item) === 'top') heldTopClasses.set(id, item); });
+  restoredSelection.topClasses?.forEach((id) => { const item = classById.get(id); if (item && classKind(item) === 'top' && !isUnclassified(item)) heldTopClasses.set(id, item); });
 }
 const editUndoStack = [];
 const editRedoStack = [];
@@ -305,7 +298,7 @@ function restoreEditState(snapshot) {
   heldTopClasses.clear();
   (snapshot.selection?.topClasses || []).forEach((id) => {
     const item = classById.get(id);
-    if (item && classKind(item) === 'top') heldTopClasses.set(id, item);
+    if (item && classKind(item) === 'top' && !isUnclassified(item)) heldTopClasses.set(id, item);
   });
   if (heldDestinationId && !classById.has(heldDestinationId)) heldDestinationId = '';
   recentHeldDestinationIds = [...(snapshot.recentDestinations || [])];
