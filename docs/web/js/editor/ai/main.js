@@ -1743,8 +1743,6 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
             }))];
             const scopeLabel = upperClassIds.map((id) => fullClassById.get(id)?.label || classById.get(id)?.label).filter(Boolean).join('・');
             const scopeId = `chunk_${index + 1}`;
-            const parentByChild = new Map(taskScope.relations.map(({ child, parent }) => [child, parent]));
-            const editableIds = new Set(taskScope.editableIds);
             const knownLocalClasses = new Map(taskScope.classes.map((item) => [item.id, item.label]));
             const comparisonSummary = part.comparison ? Object.fromEntries(['duplicates', 'imbalance', 'gaps', 'other'].map((key) => {
               const source = part.comparison[key];
@@ -1767,20 +1765,10 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
               upperClasses: upperClassIds.map((id) => ({ id, name: fullClassById.get(id)?.label || classById.get(id)?.label || '' })),
               targetClassCounts: Object.fromEntries(upperClassIds
                 .filter((id) => Object.prototype.hasOwnProperty.call(scope.counts || {}, id))
-                .map((id) => [id, scope.counts[id]])),
-              classes: taskScope.classes.filter((item) => editableIds.has(item.id)).map((item) => ({
-                id: item.id, name: item.label, type: item.type,
-                parentId: parentByChild.get(item.id) || null,
-                parentName: classById.get(parentByChild.get(item.id))?.label
-                  || fullClassById.get(parentByChild.get(item.id))?.label || null
-              }))
+                .map((id) => [id, scope.counts[id]]))
             };
             return [{ chunk: index + 1, scopeId, requiredScopeIds: [scopeId], scope: scopeLabel || `分割 ${index + 1}`,
-              scopeEvidence, comparisonSummary, message: String(part.message || ''),
-              ...(responseMode === 'proposal' ? { operations: (result.proposals || []).filter((proposal) => proposal.id?.startsWith(`part${index + 1}_`))
-                .flatMap((proposal) => proposal.operations.map((operation) => ({ type: operation.type,
-                  classId: operation.classId || operation.from || '',
-                  destinationId: operation.destinationId || operation.parentId || '' }))) } : {}) }];
+              scopeEvidence, comparisonSummary, summary: String(part.message || '') }];
           });
           const baseSynthesisPrompt = await synthesisPromptPromise;
           const synthesisPrompt = responseMode === 'evaluation'

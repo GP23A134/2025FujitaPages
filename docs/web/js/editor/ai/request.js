@@ -529,9 +529,9 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCh
     assessments.forEach((entry) => {
       const entryScopes = entry.requiredScopeIds || [];
       (entry.scopeEvidence?.upperClasses || []).forEach((item) => addKnownClass(item.id, item.name, entryScopes));
-      (entry.scopeEvidence?.classes || []).forEach((item) => {
-        addKnownClass(item.id, item.name, entryScopes);
-        addKnownClass(item.parentId, item.parentName || '', entryScopes);
+      Object.values(entry.comparisonSummary || {}).forEach((category) => {
+        (category?.findings || []).forEach((finding) => (finding.classes || [])
+          .forEach((item) => addKnownClass(item.id, item.name, entryScopes)));
       });
     });
     const localJudgementIsComplete = (scopeId, key) => {
@@ -587,33 +587,24 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCh
     }));
 
     const truncate = (value, limit) => String(value || '').slice(0, limit);
-    const compactAssessments = (messageLimit = 2400, findingLimit = 500, limitationLimit = 300, operationLimit = 12) => assessments.map((entry) => {
-      const operations = Array.isArray(entry.operations) ? entry.operations : [];
-      const operationExamples = operations.slice(0, operationLimit).map(({ type, classId, destinationId }) => ({ type, classId, destinationId }));
-      const referencedClassIds = new Set(operationExamples.flatMap((operation) => [operation.classId, operation.destinationId]).filter(Boolean));
+    const compactAssessments = (summaryLimit = 1000, findingLimit = 300, limitationLimit = 160, maxFindings = 4) => assessments.map((entry) => {
       const comparisonSummary = entry.comparisonSummary && Object.fromEntries(categoryKeys.map((key) => {
         const category = entry.comparisonSummary[key] || {};
-        const findings = (category.findings || []).map((finding) => {
-          (finding.classes || []).forEach((item) => referencedClassIds.add(item.id));
+        const allFindings = category.findings || [];
+        const findings = allFindings.slice(0, maxFindings).map((finding) => {
           return { ...finding, text: truncate(finding.text, findingLimit), evidence: truncate(finding.evidence, findingLimit),
             limitations: truncate(finding.limitations, limitationLimit) };
         });
-        return [key, { ...category, findings, limitation: truncate(category.limitation, limitationLimit) }];
+        return [key, { ...category, findingCount: allFindings.length, findings,
+          limitation: truncate(category.limitation, limitationLimit) }];
       }));
-      const evidenceClasses = (entry.scopeEvidence?.classes || []).filter((item) => referencedClassIds.has(item.id)
-        || referencedClassIds.has(item.parentId));
-      const operationsByType = operations.reduce((counts, operation) => {
-        counts[operation.type] = (counts[operation.type] || 0) + 1;
-        return counts;
-      }, {});
       return {
-        chunk: entry.chunk, scopeId: entry.scopeId, requiredScopeIds: entry.requiredScopeIds,
+        scopeId: entry.scopeId,
         scope: truncate(entry.scope, 160),
         scopeEvidence: { upperClasses: entry.scopeEvidence?.upperClasses || [],
-          targetClassCounts: entry.scopeEvidence?.targetClassCounts || {}, classes: evidenceClasses },
+          targetClassCounts: entry.scopeEvidence?.targetClassCounts || {} },
         comparisonSummary,
-        message: truncate(entry.message, messageLimit),
-        ...(operations.length ? { operationSummary: { total: operations.length, byType: operationsByType }, operations: operationExamples } : {})
+        summary: truncate(entry.summary || entry.message, summaryLimit)
       };
     });
     let entries = compactAssessments();
@@ -627,7 +618,7 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCh
     // normal compaction. Shrink its prose and evidence progressively so the
     // other chunks can still be synthesized instead of falling back to a raw
     // concatenation of their messages.
-    for (const limits of [[1600, 300, 180, 8], [900, 180, 120, 4], [500, 100, 80, 2], [250, 60, 50, 1]]) {
+    for (const limits of [[700, 180, 100, 4], [400, 100, 60, 2], [200, 60, 40, 1]]) {
       if (ready || !prompt || !entries.length) break;
       entries = compactAssessments(...limits);
       ready = Boolean(packInputs(entries, round, request, sourceScopeCoverage, payloadLimit, expectedScopes, requiredScopesByCategory));
