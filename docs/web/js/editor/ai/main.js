@@ -3,7 +3,7 @@
 import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261112-review-fixes-v1';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261112-review-fixes-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261110-first-line-workflow-status-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261112-review-fixes-v1';
+import { createProposalPreview } from './proposal-preview.js?v=20261112-summary-accessibility-v1';
 import { createAIClient } from './ai-client.js?v=20261112-class-type-normalization-v1';
 import { createRequestProgress } from './request-progress.js?v=20261112-zero-second-display-v1';
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261111-ai-tuning-limits-v1';

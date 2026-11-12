@@ -37,7 +37,9 @@
   margin-top: 0.35rem; background: #f8fafc; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.1);
 }
 :is(#tree-panel, #edit-tree-panel) .tree-top-class > summary:hover,
-:is(#tree-panel, #edit-tree-panel) .tree-middle-class > summary:hover {
+:is(#tree-panel, #edit-tree-panel) .tree-middle-class > summary:hover,
+:is(#tree-panel, #edit-tree-panel) .tree-top-class > summary:has(+ .tree-summary-controls:hover),
+:is(#tree-panel, #edit-tree-panel) .tree-middle-class > summary:has(+ .tree-summary-controls:hover) {
   filter: brightness(0.96);
   box-shadow: 0 3px 8px rgba(15, 23, 42, 0.18);
 }
@@ -334,6 +336,13 @@
 #edit-tree summary.is-drop-target { outline: 2px dashed #0284c7; outline-offset: 2px; background: #e0f2fe; }
 body.is-tree-touch-dragging #edit-tree { user-select: none; -webkit-user-select: none; }
 #toggle-tree-edit-mode[aria-pressed="true"] { border-color: #2563eb; color: #1d4ed8; background: #eff6ff; }
+.tree-summary-controls { position: sticky; top: calc(var(--edit-top-class-sticky-top, var(--browse-tree-heading-sticky-top, 0px)) + 0.15rem); z-index: 12; display: flex; width: 100%; height: 2rem; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 0.25rem; margin-top: -2rem; padding-right: 0.55rem; pointer-events: none; }
+.tree-summary-controls > * { pointer-events: auto; }
+.tree-summary-leading-controls { display: flex; flex: 0 0 auto; align-items: center; margin-left: 1.55rem; }
+.tree-summary-trailing-controls { display: flex; flex: 0 0 auto; align-items: center; gap: 0.25rem; }
+#edit-tree-panel .tree-middle-class > .tree-summary-controls { top: calc(var(--edit-top-class-sticky-top, 0px) + var(--middle-sticky-top, var(--edit-top-sticky-offset, 3.35rem)) + 0.15rem); }
+#tree-panel .tree-top-class > .tree-summary-controls { top: calc(var(--browse-tree-heading-sticky-top, 0px) + 0.15rem); }
+#tree-panel .tree-middle-class > .tree-summary-controls { top: calc(var(--browse-tree-heading-sticky-top, 0px) + var(--middle-sticky-top, 3.35rem) + 0.15rem); }
 .tree-class-edit-actions { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 0.25rem; margin-left: 0.35rem; }
 body.is-ai-chat-open #edit-tree .rename-class-button,
 body.is-ai-chat-open #edit-tree .delete-class-button { display: none !important; }
@@ -385,7 +394,7 @@ body.is-ai-chat-open #edit-tree .move-held-button { display: none !important; }
   color: #fff;
   background: #f97316;
 }
-#edit-tree-panel .tree summary > button.move-held-button {
+#edit-tree-panel .tree .tree-summary-controls > button.move-held-button {
   flex: 0 0 4em;
   width: 4em;
   max-width: 4em;
@@ -397,12 +406,12 @@ body.is-ai-chat-open #edit-tree .move-held-button { display: none !important; }
   background: #ea580c;
   box-shadow: 0 0 0 2px #fed7aa;
 }
-#edit-tree-panel .tree summary.is-drop-target > .tree-add-button.move-held-middle-button {
+#edit-tree-panel .tree summary.is-drop-target + .tree-summary-controls > .tree-add-button.move-held-middle-button {
   border-color: #15803d;
   background: #16a34a;
 }
-#edit-tree-panel .tree summary.is-drop-target > .tree-add-button.move-held-middle-button:hover,
-#edit-tree-panel .tree summary.is-drop-target > .tree-add-button.move-held-middle-button:focus-visible {
+#edit-tree-panel .tree summary.is-drop-target + .tree-summary-controls > .tree-add-button.move-held-middle-button:hover,
+#edit-tree-panel .tree summary.is-drop-target + .tree-summary-controls > .tree-add-button.move-held-middle-button:focus-visible {
   border-color: #166534;
   background: #15803d;
   box-shadow: 0 0 0 2px #bbf7d0;
@@ -658,6 +667,7 @@ body.browse-hide-target-classes #tree-panel .tree-target-row { display: none !im
   white-space: normal;
 }
 .edit-show-ids #edit-tree-panel .tree .tree-level-selection-checkbox { grid-area: select; align-self: center; }
+.edit-show-ids #edit-tree-panel .tree .tree-summary-controls { height: 3rem; margin-top: -3rem; }
 .edit-show-ids #edit-tree-panel .tree .tree-level-id { grid-area: id; font-size: 0.58rem; white-space: normal; overflow-wrap: anywhere; }
 .edit-show-ids #edit-tree-panel .tree .tree-level-label { grid-area: label; font-size: 1rem; }
 .edit-show-ids #edit-tree-panel .tree .edit-count { grid-area: count; }

@@ -214,7 +214,12 @@ export const createProposalPreview = ({
         const checkbox = node.type === 'middle'
           ? (addedIndexes?.length ? makeToggle(node.id, node.label, addedIndexes) : null)
           : makeToggle(node.id, node.label);
-        if (checkbox) summary.prepend(checkbox);
+        if (checkbox) {
+          const controls = document.createElement('span');
+          controls.className = 'ai-preview-summary-controls';
+          controls.append(checkbox);
+          summary.parentElement?.insertBefore(controls, summary.nextSibling);
+        }
         appendTypeBadges(summary, indexesFor(node.id));
         if (node.previewDeleted) {
           summary.classList.add('is-ai-preview-deleted');

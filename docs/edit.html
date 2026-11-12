@@ -8,10 +8,10 @@
   
   <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
   <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
-  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261109-tree-filter-disclosure-v1">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261112-conflict-alternatives-v1">
+  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261112-summary-accessibility-v1">
+  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261112-summary-accessibility-v1">
   <link rel="stylesheet" href="web/css/test-preferences.css?v=20261111-test-settings-layout-v1">
-  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261111-tree-drag-move-v2">
+  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261112-summary-accessibility-v1">
   <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-held-panel-fixed-v2">
   <script data-app-script="web/data/generated/class-data.js"></script>
   <script data-app-script="web/data/generated/instance-data.js"></script>
@@ -23,7 +23,7 @@
   <script data-app-script="web/js/shared/tree.js?v=20261112-class-type-normalization-v1"></script>
   <script data-app-script="web/js/editor/state.js?v=20261112-class-type-normalization-v1"></script>
   <script data-app-script="web/js/editor/panels.js?v=20261111-held-table-fixed-header-v2"></script>
-  <script data-app-script="web/js/editor/tree.js?v=20261111-tree-drag-move-v3"></script>
+  <script data-app-script="web/js/editor/tree.js?v=20261112-summary-accessibility-v1"></script>
   <script data-app-script="web/js/editor/events.js?v=20261112-shared-validation-v1"></script>
   <script data-app-script="web/js/editor/test-preferences.js?v=20261112-response-count-limits-v1" data-app-type="module"></script>
   <script src="web/js/shared/app-startup.js?v=20261112-review-fixes-v1"></script>
@@ -74,7 +74,8 @@
       <div class="edit-tree-layout">
         <div class="edit-tree-pane">
           <details id="tree-filter" class="tree-filter" role="search" aria-label="階層ツリーの絞り込み">
-            <summary class="tree-filter-heading"><span>検索</span><span id="tree-filter-count" class="tree-filter-count" aria-live="polite"></span><button type="button" id="close-tree-filter" class="held-panel-icon-button tree-filter-close" aria-label="検索欄を閉じる" title="検索欄を閉じる">×</button></summary>
+            <summary class="tree-filter-heading"><span>検索</span><span id="tree-filter-count" class="tree-filter-count" aria-live="polite"></span></summary>
+            <div class="tree-filter-actions"><button type="button" id="close-tree-filter" class="held-panel-icon-button tree-filter-close" aria-label="検索欄を閉じる" title="検索欄を閉じる">×</button></div>
             <div class="tree-filter-body">
               <div class="tree-filter-mode-switch" role="group" aria-label="絞り込み方式">
                 <button type="button" class="is-active" data-tree-filter-method="keyword" aria-pressed="true">キーワード検索</button>

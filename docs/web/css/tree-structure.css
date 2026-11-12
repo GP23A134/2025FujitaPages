@@ -20,12 +20,15 @@
 .tree details { margin: 0.35rem 0; }
 .tree summary { cursor: pointer; font-weight: 600; padding: 0.45rem 0.6rem; border-radius: 6px; }
 .tree-level-id { display: inline; margin-left: 0.5rem; color: #64748b; font-size: 0.72rem; font-weight: 400; overflow-wrap: anywhere; }
-.tree details > summary:hover { background: #e0f2fe; }
+.tree details > summary:hover,
+.tree details > summary:has(+ .tree-summary-controls:hover) { background: #e0f2fe; }
 .tree ul { margin: 0.45rem 0 0.75rem 1.25rem; padding: 0; list-style: none; }
 /* 全階層の横線接点を各行の高さの50%に揃える。 */
 .tree li { position: relative; --tree-connector-y: 50%; margin: 0.4rem 0; }
 .tree-top-class > summary { position: sticky; top: 0; z-index: 10; color: #075985; background: #e0f2fe; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08); }
 .tree-middle-class > summary { position: sticky; top: 2.25rem; z-index: 5; background: #f8fafc; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06); }
+.tree-filter-actions { position: absolute; top: 0; right: 0; z-index: 2; display: flex; width: 100%; height: var(--edit-pane-header-height, 2.8rem); box-sizing: border-box; align-items: center; justify-content: flex-end; padding-right: 0.85rem; pointer-events: none; }
+.tree-filter-actions .tree-filter-close { position: static; transform: none; pointer-events: auto; }
 .tree > details > ul { position: relative; margin-left: 0.7rem; padding-left: 1.15rem; border-left: 0; }
 .tree > details > ul::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0.75rem; border-left: 2px solid #7dd3fc; }
 /* 上位クラス直下のli: ::beforeが横線。topは接続点の高さ、left/widthが線の横位置と長さ。 */
@@ -70,7 +73,8 @@
 .tree-filter-heading::after { position: absolute; left: 0.85rem; content: "▸"; color: #64748b; font-size: 0.85rem; }
 .tree-filter[open] > .tree-filter-heading { border-bottom: 1px solid #cbd5e1; border-radius: 9px 9px 0 0; }
 .tree-filter[open] > .tree-filter-heading::after { content: "▾"; }
-.tree-filter-heading:hover, .tree-filter-heading:focus-visible { background: #e2e8f0; outline: none; }
+.tree-filter-heading:hover, .tree-filter-heading:focus-visible,
+.tree-filter-heading:has(+ .tree-filter-actions:hover) { background: #e2e8f0; outline: none; }
 .tree-filter-count { position: static; transform: none; margin: 0; padding: 0.1rem 0.55rem; border: 1px solid #cbd5e1; border-radius: 999px; color: #475569; background: #fff; font-size: 0.78rem; font-weight: 700; line-height: 1.5; }
 /* 絞り込み条件の入力欄、キーワード、件数方式の切り替え */
 .tree-filter-body { display: flex; flex-wrap: wrap; align-items: end; gap: 0.7rem; padding: 0.75rem 0.85rem; }

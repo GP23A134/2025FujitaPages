@@ -654,6 +654,10 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree-middle-class > summary { border-left: 3px solid var(--tree-level-color, #38bdf8); background: #fff; }
 #ai-preview-dialog .tree summary::marker { color: #2563eb; }
 #ai-preview-dialog .tree .tree-level-content { display: inline-flex; flex: 0 1 auto; min-width: 0; flex-wrap: wrap; gap: 0.3rem; align-items: baseline; margin: 0; padding: 0 0.35rem; line-height: 1rem; white-space: normal; }
+#ai-preview-dialog .tree details:has(> .ai-preview-summary-controls) { position: relative; }
+#ai-preview-dialog .tree details:has(> .ai-preview-summary-controls) > summary { padding-left: 1.85rem; }
+#ai-preview-dialog .tree .ai-preview-summary-controls { position: absolute; top: 0; left: 1.55rem; z-index: 4; display: flex; height: var(--ai-preview-node-height); align-items: center; pointer-events: none; }
+#ai-preview-dialog .tree .ai-preview-summary-controls > * { pointer-events: auto; }
 #ai-preview-dialog .tree .tree-level-label { min-width: 0; flex: 0 1 auto; }
 #ai-preview-dialog .tree .tree-top-class > summary > .ai-preview-type-badge,
 #ai-preview-dialog .tree .tree-middle-class > summary > .ai-preview-type-badge,

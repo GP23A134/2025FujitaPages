@@ -322,6 +322,15 @@ function renderTree() {
   const decorateSummary = (summary, levelContent, node, depth) => {
     const item = classById.get(node.id);
     if (!item) return;
+    const controls = document.createElement('div');
+    controls.className = 'tree-summary-controls';
+    controls.addEventListener('click', (event) => event.stopPropagation());
+    const leadingControls = document.createElement('span');
+    leadingControls.className = 'tree-summary-leading-controls';
+    const trailingControls = document.createElement('span');
+    trailingControls.className = 'tree-summary-trailing-controls';
+    controls.append(leadingControls, trailingControls);
+    summary.parentElement.append(controls);
     summary.dataset.dragClassId = item.id;
     summary.draggable = !isUnclassified(item);
     if (classKind(item) === 'middle') {
@@ -337,7 +346,7 @@ function renderTree() {
       checkbox.setAttribute('aria-label', `${item.label}と配下を選択`);
       checkbox.addEventListener('click', (event) => { event.stopPropagation(); checkbox.dataset.shiftKey = String(event.shiftKey); });
       checkbox.addEventListener('change', (event) => applyTreeSelectionRange(checkbox, event, checkbox.checked));
-      levelContent.prepend(checkbox);
+      leadingControls.append(checkbox);
     }
     if (classKind(item) === 'top') {
       const checkbox = document.createElement('input');
@@ -354,7 +363,7 @@ function renderTree() {
         : `${item.label}と配下を選択`);
       checkbox.addEventListener('click', (event) => { event.stopPropagation(); checkbox.dataset.shiftKey = String(event.shiftKey); });
       checkbox.addEventListener('change', (event) => applyTreeSelectionRange(checkbox, event, checkbox.checked));
-      levelContent.prepend(checkbox);
+      leadingControls.append(checkbox);
     }
     if (classKind(item) === 'top' || classKind(item) === 'middle') {
       const actions = document.createElement('span');
@@ -414,7 +423,7 @@ function renderTree() {
         });
         actions.append(rename, remove);
       }
-      summary.append(actions);
+      trailingControls.append(actions);
     }
     if (classKind(item) === 'middle') {
       // 中間クラスの「＋」は、保持中のクラスをこの中間クラスへ移動する操作。
@@ -428,7 +437,7 @@ function renderTree() {
       moveButton.title = heldTopClasses.size
         ? '上位クラスを中間クラスに変換し、配下を保ってここへ移動'
         : '選択中のクラスをここへ移動';
-      summary.append(moveButton);
+      trailingControls.append(moveButton);
     }
     if (classKind(item) === 'top') {
       const isUnclassified = item.label === '未分類';
@@ -450,7 +459,7 @@ function renderTree() {
       addButton.title = isUnclassified
         ? '保持中のクラスを未分類へ移動'
         : '保持中のクラスをここへ移動';
-      summary.append(addButton);
+      trailingControls.append(addButton);
     }
   };
   window.renderHierarchyTree(tree, model, {
