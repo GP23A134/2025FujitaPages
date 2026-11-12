@@ -1,9 +1,9 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
 import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261112-review-fixes-v1';
-import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261112-review-fixes-v1';
+import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261112-same-class-conflict-isolation-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261110-first-line-workflow-status-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261112-summary-accessibility-v1';
+import { createProposalPreview } from './proposal-preview.js?v=20261112-large-proposal-arrow-bundling-v1';
 import { createAIClient } from './ai-client.js?v=20261112-class-type-normalization-v1';
 import { createRequestProgress } from './request-progress.js?v=20261112-zero-second-display-v1';
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261111-ai-tuning-limits-v1';
@@ -276,8 +276,8 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   };
   const isFullGraphScopeEnabled = () => fullGraphScopeToggle.getAttribute('aria-checked') === 'true';
   const defaultPromptExamples = [
-    { id: 'target-membership', category: '基本', title: '所属を見直す', prompt: '選択範囲に対象クラスが含まれる場合、対象・中間・上位クラスのラベルと親子関係を使って各対象の所属を確認してください。実体内容がない場合もラベルからの推定を示してください。提案モードでは適用中の自由度に従い、自由度1は直接説明しにくい関連も仮説として検討し、自由度2〜4はクラス名と階層から関連を説明できる移動先候補に限って、該当候補があれば所属のずれを確定できなくても暫定案を提示し根拠と不確実性を示してください。候補が複数の場合の案の幅は自由度に従い、自由度4は依頼された変更範囲内で候補を扱います。自由度5では依頼で明示された移動だけを扱ってください。評価モードでは変更案を作成しません。', showWhen: { always: true } },
-    { id: 'common-summary', category: '基本', title: '選択範囲を要約', prompt: '選択範囲のクラスと親子関係を要約し、各クラスの役割と分類の特徴を説明してください。変更案は出さないでください。', showWhen: { always: true } }
+    { id: 'target-membership', category: '基本', title: '所属を見直す', prompt: '選択範囲の対象クラスが、現在の親子関係の中で適切な場所にあるか見直してください。', showWhen: { always: true } },
+    { id: 'common-summary', category: '基本', title: '選択範囲を要約', prompt: 'この範囲のクラス構成を要約してください。', showWhen: { always: true } }
   ];
   let availablePromptExamples = defaultPromptExamples;
   let lastRenderedPromptExamples = null;

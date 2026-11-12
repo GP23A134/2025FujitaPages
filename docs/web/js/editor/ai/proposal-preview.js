@@ -301,10 +301,14 @@ export const createProposalPreview = ({
     if (deleteTarget) deleteTarget.hidden = svg.hidden || !hasDeletions;
     if (svg.hidden) return;
     const routingArrows = arrows.map((arrow) => ({ arrow }));
+    const routeLaneKeys = new Set(routingArrows.map(({ arrow }, index) => arrow.kind === 'is-move'
+      ? `move:${previewPlan?.afterParents?.get(arrow.to) ?? arrow.to}`
+      : `${arrow.kind}:${index}`));
+    const routeLaneCount = routeLaneKeys.size;
     const trackGap = 5;
     const bounds = svg.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
-    const laneWidth = Math.max(120, routingArrows.length * trackGap + 24);
+    const laneWidth = Math.max(120, routeLaneCount * trackGap + 24);
     const routingHeight = Math.max(100, routingArrows.length * 3 + 32);
     if (columns.dataset.previewLaneWidth !== String(laneWidth)
       || columns.dataset.previewRoutingHeight !== String(routingHeight)) {
@@ -396,17 +400,10 @@ export const createProposalPreview = ({
     });
     let nextLaneIndex = 0;
     laneGroups.forEach((group) => {
-      const firstLaneIndex = nextLaneIndex;
-      group.routes.forEach((route) => {
-        route.laneIndex = nextLaneIndex;
-        nextLaneIndex += 1;
-      });
-      if (group.routes.length > 1 && group.routes[0].arrow.kind === 'is-move') {
-        const bendLaneIndex = (firstLaneIndex + nextLaneIndex - 1) / 2;
-        group.routes.forEach((route) => { route.bendLaneIndex = bendLaneIndex; });
-      }
+      const laneIndex = nextLaneIndex++;
+      group.routes.forEach((route) => { route.laneIndex = laneIndex; });
     });
-    const trackBankInset = Math.max(0, (gutterRight - gutterLeft - routes.length * trackGap) / 2);
+    const trackBankInset = Math.max(0, (gutterRight - gutterLeft - laneGroups.length * trackGap) / 2);
     const assignPorts = (side) => {
       const groups = new Map();
       routes.forEach((route, index) => {
@@ -442,11 +439,8 @@ export const createProposalPreview = ({
       if (arrow.excluded) path.setAttribute('opacity', '0.45');
       svg.append(path);
     };
-    routes.forEach(({ arrow, color, source, target, laneIndex, bendLaneIndex }, index) => {
-      const laneX = gutterLeft + trackBankInset + (routes.length - laneIndex - 0.5) * trackGap;
-      const bendX = bendLaneIndex === undefined
-        ? laneX
-        : gutterLeft + trackBankInset + (routes.length - bendLaneIndex - 0.5) * trackGap;
+    routes.forEach(({ arrow, color, source, target, laneIndex }, index) => {
+      const laneX = gutterLeft + trackBankInset + (laneGroups.length - laneIndex - 0.5) * trackGap;
       const channelY = height * (index + 1) / (routes.length + 1);
       const isAddition = arrow.kind === 'is-add' && !arrow.from;
       const sourceOffset = ['is-rename', 'is-move'].includes(arrow.kind) ? 2.5 : 0;
@@ -458,7 +452,7 @@ export const createProposalPreview = ({
         : routes[index].startY ?? (target ? target.top + target.height / 2 - bounds.top : channelY);
       const endY = routes[index].endY ?? (source ? source.top + source.height / 2 - bounds.top : channelY);
       if (arrow.kind === 'is-move' && source && target) {
-        appendRoutePath({ commands: [`M ${startX} ${startY} H ${bendX} V ${endY} H ${endX}`], arrow, color });
+        appendRoutePath({ commands: [`M ${startX} ${startY} H ${laneX} V ${endY} H ${endX}`], arrow, color });
         return;
       }
       const commands = [];
