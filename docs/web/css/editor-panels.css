@@ -494,6 +494,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-send-confirm-table th, .ai-send-confirm-table td { padding: 0.35rem 0.45rem; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
 .ai-send-confirm-table th { position: sticky; top: 0; z-index: 1; color: #475569; background: #f1f5f9; }
 .ai-send-confirm-skip { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.75rem; color: #475569; font-size: 0.78rem; }
+.ai-send-confirm-skip[hidden] { display: none; }
 .ai-send-confirm-skip input { margin: 0; }
 .ai-send-confirm-actions { display: flex; justify-content: flex-end; gap: 0.45rem; margin-top: 0.85rem; }
 .ai-send-confirm-actions button { min-height: 2.2rem; padding: 0.35rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.8rem; }

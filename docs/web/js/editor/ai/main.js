@@ -68,7 +68,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   const crossScopeStrategySelect = document.getElementById('ai-cross-scope-strategy');
   const crossScopeStrategyStorageKey = 'classEditorAiCrossScopeStrategy';
   const crossScopeStrategies = new Set(['exhaustive', 'hierarchical']);
-  let crossScopeStrategy = 'exhaustive';
+  let crossScopeStrategy = 'hierarchical';
   try {
     const preferences = JSON.parse(localStorage.getItem('classEditorTestPreferences') || '{}');
     const savedStrategy = preferences.crossScopeStrategy || localStorage.getItem(crossScopeStrategyStorageKey);
@@ -384,13 +384,27 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   const confirmBeforeSendToggle = document.getElementById('ai-confirm-before-send');
   const sendConfirmDialog = document.getElementById('ai-send-confirm-dialog');
   const sendConfirmSkipToggle = document.getElementById('ai-send-confirm-skip');
+  const planConfirmSkipLabel = document.getElementById('ai-plan-confirm-skip-label');
+  const planConfirmSkipToggle = document.getElementById('ai-plan-confirm-skip');
   const confirmPreferenceKey = 'fujita.ai-confirm-before-send';
+  const planConfirmPreferenceKey = 'fujita.ai-plan-confirm-before-send';
+  let planConfirmationEnabled = true;
   try {
     const savedPreference = localStorage.getItem(confirmPreferenceKey);
     if (savedPreference === 'true' || savedPreference === 'false') {
       confirmBeforeSendToggle.checked = savedPreference === 'true';
     }
   } catch { /* Storage may be unavailable in restricted browsing contexts. */ }
+  try {
+    const savedPreference = localStorage.getItem(planConfirmPreferenceKey);
+    if (savedPreference === 'true' || savedPreference === 'false') {
+      planConfirmationEnabled = savedPreference === 'true';
+    }
+  } catch { /* Storage may be unavailable in restricted browsing contexts. */ }
+  const savePlanConfirmPreference = () => {
+    try { localStorage.setItem(planConfirmPreferenceKey, String(planConfirmationEnabled)); }
+    catch { /* Keep the current-page preference even when persistent storage is unavailable. */ }
+  };
   const saveConfirmPreference = () => {
     try { localStorage.setItem(confirmPreferenceKey, String(confirmBeforeSendToggle.checked)); }
     catch { /* Keep the current-page preference even when persistent storage is unavailable. */ }
@@ -523,7 +537,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   const estimateRequestCost = (inputs, systemPrompt, outputTokenBudget = inputs.length * MAX_OUTPUT_TOKENS, plannerInput = '') => {
     const rates = selectedModelPricing();
     const splitNote = inputs.length > 1
-      ? `この依頼はクラス情報を${inputs.length}分割して処理します。\n最後に全体をまとめるため、追加の送信が発生する場合があります。`
+      ? `費用計算にはデータ入力${inputs.length}件を含みます（分割評価、階層共有、横断確認などを合算）。分割評価の件数とは異なる場合があります。`
       : '';
     const ratesAvailable = rates?.pricingVerified === true
       && Number.isFinite(rates.inputUsdPerMillion) && Number.isFinite(rates.outputUsdPerMillion);
@@ -534,28 +548,38 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       ? estimateTokensFromText(plannerInput) + estimateTokensFromText(`${adaptivePlanSystemPrompt}\n${adaptivePlanFormatInstructions}`) : 0;
     const inputTokens = analysisInputTokens + planningInputTokens;
     const inputUsd = inputTokens * rates.inputUsdPerMillion / 1_000_000;
-    const outputCapUsd = outputTokenBudget * rates.outputUsdPerMillion / 1_000_000;
     const pricingDate = modelConfig?.pricingAsOf ? `料金単価は${modelConfig.pricingAsOf}時点です。` : '';
-    const estimate = `料金の目安：約 ${formatUsd(inputUsd + outputCapUsd)}\n※標準・短コンテキスト単価による概算です。会話履歴、追加送信、キャッシュ料金、処理モードや長文コンテキストの単価差は含まず、実際の料金と異なる場合があります。${pricingDate ? ` ${pricingDate}` : ''}`;
+    const budgets = typeof outputTokenBudget === 'object' && outputTokenBudget !== null
+      ? outputTokenBudget : { maximum: outputTokenBudget };
+    const initialOutputCapUsd = (Number(budgets.initial) || 0) * rates.outputUsdPerMillion / 1_000_000;
+    const maximumOutputCapUsd = (Number(budgets.maximum) || 0) * rates.outputUsdPerMillion / 1_000_000;
+    const estimate = budgets.initial !== undefined
+      ? `初回出力枠・統合1回の概算：約 ${formatUsd(inputUsd + initialOutputCapUsd)}\n保守的な上限枠（自動再試行・最大統合回数を含む）：約 ${formatUsd(inputUsd + maximumOutputCapUsd)}\n※上限枠は各処理が出力上限まで使い、必要な再試行と最大回数の統合がすべて発生する想定です。標準・短コンテキスト単価による概算で、会話履歴、キャッシュ料金、処理モードや長文コンテキストの単価差は含まず、実際の料金と異なる場合があります。${pricingDate ? ` ${pricingDate}` : ''}`
+      : `料金の目安：約 ${formatUsd(inputUsd + maximumOutputCapUsd)}\n※標準・短コンテキスト単価による概算です。会話履歴、追加送信、キャッシュ料金、処理モードや長文コンテキストの単価差は含まず、実際の料金と異なる場合があります。${pricingDate ? ` ${pricingDate}` : ''}`;
     return [splitNote, estimate].filter(Boolean).join('\n\n');
   };
   const confirmSendBeforeRequest = (userText, scope, summary, conversation, reusingAnalysisMemory = false, forceConfirm = false,
-    displayScope = scope, sendingDelta = false, sendingSplit = false) => {
-    if (!confirmBeforeSendToggle.checked && !forceConfirm) return Promise.resolve(true);
+    displayScope = scope, sendingDelta = false, sendingSplit = false, planOnly = false) => {
+    if (planOnly ? !planConfirmationEnabled : (!confirmBeforeSendToggle.checked && !forceConfirm)) return Promise.resolve(true);
     if (pendingSendConfirmation) return Promise.resolve(false);
     const sendingAllClasses = !reusingAnalysisMemory && (scope.includeAllClasses || scope.scopeCoverage === 'all_classes');
     const summaryNode = document.getElementById('ai-send-confirm-summary');
     summaryNode.textContent = summary;
     document.getElementById('ai-send-confirm-request').textContent = userText;
-    document.getElementById('ai-send-confirm-title').textContent = sendingSplit
+    document.getElementById('ai-send-confirm-title').textContent = planOnly
+      ? '分析計画の作成を確認'
+      : sendingSplit
       ? '分割した送信範囲を確認'
       : sendingDelta ? '変更分の送信を確認'
       : sendingAllClasses
       ? '全上位・中間クラス情報の送信を確認'
       : 'AIへの送信内容を確認';
     const skipLabel = document.querySelector('.ai-send-confirm-skip');
-    skipLabel.hidden = sendingAllClasses;
-    document.getElementById('ai-send-confirm-classes-summary').textContent = reusingAnalysisMemory
+    skipLabel.hidden = planOnly || sendingAllClasses;
+    planConfirmSkipLabel.hidden = !planOnly;
+    document.getElementById('ai-send-confirm-classes-summary').textContent = planOnly
+      ? '計画用に依頼文と件数だけを送信（クラス名・ID・階層データは未送信）'
+      : reusingAnalysisMemory
       ? '前回の分析要約を再利用（クラスデータの再送なし）'
       : sendingSplit
         ? `上位クラス単位の分割送信（今回送るクラス ${displayScope.classes.length}件）`
@@ -567,7 +591,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
           : `選択範囲内の全クラス ${scope.classes.length}件`
         : `参照クラス ${scope.classes.length}件（選択中 ${scope.editableIds.length}件・追加共有 ${scope.sharedContextIds?.length || 0}件）`;
     const historyNote = document.getElementById('ai-send-confirm-history-note');
-    historyNote.hidden = !reusingAnalysisMemory && !conversation.responseId && !conversation.localContext;
+    historyNote.hidden = planOnly || (!reusingAnalysisMemory && !conversation.responseId && !conversation.localContext);
     historyNote.textContent = reusingAnalysisMemory
       ? '前回の分析要約を使って回答します。元データを再分析する場合は「選択範囲全体を再分析して」と依頼してください。'
       : conversation.responseId
@@ -576,6 +600,21 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
         ? '前の依頼の要約も今回の依頼と一緒に送信されます。'
         : '';
     const body = document.getElementById('ai-send-confirm-classes');
+    if (planOnly) {
+      const row = document.createElement('tr');
+      const cell = document.createElement('td');
+      cell.colSpan = 4;
+      cell.textContent = '分析計画を作成するため、依頼文と選択件数を送信します。クラス名・ID・階層データはこの段階では送信しません。';
+      row.append(cell);
+      body.replaceChildren(row);
+      sendConfirmSkipToggle.checked = false;
+      planConfirmSkipToggle.checked = false;
+      sendConfirmDialog.returnValue = '';
+      sendConfirmDialog.showModal();
+      document.getElementById('ai-send-confirm-approve').focus();
+      isConfirmingSend = true;
+      return new Promise((resolve) => { pendingSendConfirmation = resolve; });
+    }
     if (reusingAnalysisMemory) {
       const row = document.createElement('tr');
       const cell = document.createElement('td');
@@ -618,6 +657,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     });
     body.replaceChildren(...rows);
     sendConfirmSkipToggle.checked = false;
+    planConfirmSkipToggle.checked = false;
     sendConfirmDialog.returnValue = '';
     sendConfirmDialog.showModal();
     document.getElementById('ai-send-confirm-approve').focus();
@@ -633,7 +673,12 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       confirmBeforeSendToggle.checked = false;
       saveConfirmPreference();
     }
+    if (approved && planConfirmSkipToggle.checked) {
+      planConfirmationEnabled = false;
+      savePlanConfirmPreference();
+    }
     sendConfirmSkipToggle.checked = false;
+    planConfirmSkipToggle.checked = false;
     resolve(approved);
   };
   document.getElementById('ai-send-confirm-approve').addEventListener('click', () => sendConfirmDialog.close('send'));
@@ -1491,8 +1536,16 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
         candidateUpperClassLimit: crossScopeCandidateUpperLimit, candidateMiddleClassLimit: crossScopeCandidateMiddleLimit,
         proposalFreedom: promptFlexibility })
       : null;
-    const crossScopePreflightInputs = crossScopePlan?.status === 'completed'
-      ? crossScopePlan.batches.map((batch) => batch.input) : [];
+    const crossScopeCandidateUpperBoundPlan = crossScopeStructure && crossScopeCandidateMode
+      ? crossScopeProposalSynthesizer.plan({ request: userText, conversationContext: conversation.localContext || '',
+        scope: crossScopeStructure, fixedPromptCharacters: crossScopeFixedPromptCharacters, strategy: 'hierarchical',
+        candidateUpperClassLimit: crossScopeCandidateUpperLimit, candidateMiddleClassLimit: crossScopeCandidateMiddleLimit,
+        proposalFreedom: promptFlexibility })
+      : null;
+    const preflightCrossScopePlan = crossScopePlan?.status === 'completed'
+      ? crossScopePlan
+      : crossScopeCandidateUpperBoundPlan?.status === 'completed' ? crossScopeCandidateUpperBoundPlan : null;
+    const crossScopePreflightInputs = preflightCrossScopePlan?.batches.map((batch) => batch.input) || [];
     // The previous response is charged again in each continuation, so include
     // the shared hierarchy in the preflight estimate for every sent batch.
     const requestInputs = [
@@ -1541,10 +1594,21 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
         + outputBudgetWithRetry(SYNTHESIS_OUTPUT_TOKENS) * MAX_SYNTHESIS_ROUNDS
         + (responseMode === 'proposal' ? outputBudgetWithRetry(MAX_OUTPUT_TOKENS) : 0)
         + (needHierarchyReference ? outputBudgetWithRetry(128) : 0)
-        + (crossScopePlan?.status === 'completed'
-          ? crossScopePlan.batches.reduce((total, batch) => total + outputBudgetWithRetry(CROSS_SCOPE_OUTPUT_TOKENS), 0) : 0)
+        + (preflightCrossScopePlan
+          ? preflightCrossScopePlan.batches.reduce((total) => total + outputBudgetWithRetry(CROSS_SCOPE_OUTPUT_TOKENS), 0) : 0)
       : outputBudgetWithRetry(MAX_OUTPUT_TOKENS);
-    const plannerOutputTokenBudget = 256;
+    const outputTokenBudgetInitial = splitTasks
+      ? splitBatches.reduce((total, task) => total + Math.min(selectedModelOutputLimit,
+        splitUsesUpperUnits ? task.units.length * CHUNK_OUTPUT_TOKENS : CHUNK_OUTPUT_TOKENS), 0)
+        + Math.min(selectedModelOutputLimit, SYNTHESIS_OUTPUT_TOKENS)
+        + (responseMode === 'proposal' ? Math.min(selectedModelOutputLimit, MAX_OUTPUT_TOKENS) : 0)
+        + (needHierarchyReference ? Math.min(selectedModelOutputLimit, 128) : 0)
+        + (preflightCrossScopePlan
+          ? preflightCrossScopePlan.batches.reduce((total) => total + Math.min(selectedModelOutputLimit, CROSS_SCOPE_OUTPUT_TOKENS), 0) : 0)
+      : Math.min(selectedModelOutputLimit, MAX_OUTPUT_TOKENS);
+    const plannerCostApplies = requestOptions.includePlanCostInEstimate === true
+      || (!requestOptions.adaptivePlanOverride && !cachedPlanMatchesRequest);
+    const plannerOutputTokenBudget = plannerCostApplies ? 256 : 0;
     const cacheReuseNote = splitTasks && cachedChunkCount
       ? `上位クラスごとの保存済み評価 ${cachedChunkCount}件を再利用し、変更のある単位 ${unsentSplitTasks.length}件だけを送信単位にまとめて再分析します。最後に結果を統合${crossScopeStructure ? (crossScopeCandidateMode ? 'し、横断確認が必要な候補を絞ります' : 'し、全階層で横断操作を検討') : ''}します。`
       : '';
@@ -1553,7 +1617,9 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       : '回答モード：評価（変更案・確認質問なし）';
     const crossScopeNote = crossScopeStructure
       ? crossScopeCandidateMode
-        ? '分割評価で横断確認が必要とされた対象だけを後段で確認します。候補数が事前に確定しないため、この事前費用目安には横断工程の追加分を含みません。'
+        ? preflightCrossScopePlan
+          ? `分割評価で候補となった対象だけを後段で確認します。全対象が候補だった場合の上限 ${preflightCrossScopePlan.batches.length}送信単位を費用見積もりに含めています。実際の送信数は候補数に応じて減ります。`
+          : '分割評価で候補となった対象だけを後段で確認します。候補検索の上限費用を計算できなかったため、横断工程の費用は目安に含まれていません。'
         : crossScopePlan?.status === 'completed'
           ? `分割回答の後、全選択対象と全階層の組み合わせを${crossScopePlan.batches.length}件の送信単位で横断確認します。全バッチが完了した場合だけ横断操作案を確定します。追加送信と出力料金が発生します。`
           : '横断確認の全範囲を送信単位に分割できませんでした。個別評価は行いますが、横断操作案は未完了として表示します。'
@@ -1564,29 +1630,36 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
         SYNTHESIS_OUTPUT_TOKENS,
         ...(responseMode === 'proposal' ? [MAX_OUTPUT_TOKENS] : []),
         ...(needHierarchyReference ? [128] : []),
-        ...(crossScopePlan?.status === 'completed' ? [CROSS_SCOPE_OUTPUT_TOKENS] : [])
+        ...(preflightCrossScopePlan ? [CROSS_SCOPE_OUTPUT_TOKENS] : [])
       ]
       : [MAX_OUTPUT_TOKENS];
     const outputRetryAvailable = plannedOutputLimits.some((tokens) => Math.min(selectedModelOutputLimit, tokens) < selectedModelOutputLimit);
     const outputRetryNote = outputRetryAvailable
       ? '出力上限に達した処理は、選択モデルの上限内で出力上限を最大2倍にして1回だけ自動再試行します。費用目安には再試行分を含めています。'
       : '予定している出力上限は選択モデルの最大値に達しているため、自動増加再試行は行えません。';
-    const plannerNote = '送信を承認すると、依頼文と選択件数から短い分析計画を作成します。選択対象は固定し、選択外クラスは編集対象に追加しません。';
-    const preflightNote = [modeNote, cacheReuseNote, crossScopeNote, plannerNote, outputRetryNote,
-      estimateRequestCost(requestInputs, systemPrompt, outputTokenBudget + plannerOutputTokenBudget, adaptivePlanInput), longConversationNote].filter(Boolean).join('\n\n');
+    const plannerNote = '依頼文と選択件数から分析計画を作成しました。参照範囲が増える場合は送信範囲に反映しています。選択対象は固定し、選択外クラスは編集対象に追加しません。';
+    const preflightNote = [modeNote, cacheReuseNote, crossScopeNote, plannerNote, requestOptions.referenceExpansionSummary, outputRetryNote,
+      estimateRequestCost(requestInputs, systemPrompt, {
+        initial: outputTokenBudgetInitial + plannerOutputTokenBudget,
+        maximum: outputTokenBudget + plannerOutputTokenBudget
+      }, plannerCostApplies ? adaptivePlanInput : ''), longConversationNote].filter(Boolean).join('\n\n');
     updateUsageSummary();
-    requestProgress.updatePreparationLabel('送信確認待ち');
-    textInput.value = '';
-    resizeChatInput();
-    const sendApproved = requestOptions.skipSendConfirmation === true ? true
-      : await confirmSendBeforeRequest(userText, scope, preflightNote, conversation, usesAnalysisMemory,
-        scope.scopeCoverage === 'all_classes' && !usesAnalysisMemory, displayScope, sendingDelta, sendingSplit);
-    if (!sendApproved) {
-      updateUsageSummary();
-      conversation.workflowStatus = `送信をキャンセルしました（${requestProgress.formatElapsedTime((Date.now() - requestStartedAt) / 1000)}）`;
-      setStatus('送信をキャンセルしました。入力内容は保持されています。');
-      renderConversation();
-      return false;
+    requestProgress.updatePreparationLabel('分析計画を作成中');
+    if (!requestOptions.adaptivePlanOverride && !cachedPlanMatchesRequest) {
+      requestProgress.updatePreparationLabel('分析計画の送信確認待ち');
+      const planCostNote = [
+        '依頼文と選択件数だけを送って分析計画を作ります。クラス名・ID・階層データは送信しません。',
+        estimateRequestCost([], '', { initial: plannerOutputTokenBudget, maximum: plannerOutputTokenBudget }, adaptivePlanInput)
+      ].join('\n\n');
+      const planApproved = await confirmSendBeforeRequest(userText, scope, planCostNote, conversation,
+        false, false, scope, false, false, true);
+      if (!planApproved) {
+        updateUsageSummary();
+        conversation.workflowStatus = `分析計画の作成をキャンセルしました（${requestProgress.formatElapsedTime((Date.now() - requestStartedAt) / 1000)}）`;
+        setStatus('分析計画の送信をキャンセルしました。入力内容は保持されています。');
+        renderConversation();
+        return false;
+      }
     }
     let adaptivePlan = requestOptions.adaptivePlanOverride ? { ...requestOptions.adaptivePlanOverride } : {
       task: responseMode === 'proposal' ? 'propose' : 'review',
@@ -1643,52 +1716,27 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       }
       const currentScopeIds = new Set(scope.classes.map((item) => item.id));
       const addedReferenceItems = plannedScope.classes.filter((item) => !currentScopeIds.has(item.id));
-      if (addedReferenceItems.length) {
-        const plannedInput = requestPlanner.buildUserContent(userText, plannedScope, conversation);
-        let expansionInputs = [plannedInput];
-        let expansionOutputBudget = MAX_OUTPUT_TOKENS;
-        if (plannedInput.length + systemPrompt.length + compactResponseInstructions.length + 1200 > MAX_REQUEST_CHARACTERS) {
-          try {
-            const expandedTasks = await requestPlanner.makeLargeScopePlan(userText, plannedScope, conversation, {
-              promptOverhead: systemPrompt.length + compactResponseInstructions.length + 1200
-            });
-            if (!expandedTasks?.length) throw new Error('計画された参照範囲を送信上限内に分割できません。');
-            const parentByChild = new Map(plannedScope.relations.map(({ child, parent }) => [child, parent]));
-            const hierarchy = plannedScope.classes.filter((item) => ['top', 'middle'].includes(item.type))
-              .map((item) => [item.id, item.type, item.label, parentByChild.get(item.id) || null]);
-            const hierarchyInput = shortenInputIds(JSON.stringify({ scopeCoverage: 'hierarchy_reference', hierarchy }));
-            if (hierarchyInput.length > MAX_REQUEST_CHARACTERS) throw new Error('計画された階層参照情報が送信上限を超えています。');
-            expansionInputs = [hierarchyInput, ...expandedTasks.map((task) => hierarchyInput + task.input)];
-            expansionOutputBudget = expandedTasks.length * CHUNK_OUTPUT_TOKENS
-              + SYNTHESIS_OUTPUT_TOKENS * MAX_SYNTHESIS_ROUNDS + (plannedScope.allowProposals ? MAX_OUTPUT_TOKENS : 0);
-          } catch (error) {
-            logAiProblem('参照範囲の費用見積もり', error);
-            setStatus(`追加参照範囲の費用を見積もれないため、送信を中止しました。${error.message}`, 'error');
-            return false;
-          }
-        }
-        const expansionCost = estimateRequestCost(expansionInputs, systemPrompt, expansionOutputBudget);
-        const rangeLabel = plannedReferenceRange === 'full_hierarchy' ? '全階層' : '選択対象と親階層';
-        const expansionSummary = [
-          `分析計画に合わせて参照範囲を「${rangeLabel}」へ広げます。`,
-          `追加で送信するクラス：${addedReferenceItems.length}件（すべて参照専用）`,
-          '選択中の編集対象は変わりません。',
-          expansionCost
-        ].join('\n\n');
-        const expansionApproved = await confirmSendBeforeRequest(userText, plannedScope, expansionSummary, conversation,
-          false, true, plannedScope, false, false);
-        if (!expansionApproved) {
-          setStatus('参照範囲の追加をキャンセルしました。');
-          return false;
-        }
-      }
+      const rangeLabel = plannedReferenceRange === 'full_hierarchy' ? '全階層' : '選択対象と親階層';
+      const referenceExpansionSummary = addedReferenceItems.length
+        ? `分析計画に合わせて参照範囲を「${rangeLabel}」へ広げます。追加クラスは${addedReferenceItems.length}件で、すべて参照専用です。選択中の編集対象は変わりません。`
+        : requestOptions.referenceExpansionSummary;
       return sendRequest(userText, additionalContextIds, {
         includeAllClasses: plannedIncludeAllClasses,
         referenceRangeOverride: plannedReferenceRange,
         adaptivePlanOverride: { ...adaptivePlan },
-        skipSendConfirmation: true,
+        referenceExpansionSummary,
         internalPreparation: true
       });
+    }
+    requestProgress.updatePreparationLabel('送信内容と費用の確認待ち');
+    const sendApproved = await confirmSendBeforeRequest(userText, scope, preflightNote, conversation, usesAnalysisMemory,
+      scope.scopeCoverage === 'all_classes' && !usesAnalysisMemory, displayScope, sendingDelta, sendingSplit);
+    if (!sendApproved) {
+      updateUsageSummary();
+      conversation.workflowStatus = `送信をキャンセルしました（${requestProgress.formatElapsedTime((Date.now() - requestStartedAt) / 1000)}）`;
+      setStatus('送信をキャンセルしました。入力内容は保持されています。');
+      renderConversation();
+      return false;
     }
     const attachAdaptivePlan = (input) => {
       const payload = JSON.parse(input);
@@ -1797,6 +1845,14 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
             || [...expectedCoverageIds].some((id) => !returnedCoverageSet.has(id))) {
             const error = new Error('選択中の編集対象を全件確認したことを照合できませんでした。この分割範囲は未確認として扱います。');
             error.name = 'SplitCoverageMismatchError';
+            error.coverage = {
+              expectedCount: expectedCoverageIds.size,
+              returnedCount: returnedCoverageIds.length,
+              uniqueReturnedCount: returnedCoverageSet.size,
+              missingCount: [...expectedCoverageIds].filter((id) => !returnedCoverageSet.has(id)).length,
+              unexpectedCount: [...returnedCoverageSet].filter((id) => !expectedCoverageIds.has(id)).length,
+              duplicateCount: returnedCoverageIds.length - returnedCoverageSet.size
+            };
             throw error;
           }
           // The unit owns only its editable sources. Destinations may be any hierarchy
@@ -1927,7 +1983,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
                     if (error?.name !== 'SplitCoverageMismatchError') throw error;
                     if (Number.isInteger(index)) incompleteChunkIndices.add(index);
                     splitBatchWarnings.push(`${stage}で対象IDを照合できなかったため、その範囲は未確認として扱いました。`);
-                    logAiProblem(`${stage}・${unit.unitId}`, error, 'warn');
+                    logAiProblem(`${stage}・${unit.unitId}`, error, 'warn', error.coverage);
                   }
                 });
                 if (groups.some((group) => !task.units.some((unit) => unit.unitId === group.key))) {
@@ -1942,7 +1998,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
                   if (error?.name !== 'SplitCoverageMismatchError') throw error;
                   if (Number.isInteger(index)) incompleteChunkIndices.add(index);
                   splitBatchWarnings.push(`${stage}で対象IDを照合できなかったため、その範囲は未確認として扱いました。`);
-                  logAiProblem(stage, error, 'warn');
+                  logAiProblem(stage, error, 'warn', error.coverage);
                 }
               }
             } catch (error) {
@@ -2066,17 +2122,9 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
             const crossScopeTargetIds = crossScopeCandidateMode
               ? crossScopeEditableTargets.filter((id) => crossScopeCandidateIds.has(id))
               : crossScopeEditableTargets;
-            if (!crossScopeEditableTargets.length) {
-              crossScopeOperationStatus = 'completed';
+            if (!crossScopeEditableTargets.length || scope.scopeCoverage !== 'all_classes') {
+              crossScopeOperationStatus = 'not_requested';
               result.proposals = reconcileSplitProposals(result.proposals, [], scope.classes, scope.relations);
-            } else if (!crossScopeStructure) {
-              crossScopeOperationStatus = 'incomplete';
-              crossScopeOperationFailureMessage = '全階層確認の対象を構成できませんでした。';
-              logAiProblem('横断確認を開始できません', new Error('全階層確認の対象を構成できませんでした。'), 'warn', {
-                responseMode, scopeCoverage: scope.scopeCoverage,
-                editableCount: scope.editableIds.length,
-                editableClassCount: crossScopeEditableTargets.length
-              });
             } else if (!allChunksCompleted || result.dataRequests.length
               || result.proposals.some((proposal) => proposal.questions?.length)) {
               crossScopeOperationStatus = 'incomplete';
@@ -2089,6 +2137,14 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
                 dataRequestCount: result.dataRequests.length,
                 completedTaskCount: splitTasks.length - incompleteTaskIndices.length,
                 taskCount: splitTasks.length
+              });
+            } else if (!crossScopeStructure) {
+              crossScopeOperationStatus = 'incomplete';
+              crossScopeOperationFailureMessage = '全階層確認の対象を構成できませんでした。';
+              logAiProblem('横断確認を開始できません', new Error('全階層確認の対象を構成できませんでした。'), 'warn', {
+                responseMode, scopeCoverage: scope.scopeCoverage,
+                editableCount: scope.editableIds.length,
+                editableClassCount: crossScopeEditableTargets.length
               });
             } else if (crossScopeCandidateMode && !crossScopeTargetIds.length) {
               crossScopeOperationStatus = 'completed';

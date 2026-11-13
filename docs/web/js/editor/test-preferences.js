@@ -9,7 +9,7 @@
     document.getElementById('test-settings-dialog')?.remove();
   }
   const storageKey = 'classEditorTestPreferences';
-  const defaults = { heldFontSize: 0.92, chatFontSize: 1, proposalFontSize: 0.9, treeTopFontSize: 0.95, treeMiddleFontSize: 0.95, treeTargetFontSize: 0.9, treeColorIntensity: 1, treeDisclosureSize: 0.85, treeTopColor: '#7dd3fc', treeTopTextColor: '#075985', treeTopBackgroundColor: '#e0f2fe', responseMode: 'proposal', promptFlexibility: 5, crossScopeStrategy: 'exhaustive', aiConcurrency: 2, crossScopeTopLimit: 2, crossScopeMiddleLimit: 5, responseOutputTokens: 5000, maxProposalsPerResponse: 30, maxQuestionsPerResponse: 3, maxOperationsPerProposal: 40, maxUncertaintiesPerProposal: 5, maxChunkFindingsPerCategory: 3, maxComparisonFindingsPerCategory: 8, chunkOutputTokens: 3000, synthesisOutputTokens: 4500, crossScopeOutputTokens: 4000, maxRequestCharacters: 48000 };
+  const defaults = { heldFontSize: 0.92, chatFontSize: 1, proposalFontSize: 0.9, treeTopFontSize: 0.95, treeMiddleFontSize: 0.95, treeTargetFontSize: 0.9, treeColorIntensity: 1, treeDisclosureSize: 0.85, treeTopColor: '#7dd3fc', treeTopTextColor: '#075985', treeTopBackgroundColor: '#e0f2fe', responseMode: 'proposal', promptFlexibility: 5, crossScopeStrategy: 'hierarchical', aiConcurrency: 2, crossScopeTopLimit: 2, crossScopeMiddleLimit: 5, responseOutputTokens: 5000, maxProposalsPerResponse: 30, maxQuestionsPerResponse: 3, maxOperationsPerProposal: 40, maxUncertaintiesPerProposal: 5, maxChunkFindingsPerCategory: 3, maxComparisonFindingsPerCategory: 8, chunkOutputTokens: 3000, synthesisOutputTokens: 4500, crossScopeOutputTokens: 4000, maxRequestCharacters: 48000 };
   const limits = {
     heldFontSize: [0.8, 1.3],
     chatFontSize: [0.85, 1.4],
