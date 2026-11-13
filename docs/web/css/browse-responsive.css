@@ -217,7 +217,8 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selectio
   .edit-taskbar { width: 100%; flex-wrap: wrap; gap: 0.3rem; padding: 0.25rem 1rem; }
   .edit-taskbar-group:not(:last-child) { padding-right: 0.3rem; }
   .edit-taskbar-button { min-height: 1.9rem; padding: 0.18rem 0.4rem; font-size: 0.76rem; }
-  .edit-taskbar .held-panel-mode-tab { min-height: 1.7rem; padding-inline: 0.35rem; font-size: 0.74rem; }
+  .edit-taskbar .held-panel-mode-tab { min-height: 1.7rem; padding-inline: 0.35rem; font-size: 0.84rem; }
+  .edit-taskbar .held-panel-mode-tab.ai-consult-tab { min-height: 1.9rem; padding: 0.18rem 0.75rem; }
   .tree-toolbar-button { min-height: 2.2rem; padding-inline: 0.55rem; font-size: 0.8rem; }
   main { width: 100%; margin: 0; padding: 1rem; border-radius: 0; }
   #target-search-panel .class-search { grid-template-columns: minmax(0, 1fr) auto; gap: 0.65rem; }

@@ -188,6 +188,14 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .held-panel-mode-tab.is-active { border-color: #cbd5e1; color: #075985; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1); }
 .held-panel-mode-tab:hover { color: #075985; background: #eaf4fb; }
 .held-panel-mode-tab:focus-visible { outline: 2px solid #0284c7; outline-offset: 1px; }
+.edit-taskbar .held-panel-mode-tab { font-size: 0.84rem; }
+.edit-taskbar .ai-consult-tab,
+.edit-taskbar .ai-consult-tab[aria-selected="true"] { min-width: 8.5rem; min-height: 2rem; padding: 0.2rem 1rem; border: 1px solid #4f46e5; border-radius: 7px; color: #fff; background: #4f46e5; box-shadow: 0 2px 5px rgba(49, 46, 129, 0.3); font-weight: 750; }
+.edit-taskbar .held-panel-mode-tab.ai-consult-tab[aria-selected="true"] { color: #a5b4fc; background: #111; box-shadow: inset 0 0 0 1px rgba(165, 180, 252, 0.2); }
+.edit-taskbar .ai-consult-tab .edit-taskbar-icon { color: #fff; font-size: 1.05rem; }
+.edit-taskbar .held-panel-mode-tab.ai-consult-tab:not([aria-selected="true"]):hover:not(:disabled) { border-color: #3730a3; color: #fff; background: #4338ca; box-shadow: 0 3px 7px rgba(49, 46, 129, 0.38); }
+.edit-taskbar .held-panel-mode-tab.ai-consult-tab[aria-selected="true"] .edit-taskbar-icon { color: #a5b4fc; }
+.edit-taskbar .ai-consult-tab:focus-visible { outline: 3px solid #a5b4fc; outline-offset: 2px; }
 .held-kind-tab { display: inline-flex; min-width: 0; min-height: 1.8rem; align-items: center; justify-content: center; gap: 0.25rem; flex: 1 1 0; padding: 0.2rem 0.35rem; border: 1px solid transparent; border-radius: 999px; color: #64748b; background: transparent; cursor: pointer; font: inherit; font-size: 0.73rem; font-weight: 600; line-height: 1.1; white-space: nowrap; }
 .held-kind-tab.is-active { border-color: #bae6fd; color: #075985; background: #e0f2fe; }
 .held-kind-tab:hover { color: #075985; background: #eff6ff; }

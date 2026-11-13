@@ -1,542 +1,644 @@
 <!doctype html>
 <html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>クラス編集</title>
-  <link rel="icon" type="image/svg+xml" href="web/favicon.svg">
-  
-  <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
-  <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1">
-  <link rel="stylesheet" href="web/css/tree-structure.css?v=20261112-tree-action-buttons-v2">
-  <link rel="stylesheet" href="web/css/editor-panels.css?v=20261112-summary-accessibility-v1">
-  <link rel="stylesheet" href="web/css/test-preferences.css?v=20261111-test-settings-layout-v1">
-  <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261112-tree-action-buttons-v25">
-  <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261103-held-panel-fixed-v2">
-  <script data-app-script="web/data/generated/class-data.js"></script>
-  <script data-app-script="web/data/generated/instance-data.js"></script>
-  <script data-app-script="web/js/shared/class-types.js?v=20261112-class-type-normalization-v1"></script>
-  <script data-app-script="web/js/shared/hierarchy-validation.js?v=20261112-shared-hierarchy-validation-v2"></script>
-  <script data-app-script="web/js/shared/data-workspace.js?v=20261112-review-fixes-v1"></script>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>クラス編集</title>
+    <link rel="icon" type="image/svg+xml" href="web/favicon.svg" />
 
-  <!-- データ → 共通ツリー → 編集状態・パネル・ツリー・イベント → AIの順で実行する。 -->
-  <script data-app-script="web/js/shared/tree.js?v=20261112-class-type-normalization-v1"></script>
-  <script data-app-script="web/js/editor/state.js?v=20261112-class-type-normalization-v1"></script>
-  <script data-app-script="web/js/editor/panels.js?v=20261111-held-table-fixed-header-v2"></script>
-  <script data-app-script="web/js/editor/tree.js?v=20261112-tree-action-buttons-v16"></script>
-  <script data-app-script="web/js/editor/events.js?v=20261112-shared-validation-v1"></script>
-  <script data-app-script="web/js/editor/test-preferences.js?v=20261112-response-count-limits-v1" data-app-type="module"></script>
-  <script src="web/js/shared/app-startup.js?v=20261112-review-fixes-v1"></script>
-</head>
-<body class="edit-panes-pinned" data-mode="edit">
-  <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>
-  <header class="page-header">
-    <p class="eyebrow">KNOWLEDGE GRAPH EDITOR</p>
-    <h1>クラス編集</h1>
-    <p class="page-description">既存クラスの所属を整理します。</p>
-    <div class="page-header-actions">
-      <!-- 開発者向けの調整UI。撤去時は、このボタンと下のdialogを削除する。 -->
-      <button type="button" id="open-test-settings" class="page-link-button" hidden>開発者設定</button>
-      <button type="button" id="open-edit-settings" class="page-link-button">表示設定</button>
-      <button type="button" id="open-data-import" class="page-link-button">データ追加</button>
-      <a id="browse-link" class="page-link-button" href="index.html">閲覧画面へ</a>
-    </div>
-  </header>
-  <div class="edit-taskbar" role="toolbar" aria-label="編集操作">
-    <div class="edit-taskbar-group" aria-label="操作履歴">
-      <button type="button" id="undo-edit" class="edit-taskbar-button" disabled title="元に戻す履歴はありません"><span class="edit-taskbar-icon" aria-hidden="true">↶</span>元に戻す</button>
-      <button type="button" id="redo-edit" class="edit-taskbar-button" disabled title="やり直す履歴はありません"><span class="edit-taskbar-icon" aria-hidden="true">↷</span>やり直し</button>
-    </div>
-    <div class="edit-taskbar-group edit-taskbar-tree-actions" aria-label="ツリー操作">
-      <button type="button" id="close-all-tree" class="edit-taskbar-button tree-toolbar-button" hidden><span class="edit-taskbar-icon" aria-hidden="true">⊟</span>すべて閉じる</button>
-      <button type="button" id="select-visible-tree" class="edit-taskbar-button tree-toolbar-button" aria-label="現在のツリー表示範囲をすべて選択" title="現在表示されているクラスを選択します。上位・中間クラスを選ぶと配下も含めます">表示範囲を全選択</button>
-      <button type="button" id="clear-visible-tree-selection" class="edit-taskbar-button tree-toolbar-button" aria-label="現在のツリー表示範囲の選択を解除" title="現在表示されている上位・中間クラスの選択を解除すると配下も解除します">表示範囲を解除</button>
-      <button type="button" id="select-filtered-targets" class="edit-taskbar-button tree-toolbar-button" hidden>検索結果を選択</button>
-      <button type="button" id="clear-filtered-targets-selection" class="edit-taskbar-button tree-toolbar-button" hidden>検索結果を解除</button>
-      <button type="button" id="toggle-tree-filter-open" class="edit-taskbar-button" hidden><span class="edit-taskbar-icon" aria-hidden="true">⌕</span>検索欄を表示</button>
-    </div>
-    <div class="edit-taskbar-spacer" aria-hidden="true"></div>
-    <div class="edit-taskbar-held-controls">
-      <span id="edit-selection-summary" class="edit-selection-summary" role="status" aria-live="polite">選択 0件</span>
-      <div class="edit-taskbar-group edit-taskbar-panel-modes" role="tablist" aria-label="サイド欄">
-        <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="held" role="tab" aria-selected="false" aria-controls="held-list-view"><span class="edit-taskbar-icon" aria-hidden="true">▤</span>保持中</button>
-        <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="destination" role="tab" aria-selected="false" aria-controls="held-destination-picker"><span class="edit-taskbar-icon" aria-hidden="true">⇥</span>移動先</button>
-        <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="chat" role="tab" aria-selected="false" aria-controls="ai-assistant-panel"><span class="edit-taskbar-icon" aria-hidden="true">◉</span>AIチャット</button>
+    <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
+    <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1" />
+    <link rel="stylesheet" href="web/css/tree-structure.css?v=20261112-tree-action-buttons-v2" />
+    <link rel="stylesheet" href="web/css/editor-panels.css?v=20261112-ai-consult-tab-v3" />
+    <link rel="stylesheet" href="web/css/test-preferences.css?v=20261111-test-settings-layout-v1" />
+    <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261112-tree-action-buttons-v25" />
+    <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261112-ai-consult-tab-v2" />
+    <script data-app-script="web/data/generated/class-data.js"></script>
+    <script data-app-script="web/data/generated/instance-data.js"></script>
+    <script data-app-script="web/js/shared/class-types.js?v=20261112-class-type-normalization-v1"></script>
+    <script data-app-script="web/js/shared/hierarchy-validation.js?v=20261112-shared-hierarchy-validation-v2"></script>
+    <script data-app-script="web/js/shared/data-workspace.js?v=20261112-review-fixes-v1"></script>
+
+    <!-- データ → 共通ツリー → 編集状態・パネル・ツリー・イベント → AIの順で実行する。 -->
+    <script data-app-script="web/js/shared/tree.js?v=20261112-class-type-normalization-v1"></script>
+    <script data-app-script="web/js/editor/state.js?v=20261112-class-type-normalization-v1"></script>
+    <script data-app-script="web/js/editor/panels.js?v=20261111-held-table-fixed-header-v2"></script>
+    <script data-app-script="web/js/editor/tree.js?v=20261112-tree-action-buttons-v16"></script>
+    <script data-app-script="web/js/editor/events.js?v=20261112-shared-validation-v1"></script>
+    <script data-app-script="web/js/editor/test-preferences.js?v=20261112-response-count-limits-v1" data-app-type="module"></script>
+    <script src="web/js/shared/app-startup.js?v=20261112-review-fixes-v1"></script>
+  </head>
+  <body class="edit-panes-pinned" data-mode="edit">
+    <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">データを読み込み中…</div>
+    <header class="page-header">
+      <p class="eyebrow">KNOWLEDGE GRAPH EDITOR</p>
+      <h1>クラス編集</h1>
+      <p class="page-description">既存クラスの所属を整理します。</p>
+      <div class="page-header-actions">
+        <!-- 開発者向けの調整UI。撤去時は、このボタンと下のdialogを削除する。 -->
+        <button type="button" id="open-test-settings" class="page-link-button" hidden>開発者設定</button>
+        <button type="button" id="open-edit-settings" class="page-link-button">表示設定</button>
+        <button type="button" id="open-data-import" class="page-link-button">データ追加</button>
+        <a id="browse-link" class="page-link-button" href="index.html">閲覧画面へ</a>
       </div>
+    </header>
+    <!-- 編集操作とサイドパネル切り替えをまとめた固定ツールバー。 -->
+    <div class="edit-taskbar" role="toolbar" aria-label="編集操作">
+      <div class="edit-taskbar-group" aria-label="操作履歴">
+        <button type="button" id="undo-edit" class="edit-taskbar-button" disabled title="元に戻す履歴はありません"><span class="edit-taskbar-icon" aria-hidden="true">↶</span>元に戻す</button>
+        <button type="button" id="redo-edit" class="edit-taskbar-button" disabled title="やり直す履歴はありません"><span class="edit-taskbar-icon" aria-hidden="true">↷</span>やり直し</button>
+      </div>
+      <div class="edit-taskbar-group edit-taskbar-tree-actions" aria-label="ツリー操作">
+        <button type="button" id="close-all-tree" class="edit-taskbar-button tree-toolbar-button" hidden><span class="edit-taskbar-icon" aria-hidden="true">⊟</span>すべて閉じる</button>
+        <button type="button" id="select-visible-tree" class="edit-taskbar-button tree-toolbar-button" aria-label="現在のツリー表示範囲をすべて選択" title="現在表示されているクラスを選択します。上位・中間クラスを選ぶと配下も含めます">表示範囲を全選択</button>
+        <button type="button" id="clear-visible-tree-selection" class="edit-taskbar-button tree-toolbar-button" aria-label="現在のツリー表示範囲の選択を解除" title="現在表示されている上位・中間クラスの選択を解除すると配下も解除します">表示範囲を解除</button>
+        <button type="button" id="select-filtered-targets" class="edit-taskbar-button tree-toolbar-button" hidden>検索結果を選択</button>
+        <button type="button" id="clear-filtered-targets-selection" class="edit-taskbar-button tree-toolbar-button" hidden>検索結果を解除</button>
+        <button type="button" id="toggle-tree-filter-open" class="edit-taskbar-button" hidden><span class="edit-taskbar-icon" aria-hidden="true">⌕</span>検索欄を表示</button>
+      </div>
+      <div class="edit-taskbar-spacer" aria-hidden="true"></div>
+      <div class="edit-taskbar-held-controls">
+        <span id="edit-selection-summary" class="edit-selection-summary" role="status" aria-live="polite">選択 0件</span>
+        <div class="edit-taskbar-group edit-taskbar-panel-modes" role="tablist" aria-label="サイド欄">
+          <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="held" role="tab" aria-selected="false" aria-controls="held-list-view"><span class="edit-taskbar-icon" aria-hidden="true">▤</span>保持中</button>
+          <button type="button" class="edit-taskbar-button held-panel-mode-tab" data-held-panel-view="destination" role="tab" aria-selected="false" aria-controls="held-destination-picker"><span class="edit-taskbar-icon" aria-hidden="true">⇥</span>移動先</button>
+          <button type="button" class="edit-taskbar-button held-panel-mode-tab ai-consult-tab" data-held-panel-view="chat" role="tab" aria-selected="false" aria-controls="ai-assistant-panel"><span class="edit-taskbar-icon" aria-hidden="true">◉</span>AIに相談</button>
+        </div>
+      </div>
+      <button type="button" id="save-edit-changes" class="edit-taskbar-button edit-header-save">編集内容を保存</button>
     </div>
-    <button type="button" id="save-edit-changes" class="edit-taskbar-button edit-header-save">編集内容を保存</button>
-  </div>
 
-  <main>
-    <!-- 階層ツリーを中心にクラスを編集 -->
-    <section id="edit-tree-panel" class="tab-panel">
-      <!-- 検索・ツリーと保持中パネルを左右に配置 -->
-      <div class="edit-tree-layout">
-        <div class="edit-tree-pane">
-          <details id="tree-filter" class="tree-filter" role="search" aria-label="階層ツリーの絞り込み">
-            <summary class="tree-filter-heading"><span>検索</span><span id="tree-filter-count" class="tree-filter-count" aria-live="polite"></span></summary>
-            <div class="tree-filter-actions"><button type="button" id="close-tree-filter" class="held-panel-icon-button tree-filter-close" aria-label="検索欄を閉じる" title="検索欄を閉じる">×</button></div>
-            <div class="tree-filter-body">
-              <div class="tree-filter-mode-switch" role="group" aria-label="絞り込み方式">
-                <button type="button" class="is-active" data-tree-filter-method="keyword" aria-pressed="true">キーワード検索</button>
-                <button type="button" data-tree-filter-method="count" aria-pressed="false">件数</button>
+    <main>
+      <!-- 階層ツリーを中心にクラスを編集 -->
+      <section id="edit-tree-panel" class="tab-panel">
+        <!-- 検索・ツリーと保持中パネルを左右に配置 -->
+        <div class="edit-tree-layout">
+          <div class="edit-tree-pane">
+            <!-- クラス名・IDまたはインスタンス件数でツリーを絞り込む。 -->
+            <details id="tree-filter" class="tree-filter" role="search" aria-label="階層ツリーの絞り込み">
+              <summary class="tree-filter-heading"><span>検索</span><span id="tree-filter-count" class="tree-filter-count" aria-live="polite"></span></summary>
+              <div class="tree-filter-actions">
+                <button type="button" id="close-tree-filter" class="held-panel-icon-button tree-filter-close" aria-label="検索欄を閉じる" title="検索欄を閉じる">×</button>
               </div>
-              <div class="tree-filter-search-controls">
-                <label for="tree-filter-type">検索対象
-                  <select id="tree-filter-type">
-                    <option value="class">クラス</option>
-                    <option value="instance">インスタンス</option>
-                  </select>
-                </label>
-                <label class="tree-filter-query-label" for="tree-filter-query">検索語
-                  <input id="tree-filter-query" type="search" aria-label="検索語を入力しEnterで追加" placeholder="名前・IDで検索してEnterで追加" autocomplete="off">
-                </label>
-              </div>
-              <fieldset class="tree-filter-count-settings" hidden>
-                <label class="tree-filter-count-mode-label" for="tree-filter-count-mode">インスタンス件数
-                  <select id="tree-filter-count-mode" aria-label="件数指定方法"><option value="range" selected>範囲指定</option><option value="exact">指定件数</option></select>
-                </label>
-                <fieldset id="tree-filter-count-range" class="tree-filter-count-range">
-                  <div class="tree-filter-range-values"><span>最小 <output id="tree-filter-count-min-value">0件</output></span><span>最大 <output id="tree-filter-count-max-value">0件</output></span></div>
-                  <div class="tree-filter-range-sliders" aria-label="件数の範囲を指定">
-                    <input id="tree-filter-count-min" type="range" min="0" max="0" step="1" value="0" aria-label="最小件数">
-                    <input id="tree-filter-count-max" type="range" min="0" max="0" step="1" value="0" aria-label="最大件数">
-                    <output id="tree-filter-count-min-bubble" class="tree-filter-range-bubble" aria-hidden="true"></output>
-                    <output id="tree-filter-count-max-bubble" class="tree-filter-range-bubble" aria-hidden="true"></output>
-                  </div>
+              <div class="tree-filter-body">
+                <div class="tree-filter-mode-switch" role="group" aria-label="絞り込み方式">
+                  <button type="button" class="is-active" data-tree-filter-method="keyword" aria-pressed="true">キーワード検索</button>
+                  <button type="button" data-tree-filter-method="count" aria-pressed="false">件数</button>
+                </div>
+                <div class="tree-filter-search-controls">
+                  <label for="tree-filter-type"
+                    >検索対象
+                    <select id="tree-filter-type">
+                      <option value="class">クラス</option>
+                      <option value="instance">インスタンス</option>
+                    </select>
+                  </label>
+                  <label class="tree-filter-query-label" for="tree-filter-query"
+                    >検索語
+                    <input id="tree-filter-query" type="search" aria-label="検索語を入力しEnterで追加" placeholder="名前・IDで検索してEnterで追加" autocomplete="off" />
+                  </label>
+                </div>
+                <fieldset class="tree-filter-count-settings" hidden>
+                  <label class="tree-filter-count-mode-label" for="tree-filter-count-mode"
+                    >インスタンス件数
+                    <select id="tree-filter-count-mode" aria-label="件数指定方法">
+                      <option value="range" selected>範囲指定</option>
+                      <option value="exact">指定件数</option>
+                    </select>
+                  </label>
+                  <fieldset id="tree-filter-count-range" class="tree-filter-count-range">
+                    <div class="tree-filter-range-values">
+                      <span>最小 <output id="tree-filter-count-min-value">0件</output></span
+                      ><span>最大 <output id="tree-filter-count-max-value">0件</output></span>
+                    </div>
+                    <div class="tree-filter-range-sliders" aria-label="件数の範囲を指定">
+                      <input id="tree-filter-count-min" type="range" min="0" max="0" step="1" value="0" aria-label="最小件数" />
+                      <input id="tree-filter-count-max" type="range" min="0" max="0" step="1" value="0" aria-label="最大件数" />
+                      <output id="tree-filter-count-min-bubble" class="tree-filter-range-bubble" aria-hidden="true"></output>
+                      <output id="tree-filter-count-max-bubble" class="tree-filter-range-bubble" aria-hidden="true"></output>
+                    </div>
+                  </fieldset>
+                  <label id="tree-filter-count-exact" class="tree-filter-count-exact" hidden
+                    ><span class="tree-filter-count-exact-title">指定件数：<output id="tree-filter-count-exact-value">0件</output></span>
+                    <span class="tree-filter-exact-slider-row"
+                      ><span id="tree-filter-count-exact-min">0件</span><span class="tree-filter-exact-slider-wrap"><input id="tree-filter-count-exact-input" class="tree-filter-exact-slider" type="range" min="0" max="0" step="1" value="0" aria-label="指定件数" /><output id="tree-filter-count-exact-bubble" class="tree-filter-range-bubble tree-filter-exact-bubble" aria-hidden="true"></output></span><span id="tree-filter-count-exact-max">0件</span></span
+                    >
+                  </label>
                 </fieldset>
-                <label id="tree-filter-count-exact" class="tree-filter-count-exact" hidden><span class="tree-filter-count-exact-title">指定件数：<output id="tree-filter-count-exact-value">0件</output></span>
-                  <span class="tree-filter-exact-slider-row"><span id="tree-filter-count-exact-min">0件</span><span class="tree-filter-exact-slider-wrap"><input id="tree-filter-count-exact-input" class="tree-filter-exact-slider" type="range" min="0" max="0" step="1" value="0" aria-label="指定件数"><output id="tree-filter-count-exact-bubble" class="tree-filter-range-bubble tree-filter-exact-bubble" aria-hidden="true"></output></span><span id="tree-filter-count-exact-max">0件</span></span>
-                </label>
-              </fieldset>
-              <button type="button" id="clear-tree-filters" class="search-button secondary-search-button" disabled>条件をクリア</button>
-            </div>
-            <div class="tree-filter-status" aria-live="polite" hidden>
-              <div id="tree-filter-keyword-chips" class="search-hierarchy-selected tree-filter-active-summary" aria-label="検索ワード"></div>
-            </div>
-          </details>
-          <p class="tree-drag-help">チェックボックスで配下を選択できます。ツリーの高さにある画面左端や空白部分からドラッグ（タッチ画面では長押し後にドラッグ）すると範囲選択できます。範囲内に未選択のクラスがあれば全体を選択し、すべて選択済みの場合は全体を解除します。クラス見出しはクリックで開閉、ダブルクリックで選択します。行を左ドラッグ（タッチ画面では長押し）して移動先へドロップできます。</p>
-          <div id="edit-tree" class="tree" role="tree"></div>
-          <button type="button" id="scroll-to-top" class="scroll-to-top-button" title="ページの一番上に戻る" aria-label="ページの一番上に戻る" hidden>↑</button>
-        </div>
-        <div class="held-panel-spacer" aria-hidden="true"></div>
-        <aside id="held-panel" class="instance-selection">
-          <div id="held-panel-resize" class="held-panel-resize" role="separator" aria-orientation="vertical" aria-label="保持欄の幅を変更" aria-valuemin="240" aria-valuemax="760" aria-valuenow="320" tabindex="0"></div>
-          <div class="held-panel-header">
-            <button type="button" id="toggle-held-panel-collapse" class="held-panel-icon-button held-panel-minimize" aria-expanded="true" aria-controls="held-list-view held-destination-picker ai-assistant-panel" aria-label="保持欄を最小化" title="保持欄を最小化"><span class="held-panel-collapse-icon" aria-hidden="true"></span></button>
-            <div class="held-panel-heading">
-              <span class="held-panel-title"><span id="held-kind-label">保持中</span></span>
-            </div>
-            <div class="held-panel-header-actions">
-              <div class="ai-history-anchor" hidden>
-                <button type="button" id="ai-chat-settings" class="held-panel-icon-button ai-history-button" aria-label="AIチャット設定" title="AIチャット設定">設定</button>
-                <button type="button" id="ai-show-history" class="held-panel-icon-button ai-history-button" aria-expanded="false" aria-controls="ai-history-popover" title="過去の相談">履歴</button>
-                <div id="ai-history-popover" class="ai-history-popover" hidden>
-                  <h3>過去の相談</h3>
-                  <p class="ai-history-note">「保存」で必要な相談だけをこのブラウザーに保存できます。内容はこの端末のブラウザー保存領域に残り、共有端末では他の利用者が見られる場合があります。「保存済み」を押すと保存を解除できます。相談名も変更できます。再開時は現在のクラス情報を使い、過去の変更案は適用できません。</p>
-                  <div id="ai-history-list" class="ai-history-list"></div>
-                </div>
+                <button type="button" id="clear-tree-filters" class="search-button secondary-search-button" disabled>条件をクリア</button>
               </div>
-              <button type="button" id="close-held-panel" class="held-panel-icon-button held-panel-close" aria-label="保持欄を閉じる" title="保持欄を閉じる">×</button>
-            </div>
+              <div class="tree-filter-status" aria-live="polite" hidden>
+                <div id="tree-filter-keyword-chips" class="search-hierarchy-selected tree-filter-active-summary" aria-label="検索ワード"></div>
+              </div>
+            </details>
+            <p class="tree-drag-help">チェックボックスで配下を選択できます。ツリーの高さにある画面左端や空白部分からドラッグ（タッチ画面では長押し後にドラッグ）すると範囲選択できます。範囲内に未選択のクラスがあれば全体を選択し、すべて選択済みの場合は全体を解除します。クラス見出しはクリックで開閉、ダブルクリックで選択します。行を左ドラッグ（タッチ画面では長押し）して移動先へドロップできます。</p>
+            <div id="edit-tree" class="tree" role="tree"></div>
+            <button type="button" id="scroll-to-top" class="scroll-to-top-button" title="ページの一番上に戻る" aria-label="ページの一番上に戻る" hidden>↑</button>
           </div>
-          <div id="held-list-view" role="tabpanel">
-            <div class="held-kind-tabs" role="tablist" aria-label="保持中のクラス種類">
-              <button type="button" class="held-kind-tab is-active" data-held-kind="top" role="tab" aria-selected="true" aria-controls="held-instance-list">上位クラス <span data-held-kind-count="top">0</span></button>
-              <button type="button" class="held-kind-tab" data-held-kind="middle" role="tab" aria-selected="false" aria-controls="held-instance-list">中間クラス <span data-held-kind-count="middle">0</span></button>
-              <button type="button" class="held-kind-tab" data-held-kind="target" role="tab" aria-selected="false" aria-controls="held-instance-list">対象クラス <span data-held-kind-count="target">0</span></button>
+          <div class="held-panel-spacer" aria-hidden="true"></div>
+          <!-- 選択中クラス、移動先選択、AI相談を表示する右サイドパネル。 -->
+          <aside id="held-panel" class="instance-selection">
+            <div id="held-panel-resize" class="held-panel-resize" role="separator" aria-orientation="vertical" aria-label="保持欄の幅を変更" aria-valuemin="240" aria-valuemax="760" aria-valuenow="320" tabindex="0"></div>
+            <div class="held-panel-header">
+              <button type="button" id="toggle-held-panel-collapse" class="held-panel-icon-button held-panel-minimize" aria-expanded="true" aria-controls="held-list-view held-destination-picker ai-assistant-panel" aria-label="保持欄を最小化" title="保持欄を最小化">
+                <span class="held-panel-collapse-icon" aria-hidden="true"></span>
+              </button>
+              <div class="held-panel-heading">
+                <span class="held-panel-title"><span id="held-kind-label">保持中</span></span>
+              </div>
+              <div class="held-panel-header-actions">
+                <div class="ai-history-anchor" hidden>
+                  <button type="button" id="ai-chat-settings" class="held-panel-icon-button ai-history-button" aria-label="AIチャット設定" title="AIチャット設定">設定</button>
+                  <button type="button" id="ai-show-history" class="held-panel-icon-button ai-history-button" aria-expanded="false" aria-controls="ai-history-popover" title="過去の相談">履歴</button>
+                  <div id="ai-history-popover" class="ai-history-popover" hidden>
+                    <h3>過去の相談</h3>
+                    <p class="ai-history-note">「保存」で必要な相談だけをこのブラウザーに保存できます。内容はこの端末のブラウザー保存領域に残り、共有端末では他の利用者が見られる場合があります。「保存済み」を押すと保存を解除できます。相談名も変更できます。再開時は現在のクラス情報を使い、過去の変更案は適用できません。</p>
+                    <div id="ai-history-list" class="ai-history-list"></div>
+                  </div>
+                </div>
+                <button type="button" id="close-held-panel" class="held-panel-icon-button held-panel-close" aria-label="保持欄を閉じる" title="保持欄を閉じる">×</button>
+              </div>
             </div>
-            <div class="held-panel-actions">
-              <button type="button" id="clear-held" class="held-action-button">表示中を解除</button>
+            <div id="held-list-view" role="tabpanel">
+              <div class="held-kind-tabs" role="tablist" aria-label="保持中のクラス種類">
+                <button type="button" class="held-kind-tab is-active" data-held-kind="top" role="tab" aria-selected="true" aria-controls="held-instance-list">上位クラス <span data-held-kind-count="top">0</span></button>
+                <button type="button" class="held-kind-tab" data-held-kind="middle" role="tab" aria-selected="false" aria-controls="held-instance-list">中間クラス <span data-held-kind-count="middle">0</span></button>
+                <button type="button" class="held-kind-tab" data-held-kind="target" role="tab" aria-selected="false" aria-controls="held-instance-list">対象クラス <span data-held-kind-count="target">0</span></button>
+              </div>
+              <div class="held-panel-actions">
+                <button type="button" id="clear-held" class="held-action-button">表示中を解除</button>
+              </div>
+              <div id="held-instance-list" class="held-instance-list"></div>
+              <div id="held-pagination" class="held-pagination-container" aria-live="polite"></div>
             </div>
-            <div id="held-instance-list" class="held-instance-list"></div>
-            <div id="held-pagination" class="held-pagination-container" aria-live="polite"></div>
-          </div>
-          <section id="held-destination-picker" class="held-destination-picker" aria-label="移動先を選択" hidden>
-            <label class="held-destination-search-label" for="held-destination-search">移動先を検索
-              <input id="held-destination-search" type="search" placeholder="クラス名・所属階層" autocomplete="off">
-            </label>
-            <div class="held-destination-tabs" role="tablist" aria-label="移動先の種類">
-              <button type="button" class="held-destination-tab is-active" data-destination-kind="top" role="tab" aria-selected="true">上位クラス</button>
-              <button type="button" class="held-destination-tab" data-destination-kind="middle" role="tab" aria-selected="false">中間クラス</button>
-            </div>
-            <p id="held-destination-move-hint" class="held-destination-move-hint" hidden></p>
-            <section id="held-destination-recent" class="held-destination-recent" aria-label="最近使った移動先" hidden>
-              <h3>最近使った移動先</h3>
-              <div id="held-destination-recent-list" class="held-destination-recent-list"></div>
+            <section id="held-destination-picker" class="held-destination-picker" aria-label="移動先を選択" hidden>
+              <label class="held-destination-search-label" for="held-destination-search"
+                >移動先を検索
+                <input id="held-destination-search" type="search" placeholder="クラス名・所属階層" autocomplete="off" />
+              </label>
+              <div class="held-destination-tabs" role="tablist" aria-label="移動先の種類">
+                <button type="button" class="held-destination-tab is-active" data-destination-kind="top" role="tab" aria-selected="true">上位クラス</button>
+                <button type="button" class="held-destination-tab" data-destination-kind="middle" role="tab" aria-selected="false">中間クラス</button>
+              </div>
+              <p id="held-destination-move-hint" class="held-destination-move-hint" hidden></p>
+              <section id="held-destination-recent" class="held-destination-recent" aria-label="最近使った移動先" hidden>
+                <h3>最近使った移動先</h3>
+                <div id="held-destination-recent-list" class="held-destination-recent-list"></div>
+              </section>
+              <div id="held-destination-list" class="held-destination-list"></div>
+              <button type="button" id="apply-held-destination" class="held-action-button" disabled>選択先へ移動</button>
             </section>
-            <div id="held-destination-list" class="held-destination-list"></div>
-            <button type="button" id="apply-held-destination" class="held-action-button" disabled>選択先へ移動</button>
-          </section>
-          <section id="ai-assistant-panel" class="ai-assistant-panel" aria-label="AIチャット" hidden>
-            <header class="ai-chat-header">
-            </header>
-            <div id="ai-chat-messages" class="ai-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
-            <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
-            <p id="ai-key-guidance" class="ai-key-guidance" hidden>AIチャットを使うにはAPIキーが必要です。<button type="button" id="ai-open-settings" class="ai-settings-inline-link">AIチャット設定</button>から入力してください。</p>
-            <p id="ai-usage-summary" class="ai-usage-summary" aria-live="polite"><span class="ai-usage-label">合計</span><strong class="ai-usage-cost">$0.000000</strong><span class="ai-usage-detail">入力 0 / 出力 0 tokens</span><span class="ai-usage-requests">送信 0回</span></p>
-            <form id="ai-chat-form" class="ai-chat-form">
-              <div class="ai-prompt-examples">
-                <div id="ai-prompt-examples-list" class="ai-prompt-examples-list"></div>
-              </div>
-              <label class="sr-only" for="ai-chat-input">AIへの依頼</label>
-              <div class="ai-chat-composer">
-                <textarea id="ai-chat-input" rows="1" placeholder="保持欄で選択したクラスについて相談"></textarea>
-                <div class="ai-chat-composer-actions">
-                  <div class="ai-chat-composer-tools">
-                    <button type="button" id="ai-new-consultation" class="ai-new-consultation" aria-label="新しい相談" title="新しい相談">＋</button>
-                    <button type="button" id="ai-full-graph-scope" class="ai-scope-option" role="switch" aria-checked="true" aria-label="全上位・中間クラスを参照" title="初回や再分析時に全上位・中間クラスと選択範囲を送信します。同じデータへの追加相談では前回の分析要約を使います。変更対象は選択中のクラスです。"><span class="ai-scope-switch-track" aria-hidden="true"></span><span>全上位・中間クラスを参照</span></button>
-                  </div>
-                  <div class="ai-chat-composer-submit">
-                    <span id="ai-current-model" class="ai-current-model" aria-live="polite">モデルを読み込み中</span>
-                    <button id="ai-send" type="submit" class="search-button" aria-label="送信" title="送信">↑</button>
+            <!-- AIへの依頼、応答、利用状況を扱うパネル。初期状態では非表示。 -->
+            <section id="ai-assistant-panel" class="ai-assistant-panel" aria-label="AIチャット" hidden>
+              <header class="ai-chat-header"></header>
+              <div id="ai-chat-messages" class="ai-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+              <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
+              <p id="ai-key-guidance" class="ai-key-guidance" hidden>AIチャットを使うにはAPIキーが必要です。<button type="button" id="ai-open-settings" class="ai-settings-inline-link">AIチャット設定</button>から入力してください。</p>
+              <p id="ai-usage-summary" class="ai-usage-summary" aria-live="polite"><span class="ai-usage-label">合計</span><strong class="ai-usage-cost">$0.000000</strong><span class="ai-usage-detail">入力 0 / 出力 0 tokens</span><span class="ai-usage-requests">送信 0回</span></p>
+              <form id="ai-chat-form" class="ai-chat-form">
+                <div class="ai-prompt-examples">
+                  <div id="ai-prompt-examples-list" class="ai-prompt-examples-list"></div>
+                </div>
+                <label class="sr-only" for="ai-chat-input">AIへの依頼</label>
+                <div class="ai-chat-composer">
+                  <textarea id="ai-chat-input" rows="1" placeholder="保持欄で選択したクラスについて相談"></textarea>
+                  <div class="ai-chat-composer-actions">
+                    <div class="ai-chat-composer-tools">
+                      <button type="button" id="ai-new-consultation" class="ai-new-consultation" aria-label="新しい相談" title="新しい相談">＋</button>
+                      <button type="button" id="ai-full-graph-scope" class="ai-scope-option" role="switch" aria-checked="true" aria-label="全上位・中間クラスを参照" title="初回や再分析時に全上位・中間クラスと選択範囲を送信します。同じデータへの追加相談では前回の分析要約を使います。変更対象は選択中のクラスです。"><span class="ai-scope-switch-track" aria-hidden="true"></span><span>全上位・中間クラスを参照</span></button>
+                    </div>
+                    <div class="ai-chat-composer-submit">
+                      <span id="ai-current-model" class="ai-current-model" aria-live="polite">モデルを読み込み中</span>
+                      <button id="ai-send" type="submit" class="search-button" aria-label="送信" title="送信">↑</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </form>
-          </section>
-        </aside>
-      </div>
-    </section>
-
-  </main>
-  <dialog id="edit-settings-dialog" class="edit-settings-dialog edit-display-settings-dialog" aria-labelledby="edit-settings-title">
-    <div class="ai-preview-header">
-      <h2 id="edit-settings-title">表示設定</h2>
-      <button type="button" id="close-edit-settings" class="target-instance-dialog-close" aria-label="表示設定を閉じる">×</button>
-    </div>
-    <section class="edit-settings-section" aria-labelledby="edit-font-settings-title">
-      <h3 id="edit-font-settings-title">文字サイズ</h3>
-      <div class="edit-settings-card-grid">
-        <div class="edit-settings-card">
-          <h4>AIチャット</h4>
-          <label for="setting-ai-chat-font-size">返答文と入力欄</label>
-          <div class="test-range-row"><input id="setting-ai-chat-font-size" type="range" min="0.85" max="1.4" step="0.05" data-preference="chatFontSize"><output for="setting-ai-chat-font-size"></output></div>
+              </form>
+            </section>
+          </aside>
         </div>
-        <div class="edit-settings-card">
-          <h4>ツリー</h4>
-          <label for="setting-tree-top-font-size">上位クラス</label>
-          <div class="test-range-row"><input id="setting-tree-top-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeTopFontSize"><output for="setting-tree-top-font-size"></output></div>
-          <label for="setting-tree-middle-font-size">中間クラス</label>
-          <div class="test-range-row"><input id="setting-tree-middle-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeMiddleFontSize"><output for="setting-tree-middle-font-size"></output></div>
-          <label for="setting-tree-target-font-size">対象クラス</label>
-          <div class="test-range-row"><input id="setting-tree-target-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeTargetFontSize"><output for="setting-tree-target-font-size"></output></div>
-        </div>
-        <div class="edit-settings-card">
-          <h4>提案・保持欄</h4>
-          <label for="setting-proposal-font-size">提案</label>
-          <div class="test-range-row"><input id="setting-proposal-font-size" type="range" min="0.8" max="1.3" step="0.05" data-preference="proposalFontSize"><output for="setting-proposal-font-size"></output></div>
-          <label for="setting-held-font-size">保持欄</label>
-          <div class="test-range-row"><input id="setting-held-font-size" type="range" min="0.8" max="1.3" step="0.05" data-preference="heldFontSize"><output for="setting-held-font-size"></output></div>
-        </div>
+      </section>
+    </main>
+    <!-- 表示・編集機能の利用者向け設定。 -->
+    <dialog id="edit-settings-dialog" class="edit-settings-dialog edit-display-settings-dialog" aria-labelledby="edit-settings-title">
+      <div class="ai-preview-header">
+        <h2 id="edit-settings-title">表示設定</h2>
+        <button type="button" id="close-edit-settings" class="target-instance-dialog-close" aria-label="表示設定を閉じる">×</button>
       </div>
-    </section>
-    <section class="edit-settings-section" aria-labelledby="edit-display-behavior-title">
-      <h3 id="edit-display-behavior-title">表示・編集機能</h3>
-      <div class="edit-settings-toggle-grid">
-        <label class="edit-settings-toggle edit-settings-toggle-card"><input type="checkbox" id="toggle-edit-ids"> クラスIDを表示する</label>
-        <label class="edit-settings-toggle edit-settings-toggle-card"><input type="checkbox" id="toggle-tree-edit-mode"> クラス編集を有効にする</label>
-        <label class="edit-settings-toggle edit-settings-toggle-card"><input type="checkbox" id="toggle-json-export"> JSON書き出しを有効にする</label>
-      </div>
-    </section>
-  </dialog>
-  <dialog id="ai-chat-settings-dialog" class="edit-settings-dialog" aria-labelledby="ai-chat-settings-title">
-    <div class="ai-preview-header">
-      <h2 id="ai-chat-settings-title">AIチャット設定</h2>
-      <button type="button" id="close-ai-chat-settings" class="target-instance-dialog-close" aria-label="AIチャット設定を閉じる">×</button>
-    </div>
-    <section class="edit-settings-section" aria-labelledby="ai-connection-settings-title">
-      <h3 id="ai-connection-settings-title">AI接続</h3>
-      <label for="ai-api-key">OpenAI APIキー</label>
-      <div class="ai-key-row">
-        <input id="ai-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…">
-        <button type="button" id="ai-toggle-key-visibility" class="held-action-button" aria-pressed="false">表示</button>
-      </div>
-      <p class="edit-settings-note">キーはページを閉じると消去されます。依頼文と選択範囲または全体分析時のクラス情報はOpenAIへ送信され、応答はAPI側に保存されます。利用料はキーのアカウントに請求されるため、信頼できる端末で使用してください。</p>
-      <label for="ai-model">モデル</label>
-      <select id="ai-model" class="edit-settings-select" aria-describedby="ai-model-description"></select>
-      <p id="ai-model-description" class="edit-settings-note">モデル候補は設定ファイルで管理します。</p>
-      <p id="ai-settings-status" class="ai-status" role="status" aria-live="polite"></p>
-    </section>
-    <section class="edit-settings-section" aria-labelledby="edit-ai-behavior-settings-title">
-      <h3 id="edit-ai-behavior-settings-title">AIチャットの動作</h3>
-      <label class="edit-settings-toggle"><input type="checkbox" id="ai-confirm-before-send" checked> 送信前に内容を確認する</label>
-      <p class="edit-settings-note">ONにすると送信前に内容を確認します。確認画面で「これ以降表示しない」を選ぶと、次回以降はOFFになります。</p>
-      <div class="edit-ai-behavior-grid">
-        <div class="edit-ai-setting-card">
-          <h4>回答</h4>
-          <label for="test-ai-response-mode">AIの回答モード</label>
-          <select id="test-ai-response-mode" class="edit-settings-select" data-preference="responseMode">
-            <option value="proposal">改善提案モード</option>
-            <option value="evaluation">評価モード</option>
-          </select>
-          <p class="edit-settings-note">次の依頼から適用します。確認事項への回答中は、その相談で使っているモードを引き継ぎます。</p>
-          <label for="test-ai-prompt-flexibility">AI提案の自由度</label>
-          <div class="test-range-row"><input id="test-ai-prompt-flexibility" type="range" min="1" max="5" step="1" data-preference="promptFlexibility"><output for="test-ai-prompt-flexibility"></output></div>
-          <p class="edit-settings-note">1: 大幅な再編・複数案・価値のないクラスの削除 / 2: 関連する再編・統合 / 3: 一通りの編集操作 / 4: 必要な補助操作 / 5: 明示された変更のみ</p>
-          <p class="edit-settings-note">数値が小さいほど自由度が高くなります。入力範囲や安全性などの必須ルールは変わりません。</p>
-        </div>
-      </div>
-      <p id="test-preferences-settings-status" class="ai-status" role="status" aria-live="polite"></p>
-    </section>
-  </dialog>
-  <!-- 開発者向け調整UI。専用CSS・JSと合わせて撤去できるよう分離している。 -->
-  <dialog id="test-settings-dialog" class="edit-settings-dialog" aria-labelledby="test-settings-title">
-    <div class="ai-preview-header">
-      <h2 id="test-settings-title">開発者設定</h2>
-      <button type="button" id="close-test-settings" class="target-instance-dialog-close" aria-label="開発者設定を閉じる">×</button>
-    </div>
-    <p class="edit-settings-note">変更はすぐに反映され、自動保存されます。「保存して閉じる」からも保存できます。</p>
-    <section class="edit-settings-section" aria-labelledby="test-ai-chat-title">
-      <h3 id="test-ai-chat-title">AIチャット</h3>
-      <div class="test-settings-group" role="group" aria-labelledby="test-ai-tuning-title">
-        <h4 id="test-ai-tuning-title">送信入力上限</h4>
-        <label for="test-ai-input-limit">1回の送信で扱う最大文字数</label>
-        <div class="test-range-row"><input id="test-ai-input-limit" type="range" min="12000" max="128000" step="4000" data-preference="maxRequestCharacters"><output for="test-ai-input-limit"></output></div>
-        <p class="edit-settings-note">送信入力の上限です。モデルのコンテキスト上限を超えた場合は、API側で受け付けられないことがあります。</p>
-      </div>
-      <div class="test-settings-group" role="group" aria-labelledby="test-ai-output-title">
-        <h4 id="test-ai-output-title">出力トークン上限</h4>
-        <p class="edit-settings-note">各値は選択中モデルの最大出力トークン数を超えません。</p>
-        <div class="test-tuning-grid">
-          <div class="test-tuning-control"><label for="test-ai-output-tokens">通常の回答</label><div class="test-range-row"><input id="test-ai-output-tokens" type="range" min="500" max="128000" step="500" data-preference="responseOutputTokens"><output for="test-ai-output-tokens"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-chunk-output-tokens">分割回答</label><div class="test-range-row"><input id="test-ai-chunk-output-tokens" type="range" min="500" max="128000" step="500" data-preference="chunkOutputTokens"><output for="test-ai-chunk-output-tokens"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-synthesis-output-tokens">結果統合</label><div class="test-range-row"><input id="test-ai-synthesis-output-tokens" type="range" min="500" max="128000" step="500" data-preference="synthesisOutputTokens"><output for="test-ai-synthesis-output-tokens"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-cross-scope-output-tokens">横断確認</label><div class="test-range-row"><input id="test-ai-cross-scope-output-tokens" type="range" min="500" max="128000" step="500" data-preference="crossScopeOutputTokens"><output for="test-ai-cross-scope-output-tokens"></output></div></div>
-        </div>
-      </div>
-      <div class="test-settings-group" role="group" aria-labelledby="test-ai-response-limits-title">
-        <h4 id="test-ai-response-limits-title">応答件数上限</h4>
-        <div class="test-tuning-grid">
-          <div class="test-tuning-control"><label for="test-ai-proposal-limit">1回の回答で返す提案数</label><div class="test-range-row"><input id="test-ai-proposal-limit" type="range" min="5" max="1000" step="5" data-preference="maxProposalsPerResponse"><output for="test-ai-proposal-limit"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-question-limit">確認事項数</label><div class="test-range-row"><input id="test-ai-question-limit" type="range" min="1" max="100" step="1" data-preference="maxQuestionsPerResponse"><output for="test-ai-question-limit"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-operation-limit">1提案あたりの操作数</label><div class="test-range-row"><input id="test-ai-operation-limit" type="range" min="5" max="1000" step="5" data-preference="maxOperationsPerProposal"><output for="test-ai-operation-limit"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-uncertainty-limit">1提案あたりの不確実点数</label><div class="test-range-row"><input id="test-ai-uncertainty-limit" type="range" min="1" max="100" step="1" data-preference="maxUncertaintiesPerProposal"><output for="test-ai-uncertainty-limit"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-chunk-findings-limit">分割回答の所見数／カテゴリ</label><div class="test-range-row"><input id="test-ai-chunk-findings-limit" type="range" min="1" max="80" step="1" data-preference="maxChunkFindingsPerCategory"><output for="test-ai-chunk-findings-limit"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-comparison-findings-limit">統合結果の所見数／カテゴリ</label><div class="test-range-row"><input id="test-ai-comparison-findings-limit" type="range" min="1" max="120" step="1" data-preference="maxComparisonFindingsPerCategory"><output for="test-ai-comparison-findings-limit"></output></div></div>
-        </div>
-        <p class="edit-settings-note">件数を増やすと、出力トークン上限に達して回答が完了しない場合があります。</p>
-      </div>
-      <div class="test-settings-group" role="group" aria-labelledby="test-ai-split-title">
-        <h4 id="test-ai-split-title">分割・統合</h4>
-        <label class="edit-settings-checkbox"><input id="test-ai-split-enabled" type="checkbox" data-preference="aiSplitEnabled"> 分割送信を使う</label>
-        <p class="edit-settings-note">オフにすると分割分析を行いません。1回の送信上限を超える場合は送信できません。</p>
-        <div class="test-tuning-grid">
-          <div class="test-tuning-control"><label for="test-ai-batch-units">1回の分割送信に含める上位単位数</label><div class="test-range-row"><input id="test-ai-batch-units" type="range" step="1" data-preference="maxUnitsPerBatch"><output for="test-ai-batch-units"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-split-threshold">構造最適化で分割を始める対象数</label><div class="test-range-row"><input id="test-ai-split-threshold" type="range" step="1" data-preference="optimizationSplitThreshold"><output for="test-ai-split-threshold"></output></div></div>
-          <div class="test-tuning-control"><label for="test-ai-synthesis-rounds">結果統合の最大回数</label><div class="test-range-row"><input id="test-ai-synthesis-rounds" type="range" step="1" data-preference="synthesisMaxRounds"><output for="test-ai-synthesis-rounds"></output></div></div>
-        </div>
-      </div>
-      <div class="test-settings-group" role="group" aria-labelledby="test-ai-candidate-title">
-        <h4 id="test-ai-candidate-title">移動先候補を探す</h4>
-        <label for="ai-cross-scope-strategy">候補の検索方法</label>
-        <select id="ai-cross-scope-strategy" class="edit-settings-select" aria-describedby="ai-cross-scope-strategy-description" data-preference="crossScopeStrategy">
-          <option value="exhaustive">全階層を比較</option>
-          <option value="hierarchical">階層から候補を検索</option>
-        </select>
-        <p id="ai-cross-scope-strategy-description" class="edit-settings-note">提案自由度にかかわらず、この設定を使って移動先を探します。「全階層を比較」は入力中の全階層を確認し、「階層から候補を検索」は名称が近い上位クラスと中間クラスに候補を絞ります。候補検索では候補外を網羅的に確認しません。</p>
-        <div class="edit-ai-candidate-limits">
-          <div>
-            <label for="test-cross-scope-top-limit">確認する上位クラス数</label>
-            <div class="test-range-row"><input id="test-cross-scope-top-limit" type="range" min="1" max="5" step="1" data-preference="crossScopeTopLimit"><output for="test-cross-scope-top-limit"></output></div>
+      <section class="edit-settings-section" aria-labelledby="edit-font-settings-title">
+        <h3 id="edit-font-settings-title">文字サイズ</h3>
+        <div class="edit-settings-card-grid">
+          <div class="edit-settings-card">
+            <h4>AIチャット</h4>
+            <label for="setting-ai-chat-font-size">返答文と入力欄</label>
+            <div class="test-range-row"><input id="setting-ai-chat-font-size" type="range" min="0.85" max="1.4" step="0.05" data-preference="chatFontSize" /><output for="setting-ai-chat-font-size"></output></div>
           </div>
-          <div>
-            <label for="test-cross-scope-middle-limit">上位クラスごとの中間クラス数</label>
-            <div class="test-range-row"><input id="test-cross-scope-middle-limit" type="range" min="1" max="10" step="1" data-preference="crossScopeMiddleLimit"><output for="test-cross-scope-middle-limit"></output></div>
+          <div class="edit-settings-card">
+            <h4>ツリー</h4>
+            <label for="setting-tree-top-font-size">上位クラス</label>
+            <div class="test-range-row"><input id="setting-tree-top-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeTopFontSize" /><output for="setting-tree-top-font-size"></output></div>
+            <label for="setting-tree-middle-font-size">中間クラス</label>
+            <div class="test-range-row"><input id="setting-tree-middle-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeMiddleFontSize" /><output for="setting-tree-middle-font-size"></output></div>
+            <label for="setting-tree-target-font-size">対象クラス</label>
+            <div class="test-range-row"><input id="setting-tree-target-font-size" type="range" min="0.8" max="1.4" step="0.05" data-preference="treeTargetFontSize" /><output for="setting-tree-target-font-size"></output></div>
+          </div>
+          <div class="edit-settings-card">
+            <h4>提案・保持欄</h4>
+            <label for="setting-proposal-font-size">提案</label>
+            <div class="test-range-row"><input id="setting-proposal-font-size" type="range" min="0.8" max="1.3" step="0.05" data-preference="proposalFontSize" /><output for="setting-proposal-font-size"></output></div>
+            <label for="setting-held-font-size">保持欄</label>
+            <div class="test-range-row"><input id="setting-held-font-size" type="range" min="0.8" max="1.3" step="0.05" data-preference="heldFontSize" /><output for="setting-held-font-size"></output></div>
           </div>
         </div>
+      </section>
+      <section class="edit-settings-section" aria-labelledby="edit-display-behavior-title">
+        <h3 id="edit-display-behavior-title">表示・編集機能</h3>
+        <div class="edit-settings-toggle-grid">
+          <label class="edit-settings-toggle edit-settings-toggle-card"><input type="checkbox" id="toggle-edit-ids" /> クラスIDを表示する</label>
+          <label class="edit-settings-toggle edit-settings-toggle-card"><input type="checkbox" id="toggle-tree-edit-mode" /> クラス編集を有効にする</label>
+          <label class="edit-settings-toggle edit-settings-toggle-card"><input type="checkbox" id="toggle-json-export" /> JSON書き出しを有効にする</label>
+        </div>
+      </section>
+    </dialog>
+    <!-- APIキー、モデル、送信確認を設定するAIチャット設定。 -->
+    <dialog id="ai-chat-settings-dialog" class="edit-settings-dialog" aria-labelledby="ai-chat-settings-title">
+      <div class="ai-preview-header">
+        <h2 id="ai-chat-settings-title">AIチャット設定</h2>
+        <button type="button" id="close-ai-chat-settings" class="target-instance-dialog-close" aria-label="AIチャット設定を閉じる">×</button>
       </div>
-      <div class="test-settings-group" role="group" aria-labelledby="test-ai-concurrency-title">
-        <h4 id="test-ai-concurrency-title">リクエスト処理</h4>
-        <label for="test-ai-concurrency">AIリクエストの同時処理数</label>
-        <div class="test-range-row"><input id="test-ai-concurrency" type="range" min="1" max="4" step="1" data-preference="aiConcurrency"><output for="test-ai-concurrency"></output></div>
-        <p class="edit-settings-note">分割分析と全範囲の横断確認で、同時に処理するリクエスト数です。初期値は2件です。</p>
+      <section class="edit-settings-section" aria-labelledby="ai-connection-settings-title">
+        <h3 id="ai-connection-settings-title">AI接続</h3>
+        <label for="ai-api-key">OpenAI APIキー</label>
+        <div class="ai-key-row">
+          <input id="ai-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…" />
+          <button type="button" id="ai-toggle-key-visibility" class="held-action-button" aria-pressed="false">表示</button>
+        </div>
+        <p class="edit-settings-note">キーはページを閉じると消去されます。依頼文と選択範囲または全体分析時のクラス情報はOpenAIへ送信され、応答はAPI側に保存されます。利用料はキーのアカウントに請求されるため、信頼できる端末で使用してください。</p>
+        <label for="ai-model">モデル</label>
+        <select id="ai-model" class="edit-settings-select" aria-describedby="ai-model-description"></select>
+        <p id="ai-model-description" class="edit-settings-note">モデル候補は設定ファイルで管理します。</p>
+        <p id="ai-settings-status" class="ai-status" role="status" aria-live="polite"></p>
+      </section>
+      <section class="edit-settings-section" aria-labelledby="edit-ai-behavior-settings-title">
+        <h3 id="edit-ai-behavior-settings-title">AIチャットの動作</h3>
+        <label class="edit-settings-toggle"><input type="checkbox" id="ai-confirm-before-send" checked /> 送信前に内容を確認する</label>
+        <p class="edit-settings-note">ONにすると送信前に内容を確認します。確認画面で「これ以降表示しない」を選ぶと、次回以降はOFFになります。</p>
+        <div class="edit-ai-behavior-grid">
+          <div class="edit-ai-setting-card">
+            <h4>回答</h4>
+            <label for="test-ai-response-mode">AIの回答モード</label>
+            <select id="test-ai-response-mode" class="edit-settings-select" data-preference="responseMode">
+              <option value="proposal">改善提案モード</option>
+              <option value="evaluation">評価モード</option>
+            </select>
+            <p class="edit-settings-note">次の依頼から適用します。確認事項への回答中は、その相談で使っているモードを引き継ぎます。</p>
+            <label for="test-ai-prompt-flexibility">AI提案の自由度</label>
+            <div class="test-range-row"><input id="test-ai-prompt-flexibility" type="range" min="1" max="5" step="1" data-preference="promptFlexibility" /><output for="test-ai-prompt-flexibility"></output></div>
+            <p class="edit-settings-note">1: 大幅な再編・複数案・価値のないクラスの削除 / 2: 関連する再編・統合 / 3: 一通りの編集操作 / 4: 必要な補助操作 / 5: 明示された変更のみ</p>
+            <p class="edit-settings-note">数値が小さいほど自由度が高くなります。入力範囲や安全性などの必須ルールは変わりません。</p>
+          </div>
+        </div>
+        <p id="test-preferences-settings-status" class="ai-status" role="status" aria-live="polite"></p>
+      </section>
+    </dialog>
+    <!-- 開発者向け調整UI。専用CSS・JSと合わせて撤去できるよう分離している。 -->
+    <!-- 開発・検証用の詳細チューニング設定。通常は非表示。 -->
+    <dialog id="test-settings-dialog" class="edit-settings-dialog" aria-labelledby="test-settings-title">
+      <div class="ai-preview-header">
+        <h2 id="test-settings-title">開発者設定</h2>
+        <button type="button" id="close-test-settings" class="target-instance-dialog-close" aria-label="開発者設定を閉じる">×</button>
       </div>
-    </section>
-    <section class="edit-settings-section" aria-labelledby="test-tree-display-title">
-      <h3 id="test-tree-display-title">ツリー表示</h3>
-      <div class="test-settings-group" role="group" aria-labelledby="test-tree-size-title">
-        <h4 id="test-tree-size-title">開閉表示</h4>
-        <label for="test-tree-disclosure-size">開閉ボタンの三角表示サイズ</label>
-        <div class="test-range-row"><input id="test-tree-disclosure-size" type="range" min="0.6" max="1.4" step="0.05" data-preference="treeDisclosureSize"><output for="test-tree-disclosure-size"></output></div>
-      </div>
-      <div class="test-settings-group" role="group" aria-labelledby="test-tree-color-title">
-        <h4 id="test-tree-color-title">色設定</h4>
-        <label for="test-tree-color-intensity">階層ごとの色の変化量</label>
-        <div class="test-range-row"><input id="test-tree-color-intensity" type="range" min="0" max="1" step="0.1" data-preference="treeColorIntensity"><output for="test-tree-color-intensity"></output></div>
-        <label for="test-tree-top-color">上位クラスの色</label>
-        <div class="test-range-row"><input id="test-tree-top-color" type="color" data-preference="treeTopColor"></div>
-        <label for="test-tree-top-text-color">上位クラスのフォント色</label>
-        <div class="test-range-row"><input id="test-tree-top-text-color" type="color" data-preference="treeTopTextColor"></div>
-        <label for="test-tree-top-background-color">上位クラスの背景色</label>
-        <div class="test-range-row"><input id="test-tree-top-background-color" type="color" data-preference="treeTopBackgroundColor"></div>
-      </div>
-    </section>
-    <div class="test-settings-actions">
-      <button type="button" id="test-preferences-reset" class="search-button secondary-search-button">初期値に戻す</button>
-      <button type="button" id="save-test-settings" class="search-button">保存して閉じる</button>
-    </div>
-    <p id="test-preferences-status" class="ai-status" role="status" aria-live="polite"></p>
-  </dialog>
-  <dialog id="target-instance-dialog" class="target-instance-dialog" aria-labelledby="target-instance-title">
-    <form method="dialog" class="target-instance-dialog-header">
-      <h2 id="target-instance-title"></h2>
-      <button type="submit" class="target-instance-dialog-close" aria-label="閉じる">×</button>
-    </form>
-    <p id="target-instance-count" class="target-instance-count"></p>
-    <ul id="target-instance-list" class="target-instance-list"></ul>
-  </dialog>
-  <dialog id="ai-preview-dialog" class="ai-preview-dialog" aria-labelledby="ai-preview-title">
-    <div class="ai-preview-header">
-      <div class="ai-preview-title-row">
-        <h2 id="ai-preview-title">変更案のプレビュー</h2>
-        <nav id="ai-preview-navigation" class="ai-preview-navigation" aria-label="提案の切り替え">
-          <button type="button" id="ai-preview-previous" aria-label="前の提案">‹</button>
-          <button type="button" id="ai-preview-next" aria-label="次の提案">›</button>
-        </nav>
-        <span id="ai-preview-position" class="ai-preview-position" aria-live="polite"></span>
-      </div>
-      <button type="button" id="ai-preview-close" class="target-instance-dialog-close" aria-label="閉じる">×</button>
-    </div>
-    <p id="ai-preview-impact" class="ai-preview-impact" role="status" aria-live="polite" hidden></p>
-    <section id="ai-preview-overview-page" class="ai-preview-page">
-      <details class="ai-preview-proposal-section" open>
-        <summary id="ai-preview-proposal-heading">変更案の概要</summary>
-        <section class="ai-preview-proposal" aria-label="変更案の概要">
-          <div><h3>変更内容</h3><p id="ai-preview-summary"></p></div>
-          <div><h3>理由</h3><p id="ai-preview-reason"></p></div>
-          <div class="ai-preview-uncertainties"><h3>不確かな点</h3><p id="ai-preview-uncertainties"></p></div>
-          <section id="ai-preview-conflict-selector" class="ai-preview-conflict-selector" aria-label="競合候補の選択" hidden>
-            <h3>競合する変更の候補</h3>
-            <div class="ai-preview-conflict-controls">
-              <div class="ai-preview-conflict-control-group">
-                <span>競合箇所</span>
-                <button type="button" id="ai-preview-conflict-previous-group" aria-label="前の競合箇所">‹</button>
-                <span id="ai-preview-conflict-group-position" aria-live="polite"></span>
-                <button type="button" id="ai-preview-conflict-next-group" aria-label="次の競合箇所">›</button>
-              </div>
-              <div class="ai-preview-conflict-control-group">
-                <span>候補</span>
-                <button type="button" id="ai-preview-conflict-previous-choice" aria-label="前の候補">‹</button>
-                <span id="ai-preview-conflict-choice-position" aria-live="polite"></span>
-                <button type="button" id="ai-preview-conflict-next-choice" aria-label="次の候補">›</button>
-                <button type="button" id="ai-preview-conflict-select-choice" class="search-button">この候補を選択</button>
-              </div>
+      <p class="edit-settings-note">変更はすぐに反映され、自動保存されます。「保存して閉じる」からも保存できます。</p>
+      <section class="edit-settings-section" aria-labelledby="test-ai-chat-title">
+        <h3 id="test-ai-chat-title">AIチャット</h3>
+        <div class="test-settings-group" role="group" aria-labelledby="test-ai-tuning-title">
+          <h4 id="test-ai-tuning-title">送信入力上限</h4>
+          <label for="test-ai-input-limit">1回の送信で扱う最大文字数</label>
+          <div class="test-range-row"><input id="test-ai-input-limit" type="range" min="12000" max="128000" step="4000" data-preference="maxRequestCharacters" /><output for="test-ai-input-limit"></output></div>
+          <p class="edit-settings-note">送信入力の上限です。モデルのコンテキスト上限を超えた場合は、API側で受け付けられないことがあります。</p>
+        </div>
+        <div class="test-settings-group" role="group" aria-labelledby="test-ai-output-title">
+          <h4 id="test-ai-output-title">出力トークン上限</h4>
+          <p class="edit-settings-note">各値は選択中モデルの最大出力トークン数を超えません。</p>
+          <div class="test-tuning-grid">
+            <div class="test-tuning-control">
+              <label for="test-ai-output-tokens">通常の回答</label>
+              <div class="test-range-row"><input id="test-ai-output-tokens" type="range" min="500" max="128000" step="500" data-preference="responseOutputTokens" /><output for="test-ai-output-tokens"></output></div>
             </div>
-            <p id="ai-preview-conflict-choice-summary"></p>
-            <p id="ai-preview-conflict-selection-status" role="status" aria-live="polite"></p>
-          </section>
-        </section>
-      </details>
-    </section>
-    <section id="ai-preview-change-page" class="ai-preview-page" hidden>
-      <details id="ai-preview-change-list-details" class="ai-preview-change-list-details">
-        <summary id="ai-preview-group-title">
-          <span id="ai-preview-group-label">すべての変更</span>
-          <span id="ai-preview-type-legend" class="ai-preview-type-legend" role="list" aria-label="変更種類ごとの件数"></span>
-          <span class="ai-preview-selection-actions ai-preview-change-actions">
-            <button type="button" id="ai-preview-group-include">すべて適用</button>
-            <button type="button" id="ai-preview-group-exclude">すべて除外</button>
-          </span>
-        </summary>
-        <ul id="ai-preview-change-list" class="ai-preview-change-list"></ul>
-      </details>
-      <div class="ai-preview-columns is-loading">
-        <svg id="ai-preview-direction" class="ai-preview-direction" aria-hidden="true"></svg>
-        <section>
-          <div class="ai-preview-column-header"><h3>変更前</h3></div>
-          <div id="ai-preview-before" class="ai-preview-tree"></div>
-        </section>
-        <div class="ai-preview-arrow-lane" aria-hidden="true"></div>
-        <div id="ai-preview-add-origin" class="ai-preview-add-origin" hidden>＋ 追加</div>
-        <div id="ai-preview-delete-target" class="ai-preview-delete-target" hidden>− 削除</div>
-        <section>
-          <div class="ai-preview-column-header">
-            <h3>変更後</h3>
-            <button type="button" id="ai-preview-arrow-toggle" class="ai-preview-arrow-toggle" role="switch" aria-checked="true" aria-label="矢印表示">
-              <span>矢印表示</span><span class="ai-preview-arrow-toggle-state">ON</span><span class="ai-preview-arrow-toggle-track" aria-hidden="true"><span></span></span>
-            </button>
+            <div class="test-tuning-control">
+              <label for="test-ai-chunk-output-tokens">分割回答</label>
+              <div class="test-range-row"><input id="test-ai-chunk-output-tokens" type="range" min="500" max="128000" step="500" data-preference="chunkOutputTokens" /><output for="test-ai-chunk-output-tokens"></output></div>
+            </div>
+            <div class="test-tuning-control">
+              <label for="test-ai-synthesis-output-tokens">結果統合</label>
+              <div class="test-range-row"><input id="test-ai-synthesis-output-tokens" type="range" min="500" max="128000" step="500" data-preference="synthesisOutputTokens" /><output for="test-ai-synthesis-output-tokens"></output></div>
+            </div>
+            <div class="test-tuning-control">
+              <label for="test-ai-cross-scope-output-tokens">横断確認</label>
+              <div class="test-range-row"><input id="test-ai-cross-scope-output-tokens" type="range" min="500" max="128000" step="500" data-preference="crossScopeOutputTokens" /><output for="test-ai-cross-scope-output-tokens"></output></div>
+            </div>
           </div>
-          <div id="ai-preview-after" class="ai-preview-tree"></div>
-        </section>
+        </div>
+        <div class="test-settings-group" role="group" aria-labelledby="test-ai-response-limits-title">
+          <h4 id="test-ai-response-limits-title">応答件数上限</h4>
+          <div class="test-tuning-grid">
+            <div class="test-tuning-control">
+              <label for="test-ai-proposal-limit">1回の回答で返す提案数</label>
+              <div class="test-range-row"><input id="test-ai-proposal-limit" type="range" min="5" max="1000" step="5" data-preference="maxProposalsPerResponse" /><output for="test-ai-proposal-limit"></output></div>
+            </div>
+            <div class="test-tuning-control">
+              <label for="test-ai-question-limit">確認事項数</label>
+              <div class="test-range-row"><input id="test-ai-question-limit" type="range" min="1" max="100" step="1" data-preference="maxQuestionsPerResponse" /><output for="test-ai-question-limit"></output></div>
+            </div>
+            <div class="test-tuning-control">
+              <label for="test-ai-operation-limit">1提案あたりの操作数</label>
+              <div class="test-range-row"><input id="test-ai-operation-limit" type="range" min="5" max="1000" step="5" data-preference="maxOperationsPerProposal" /><output for="test-ai-operation-limit"></output></div>
+            </div>
+            <div class="test-tuning-control">
+              <label for="test-ai-uncertainty-limit">1提案あたりの不確実点数</label>
+              <div class="test-range-row"><input id="test-ai-uncertainty-limit" type="range" min="1" max="100" step="1" data-preference="maxUncertaintiesPerProposal" /><output for="test-ai-uncertainty-limit"></output></div>
+            </div>
+            <div class="test-tuning-control">
+              <label for="test-ai-chunk-findings-limit">分割回答の所見数／カテゴリ</label>
+              <div class="test-range-row"><input id="test-ai-chunk-findings-limit" type="range" min="1" max="80" step="1" data-preference="maxChunkFindingsPerCategory" /><output for="test-ai-chunk-findings-limit"></output></div>
+            </div>
+            <div class="test-tuning-control">
+              <label for="test-ai-comparison-findings-limit">統合結果の所見数／カテゴリ</label>
+              <div class="test-range-row"><input id="test-ai-comparison-findings-limit" type="range" min="1" max="120" step="1" data-preference="maxComparisonFindingsPerCategory" /><output for="test-ai-comparison-findings-limit"></output></div>
+            </div>
+          </div>
+          <p class="edit-settings-note">件数を増やすと、出力トークン上限に達して回答が完了しない場合があります。</p>
+        </div>
+        <div class="test-settings-group" role="group" aria-labelledby="test-ai-split-title">
+          <h4 id="test-ai-split-title">分割・統合</h4>
+          <label class="edit-settings-checkbox"><input id="test-ai-split-enabled" type="checkbox" data-preference="aiSplitEnabled" /> 分割送信を使う</label>
+          <p class="edit-settings-note">オフにすると分割分析を行いません。1回の送信上限を超える場合は送信できません。</p>
+          <div class="test-tuning-grid">
+            <div class="test-tuning-control">
+              <label for="test-ai-batch-units">1回の分割送信に含める上位単位数</label>
+              <div class="test-range-row"><input id="test-ai-batch-units" type="range" step="1" data-preference="maxUnitsPerBatch" /><output for="test-ai-batch-units"></output></div>
+            </div>
+            <div class="test-tuning-control">
+              <label for="test-ai-split-threshold">構造最適化で分割を始める対象数</label>
+              <div class="test-range-row"><input id="test-ai-split-threshold" type="range" step="1" data-preference="optimizationSplitThreshold" /><output for="test-ai-split-threshold"></output></div>
+            </div>
+            <div class="test-tuning-control">
+              <label for="test-ai-synthesis-rounds">結果統合の最大回数</label>
+              <div class="test-range-row"><input id="test-ai-synthesis-rounds" type="range" step="1" data-preference="synthesisMaxRounds" /><output for="test-ai-synthesis-rounds"></output></div>
+            </div>
+          </div>
+        </div>
+        <div class="test-settings-group" role="group" aria-labelledby="test-ai-candidate-title">
+          <h4 id="test-ai-candidate-title">移動先候補を探す</h4>
+          <label for="ai-cross-scope-strategy">候補の検索方法</label>
+          <select id="ai-cross-scope-strategy" class="edit-settings-select" aria-describedby="ai-cross-scope-strategy-description" data-preference="crossScopeStrategy">
+            <option value="exhaustive">全階層を比較</option>
+            <option value="hierarchical">階層から候補を検索</option>
+          </select>
+          <p id="ai-cross-scope-strategy-description" class="edit-settings-note">提案自由度にかかわらず、この設定を使って移動先を探します。「全階層を比較」は入力中の全階層を確認し、「階層から候補を検索」は名称が近い上位クラスと中間クラスに候補を絞ります。候補検索では候補外を網羅的に確認しません。</p>
+          <div class="edit-ai-candidate-limits">
+            <div>
+              <label for="test-cross-scope-top-limit">確認する上位クラス数</label>
+              <div class="test-range-row"><input id="test-cross-scope-top-limit" type="range" min="1" max="5" step="1" data-preference="crossScopeTopLimit" /><output for="test-cross-scope-top-limit"></output></div>
+            </div>
+            <div>
+              <label for="test-cross-scope-middle-limit">上位クラスごとの中間クラス数</label>
+              <div class="test-range-row"><input id="test-cross-scope-middle-limit" type="range" min="1" max="10" step="1" data-preference="crossScopeMiddleLimit" /><output for="test-cross-scope-middle-limit"></output></div>
+            </div>
+          </div>
+        </div>
+        <div class="test-settings-group" role="group" aria-labelledby="test-ai-concurrency-title">
+          <h4 id="test-ai-concurrency-title">リクエスト処理</h4>
+          <label for="test-ai-concurrency">AIリクエストの同時処理数</label>
+          <div class="test-range-row"><input id="test-ai-concurrency" type="range" min="1" max="4" step="1" data-preference="aiConcurrency" /><output for="test-ai-concurrency"></output></div>
+          <p class="edit-settings-note">分割分析と全範囲の横断確認で、同時に処理するリクエスト数です。初期値は2件です。</p>
+        </div>
+      </section>
+      <section class="edit-settings-section" aria-labelledby="test-tree-display-title">
+        <h3 id="test-tree-display-title">ツリー表示</h3>
+        <div class="test-settings-group" role="group" aria-labelledby="test-tree-size-title">
+          <h4 id="test-tree-size-title">開閉表示</h4>
+          <label for="test-tree-disclosure-size">開閉ボタンの三角表示サイズ</label>
+          <div class="test-range-row"><input id="test-tree-disclosure-size" type="range" min="0.6" max="1.4" step="0.05" data-preference="treeDisclosureSize" /><output for="test-tree-disclosure-size"></output></div>
+        </div>
+        <div class="test-settings-group" role="group" aria-labelledby="test-tree-color-title">
+          <h4 id="test-tree-color-title">色設定</h4>
+          <label for="test-tree-color-intensity">階層ごとの色の変化量</label>
+          <div class="test-range-row"><input id="test-tree-color-intensity" type="range" min="0" max="1" step="0.1" data-preference="treeColorIntensity" /><output for="test-tree-color-intensity"></output></div>
+          <label for="test-tree-top-color">上位クラスの色</label>
+          <div class="test-range-row">
+            <input id="test-tree-top-color" type="color" data-preference="treeTopColor" />
+          </div>
+          <label for="test-tree-top-text-color">上位クラスのフォント色</label>
+          <div class="test-range-row">
+            <input id="test-tree-top-text-color" type="color" data-preference="treeTopTextColor" />
+          </div>
+          <label for="test-tree-top-background-color">上位クラスの背景色</label>
+          <div class="test-range-row">
+            <input id="test-tree-top-background-color" type="color" data-preference="treeTopBackgroundColor" />
+          </div>
+        </div>
+      </section>
+      <div class="test-settings-actions">
+        <button type="button" id="test-preferences-reset" class="search-button secondary-search-button">初期値に戻す</button>
+        <button type="button" id="save-test-settings" class="search-button">保存して閉じる</button>
       </div>
-      <p class="ai-preview-note">色ラベルは変更の種類、括弧内は件数です。チェック状態は適用・除外を示します。対象クラスはクリック、上位クラスはチェックで切替できます。</p>
-    </section>
-    <section id="ai-preview-final-page" class="ai-preview-page" hidden>
-      <h3 class="ai-preview-page-heading">適用前の最終確認</h3>
-      <div class="ai-preview-selection-actions ai-preview-final-actions">
-        <button type="button" id="ai-preview-select-all">すべて適用</button>
-        <button type="button" id="ai-preview-exclude-all">すべて除外</button>
+      <p id="test-preferences-status" class="ai-status" role="status" aria-live="polite"></p>
+    </dialog>
+    <!-- 選択した対象クラスに含まれるインスタンスの一覧。 -->
+    <dialog id="target-instance-dialog" class="target-instance-dialog" aria-labelledby="target-instance-title">
+      <form method="dialog" class="target-instance-dialog-header">
+        <h2 id="target-instance-title"></h2>
+        <button type="submit" class="target-instance-dialog-close" aria-label="閉じる">×</button>
+      </form>
+      <p id="target-instance-count" class="target-instance-count"></p>
+      <ul id="target-instance-list" class="target-instance-list"></ul>
+    </dialog>
+    <!-- AI提案を確認し、適用する変更を選択する三段階プレビュー。 -->
+    <dialog id="ai-preview-dialog" class="ai-preview-dialog" aria-labelledby="ai-preview-title">
+      <div class="ai-preview-header">
+        <div class="ai-preview-title-row">
+          <h2 id="ai-preview-title">変更案のプレビュー</h2>
+          <nav id="ai-preview-navigation" class="ai-preview-navigation" aria-label="提案の切り替え">
+            <button type="button" id="ai-preview-previous" aria-label="前の提案">‹</button>
+            <button type="button" id="ai-preview-next" aria-label="次の提案">›</button>
+          </nav>
+          <span id="ai-preview-position" class="ai-preview-position" aria-live="polite"></span>
+        </div>
+        <button type="button" id="ai-preview-close" class="target-instance-dialog-close" aria-label="閉じる">×</button>
       </div>
-      <ul id="ai-preview-final-change-list" class="ai-preview-change-list"></ul>
-      <p class="ai-preview-note">適用する変更だけが編集データに反映されます。</p>
-    </section>
-    <div class="ai-preview-page-navigation">
-      <button type="button" id="ai-preview-page-previous">前へ</button>
-      <span id="ai-preview-page-position" aria-live="polite"></span>
-      <button type="button" id="ai-preview-page-next" class="search-button">変更を確認</button>
-      <button type="button" id="ai-dismiss-proposal" class="ai-preview-dismiss">今回は見送る</button>
-      <button type="button" id="ai-apply-proposal" class="search-button" hidden>この変更を適用</button>
-    </div>
-  </dialog>
-  <dialog id="ai-send-confirm-dialog" class="ai-send-confirm-dialog" aria-labelledby="ai-send-confirm-title">
-    <div class="ai-preview-header">
-      <h2 id="ai-send-confirm-title">AIへの送信内容を確認</h2>
-      <button type="button" id="ai-send-confirm-close" class="target-instance-dialog-close" aria-label="送信を中止して閉じる">×</button>
-    </div>
-    <p id="ai-send-confirm-summary" class="ai-send-confirm-summary"></p>
-    <section class="ai-send-confirm-section">
-      <h3>依頼文</h3>
-      <pre id="ai-send-confirm-request" class="ai-send-confirm-request"></pre>
-    </section>
-    <details id="ai-send-confirm-classes-details" class="ai-send-confirm-classes-details">
-      <summary id="ai-send-confirm-classes-summary">参照クラス</summary>
-      <div class="ai-send-confirm-table-wrap">
-        <table class="ai-send-confirm-table">
-          <thead><tr><th scope="col">共有区分</th><th scope="col">種類</th><th scope="col">クラス名</th><th scope="col">ID</th></tr></thead>
-          <tbody id="ai-send-confirm-classes"></tbody>
-        </table>
+      <p id="ai-preview-impact" class="ai-preview-impact" role="status" aria-live="polite" hidden></p>
+      <section id="ai-preview-overview-page" class="ai-preview-page">
+        <details class="ai-preview-proposal-section" open>
+          <summary id="ai-preview-proposal-heading">変更案の概要</summary>
+          <section class="ai-preview-proposal" aria-label="変更案の概要">
+            <div>
+              <h3>変更内容</h3>
+              <p id="ai-preview-summary"></p>
+            </div>
+            <div>
+              <h3>理由</h3>
+              <p id="ai-preview-reason"></p>
+            </div>
+            <div class="ai-preview-uncertainties">
+              <h3>不確かな点</h3>
+              <p id="ai-preview-uncertainties"></p>
+            </div>
+            <section id="ai-preview-conflict-selector" class="ai-preview-conflict-selector" aria-label="競合候補の選択" hidden>
+              <h3>競合する変更の候補</h3>
+              <div class="ai-preview-conflict-controls">
+                <div class="ai-preview-conflict-control-group">
+                  <span>競合箇所</span>
+                  <button type="button" id="ai-preview-conflict-previous-group" aria-label="前の競合箇所">‹</button>
+                  <span id="ai-preview-conflict-group-position" aria-live="polite"></span>
+                  <button type="button" id="ai-preview-conflict-next-group" aria-label="次の競合箇所">›</button>
+                </div>
+                <div class="ai-preview-conflict-control-group">
+                  <span>候補</span>
+                  <button type="button" id="ai-preview-conflict-previous-choice" aria-label="前の候補">‹</button>
+                  <span id="ai-preview-conflict-choice-position" aria-live="polite"></span>
+                  <button type="button" id="ai-preview-conflict-next-choice" aria-label="次の候補">›</button>
+                  <button type="button" id="ai-preview-conflict-select-choice" class="search-button">この候補を選択</button>
+                </div>
+              </div>
+              <p id="ai-preview-conflict-choice-summary"></p>
+              <p id="ai-preview-conflict-selection-status" role="status" aria-live="polite"></p>
+            </section>
+          </section>
+        </details>
+      </section>
+      <section id="ai-preview-change-page" class="ai-preview-page" hidden>
+        <details id="ai-preview-change-list-details" class="ai-preview-change-list-details">
+          <summary id="ai-preview-group-title">
+            <span id="ai-preview-group-label">すべての変更</span>
+            <span id="ai-preview-type-legend" class="ai-preview-type-legend" role="list" aria-label="変更種類ごとの件数"></span>
+            <span class="ai-preview-selection-actions ai-preview-change-actions">
+              <button type="button" id="ai-preview-group-include">すべて適用</button>
+              <button type="button" id="ai-preview-group-exclude">すべて除外</button>
+            </span>
+          </summary>
+          <ul id="ai-preview-change-list" class="ai-preview-change-list"></ul>
+        </details>
+        <div class="ai-preview-columns is-loading">
+          <svg id="ai-preview-direction" class="ai-preview-direction" aria-hidden="true"></svg>
+          <section>
+            <div class="ai-preview-column-header"><h3>変更前</h3></div>
+            <div id="ai-preview-before" class="ai-preview-tree"></div>
+          </section>
+          <div class="ai-preview-arrow-lane" aria-hidden="true"></div>
+          <div id="ai-preview-add-origin" class="ai-preview-add-origin" hidden>＋ 追加</div>
+          <div id="ai-preview-delete-target" class="ai-preview-delete-target" hidden>− 削除</div>
+          <section>
+            <div class="ai-preview-column-header">
+              <h3>変更後</h3>
+              <button type="button" id="ai-preview-arrow-toggle" class="ai-preview-arrow-toggle" role="switch" aria-checked="true" aria-label="矢印表示">
+                <span>矢印表示</span><span class="ai-preview-arrow-toggle-state">ON</span><span class="ai-preview-arrow-toggle-track" aria-hidden="true"><span></span></span>
+              </button>
+            </div>
+            <div id="ai-preview-after" class="ai-preview-tree"></div>
+          </section>
+        </div>
+        <p class="ai-preview-note">色ラベルは変更の種類、括弧内は件数です。チェック状態は適用・除外を示します。対象クラスはクリック、上位クラスはチェックで切替できます。</p>
+      </section>
+      <section id="ai-preview-final-page" class="ai-preview-page" hidden>
+        <h3 class="ai-preview-page-heading">適用前の最終確認</h3>
+        <div class="ai-preview-selection-actions ai-preview-final-actions">
+          <button type="button" id="ai-preview-select-all">すべて適用</button>
+          <button type="button" id="ai-preview-exclude-all">すべて除外</button>
+        </div>
+        <ul id="ai-preview-final-change-list" class="ai-preview-change-list"></ul>
+        <p class="ai-preview-note">適用する変更だけが編集データに反映されます。</p>
+      </section>
+      <div class="ai-preview-page-navigation">
+        <button type="button" id="ai-preview-page-previous">前へ</button>
+        <span id="ai-preview-page-position" aria-live="polite"></span>
+        <button type="button" id="ai-preview-page-next" class="search-button">変更を確認</button>
+        <button type="button" id="ai-dismiss-proposal" class="ai-preview-dismiss">今回は見送る</button>
+        <button type="button" id="ai-apply-proposal" class="search-button" hidden>この変更を適用</button>
       </div>
-    </details>
-    <p id="ai-send-confirm-history-note" class="edit-settings-note" hidden></p>
-    <label class="ai-send-confirm-skip"><input type="checkbox" id="ai-send-confirm-skip"> これ以降、この確認画面を表示しない</label>
-    <div class="ai-send-confirm-actions">
-      <button type="button" id="ai-send-confirm-cancel">キャンセル</button>
-      <button type="button" id="ai-send-confirm-approve" class="search-button">この内容で送信</button>
-    </div>
-  </dialog>
-  <dialog id="edit-validation-dialog" class="edit-validation-dialog" aria-labelledby="edit-validation-title">
-    <div class="ai-preview-header">
-      <h2 id="edit-validation-title">保存・JSON書き出し前の構造チェック</h2>
-      <button type="button" id="edit-validation-close" class="target-instance-dialog-close" aria-label="閉じる">×</button>
-    </div>
-    <p id="edit-validation-summary" class="edit-validation-summary" role="status" aria-live="polite"></p>
-    <ul id="edit-validation-issues" class="edit-validation-issues"></ul>
-    <div class="edit-validation-actions">
-      <button type="button" id="edit-validation-cancel">編集へ戻る</button>
-      <button type="button" id="edit-validation-export" class="search-button" hidden>警告を確認して保存</button>
-    </div>
-  </dialog>
-  <dialog id="data-import-dialog" class="data-import-dialog" aria-labelledby="data-import-title">
-    <div class="data-import-header"><h2 id="data-import-title">データの読み込み</h2><button type="button" id="data-import-close" aria-label="閉じる">×</button></div>
-    <p class="data-import-description">クラス・インスタンスのデータを選びます。クラス階層のデータもある場合は、2つを一度に選択してください。作業データは同じタブの間だけ復元され、新しく開いた時に前回分を消去します。残す場合はタブを閉じる前にJSONを書き出してください。</p>
-    <fieldset id="data-import-mode" class="data-import-mode"><legend>作業方法</legend>
-      <div class="data-import-mode-options">
-        <label class="data-import-mode-option"><input type="radio" name="data-import-mode" value="replace" checked><span><strong>新規作成</strong><small>このデータから新しい作業を始めます</small></span></label>
-        <label class="data-import-mode-option"><input type="radio" name="data-import-mode" value="append"><span><strong>現在の作業に追加</strong><small>読み込み済みの作業へデータを加えます</small></span></label>
+    </dialog>
+    <!-- 外部APIへ送る依頼文と参照クラスを送信前に確認する。 -->
+    <dialog id="ai-send-confirm-dialog" class="ai-send-confirm-dialog" aria-labelledby="ai-send-confirm-title">
+      <div class="ai-preview-header">
+        <h2 id="ai-send-confirm-title">AIへの送信内容を確認</h2>
+        <button type="button" id="ai-send-confirm-close" class="target-instance-dialog-close" aria-label="送信を中止して閉じる">×</button>
       </div>
-    </fieldset>
-    <section class="data-import-file-section" aria-labelledby="data-import-file-heading">
-      <div class="data-import-file-heading"><h3 id="data-import-file-heading">データファイル</h3><span>JSON形式・最大2ファイル、合計50MBまで</span></div>
-      <div class="data-import-file-control"><label class="data-import-file-button">ファイルを選択<input id="data-import-file" type="file" accept="application/json,.json"></label><span id="data-import-file-name">ファイルは選択されていません</span></div>
-      <ul id="data-import-selected-file-list" class="data-import-selected-files" hidden></ul>
-      <div id="data-import-drop" class="data-import-drop" tabindex="0">クラス・インスタンスとクラス階層のJSONをここにドロップ</div>
-    </section>
-    <p id="data-import-status" class="data-import-status" role="status" aria-live="polite">ファイルを選択してください。</p>
-    <section id="data-import-summary" class="data-import-summary" hidden></section>
-    <div class="data-import-actions"><button type="button" id="reset-to-default" class="search-button secondary-search-button">初期状態</button><button type="button" id="data-import-cancel" class="search-button secondary-search-button">キャンセル</button><button type="button" id="data-import-confirm" class="search-button" disabled>このデータで開始</button></div>
-  </dialog>
-  <script data-app-script="web/js/shared/data-upload.js?v=20261112-shared-validation-v2"></script>
-  <script data-app-script="web/js/editor/ai/main.js?v=20261112-same-class-conflict-isolation-v1" data-app-type="module"></script>
-</body>
+      <p id="ai-send-confirm-summary" class="ai-send-confirm-summary"></p>
+      <section class="ai-send-confirm-section">
+        <h3>依頼文</h3>
+        <pre id="ai-send-confirm-request" class="ai-send-confirm-request"></pre>
+      </section>
+      <details id="ai-send-confirm-classes-details" class="ai-send-confirm-classes-details">
+        <summary id="ai-send-confirm-classes-summary">参照クラス</summary>
+        <div class="ai-send-confirm-table-wrap">
+          <table class="ai-send-confirm-table">
+            <thead>
+              <tr>
+                <th scope="col">共有区分</th>
+                <th scope="col">種類</th>
+                <th scope="col">クラス名</th>
+                <th scope="col">ID</th>
+              </tr>
+            </thead>
+            <tbody id="ai-send-confirm-classes"></tbody>
+          </table>
+        </div>
+      </details>
+      <p id="ai-send-confirm-history-note" class="edit-settings-note" hidden></p>
+      <label class="ai-send-confirm-skip"><input type="checkbox" id="ai-send-confirm-skip" /> これ以降、この確認画面を表示しない</label>
+      <div class="ai-send-confirm-actions">
+        <button type="button" id="ai-send-confirm-cancel">キャンセル</button>
+        <button type="button" id="ai-send-confirm-approve" class="search-button">この内容で送信</button>
+      </div>
+    </dialog>
+    <!-- 保存・JSON書き出し前に階層の整合性を通知する。 -->
+    <dialog id="edit-validation-dialog" class="edit-validation-dialog" aria-labelledby="edit-validation-title">
+      <div class="ai-preview-header">
+        <h2 id="edit-validation-title">保存・JSON書き出し前の構造チェック</h2>
+        <button type="button" id="edit-validation-close" class="target-instance-dialog-close" aria-label="閉じる">×</button>
+      </div>
+      <p id="edit-validation-summary" class="edit-validation-summary" role="status" aria-live="polite"></p>
+      <ul id="edit-validation-issues" class="edit-validation-issues"></ul>
+      <div class="edit-validation-actions">
+        <button type="button" id="edit-validation-cancel">編集へ戻る</button>
+        <button type="button" id="edit-validation-export" class="search-button" hidden>警告を確認して保存</button>
+      </div>
+    </dialog>
+    <!-- クラス・インスタンス・階層データを新規作成または追加で読み込む。 -->
+    <dialog id="data-import-dialog" class="data-import-dialog" aria-labelledby="data-import-title">
+      <div class="data-import-header">
+        <h2 id="data-import-title">データの読み込み</h2>
+        <button type="button" id="data-import-close" aria-label="閉じる">×</button>
+      </div>
+      <p class="data-import-description">クラス・インスタンスのデータを選びます。クラス階層のデータもある場合は、2つを一度に選択してください。作業データは同じタブの間だけ復元され、新しく開いた時に前回分を消去します。残す場合はタブを閉じる前にJSONを書き出してください。</p>
+      <fieldset id="data-import-mode" class="data-import-mode">
+        <legend>作業方法</legend>
+        <div class="data-import-mode-options">
+          <label class="data-import-mode-option"
+            ><input type="radio" name="data-import-mode" value="replace" checked /><span><strong>新規作成</strong><small>このデータから新しい作業を始めます</small></span></label
+          >
+          <label class="data-import-mode-option"
+            ><input type="radio" name="data-import-mode" value="append" /><span><strong>現在の作業に追加</strong><small>読み込み済みの作業へデータを加えます</small></span></label
+          >
+        </div>
+      </fieldset>
+      <section class="data-import-file-section" aria-labelledby="data-import-file-heading">
+        <div class="data-import-file-heading">
+          <h3 id="data-import-file-heading">データファイル</h3>
+          <span>JSON形式・最大2ファイル、合計50MBまで</span>
+        </div>
+        <div class="data-import-file-control">
+          <label class="data-import-file-button">ファイルを選択<input id="data-import-file" type="file" accept="application/json,.json" /></label><span id="data-import-file-name">ファイルは選択されていません</span>
+        </div>
+        <ul id="data-import-selected-file-list" class="data-import-selected-files" hidden></ul>
+        <div id="data-import-drop" class="data-import-drop" tabindex="0">クラス・インスタンスとクラス階層のJSONをここにドロップ</div>
+      </section>
+      <p id="data-import-status" class="data-import-status" role="status" aria-live="polite">ファイルを選択してください。</p>
+      <section id="data-import-summary" class="data-import-summary" hidden></section>
+      <div class="data-import-actions"><button type="button" id="reset-to-default" class="search-button secondary-search-button">初期状態</button><button type="button" id="data-import-cancel" class="search-button secondary-search-button">キャンセル</button><button type="button" id="data-import-confirm" class="search-button" disabled>このデータで開始</button></div>
+    </dialog>
+    <!-- ダイアログDOMの後に、データ読み込みとAIチャットを初期化する。 -->
+    <script data-app-script="web/js/shared/data-upload.js?v=20261112-shared-validation-v2"></script>
+    <script data-app-script="web/js/editor/ai/main.js?v=20261112-same-class-conflict-isolation-v1" data-app-type="module"></script>
+  </body>
 </html>
