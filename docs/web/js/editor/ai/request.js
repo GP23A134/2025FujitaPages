@@ -507,7 +507,47 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
       if (pending.length) batches.push(makeBatch(pending));
       return batches;
     };
-    return { buildUserContent, buildAdaptivePlanInput, makeLargeScopePlan, packAnalysisUnits };
+    const splitEditableTargetUnit = (unit, userText, conversation) => {
+      const editable = new Set(unit.scope.editableIds || []);
+      const targets = unit.scope.classes.filter((item) => item.type === 'class' && editable.has(item.id));
+      if (targets.length <= 50) return [];
+      const midpoint = Math.ceil(targets.length / 2);
+      const parentPayload = JSON.parse(unit.input || '{}');
+      return [targets.slice(0, midpoint), targets.slice(midpoint)].map((targetItems, index) => {
+        const targetIds = new Set(targetItems.map((item) => item.id));
+        const classes = unit.scope.classes.filter((item) => item.type !== 'class' || targetIds.has(item.id));
+        const includedIds = new Set(classes.map((item) => item.id));
+        const scope = {
+          ...unit.scope,
+          scopeCoverage: 'all_classes_chunk',
+          selectedIds: (unit.scope.selectedIds || []).filter((id) => includedIds.has(id)),
+          selectionRoots: (unit.scope.selectionRoots || unit.scope.selectedIds || []).filter((id) => includedIds.has(id)),
+          editableIds: targetItems.map((item) => item.id),
+          classes,
+          relations: unit.scope.relations.filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
+          counts: Object.fromEntries(Object.entries(unit.scope.counts || {}).filter(([id]) => includedIds.has(id))),
+          sharedContextIds: (unit.scope.sharedContextIds || []).filter((id) => includedIds.has(id)),
+          targetContext: {
+            descendantTargetClassCounts: Object.fromEntries(Object.entries(unit.scope.targetContext?.descendantTargetClassCounts || {})
+              .filter(([id]) => includedIds.has(id)))
+          }
+        };
+        const payload = JSON.parse(buildUserContent(userText, scope, conversation, {
+          forceSnapshot: true,
+          instruction: unit.instruction
+        }));
+        ['proposalPolicy', 'responsePolicy', 'crossScopeCandidateMode', 'chunkedAnalysis', 'analysisPlan'].forEach((key) => {
+          if (parentPayload[key] !== undefined) payload[key] = parentPayload[key];
+        });
+        return {
+          ...unit,
+          unitId: `${unit.unitId || 'unit'}_retry_${index + 1}`,
+          scope,
+          input: shortenInputIds(JSON.stringify(payload))
+        };
+      });
+    };
+    return { buildUserContent, buildAdaptivePlanInput, makeLargeScopePlan, packAnalysisUnits, splitEditableTargetUnit };
 };
 
 // 分割回答と範囲根拠を統合し、カテゴリ別の横断比較状態も返します。
