@@ -785,6 +785,12 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 #ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-type-rename { outline: 2px solid #2563eb; outline-offset: 1px; }
 #ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-type-move { outline: 2px solid #7c3aed; outline-offset: 1px; }
 #ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-type-delete { outline: 2px solid #dc2626; outline-offset: 1px; }
+#ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-hover-related,
+#ai-preview-dialog .tree .tree-leaf-class.is-ai-preview-hover-parent,
+#ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-hover-related,
+#ai-preview-dialog .tree .tree-top-class > summary.is-ai-preview-hover-parent,
+#ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-hover-related,
+#ai-preview-dialog .tree .tree-middle-class > summary.is-ai-preview-hover-parent { outline: 2px solid #facc15; outline-offset: 2px; }
 .ai-preview-change-toggle { flex: 0 0 auto; width: 0.95rem; height: 0.95rem; margin: 0 0.35rem 0 0; accent-color: #d97706; cursor: pointer; }
 .ai-preview-deleted-label { margin-left: 0.45rem; color: #b91c1c; font-size: 0.68rem; font-weight: 700; }
 .ai-preview-operation-inclusion { flex: 0 0 auto; color: #475569; font-size: 0.72rem; }
