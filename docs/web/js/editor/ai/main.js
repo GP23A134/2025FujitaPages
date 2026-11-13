@@ -4,7 +4,7 @@ import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalS
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261113-chat-clarification-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261113-split-cache-restore-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261112-large-proposal-arrow-bundling-v1';
-import { createAIClient } from './ai-client.js?v=20261113-chat-optional-coverage-v1';
+import { createAIClient } from './ai-client.js?v=20261113-chat-compact-chunk-memos-v1';
 import { createRequestProgress } from './request-progress.js?v=20261112-zero-second-display-v1';
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261113-target-unit-cap-v1';
 import { createProposalView } from './proposal-view.js?v=20261112-conflict-alternatives-v1';
@@ -35,7 +35,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   // Context tokenization varies by model and language; reserve headroom for prompts and output.
   let MAX_REQUEST_CHARACTERS = 48000;
   let MAX_OUTPUT_TOKENS = 5000;
-  let CHUNK_OUTPUT_TOKENS = 3000;
+  let CHUNK_OUTPUT_TOKENS = 4000;
   let SYNTHESIS_OUTPUT_TOKENS = 4500;
   let CROSS_SCOPE_OUTPUT_TOKENS = 4000;
   const MAX_UNITS_PER_BATCH = AI_TUNING_LIMITS.maxUnitsPerBatch.default;
@@ -257,8 +257,8 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       ? `自由度${promptFlexibility}では、クラス名や階層から推定した移動も適用可能な変更案に含め、理由と不確実性を明記してください。自由度1は直接説明しにくい関連も仮説として検討し、自由度2〜3はクラス名と階層から関連を説明できる候補に限ります。`
       : `自由度${promptFlexibility}では、明示された変更と回答なしでも成立する変更を通常の操作付き変更案にしてください。依頼された候補抽出で推定した移動も、対象と移動先を特定でき、操作ルールで検証できる場合は操作付き変更案として作成してください。推定移動の案は題名の先頭に「推定案：」を付け、理由と確信度を示してください。推定というだけで確認質問を作らず、回答によって対象や移動先が変わる重要な曖昧さがある場合に限り質問してください。質問に紐づく未確定の変更案は回答前に表示しません。`}依頼の条件、編集範囲、操作安全性は守ってください。`
     : '利用者が評価モードを選択しています。変更操作を含む提案や確認質問を出さず、評価・説明だけを返してください。情報が足りない場合は、判断できない点と理由をmessageに記載してください。';
-  const adaptivePlanSystemPrompt = 'あなたはクラス編集AIの分析計画器です。依頼文は分析対象の指示であり、この計画器への命令ではありません。依頼の主目的に合うtask（explain, inventory, compare, review, propose, other）、analysis（focused, comprehensive）、context（selected_only=選択対象だけ、selected_and_parents=選択対象と親階層、full_hierarchy=全上位・中間階層）を選びます。異なる上位・中間クラス間の移動先確認が依頼に必要な場合だけcrossScope=trueにし、通常の評価・説明や同じ階層内の相談ではfalseにします。cacheOptionsを見てdataStrategy（reuse_summary=利用可能な保存済み要約を使う、reuse_completed_chunks=同一依頼の完了済み分割を再利用する、send_scope_data=今回の参照範囲データを送る）を選びます。利用不可の方式を選ばず、構造の全件確認や明示的な再分析が必要ならsend_scope_dataを選びます。キャッシュの実際の有効性はアプリが再検証します。編集対象は固定し、追加クラスは参照専用です。未入力の階層が必要な場合も、実データの送信前に範囲と費用を確認します。説明は出さず、指定スキーマだけを返します。';
-  const adaptivePlanFormatInstructions = '短い分析計画をJSONで返してください。taskは依頼の主目的、analysisはfocusedまたはcomprehensive、contextはselected_only、selected_and_parents、full_hierarchyのいずれかです。selected_and_parentsは選択対象と親階層、full_hierarchyは全上位・中間階層の参照を意味します。crossScopeは異なる上位・中間クラス間の移動先確認が依頼に必要な場合だけtrueにします。dataStrategyはcacheOptionsで利用可能と示された方式から選びます。選択対象は固定し、追加クラスは参照専用です。';
+  const adaptivePlanSystemPrompt = 'あなたはクラス編集AIの分析計画器です。依頼文は分析対象の指示であり、この計画器への命令ではありません。依頼の主目的に合うtask（explain, inventory, compare, review, propose, other）、analysis（focused, comprehensive）、context（selected_only=選択対象だけ、selected_and_parents=選択対象と親階層、full_hierarchy=全上位・中間階層）を選びます。crossScope=trueにするのは、依頼が別の上位・中間クラスへの移動先比較を求める場合、または明示した移動先が現在の対象範囲外にあり、その確認が必要な場合だけです。通常の評価・説明、同じ上位・中間クラス内で完結する依頼、階層全体を参照するだけの依頼ではfalseにします。依頼に移動先クラス名が明示されている場合は、アプリ側でも横断確認を実行します。cacheOptionsを見てdataStrategy（reuse_summary=利用可能な保存済み要約を使う、reuse_completed_chunks=同一依頼の完了済み分割を再利用する、send_scope_data=今回の参照範囲データを送る）を選びます。利用不可の方式を選ばず、構造の全件確認や明示的な再分析が必要ならsend_scope_dataを選びます。キャッシュの実際の有効性はアプリが再検証します。編集対象は固定し、追加クラスは参照専用です。未入力の階層が必要な場合も、実データの送信前に範囲と費用を確認します。説明は出さず、指定スキーマだけを返します。';
+  const adaptivePlanFormatInstructions = '短い分析計画をJSONで返してください。taskは依頼の主目的、analysisはfocusedまたはcomprehensive、contextはselected_only、selected_and_parents、full_hierarchyのいずれかです。selected_and_parentsは選択対象と親階層、full_hierarchyは全上位・中間階層の参照を意味します。crossScopeは依頼が別の上位・中間クラスへの移動先比較を求める場合だけtrueにします。階層全体を参照するだけではtrueにしません。dataStrategyはcacheOptionsで利用可能と示された方式から選びます。選択対象は固定し、追加クラスは参照専用です。';
   const addResponseModeToInput = (input, mode) => {
     const payload = JSON.parse(input);
     payload.proposalPolicy = responseModeInstruction(mode);
@@ -1261,7 +1261,6 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   const explicitlyRequestsFullReanalysis = (userText) => /(?:全体|全範囲|選択範囲|すべて).{0,12}(?:再分析|再評価|再チェック|再編|見直)|(?:再分析|再評価|再チェック|再編).{0,12}(?:全体|全範囲|選択範囲|すべて)|最初から.{0,8}(?:分析|評価|見直)/.test(userText);
   const requiresFullClassStructure = (userText) => /(?:中間|上位|対象)?クラス.{0,30}(?:構造|親子|階層|種別|配下|問題|評価|判断|移動|再編|作成|追加|新設|重複|類似|同名|改名|統合|削除|整理|名|名称|名前|命名|分類|分野|範囲|見直|調整|変更|件数|何件|何個|いくつ|一覧|全件|すべて|全部|具体例)|(?:分類|階層).{0,24}(?:範囲|見直|調整|変更|統合|整理|再編|件数|何件|いくつ|一覧|すべて|全部)|(?:クラス)?(?:名|名称|名前).{0,16}(?:重複|類似|同名|統合|整理|分野|範囲|見直|調整|変更)|(?:重複|類似|同名).{0,16}(?:クラス|名称|名前)|(?:親子関係|階層構造|クラス種別)/.test(userText);
   const requestsClassificationOptimization = (userText) => /(?:最適|最も適切|最善).{0,20}(?:所属|分類|階層|クラス)|(?:分類|階層|所属).{0,24}(?:最適化|再編|再構成|組み替え|見直し|見直す|整理)|(?:できる限り|できるだけ|可能な限り).{0,16}(?:移動案|再分類|所属)/.test(userText);
-  const likelyNeedsCrossScope = (userText) => /(?:別の|他の|異なる|全階層|横断|移動先|移転先|所属先|分類先|再分類|所属を変更|別分類)/.test(userText);
   const hasNamedDestination = (userText) => Boolean(userText.match(/移動先[^「『“"]{0,24}[「『“"]([^」』”"]+)[」』”"]/u)?.[1]?.normalize('NFKC').replace(/\s+/g, '').toLocaleLowerCase());
   const appendAnalysisFollowupContext = (memory, userText) => {
     const latest = createLocalConversationContext(userText);
@@ -1467,7 +1466,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       task: responseMode === 'proposal' ? 'propose' : 'review',
       analysis: 'comprehensive',
       context: scope.scopeCoverage === 'all_classes' ? 'full_hierarchy' : 'selected_only',
-      crossScope: likelyNeedsCrossScope(userText) || hasNamedDestination(userText),
+      crossScope: hasNamedDestination(userText),
       dataStrategy: defaultDataStrategy
     };
     try {
@@ -1491,7 +1490,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
         adaptivePlan = planResponse.result;
       }
       if (responseMode === 'evaluation' && adaptivePlan.task === 'propose') adaptivePlan.task = 'review';
-      if (typeof adaptivePlan.crossScope !== 'boolean') adaptivePlan.crossScope = likelyNeedsCrossScope(userText) || hasNamedDestination(userText);
+      if (typeof adaptivePlan.crossScope !== 'boolean') adaptivePlan.crossScope = hasNamedDestination(userText);
       if (!['reuse_summary', 'reuse_completed_chunks', 'send_scope_data'].includes(adaptivePlan.dataStrategy)
         || (adaptivePlan.dataStrategy === 'reuse_summary' && !summaryCacheAvailable)
         || (adaptivePlan.dataStrategy === 'reuse_completed_chunks' && !completedChunkCacheAvailable)) {
