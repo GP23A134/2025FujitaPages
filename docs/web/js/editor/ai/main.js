@@ -4,7 +4,7 @@ import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalS
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261112-same-class-conflict-isolation-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261113-split-cache-restore-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261112-large-proposal-arrow-bundling-v1';
-import { createAIClient } from './ai-client.js?v=20261113-adaptive-planning-coverage-v1';
+import { createAIClient } from './ai-client.js?v=20261113-split-coverage-echo-v1';
 import { createRequestProgress } from './request-progress.js?v=20261112-zero-second-display-v1';
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261111-ai-tuning-limits-v1';
 import { createProposalView } from './proposal-view.js?v=20261112-conflict-alternatives-v1';

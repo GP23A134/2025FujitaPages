@@ -265,7 +265,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
       }
     }
   };
-  const compactGroupedResponseInstructions = '応答は短縮キーのJSON形式です。トップレベルはg=上位クラス別回答配列です。各g要素はk=入力analysisGroupsのkey、m=回答文、p=提案配列、q=確認質問配列、v=確認した編集対象ID配列、分割評価ではc=カテゴリ別判定、h=横断確認候補ID配列を返してください。各analysisGroups.keyをちょうど1回ずつ返し、異なるグループの変更案を混ぜないでください。スキーマにある全キーを必ず出力し、使わない値はnullにしてください。';
+  const compactGroupedResponseInstructions = '応答は短縮キーのJSON形式です。トップレベルはg=上位クラス別回答配列です。各g要素はk=入力analysisGroupsのkey、m=回答文、p=提案配列、q=確認質問配列、v=確認した編集対象ID配列、分割評価ではc=カテゴリ別判定、h=横断確認候補ID配列を返してください。vには対応するanalysisGroups.editableIdsのIDを全件そのまま列挙し、変更案の有無にかかわらず確認対象を省略しないでください。各analysisGroups.keyをちょうど1回ずつ返し、異なるグループの変更案を混ぜないでください。スキーマにある全キーを必ず出力し、使わない値はnullにしてください。';
 
   const readResponseText = (response) => {
     if (typeof response.output_text === 'string') return response.output_text;
@@ -443,7 +443,8 @@ export const createResponsesClient = ({ responseFormat, digest, createIdCodec, m
       : crossScopeOperation
         ? `${responseFormat.compactResponseInstructions} ${responseFormat.crossScopeOperationInstructions}`
         : chunked
-          ? `${grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions} ${responseFormat.getChunkComparisonInstructions()}${crossScopeCandidateMode ? ` ${responseFormat.chunkCrossScopeCandidateInstructions}` : ''}`
+          ? `${grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions} ${grouped
+            ? '' : '分割評価では、vにselectedScope.editableIdsのIDを全件そのまま列挙してください。変更案の有無にかかわらず、確認対象を省略しないでください。'} ${responseFormat.getChunkComparisonInstructions()}${crossScopeCandidateMode ? ` ${responseFormat.chunkCrossScopeCandidateInstructions}` : ''}`
           : grouped ? responseFormat.compactGroupedResponseInstructions : responseFormat.compactResponseInstructions;
     const instructions = [planOnly ? promptOverride : promptOverride || systemPrompt, formatInstructions, ...requestPolicies].join('\n\n');
     const inputCharacterCount = instructions.length + apiInput.length;
