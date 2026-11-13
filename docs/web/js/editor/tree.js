@@ -431,6 +431,9 @@ function renderTree() {
         summary.insertBefore(checkbox, summary.firstChild);
       }
     }
+    summary.classList.toggle('is-selected', classKind(item) === 'top'
+      ? heldTopClasses.has(item.id)
+      : classKind(item) === 'middle' && heldMiddleClasses.has(item.id));
     if ((classKind(item) === 'top' || classKind(item) === 'middle')
       && treeHierarchyEditModeEnabled && item.label !== '未分類') {
       const actions = document.createElement('span');
@@ -674,11 +677,19 @@ const isTreeSelectionWhitespace = (target, clientX, clientY) => {
   return clientX >= 0 && clientX <= selectionGutterRight
     && clientY >= treeBounds.top && clientY <= treeBounds.bottom;
 };
+const isPinnedTreeClassSummary = (element) => {
+  if (!element.matches('.tree-top-class > summary, .tree-middle-class > summary')) return false;
+  const styles = getComputedStyle(element);
+  if (styles.position !== 'sticky') return false;
+  const stickyTop = Number.parseFloat(styles.top);
+  return Number.isFinite(stickyTop) && element.getBoundingClientRect().top <= stickyTop + 1;
+};
 const getTreeSelectionHits = (left, top, right, bottom) => {
   const rect = { left, top, right, bottom };
   return [...editTree.querySelectorAll('.tree-top-class > summary[data-selection-id], .tree-middle-class > summary[data-selection-id], .tree-leaf-class')]
     .filter((element) => {
       if (isUnclassified(classById.get(element.dataset.selectionId))) return false;
+      if (isPinnedTreeClassSummary(element)) return false;
       const bounds = element.getBoundingClientRect();
       return bounds.width > 0 && bounds.height > 0
         && bounds.right >= rect.left && bounds.left <= rect.right

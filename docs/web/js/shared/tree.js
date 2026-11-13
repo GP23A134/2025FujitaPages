@@ -139,7 +139,9 @@
   // 閲覧・編集のどちらも同じツリー構造を使うため、この計算も共有する。
   function updateTreeStickyOffsets(panel) {
     if (!panel) return;
-    const stickyGap = 0;
+    const stickyStyles = getComputedStyle(panel);
+    const stickyGap = Number.parseFloat(stickyStyles.getPropertyValue('--tree-sticky-gap')) || 0;
+    const middleStickyGap = Number.parseFloat(stickyStyles.getPropertyValue('--tree-middle-sticky-gap')) || stickyGap;
     const summaries = [...panel.querySelectorAll('.tree-top-class > summary, .tree-middle-class > summary')];
     const heights = new Map(summaries.map((summary) => [summary, summary.getBoundingClientRect().height]));
     [...panel.querySelectorAll('.tree-middle-class')].forEach((details) => {
@@ -148,7 +150,7 @@
       offset += stickyGap;
       let ancestor = details.parentElement?.closest('.tree-middle-class');
       while (ancestor) {
-        offset += (heights.get(ancestor.querySelector(':scope > summary')) || 0) + stickyGap;
+        offset += (heights.get(ancestor.querySelector(':scope > summary')) || 0) + middleStickyGap;
         ancestor = ancestor.parentElement?.closest('.tree-middle-class');
       }
       details.style.setProperty('--middle-sticky-top', `${offset}px`);

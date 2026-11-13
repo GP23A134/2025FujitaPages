@@ -168,7 +168,7 @@
 /* 8. 編集ツリーの階層線・ノード（共通指定より後に編集用の差分を配置） */
 /* ツリー内の階層見出しと接続線 */
 .edit-tree-panel,
-#edit-tree-panel { min-height: 300px; overflow: visible; }
+#edit-tree-panel { min-height: 300px; overflow: visible; --tree-sticky-gap: 4px; --tree-middle-sticky-gap: 4px; --tree-filter-sticky-gap: 2px; }
 #edit-tree-panel .edit-tree-layout { overflow: visible; }
 
 #edit-tree-panel .tree {
@@ -185,6 +185,7 @@
 #edit-tree-panel .tree > details > ul > li > details > ul { border-left: 0; }
 
 #edit-tree-panel .tree details { margin: 0.45rem 0; }
+#edit-tree-panel .tree-child-middle-list > li > .tree-middle-class { margin-bottom: 0.15rem; }
 #edit-tree-panel .tree > .tree-top-class { margin-top: 0; }
 #edit-tree-panel .tree > .tree-top-class > .tree-level-rows { margin-left: 1.7rem; }
 

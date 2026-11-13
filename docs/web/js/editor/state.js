@@ -52,35 +52,41 @@ function removeInlineStyleIfPresent(element, property) {
   if (!element.style.getPropertyValue(property)) return;
   element.style.removeProperty(property);
 }
+const updatePinnedHeldPanelBounds = () => {
+  const panel = document.getElementById('held-panel');
+  const layout = document.querySelector('#edit-tree-panel .edit-tree-layout');
+  if (!panel || !layout) return;
+  const toolbar = document.querySelector('.edit-taskbar');
+  const toolbarBottom = toolbar?.getBoundingClientRect().bottom ?? 0;
+  const top = Math.max(0, toolbarBottom);
+  const treeFilter = document.getElementById('tree-filter');
+  const filterHeight = treeFilter && !treeFilter.hidden ? treeFilter.getBoundingClientRect().height : 0;
+  const layoutStickyGap = filterHeight
+    ? Number.parseFloat(getComputedStyle(layout).getPropertyValue('--tree-filter-sticky-gap')) || 0
+    : 0;
+  const treeStickyTop = top + filterHeight + layoutStickyGap;
+  setInlineStyleIfChanged(layout, '--edit-pane-position-top', `${top}px`);
+  setInlineStyleIfChanged(layout, '--edit-top-class-sticky-top', `${treeStickyTop}px`);
+  if (panel.hidden || document.getElementById('edit-tree-panel')?.hidden) {
+    removeInlineStyleIfPresent(panel, 'height');
+    removeInlineStyleIfPresent(panel, 'max-height');
+    removeInlineStyleIfPresent(panel, 'visibility');
+    return;
+  }
+  if (!panel.classList.contains('is-collapsed')) {
+    removeInlineStyleIfPresent(panel, 'height');
+    removeInlineStyleIfPresent(panel, 'max-height');
+    return;
+  }
+  const collapsedHeight = Number.parseFloat(getComputedStyle(panel).getPropertyValue('--held-collapsed-height')) || panel.scrollHeight;
+  setInlineStyleIfChanged(panel, 'height', `${collapsedHeight}px`);
+  removeInlineStyleIfPresent(panel, 'max-height');
+};
 const syncPinnedHeldPanelBounds = () => {
   if (pinnedHeldPanelBoundsFrame) return;
   pinnedHeldPanelBoundsFrame = window.requestAnimationFrame(() => {
     pinnedHeldPanelBoundsFrame = 0;
-    const panel = document.getElementById('held-panel');
-    const layout = document.querySelector('#edit-tree-panel .edit-tree-layout');
-    if (!panel || !layout) return;
-    const toolbar = document.querySelector('.edit-taskbar');
-    const toolbarBottom = toolbar?.getBoundingClientRect().bottom ?? 0;
-    const top = Math.max(0, toolbarBottom);
-    const treeFilter = document.getElementById('tree-filter');
-    const filterHeight = treeFilter && !treeFilter.hidden ? treeFilter.getBoundingClientRect().height : 0;
-    const treeStickyTop = top + filterHeight;
-    setInlineStyleIfChanged(layout, '--edit-pane-position-top', `${top}px`);
-    setInlineStyleIfChanged(layout, '--edit-top-class-sticky-top', `${treeStickyTop}px`);
-    if (panel.hidden || document.getElementById('edit-tree-panel')?.hidden) {
-      removeInlineStyleIfPresent(panel, 'height');
-      removeInlineStyleIfPresent(panel, 'max-height');
-      removeInlineStyleIfPresent(panel, 'visibility');
-      return;
-    }
-    if (!panel.classList.contains('is-collapsed')) {
-      removeInlineStyleIfPresent(panel, 'height');
-      removeInlineStyleIfPresent(panel, 'max-height');
-      return;
-    }
-    const collapsedHeight = Number.parseFloat(getComputedStyle(panel).getPropertyValue('--held-collapsed-height')) || panel.scrollHeight;
-    setInlineStyleIfChanged(panel, 'height', `${collapsedHeight}px`);
-    removeInlineStyleIfPresent(panel, 'max-height');
+    updatePinnedHeldPanelBounds();
   });
 };
 const settingsDialog = document.getElementById('edit-settings-dialog');

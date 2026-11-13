@@ -885,9 +885,9 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   });
   const getPayloadSnapshot = (additionalContextIds = [], includeAllClasses = false) => {
     const selectedIds = editor.selectedIds;
-    const scope = editor.getScopedState(selectedIds);
-    const selected = new Set(scope.editableIds);
     const state = editor.getState();
+    const scope = editor.getScopedState(selectedIds, state);
+    const selected = new Set(scope.editableIds);
     const classById = new Map(state.classes.map((item) => [item.id, item]));
     const parentByChild = new Map(state.relations.map(({ child, parent }) => [child, parent]));
     scope.classes = scope.classes.map((item) => ({
@@ -909,7 +909,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     const selectedTargetParentIds = scope.classes
       .filter((item) => item.type === 'class' && selected.has(item.id) && item.parentId)
       .map((item) => item.parentId);
-    const targetContext = editor.getTargetContext([...includedHierarchyIds, ...selectedTargetParentIds]);
+    const targetContext = editor.getTargetContext([...includedHierarchyIds, ...selectedTargetParentIds], state);
     const scopeCoverage = includeAllClasses ? 'all_classes'
       : state.classes.every((item) => included.has(item.id)) ? 'all_classes' : 'selected_classes';
     if (!sharedContextIds.length && !includeAllClasses) return { ...scope, scopeCoverage, includeAllClasses, targetContext };

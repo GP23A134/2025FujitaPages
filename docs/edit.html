@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="web/css/tree-structure.css?v=20261112-tree-action-buttons-v2" />
     <link rel="stylesheet" href="web/css/editor-panels.css?v=20261112-ai-consult-tab-v3" />
     <link rel="stylesheet" href="web/css/test-preferences.css?v=20261111-test-settings-layout-v1" />
-    <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261112-tree-action-buttons-v25" />
+    <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261113-sticky-spacing-v17" />
     <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261112-ai-consult-tab-v2" />
     <script data-app-script="web/data/generated/class-data.js"></script>
     <script data-app-script="web/data/generated/instance-data.js"></script>
@@ -20,11 +20,11 @@
     <script data-app-script="web/js/shared/data-workspace.js?v=20261112-review-fixes-v1"></script>
 
     <!-- データ → 共通ツリー → 編集状態・パネル・ツリー・イベント → AIの順で実行する。 -->
-    <script data-app-script="web/js/shared/tree.js?v=20261112-class-type-normalization-v1"></script>
-    <script data-app-script="web/js/editor/state.js?v=20261112-class-type-normalization-v1"></script>
+    <script data-app-script="web/js/shared/tree.js?v=20261113-nested-sticky-gap-v2"></script>
+    <script data-app-script="web/js/editor/state.js?v=20261113-held-panel-layout-v1"></script>
     <script data-app-script="web/js/editor/panels.js?v=20261111-held-table-fixed-header-v2"></script>
-    <script data-app-script="web/js/editor/tree.js?v=20261112-tree-action-buttons-v16"></script>
-    <script data-app-script="web/js/editor/events.js?v=20261112-shared-validation-v1"></script>
+    <script data-app-script="web/js/editor/tree.js?v=20261113-tree-selection-v2"></script>
+    <script data-app-script="web/js/editor/events.js?v=20261113-held-panel-layout-v1"></script>
     <script data-app-script="web/js/editor/test-preferences.js?v=20261112-response-count-limits-v1" data-app-type="module"></script>
     <script src="web/js/shared/app-startup.js?v=20261112-review-fixes-v1"></script>
   </head>
@@ -648,6 +648,6 @@
     </dialog>
     <!-- ダイアログDOMの後に、データ読み込みとAIチャットを初期化する。 -->
     <script data-app-script="web/js/shared/data-upload.js?v=20261112-shared-validation-v2"></script>
-    <script data-app-script="web/js/editor/ai/main.js?v=20261112-same-class-conflict-isolation-v1" data-app-type="module"></script>
+    <script data-app-script="web/js/editor/ai/main.js?v=20261113-payload-snapshot-v1" data-app-type="module"></script>
   </body>
 </html>

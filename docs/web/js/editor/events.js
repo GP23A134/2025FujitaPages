@@ -302,7 +302,7 @@ if (treeFilter && heldPanel && 'ResizeObserver' in window) {
   const syncCollapsedHeldPanelHeight = () => {
     const collapsedHeight = heldPanel.querySelector('.held-panel-header')?.getBoundingClientRect().height;
     heldPanel.style.setProperty('--held-collapsed-height', `${collapsedHeight || 0}px`);
-    syncPinnedHeldPanelBounds();
+    updatePinnedHeldPanelBounds();
   };
   new ResizeObserver(syncCollapsedHeldPanelHeight).observe(treeFilter);
   const heldHeader = heldPanel.querySelector('.held-panel-header');
@@ -311,7 +311,7 @@ if (treeFilter && heldPanel && 'ResizeObserver' in window) {
   const layout = document.querySelector('#edit-tree-panel .edit-tree-layout');
   if (layout) new ResizeObserver(syncPinnedHeldPanelBounds).observe(layout);
   const taskbar = document.querySelector('.edit-taskbar');
-  if (taskbar) new ResizeObserver(syncPinnedHeldPanelBounds).observe(taskbar);
+  if (taskbar) new ResizeObserver(updatePinnedHeldPanelBounds).observe(taskbar);
   new ResizeObserver(syncPinnedHeldPanelBounds).observe(heldPanel);
 }
 let heldPanelBoundsDebounceTimer = 0;
@@ -665,8 +665,7 @@ window.classEditorAI = {
       children: Object.fromEntries([...children.entries()].map(([id, values]) => [id, [...values]]))
     };
   },
-  getScopedState(selectedIds) {
-    const all = this.getState();
+  getScopedState(selectedIds, all = this.getState()) {
     const classByIdLocal = new Map(all.classes.map((item) => [item.id, item]));
     const parentByChild = new Map(data.classData.relations.map(({ child, parent }) => [child, parent]));
     const selectedSet = new Set(selectedIds);
@@ -745,8 +744,7 @@ window.classEditorAI = {
       targetContext: buildAiTargetContext(all, scopedClasses)
     };
   },
-  getTargetContext(ids) {
-    const all = this.getState();
+  getTargetContext(ids, all = this.getState()) {
     const classByIdLocal = new Map(all.classes.map((item) => [item.id, item]));
     const hierarchyClasses = [...new Set(ids)]
       .map((id) => classByIdLocal.get(id))
