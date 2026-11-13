@@ -42,7 +42,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
         '選択中の編集対象だけを分析対象にする',
         '選択外のクラスを編集対象に追加しない',
         '入力済みの階層情報は必要に応じて参照専用で使う',
-        '選択中の対象クラスは全件確認する'
+        '依頼の目的に必要な範囲を確認する'
       ]
     });
   };
@@ -507,47 +507,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
       if (pending.length) batches.push(makeBatch(pending));
       return batches;
     };
-    const splitEditableTargetUnit = (unit, userText, conversation) => {
-      const editable = new Set(unit.scope.editableIds || []);
-      const targets = unit.scope.classes.filter((item) => item.type === 'class' && editable.has(item.id));
-      if (targets.length <= 50) return [];
-      const midpoint = Math.ceil(targets.length / 2);
-      const parentPayload = JSON.parse(unit.input || '{}');
-      return [targets.slice(0, midpoint), targets.slice(midpoint)].map((targetItems, index) => {
-        const targetIds = new Set(targetItems.map((item) => item.id));
-        const classes = unit.scope.classes.filter((item) => item.type !== 'class' || targetIds.has(item.id));
-        const includedIds = new Set(classes.map((item) => item.id));
-        const scope = {
-          ...unit.scope,
-          scopeCoverage: 'all_classes_chunk',
-          selectedIds: (unit.scope.selectedIds || []).filter((id) => includedIds.has(id)),
-          selectionRoots: (unit.scope.selectionRoots || unit.scope.selectedIds || []).filter((id) => includedIds.has(id)),
-          editableIds: targetItems.map((item) => item.id),
-          classes,
-          relations: unit.scope.relations.filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
-          counts: Object.fromEntries(Object.entries(unit.scope.counts || {}).filter(([id]) => includedIds.has(id))),
-          sharedContextIds: (unit.scope.sharedContextIds || []).filter((id) => includedIds.has(id)),
-          targetContext: {
-            descendantTargetClassCounts: Object.fromEntries(Object.entries(unit.scope.targetContext?.descendantTargetClassCounts || {})
-              .filter(([id]) => includedIds.has(id)))
-          }
-        };
-        const payload = JSON.parse(buildUserContent(userText, scope, conversation, {
-          forceSnapshot: true,
-          instruction: unit.instruction
-        }));
-        ['proposalPolicy', 'responsePolicy', 'crossScopeCandidateMode', 'chunkedAnalysis', 'analysisPlan'].forEach((key) => {
-          if (parentPayload[key] !== undefined) payload[key] = parentPayload[key];
-        });
-        return {
-          ...unit,
-          unitId: `${unit.unitId || 'unit'}_retry_${index + 1}`,
-          scope,
-          input: shortenInputIds(JSON.stringify(payload))
-        };
-      });
-    };
-    return { buildUserContent, buildAdaptivePlanInput, makeLargeScopePlan, packAnalysisUnits, splitEditableTargetUnit };
+    return { buildUserContent, buildAdaptivePlanInput, makeLargeScopePlan, packAnalysisUnits };
 };
 
 // 分割回答と範囲根拠を統合し、カテゴリ別の横断比較状態も返します。

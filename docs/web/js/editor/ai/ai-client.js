@@ -133,7 +133,6 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     },
     required: ['m', 'p', 'q']
   };
-  const chunkCoverageSchema = { type: 'integer', minimum: 0 };
   const crossScopeCoverageSchema = {
     type: 'object', additionalProperties: false,
     properties: {
@@ -149,16 +148,15 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     properties: { ...responseSchema.properties, x: crossScopeCoverageSchema },
     required: [...responseSchema.required, 'x']
   };
-  const compactResponseInstructions = '応答は短縮キーのJSON形式です。トップレベルはm=回答文、p=提案配列、q=確認質問配列、分割評価時はv=確認した編集対象の件数です。提案はi=id,t=題名,s=要約,r=理由,q=質問,u=不確実点,o=操作配列。操作キーはt=操作種別コード(a=addClass,r=renameClass,m=moveClass,mc=moveChildren,p=promoteClass,d=deleteClass)、ct=classType,tmp=temporaryId,l=label,p=parentId,c=classId,dst=destinationId,f=from,to=toです。スキーマにある全キーを必ず出力し、使わない値はnullにしてください。';
+  const compactResponseInstructions = '応答は短縮キーのJSON形式です。トップレベルはm=回答文、p=提案配列、q=確認質問配列です。提案はi=id,t=題名,s=要約,r=理由,q=質問,u=不確実点,o=操作配列。操作キーはt=操作種別コード(a=addClass,r=renameClass,m=moveClass,mc=moveChildren,p=promoteClass,d=deleteClass)、ct=classType,tmp=temporaryId,l=label,p=parentId,c=classId,dst=destinationId,f=from,to=toです。スキーマにある全キーを必ず出力し、使わない値はnullにしてください。';
   const groupedResponseSchema = {
     type: 'object', additionalProperties: false,
     properties: {
       g: {
         type: 'array', maxItems: 20, items: {
           type: 'object', additionalProperties: false,
-          properties: { k: { type: 'string' }, m: { type: 'string' }, p: responseSchema.properties.p, q: responseSchema.properties.q,
-            v: chunkCoverageSchema },
-          required: ['k', 'm', 'p', 'q', 'v']
+          properties: { k: { type: 'string' }, m: { type: 'string' }, p: responseSchema.properties.p, q: responseSchema.properties.q },
+          required: ['k', 'm', 'p', 'q']
         }
       }
     },
@@ -227,9 +225,8 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
   };
   const responseWithChunkComparisonSchema = {
     ...responseSchema,
-    properties: { ...responseSchema.properties, c: chunkComparisonSchema, h: { type: 'array', items: { type: 'string' } },
-      v: chunkCoverageSchema },
-    required: [...responseSchema.required, 'c', 'h', 'v']
+    properties: { ...responseSchema.properties, c: chunkComparisonSchema, h: { type: 'array', items: { type: 'string' } } },
+    required: [...responseSchema.required, 'c', 'h']
   };
   const comparisonSummaryResponseSchema = {
     type: 'object', additionalProperties: false,
@@ -267,7 +264,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
       }
     }
   };
-  const compactGroupedResponseInstructions = '応答は短縮キーのJSON形式です。トップレベルはg=上位クラス別回答配列です。各g要素はk=入力analysisGroupsのkey、m=回答文、p=提案配列、q=確認質問配列、v=確認した編集対象の件数、分割評価ではc=カテゴリ別判定、h=横断確認候補ID配列を返してください。vには対応するanalysisGroups.editableIdsを一件ずつ確認した件数を返し、変更案の有無にかかわらず対象を全件確認してください。各analysisGroups.keyをちょうど1回ずつ返し、異なるグループの変更案を混ぜないでください。スキーマにある全キーを必ず出力し、使わない値はnullにしてください。';
+  const compactGroupedResponseInstructions = '応答は短縮キーのJSON形式です。トップレベルはg=上位クラス別回答配列です。各g要素はk=入力analysisGroupsのkey、m=回答文、p=提案配列、q=確認質問配列、分割評価ではc=カテゴリ別判定、h=横断確認候補ID配列を返してください。各analysisGroups.keyをちょうど1回ずつ返し、異なるグループの変更案を混ぜないでください。スキーマにある全キーを必ず出力し、使わない値はnullにしてください。';
 
   const readResponseText = (response) => {
     if (typeof response.output_text === 'string') return response.output_text;
@@ -309,7 +306,6 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
       questions: wire.q,
       comparison: wire.c,
       crossScopeCandidateIds: Array.isArray(wire.h) ? wire.h : [],
-      coverageCount: Number.isInteger(wire.v) ? wire.v : null,
       dataRequests: []
     };
   };
@@ -340,8 +336,8 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
         if (comparisonSynthesis && !wire.c) throw new Error('統合結果のカテゴリ別比較が不足しています。');
         return { message: wire.m, comparison: wire.c, proposals: [], questions: [], dataRequests: [] };
       }
-      if (chunked && (grouped ? wire.g.some((item) => !item.c || !Array.isArray(item.h) || !Number.isInteger(item.v))
-        : !wire.c || !Array.isArray(wire.h) || !Number.isInteger(wire.v))) {
+      if (chunked && (grouped ? wire.g.some((item) => !item.c || !Array.isArray(item.h))
+        : !wire.c || !Array.isArray(wire.h))) {
         throw new Error('分割評価のカテゴリ別判定が不足しています。');
       }
       if (crossScopeOperation) {
@@ -349,7 +345,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
         return { ...expandCompactResponse(wire), crossScopeCoverage: wire.x };
       }
       return grouped
-      ? { groups: wire.g.map((item) => ({ key: item.k, ...expandCompactResponse({ m: item.m, p: item.p, q: item.q, c: item.c, h: item.h, v: item.v }) })) }
+      ? { groups: wire.g.map((item) => ({ key: item.k, ...expandCompactResponse({ m: item.m, p: item.p, q: item.q, c: item.c, h: item.h }) })) }
         : expandCompactResponse(wire);
     } catch (error) {
       if (error instanceof SyntaxError) {
@@ -381,7 +377,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     summaryResponseSchema,
     comparisonSummaryResponseSchema,
     updateOutputLimits,
-    getChunkComparisonInstructions: () => `分割評価では通常応答のトップレベル、analysisGroups応答では各g要素にc、h、vを必ず出してください。vには今回の入力でrole=eとして示された編集対象を実際に確認した件数を整数で返してください。変更案や所見の有無にかかわらず全件を確認し、確認できなかった対象は件数に含めないでください。mは後段統合用の短い評価メモとして160文字以内にし、結論・主な根拠・重要な限界だけを書きます。クラス名の列挙、提案pやカテゴリ所見cの言い換え、前置きは省いてください。cにはduplicates、imbalance、gaps、otherの全カテゴリを含めます。各statusはfindings（所見あり）、none（十分に確認して所見なし）、insufficient（情報不足）です。未記入や形式不正をnoneにせず、各所見には少なくとも一つの入力済みクラスID・名称と具体的な根拠を示し、各カテゴリ最大${AI_OUTPUT_LIMITS.chunkFindingsPerCategory}件に絞ってください。所見は簡潔な一文にし、重要な根拠だけを記載してください。件数が入力されていない偏りは判断不能としてください。hは追加の横断確認候補IDの配列です。入力指示で候補抽出を求められていない場合や評価モードでは空配列を返してください.`,
+    getChunkComparisonInstructions: () => `分割評価では通常応答のトップレベル、analysisGroups応答では各g要素にc、hを必ず出してください。mは後段統合用の短い評価メモとして160文字以内にし、結論・主な根拠・重要な限界だけを書きます。クラス名の列挙、提案pやカテゴリ所見cの言い換え、前置きは省いてください。cにはduplicates、imbalance、gaps、otherの全カテゴリを含めます。各statusはfindings（所見あり）、none（十分に確認して所見なし）、insufficient（情報不足）です。未記入や形式不正をnoneにせず、各所見には少なくとも一つの入力済みクラスID・名称と具体的な根拠を示し、各カテゴリ最大${AI_OUTPUT_LIMITS.chunkFindingsPerCategory}件に絞ってください。所見は簡潔な一文にし、重要な根拠だけを記載してください。件数が入力されていない偏りは判断不能としてください。hは追加の横断確認候補IDの配列です。入力指示で候補抽出を求められていない場合や評価モードでは空配列を返してください.`,
     getComparisonSynthesisInstructions: () => `JSON形式でmに統合回答、cにカテゴリ別の横断比較を返してください。入力のcomparisonRequirementsにある各カテゴリの必須範囲をrequiredScopesに正確に反映し、実際に判定できた範囲をassessedScopes、未判定範囲をunassessedScopesに分けます。cはduplicates=重複候補、imbalance=分類の偏り、gaps=分類漏れ・孤立、other=その他です。各カテゴリはstatus=comparableまたはinsufficient、requiredScopes、assessedScopes、unassessedScopes、findings、limitationを返します。所見ごとにもrequiredScopesとassessedScopesを分け、必要なチャンクが不足しても、必要・判定済み範囲が揃った局所所見は残します。所見がない場合findingsは空配列にし、判断できない場合はinsufficientとして理由を記します。所見ごとにクラスID・名称、根拠、限界を返してください。各カテゴリの所見は重要なものを最大${AI_OUTPUT_LIMITS.comparisonFindingsPerCategory}件に絞り、入力にない事実や確信度を作らないでください.`,
     chunkCrossScopeCandidateInstructions: '通常応答ではトップレベル、analysisGroups応答では各g要素のhに、今回の入力範囲で変更可能な対象クラスのIDだけを入れてください。別上位クラス配下への所属変更を追加確認する候補として、現在の所属に明確なずれがある対象に加え、別の上位・中間クラスにも具体的に関連しそうな対象を広めに選びます。移動先を断定できなくても、具体的な別分類先の可能性があれば候補に含めてください。候補IDは追加確認の優先度順に並べ、件数で切り捨てないでください。判断不能というだけで具体的な別分類先が考えられない対象は除外します。候補抽出を求められていない場合や評価モードでは空配列を返してください。',
     compactResponseInstructions,
@@ -420,15 +416,15 @@ export const createResponsesClient = ({ responseFormat, digest, createIdCodec, m
       .map((key) => typeof requestPayload[key] === 'string' ? requestPayload[key].trim() : '')
       .filter(Boolean);
     const taskDescriptions = {
-      explain: '要点と根拠を説明する', inventory: '選択対象を全件確認し、各対象の扱いを明確にする',
+      explain: '要点と根拠を説明する', inventory: '選択対象の内容を整理する',
       compare: '依頼条件に沿って比較する', review: '問題点と根拠を確認する',
       propose: '操作可能な変更案を検討する', other: '依頼の目的に沿って回答する'
     };
     if (!planOnly && analysisPlan && typeof analysisPlan === 'object') {
       const task = taskDescriptions[analysisPlan.task] || taskDescriptions.other;
       const analysis = analysisPlan.analysis === 'comprehensive'
-        ? '選択範囲内を網羅的に確認し、未確認部分を完了扱いしないでください。'
-        : '選択対象は全件確認し、説明の詳しさだけを依頼に合わせて調整してください。未確認部分を完了扱いしないでください。';
+        ? '依頼に応じて選択範囲を広く確認し、判断できない点はその理由を示してください。'
+        : '依頼の目的に必要な範囲を確認し、説明の詳しさを依頼に合わせてください。';
       const context = analysisPlan.context === 'full_hierarchy'
         ? '入力済みの全階層情報は参照専用として活用してください。'
         : analysisPlan.context === 'selected_and_parents'
@@ -495,7 +491,6 @@ export const createResponsesClient = ({ responseFormat, digest, createIdCodec, m
         (finding.classes || []).forEach((item) => { if (item.id) item.id = restoreId(item.id); });
       }));
       group.crossScopeCandidateIds = (group.crossScopeCandidateIds || []).map(restoreId);
-      group.coverageIds = (group.coverageIds || []).map(restoreId);
       if (group.crossScopeCoverage) {
         if (typeof group.crossScopeCoverage.batchId === 'string') {
           group.crossScopeCoverage.batchId = restoreId(group.crossScopeCoverage.batchId);

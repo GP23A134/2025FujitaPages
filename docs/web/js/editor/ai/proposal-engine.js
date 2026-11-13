@@ -516,6 +516,11 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
     const classById = new Map(state.classes.map((item) => [item.id, item]));
     const parentByChild = new Map(state.relations.map(({ child, parent }) => [child, parent]));
     const available = new Set(availableIds);
+  result.questions ||= [];
+  const clarificationQuestions = new Set();
+  const addClarification = (text) => {
+    if (text) clarificationQuestions.add(text);
+  };
     result.proposals.forEach((proposal) => {
       const aliases = new Map();
       const unavailableDuplicateIds = new Set();
@@ -578,6 +583,8 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
           });
         }
         const blockedIds = new Set([...unavailableDuplicateIds, ...ambiguousDuplicateIds]);
+        const blockedAdditions = proposal.operations.filter((operation) => operation.type === 'addClass'
+          && blockedIds.has(operation.temporaryId));
         const referencesBlockedDuplicate = (operation) => ['temporaryId', 'parentId', 'classId', 'destinationId', 'from', 'to']
           .some((key) => blockedIds.has(operation[key]));
         proposal.operations = proposal.operations.filter((operation) => !referencesBlockedDuplicate(operation));
@@ -587,6 +594,10 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
         if (proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal && !proposal.uncertainties.includes(warning)) {
           proposal.uncertainties.push(warning);
         }
+        const labels = [...new Set(blockedAdditions.map((operation) => String(operation.label || '').trim()).filter(Boolean))];
+        addClarification(ambiguousDuplicateIds.size
+          ? `同名クラス${labels.length ? `「${labels.join('」「')}」` : ''}の再利用先を親階層から一意に決められません。どの親階層のクラスを使うか指定しますか？`
+          : `同名クラス${labels.length ? `「${labels.join('」「')}」` : ''}は選択範囲外です。既存クラスを選んで使うか、新しいクラスを作るか指定しますか？`);
       }
       const duplicateRenameIndexes = new Set();
       proposal.operations.forEach((operation, index) => {
@@ -602,10 +613,12 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
         if (duplicate || duplicateAddition) duplicateRenameIndexes.add(index);
       });
       if (duplicateRenameIndexes.size) {
+        const duplicateNames = [...new Set([...duplicateRenameIndexes].map((index) => String(proposal.operations[index]?.label || '').trim()).filter(Boolean))];
         proposal.operations = proposal.operations.filter((_, index) => !duplicateRenameIndexes.has(index));
         if (proposal.uncertainties.length < AI_OUTPUT_LIMITS.uncertaintiesPerProposal) {
           proposal.uncertainties.push('改名先と同じ種類・名称のクラスが既にあるため、その改名操作を除外しました。');
         }
+        addClarification(`改名先と同名のクラス${duplicateNames.length ? `「${duplicateNames.join('」「')}」` : ''}があります。既存クラスを使うか、別の名前にするか指定しますか？`);
       }
       const seenOperations = new Set();
       proposal.operations = proposal.operations.filter((operation) => {
@@ -615,6 +628,11 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
         return true;
       });
     });
+    if (clarificationQuestions.size) {
+      const questions = [...clarificationQuestions];
+      result.questions.push(questions.length === 1 ? questions[0]
+        : `既存クラスの再利用先など、確認が必要な点があります。${questions.slice(0, 3).join(' ')}${questions.length > 3 ? ` ほか${questions.length - 3}件も確認できます。` : ''}`);
+    }
   };
   const enforceOperationPolicy = (result, scope, policy) => {
     if (!policy?.allowProposals) {
@@ -645,6 +663,7 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
     };
     let totalRemovedCount = 0;
     const excludedOperations = [];
+    const clarificationDetails = [];
     const current = editor.getState();
     const fingerprint = JSON.stringify({ classes: current.classes, relations: current.relations });
     result.proposals.forEach((proposal) => {
@@ -657,6 +676,7 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
         }
       });
       let removedCount = 0;
+      const proposalExclusions = [];
       proposal.operations = proposal.operations.filter((operation) => {
         const allowedByPolicy = operationAllowedByPolicy(operation, policy, proposalClassesById, proposalEditableIds);
         const hasUnselectedDescendant = operation.type === 'deleteClass' && policy.requireAllDescendantsEditableForDelete
@@ -667,8 +687,10 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
           const reason = hasUnselectedDescendant
             ? '削除対象の配下に未選択のクラスがあります。配下を含めて選択してください。'
             : `${operation.type || '不明'}は今回の依頼または編集範囲で許可されていません。`;
-          excludedOperations.push({ proposal: proposal.title || proposal.summary || proposal.id,
-            type: operation.type || '不明', classId: operation.classId || operation.from || '', reason });
+          const excluded = { proposal: proposal.title || proposal.summary || proposal.id,
+            type: operation.type || '不明', classId: operation.classId || operation.from || '', reason };
+          excludedOperations.push(excluded);
+          proposalExclusions.push(excluded);
         } else if (operation.type === 'deleteClass' && policy.reparentDescendantsOnDelete
           && (childrenByParent.get(operation.classId) || []).length) {
           const reparentNotice = '配下クラスは削除せず、削除対象の階層に応じて移動・上位化します。適用前にプレビューで移動結果を確認してください。';
@@ -678,8 +700,11 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
       });
       totalRemovedCount += removedCount;
       if (removedCount) {
-        const warning = `一部の操作を除外しました: ${excludedOperations.slice(-removedCount)
-          .map((item) => `${item.classId || item.type}（${item.reason}）`).join(' ')}`;
+        const examples = proposalExclusions.slice(0, 3)
+          .map((item) => `${item.classId || item.type}（${item.reason}）`).join(' ');
+        const remainingCount = Math.max(0, proposalExclusions.length - 3);
+        const warning = `一部の操作を保留しました: ${examples}${remainingCount ? ` ほか${remainingCount}件` : ''}。対象範囲や変更方針を調整しますか？`;
+        clarificationDetails.push(warning);
         proposal.uncertainties.push(warning);
       }
       if (proposal.operations.length) {
@@ -692,10 +717,16 @@ export const createResponseHandler = ({ editor, AI_OUTPUT_LIMITS, deduplicateQue
         }
       }
     });
+    if (clarificationDetails.length) {
+      const uniqueDetails = [...new Set(clarificationDetails)];
+      result.questions ||= [];
+      result.questions.push(uniqueDetails.length === 1 ? uniqueDetails[0]
+        : `一部の操作を保留しました。${uniqueDetails.slice(0, 3).join(' ')}${uniqueDetails.length > 3 ? ` ほか${uniqueDetails.length - 3}件も確認できます。` : ''}`);
+    }
     const removedProposals = result.proposals.filter((proposal) => !proposal.operations.length && !proposal.questions.length);
     result.proposals = result.proposals.filter((proposal) => proposal.operations.length || proposal.questions.length);
     if (removedProposals.length) {
-      result.message = [result.message, '依頼・分割範囲で許可されない操作を含むため、該当する操作を除外しました。']
+      result.message = [result.message, '安全性を確認できない操作は保留し、確認事項としてお尋ねしています。']
         .filter(Boolean).join('\n\n');
     }
     if (!editableIds.size && !result.proposals.some((proposal) => proposal.operations.length)) {

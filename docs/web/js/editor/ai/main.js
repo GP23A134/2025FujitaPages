@@ -1,10 +1,10 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261113-adaptive-coverage-retry-v1';
-import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261112-same-class-conflict-isolation-v1';
+import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261113-chat-optional-coverage-v1';
+import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261113-chat-clarification-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261113-split-cache-restore-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261112-large-proposal-arrow-bundling-v1';
-import { createAIClient } from './ai-client.js?v=20261113-concise-chunk-assessment-v1';
+import { createAIClient } from './ai-client.js?v=20261113-chat-optional-coverage-v1';
 import { createRequestProgress } from './request-progress.js?v=20261112-zero-second-display-v1';
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261113-target-unit-cap-v1';
 import { createProposalView } from './proposal-view.js?v=20261112-conflict-alternatives-v1';
@@ -551,14 +551,10 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     const pricingDate = modelConfig?.pricingAsOf ? `料金単価は${modelConfig.pricingAsOf}時点です。` : '';
     const budgets = typeof outputTokenBudget === 'object' && outputTokenBudget !== null
       ? outputTokenBudget : { maximum: outputTokenBudget };
-    const conditionalInputTokens = (budgets.conditionalInputs || []).reduce((total, input) => (
-      total + estimateTokensFromText(input) + estimateTokensFromText(fixedInstructions)
-    ), 0);
-    const maximumInputUsd = inputUsd + conditionalInputTokens * rates.inputUsdPerMillion / 1_000_000;
     const initialOutputCapUsd = (Number(budgets.initial) || 0) * rates.outputUsdPerMillion / 1_000_000;
     const maximumOutputCapUsd = (Number(budgets.maximum) || 0) * rates.outputUsdPerMillion / 1_000_000;
     const estimate = budgets.initial !== undefined
-      ? `初回出力枠・統合1回の概算：約 ${formatUsd(inputUsd + initialOutputCapUsd)}\n保守的な上限枠（自動再試行・最大統合回数を含む）：約 ${formatUsd(maximumInputUsd + maximumOutputCapUsd)}\n※上限枠は各処理が出力上限まで使い、必要な再試行と最大回数の統合がすべて発生する想定です。${conditionalInputTokens ? '分割評価の照合不足時に行う半分単位での再評価費用も含みます。' : ''}標準・短コンテキスト単価による概算で、会話履歴、キャッシュ料金、処理モードや長文コンテキストの単価差は含まず、実際の料金と異なる場合があります。${pricingDate ? ` ${pricingDate}` : ''}`
+      ? `初回出力枠・統合1回の概算：約 ${formatUsd(inputUsd + initialOutputCapUsd)}\n保守的な上限枠（自動再試行・最大統合回数を含む）：約 ${formatUsd(inputUsd + maximumOutputCapUsd)}\n※上限枠は各処理が出力上限まで使い、必要な再試行と最大回数の統合がすべて発生する想定です。標準・短コンテキスト単価による概算で、会話履歴、キャッシュ料金、処理モードや長文コンテキストの単価差は含まず、実際の料金と異なる場合があります。${pricingDate ? ` ${pricingDate}` : ''}`
       : `料金の目安：約 ${formatUsd(inputUsd + maximumOutputCapUsd)}\n※標準・短コンテキスト単価による概算です。会話履歴、追加送信、キャッシュ料金、処理モードや長文コンテキストの単価差は含まず、実際の料金と異なる場合があります。${pricingDate ? ` ${pricingDate}` : ''}`;
     return [splitNote, estimate].filter(Boolean).join('\n\n');
   };
@@ -1628,27 +1624,6 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     const allowCachedSplitReuse = adaptivePlan.dataStrategy === 'reuse_completed_chunks' && cachedAnalysisPlanMatches;
     const cachedChunkEntries = splitTasks && allowCachedSplitReuse ? priorAnalysisMemory.chunkCache || [] : [];
     const chunkCacheByKey = new Map(cachedChunkEntries.map((entry) => [entry.key, entry.result]));
-    const plannedCoverageRetries = new Map();
-    if (splitTasks) {
-      const initialSplitChunkKeys = await Promise.all(splitTasks.map((task) => splitTaskCacheKey(task, userText, systemPrompt, conversation,
-        cachedAnalysisPlanMatches ? priorAnalysisMemory.chunkCachePlan : null)));
-      for (const task of splitTasks.filter((item) => item.kind === 'upper_class_unit')) {
-        const tasks = requestPlanner.splitEditableTargetUnit(task, userText, conversation);
-        tasks.forEach((retryTask) => {
-          const payload = JSON.parse(retryTask.input);
-          payload.analysisPlan = adaptivePlan;
-          if (crossScopeCandidateMode) payload.crossScopeCandidateMode = true;
-          retryTask.input = JSON.stringify(payload);
-        });
-        const keys = await Promise.all(tasks.map((retryTask) => splitTaskCacheKey(retryTask, userText, systemPrompt, conversation, adaptivePlan)));
-        if (tasks.length) plannedCoverageRetries.set(task, { tasks, keys });
-      }
-      splitTasks = splitTasks.flatMap((task, index) => {
-        const retryPlan = plannedCoverageRetries.get(task);
-        return !chunkCacheByKey.has(initialSplitChunkKeys[index])
-          && retryPlan?.keys.some((key) => chunkCacheByKey.has(key)) ? retryPlan.tasks : [task];
-      });
-    }
     const splitChunkKeys = splitTasks
       ? await Promise.all(splitTasks.map((task) => splitTaskCacheKey(task, userText, systemPrompt, conversation,
         cachedAnalysisPlanMatches ? priorAnalysisMemory.chunkCachePlan : null)))
@@ -1671,19 +1646,6 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       ? [...standaloneSplitTasks, ...groupedSplitBatches]
       : [];
     const isGroupedSplitBatch = (task) => Array.isArray(task?.units);
-    const coverageRetryTasksByUnit = new Map();
-    if (splitTasks) {
-      for (const task of unsentSplitTasks.filter((item) => item.kind === 'upper_class_unit' && !item.unitId?.includes('_retry_'))) {
-        const retryTasks = requestPlanner.splitEditableTargetUnit(task, userText, conversation);
-        retryTasks.forEach((retryTask) => {
-          const payload = JSON.parse(retryTask.input);
-          payload.analysisPlan = adaptivePlan;
-          retryTask.input = JSON.stringify(payload);
-        });
-        const retryKeys = await Promise.all(retryTasks.map((retryTask) => splitTaskCacheKey(retryTask, userText, systemPrompt, conversation, adaptivePlan)));
-        if (retryTasks.length) coverageRetryTasksByUnit.set(task, { tasks: retryTasks, keys: retryKeys });
-      }
-    }
     const needHierarchyReference = Boolean(splitBatches.length || (splitTasks && responseMode === 'proposal' && !unsentSplitTasks.length));
     const hierarchyReferenceInput = needHierarchyReference ? (() => {
       const parentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
@@ -1747,9 +1709,6 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       ...(splitTasks ? [hierarchyReferenceInput, ...splitBatches.map((task) => hierarchyReferenceInput + task.input)] : [userContent]),
       ...crossScopePreflightInputs
     ].filter(Boolean);
-    const conditionalCoverageRetryInputs = [...coverageRetryTasksByUnit.values()].flatMap(({ tasks }) => (
-      tasks.map((task) => hierarchyReferenceInput + task.input)
-    ));
     const sendingDelta = Boolean(!usesAnalysisMemory && !splitTasks && conversation.responseId
       && conversation.initialSnapshotSent && !selectionChanged && !scopeModeChanged);
     const splitDisplayScope = splitTasks ? (() => {
@@ -1786,8 +1745,6 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
         ? Math.min(selectedModelOutputLimit, Math.max(firstAttempt + 1000, firstAttempt * 2)) : 0;
       return firstAttempt + retryAttempt;
     };
-    const conditionalCoverageRetryOutputBudget = [...coverageRetryTasksByUnit.values()].flatMap(({ tasks }) => tasks)
-      .reduce((total) => total + outputBudgetWithRetry(CHUNK_OUTPUT_TOKENS), 0);
     const outputTokenBudget = splitTasks
       ? splitBatches.reduce((total, task) => total + outputBudgetWithRetry(isGroupedSplitBatch(task)
         ? task.units.length * CHUNK_OUTPUT_TOKENS : CHUNK_OUTPUT_TOKENS), 0)
@@ -1796,7 +1753,6 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
         + (needHierarchyReference ? outputBudgetWithRetry(128) : 0)
         + (preflightCrossScopePlan
           ? preflightCrossScopePlan.batches.reduce((total) => total + outputBudgetWithRetry(CROSS_SCOPE_OUTPUT_TOKENS), 0) : 0)
-        + conditionalCoverageRetryOutputBudget
       : outputBudgetWithRetry(MAX_OUTPUT_TOKENS);
     const outputTokenBudgetInitial = splitTasks
       ? splitBatches.reduce((total, task) => total + Math.min(selectedModelOutputLimit,
@@ -1847,14 +1803,10 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       ? '出力上限に達した処理は、選択モデルの上限内で出力上限を最大2倍にして1回だけ自動再試行します。費用目安には再試行分を含めています。'
       : '予定している出力上限は選択モデルの最大値に達しているため、自動増加再試行は行えません。';
     const plannerNote = '依頼文と選択件数から分析計画を作成しました。参照範囲が増える場合は送信範囲に反映しています。選択対象は固定し、選択外クラスは編集対象に追加しません。';
-    const coverageRetryNote = coverageRetryTasksByUnit.size
-      ? `対象数の照合に失敗した単位だけ、半分の大きさで一度再評価します。再評価後も照合できない範囲は未確認にします。再評価分は保守的な上限費用に含めています。`
-      : '';
-    const preflightNote = [modeNote, cacheReuseNote, crossScopeNote, coverageRetryNote, plannerNote, requestOptions.referenceExpansionSummary, outputRetryNote,
+    const preflightNote = [modeNote, cacheReuseNote, crossScopeNote, plannerNote, requestOptions.referenceExpansionSummary, outputRetryNote,
       estimateRequestCost(requestInputs, systemPrompt, {
         initial: outputTokenBudgetInitial + estimatedPlannerOutputTokenBudget,
-        maximum: outputTokenBudget + estimatedPlannerOutputTokenBudget,
-        conditionalInputs: conditionalCoverageRetryInputs
+        maximum: outputTokenBudget + estimatedPlannerOutputTokenBudget
       }, plannerCostApplies ? adaptivePlanInput : ''), longConversationNote].filter(Boolean).join('\n\n');
     updateUsageSummary();
     requestProgress.updatePreparationLabel('送信内容と費用の確認待ち');
@@ -1961,9 +1913,6 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
         const crossScopeCandidateIds = new Set();
         const nextChunkCache = [];
         const splitBatchWarnings = [];
-        const coverageRetryQueue = [];
-        const queuedCoverageRetryUnits = new Set();
-        const partialChunkAssessments = [];
         // 一致したチャンクはAPIへ再送せず、未変更の範囲だけを再評価します。
         const chunkKeys = splitChunkKeys;
         let discardedOperationTotal = 0;
@@ -1971,32 +1920,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
         let splitRepairFailed = false;
         const hasEditableTargetClasses = (unit) => unit.scope.classes.some((item) => item.type === 'class'
           && unit.scope.editableIds.includes(item.id));
-        const processSplitUnit = (unit, index, unitResult, repairFailed = false, cacheKeyOverride = '') => {
-          const expectedCoverageIds = new Set(unit.scope.editableIds || []);
-          const returnedCoverageIds = Array.isArray(unitResult.coverageIds) ? unitResult.coverageIds : [];
-          const returnedCoverageSet = new Set(returnedCoverageIds);
-          const hasCoverageCount = Number.isInteger(unitResult.coverageCount);
-          const returnedCoverageCount = hasCoverageCount ? unitResult.coverageCount : returnedCoverageIds.length;
-          const coverageMismatch = hasCoverageCount
-            ? returnedCoverageCount !== expectedCoverageIds.size
-            : returnedCoverageIds.length !== expectedCoverageIds.size
-              || returnedCoverageSet.size !== returnedCoverageIds.length
-              || [...expectedCoverageIds].some((id) => !returnedCoverageSet.has(id));
-          if (coverageMismatch) {
-            const error = new Error('選択中の編集対象を全件確認したことを照合できませんでした。この分割範囲は未確認として扱います。');
-            error.name = 'SplitCoverageMismatchError';
-            error.coverage = {
-              expectedCount: expectedCoverageIds.size,
-              returnedCount: returnedCoverageCount,
-              uniqueReturnedCount: hasCoverageCount ? null : returnedCoverageSet.size,
-              missingCount: hasCoverageCount ? Math.max(0, expectedCoverageIds.size - returnedCoverageCount)
-                : [...expectedCoverageIds].filter((id) => !returnedCoverageSet.has(id)).length,
-              unexpectedCount: hasCoverageCount ? Math.max(0, returnedCoverageCount - expectedCoverageIds.size)
-                : [...returnedCoverageSet].filter((id) => !expectedCoverageIds.has(id)).length,
-              duplicateCount: hasCoverageCount ? null : returnedCoverageIds.length - returnedCoverageSet.size
-            };
-            throw error;
-          }
+        const processSplitUnit = (unit, index, unitResult, repairFailed = false) => {
           // The unit owns only its editable sources. Destinations may be any hierarchy
           // class shared by the full request, including classes in another unit.
           const validationScope = { ...scope, editableIds: unit.scope.editableIds };
@@ -2023,15 +1947,13 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
             cacheResult.questions = [];
           }
           chunkResults[index] = cacheResult;
-          nextChunkCache.push({ key: cacheKeyOverride || chunkKeys[index], result: cacheResult });
+          nextChunkCache.push({ key: chunkKeys[index], result: cacheResult });
           if (repairFailed) {
             splitRepairFailed = true;
             incompleteChunkIndices.add(index);
           }
-          const proposalPartId = unit.unitId?.includes('_retry_')
-            ? `part${index + 1}_${unit.unitId.replace(/[^a-zA-Z0-9_-]/g, '_')}` : `part${index + 1}`;
           unitResult.proposals.forEach((proposal, proposalIndex) => {
-            proposal.id = `${proposalPartId}_proposal${proposalIndex + 1}`;
+            proposal.id = `part${index + 1}_proposal${proposalIndex + 1}`;
           });
           const discardedOperationCount = responseHandler.enforceOperationPolicy(unitResult, validationScope, operationPolicy);
           responseHandler.suppressNoopMoveOperations(unitResult, validationScope);
@@ -2085,18 +2007,9 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
             const units = isGroupedSplitBatch(task) ? task.units : [task];
             units.forEach((unit) => {
               const index = unitIndex.get(unit);
-              if (error?.name === 'OutputTokenLimitError' && coverageRetryTasksByUnit.has(unit)) {
-                if (!queuedCoverageRetryUnits.has(unit)) {
-                  queuedCoverageRetryUnits.add(unit);
-                  coverageRetryQueue.push({ unit, index, stage });
-                }
-              } else if (Number.isInteger(index)) {
-                incompleteChunkIndices.add(index);
-              }
+              if (Number.isInteger(index)) incompleteChunkIndices.add(index);
             });
-            if (error?.name !== 'OutputTokenLimitError' || !units.some((unit) => coverageRetryTasksByUnit.has(unit))) {
-              splitBatchWarnings.push(`${stage}を完了できなかったため、その範囲は未確認として扱いました。${message ? ` ${message}` : ''}`);
-            }
+            splitBatchWarnings.push(`${stage}を完了できなかったため、その範囲は未確認として扱いました。${message ? ` ${message}` : ''}`);
             if (error) logAiProblem(stage, error, 'warn', { retainedCompletedSplitUnits: nextChunkCache.length });
           };
           for (const [batchIndex, settled] of settledParts.entries()) {
@@ -2129,44 +2042,14 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
                     splitBatchWarnings.push(`${stage}で対象範囲の結果が不足または重複したため、該当範囲を未確認として扱いました。`);
                     return;
                   }
-                  try {
-                    processSplitUnit(unit, index, returned[0]);
-                  } catch (error) {
-                    if (error?.name === 'AbortError') throw error;
-                    if (error?.name !== 'SplitCoverageMismatchError') throw error;
-                    if (coverageRetryTasksByUnit.has(unit)) {
-                      if (!queuedCoverageRetryUnits.has(unit)) {
-                        queuedCoverageRetryUnits.add(unit);
-                        coverageRetryQueue.push({ unit, index, stage });
-                      }
-                    } else {
-                      if (Number.isInteger(index)) incompleteChunkIndices.add(index);
-                      splitBatchWarnings.push(`${stage}で対象IDを照合できなかったため、その範囲は未確認として扱いました。`);
-                    }
-                    logAiProblem(`${stage}・${unit.unitId}`, error, 'warn', error.coverage);
-                  }
+                  processSplitUnit(unit, index, returned[0]);
                 });
                 if (groups.some((group) => !task.units.some((unit) => unit.unitId === group.key))) {
                   console.warn('[AIチャット] 分割結果に未知の範囲IDが含まれていました', { stage });
                 }
               } else {
                 const index = unitIndex.get(task);
-                try {
-                  processSplitUnit(task, index, part.result, part.repairFailed);
-                } catch (error) {
-                  if (error?.name === 'AbortError') throw error;
-                  if (error?.name !== 'SplitCoverageMismatchError') throw error;
-                  if (coverageRetryTasksByUnit.has(task)) {
-                    if (!queuedCoverageRetryUnits.has(task)) {
-                      queuedCoverageRetryUnits.add(task);
-                      coverageRetryQueue.push({ unit: task, index, stage });
-                    }
-                  } else {
-                    if (Number.isInteger(index)) incompleteChunkIndices.add(index);
-                    splitBatchWarnings.push(`${stage}で対象IDを照合できなかったため、その範囲は未確認として扱いました。`);
-                  }
-                  logAiProblem(stage, error, 'warn', error.coverage);
-                }
+                processSplitUnit(task, index, part.result, part.repairFailed);
               }
             } catch (error) {
               if (error?.name === 'AbortError') throw error;
@@ -2178,90 +2061,9 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
           requestProgress.setThinkingStage(conversation, '分割処理中', `${Math.min(offset + batch.length, splitBatches.length)}/${splitBatches.length}送信バッチ完了`);
           if (stateFingerprint() !== fingerprintBeforeRequest) throw new Error('依頼中に編集データが変わりました。最新状態で再依頼してください。');
         }
-        for (const { unit, index, stage } of coverageRetryQueue) {
-          const retryPlan = coverageRetryTasksByUnit.get(unit) || { tasks: [], keys: [] };
-          const { tasks: retryTasks, keys: retryKeys } = retryPlan;
-          const retryResults = [];
-          let retryError = null;
-          for (const [retryIndex, retryTask] of retryTasks.entries()) {
-            const retryStage = `${stage}・半分に分けて再評価 ${retryIndex + 1}/${retryTasks.length}`;
-            try {
-              const cachedRetryResult = chunkCacheByKey.get(retryKeys[retryIndex]);
-              let retryResult;
-              let repairFailed = false;
-              if (cachedRetryResult) {
-                retryResult = { ...structuredClone(cachedRetryResult), baseDataHash };
-              } else {
-                let response = await sendApiRequest(retryTask.input, hierarchyContextId, CHUNK_OUTPUT_TOKENS, retryStage);
-                response = await retryCompleteScopeDataRequest(response, true, retryStage);
-                retryResult = response.result;
-                repairFailed = response.repairFailed;
-              }
-              const expectedCount = retryTask.scope.editableIds.length;
-              const reportedCount = Number.isInteger(retryResult.coverageCount)
-                ? retryResult.coverageCount : (retryResult.coverageIds || []).length;
-              if (repairFailed || reportedCount !== expectedCount) {
-                const error = new Error('半分に分けた再評価でも、対象件数を照合できませんでした。');
-                error.name = 'SplitCoverageMismatchError';
-                error.coverage = { expectedCount, returnedCount: reportedCount };
-                throw error;
-              }
-              retryResults.push(retryResult);
-            } catch (error) {
-              if (error?.name === 'AbortError') throw error;
-              if (!['SplitCoverageMismatchError', 'OutputTokenLimitError'].includes(error?.name)) throw error;
-              retryError = error;
-              break;
-            }
-          }
-          if (retryError) {
-            if (Number.isInteger(index)) incompleteChunkIndices.add(index);
-            retryResults.forEach((retryResult, retryIndex) => {
-              const retryTask = retryTasks[retryIndex];
-              processSplitUnit(retryTask, index, retryResult, false, retryKeys[retryIndex]);
-              partialChunkAssessments.push({ task: retryTask, result: retryResult, parentIndex: index, retryIndex });
-            });
-            if (Number.isInteger(index)) chunkResults[index] = null;
-            splitBatchWarnings.push(`${stage}の対象範囲を半分に分けて再評価しましたが、照合できない部分が残ったため未確認として扱いました。`);
-            logAiProblem(`${stage}の分割再評価`, retryError, 'warn', retryError.coverage || {});
-            continue;
-          }
-          const categoryKeys = ['duplicates', 'imbalance', 'gaps', 'other'];
-          const comparison = Object.fromEntries(categoryKeys.map((key) => {
-            const categories = retryResults.map((item) => item.comparison?.[key]).filter(Boolean);
-            const findings = categories.flatMap((item) => item.findings || []).slice(0, AI_OUTPUT_LIMITS.chunkFindingsPerCategory);
-            const statuses = categories.map((item) => item.status);
-            const status = statuses.length && statuses.every((item) => item === 'none') ? 'none'
-              : statuses.includes('insufficient') ? 'insufficient' : findings.length ? 'findings' : 'insufficient';
-            return [key, {
-              status,
-              findings,
-              limitation: [...new Set(categories.map((item) => item.limitation).filter(Boolean))].join('。 ').slice(0, 240)
-            }];
-          }));
-          const repairedResult = {
-            message: retryResults.map((item) => item.message).filter(Boolean).join(' ').slice(0, 320),
-            proposals: retryResults.flatMap((item) => item.proposals || []),
-            questions: retryResults.flatMap((item) => item.questions || []),
-            dataRequests: retryResults.flatMap((item) => item.dataRequests || []),
-            comparison,
-            crossScopeCandidateIds: [...new Set(retryResults.flatMap((item) => item.crossScopeCandidateIds || []))],
-            coverageCount: retryResults.reduce((total, item) => total + item.coverageCount, 0),
-            baseDataHash
-          };
-          processSplitUnit(unit, index, repairedResult);
-          retryResults.forEach((retryResult, retryIndex) => {
-            nextChunkCache.push({ key: retryKeys[retryIndex], result: retryResult });
-          });
-          console.info('[AIチャット] 対象不足の分割を再評価しました', {
-            unitId: unit.unitId,
-            originalTargetCount: unit.scope.editableIds.length,
-            retryTargetCounts: retryTasks.map((task) => task.scope.editableIds.length)
-          });
-        }
         result.message = messagesFromParts.join('\n');
         const splitWarnings = [
-          ...(discardedOperationTotal ? [`安全に適用できると確認できない変更案を${discardedOperationTotal}件除外しました。`] : []),
+          ...(discardedOperationTotal ? [`適用条件を確認できない操作${discardedOperationTotal}件は保留し、確認事項に追加しました。`] : []),
           ...splitBatchWarnings
         ];
         if (discardedOperationTotal) console.warn('[AIチャット] 一部の変更案を安全性検証で除外しました', [...new Set(discardedOperationDetails)]);
@@ -2336,10 +2138,6 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
             const scopeId = `chunk_${index + 1}`;
             return [createChunkAssessment(task, part, index, scopeId)];
           });
-          partialChunkAssessments.forEach(({ task, result: partialResult, parentIndex, retryIndex }) => {
-            const scopeId = `chunk_${parentIndex + 1}_partial_${retryIndex + 1}`;
-            chunkAssessments.push(createChunkAssessment(task, partialResult, parentIndex, scopeId));
-          });
           const baseSynthesisPrompt = await synthesisPromptPromise;
           const synthesisPrompt = responseMode === 'evaluation'
             ? `${baseSynthesisPrompt}\n\n評価モードです。変更案や変更を促す助言、確認質問を加えず、評価・根拠・判断できない点だけを統合してください。操作一覧や大量のクラスIDを再掲せず、全体の傾向と範囲による違いを簡潔に説明してください。`
@@ -2359,10 +2157,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
             request: userText,
             sourceScopeCoverage: scope.scopeCoverage,
             assessments: chunkAssessments,
-            expectedScopeIds: [
-              ...splitTasks.map((_, index) => `chunk_${index + 1}`),
-              ...partialChunkAssessments.map(({ parentIndex, retryIndex }) => `chunk_${parentIndex + 1}_partial_${retryIndex + 1}`)
-            ],
+            expectedScopeIds: splitTasks.map((_, index) => `chunk_${index + 1}`),
             requiredScopeIdsByCategory,
             warnings: [...splitWarnings, ...(splitRepairFailed ? ['一部の分割範囲が未完了です。'] : [])],
             prompt: synthesisPrompt,
