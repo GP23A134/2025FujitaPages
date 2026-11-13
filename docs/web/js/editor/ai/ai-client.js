@@ -283,11 +283,19 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
       dataRequests: []
     };
   };
-  const parseAIResponse = (response, grouped = false, summaryOnly = false, chunked = false, comparisonSynthesis = false, crossScopeOperation = false) => {
+  const parseAIResponse = (response, grouped = false, summaryOnly = false, chunked = false, comparisonSynthesis = false, crossScopeOperation = false,
+    stage = '', maxOutputTokens = 0) => {
     if (response.status === 'incomplete') {
       const reason = response.incomplete_details?.reason;
       if (reason === 'max_output_tokens') {
-        throw new Error('AIの返答が出力上限に達して途中で終わりました。確認事項への回答は保持されています。選択範囲を小さくして、もう一度送信してください。');
+        const reportedOutputTokens = response.usage?.output_tokens;
+        const usedTokens = Number.isFinite(reportedOutputTokens) ? reportedOutputTokens : null;
+        const limit = Number.isFinite(Number(maxOutputTokens)) && Number(maxOutputTokens) > 0
+          ? Number(maxOutputTokens) : null;
+        const tokenDetails = usedTokens !== null && limit !== null
+          ? `実際 ${usedTokens.toLocaleString()} / 上限 ${limit.toLocaleString()} tokens`
+          : limit !== null ? `上限 ${limit.toLocaleString()} tokens` : '上限の詳細は取得できませんでした';
+        throw new Error(`出力トークンが不足して回答が途中で終わりました（${stage || '回答作成'}：${tokenDetails}）。確認事項への回答は保持されています。選択範囲を小さくするか、出力トークン上限を増やして再送信してください。`);
       }
       throw new Error('AIの返答が完了しなかったため、変更案を読み取れませんでした。確認事項への回答は保持されています。もう一度送信してください。');
     }
@@ -417,7 +425,8 @@ export const createResponsesClient = ({ responseFormat, digest, createIdCodec, m
     onUsage(responseBody);
     onStage('回答処理中');
     await new Promise((resolve) => requestAnimationFrame(resolve));
-    const result = responseFormat.parseAIResponse(responseBody, grouped, summaryOnly, chunked, comparisonSynthesis, crossScopeOperation);
+    const result = responseFormat.parseAIResponse(responseBody, grouped, summaryOnly, chunked, comparisonSynthesis, crossScopeOperation,
+      stage, maxOutputTokens);
     const restoreId = idCodec.restore;
     const responseGroups = grouped ? result.groups : [result];
     responseGroups.forEach((group) => {

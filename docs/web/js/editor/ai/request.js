@@ -307,12 +307,16 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
 
     const targetClasses = scope.classes.filter((item) => item.type === 'class' && scope.editableIds.includes(item.id));
     const targetInstruction = 'この分割範囲に含まれる対象クラスだけを評価してください。この範囲で許可する操作は対象クラスの移動だけです。上位・中間クラスの追加・改名・移動・削除や、入力にない対象クラスの操作は提案しないでください。移動先は入力にある上位・中間クラスのIDだけを使ってください。この制約は今回の対象クラス分割範囲だけに適用されます。AIシステム全体が上位・中間クラスを再編できない、または新しい中間クラスを作成できないと説明してはいけません。階層の再編が今回必要だが入力に階層クラスがない場合は、今回の範囲に階層情報がないため別途階層クラスの選択が必要だと説明してください。';
+    const requestedDestinationLabel = userText.match(/移動先[^「『“"]{0,24}[「『“"]([^」』”"]+)[」』”"]/u)?.[1]?.trim() || '';
+    const namedDestinationChunkInstruction = requestedDestinationLabel
+      ? `依頼で指定された移動先「${requestedDestinationLabel}」がこの分割範囲にない場合、別の移動先に置き換えた操作案を作らず、対象ラベルから考えられる候補と理由をmessageに残してください。指定先への操作案は全範囲の横断処理で作成します。`
+      : '';
     const targetTasks = [];
     const targetUnits = [];
     const targetOperationPolicy = createOperationPolicy({
       allowProposals: Boolean(getAllowProposals(scope)), taskKind: 'upper_class_targets', scope, proposalFreedom: getProposalFreedom()
     });
-    const targetOperationInstruction = `この分割範囲に含まれる対象クラスと対応する上位・中間クラスを評価してください。${describeOperationPolicy(targetOperationPolicy)}移動元は、この分割単位でrole=e（編集可能）として示された対象クラスだけにしてください。role=cの上位・中間クラスは参照用であり、変更元にできません。別の分割単位に属する対象クラスも移動元に含めず、分割単位をまたぐ移動案は最終統合に委ねてください。同じ対象を同じ移動先へ移す操作は1回だけ提案してください。${targetOperationPolicy.allowedTypes.includes('addClass') && targetOperationPolicy.addClassTypes.includes('middle') && targetOperationPolicy.allowedTypes.includes('moveClass') ? '新設した中間クラスへ対象クラスを割り当てる場合は同じ提案にまとめ、親は入力中の上位・中間クラスIDまたは先に追加した中間クラスのtemporaryIdを指定してください。' : ''}入力にない対象クラスや親子関係は推測せず、この分割範囲を超えた全体判断は保留してください。この制約は今回の対象クラス分割範囲だけに適用され、全体として新設が不要と結論するには全チャンクの評価を使ってください。`;
+    const targetOperationInstruction = `この分割範囲に含まれる対象クラスと対応する上位・中間クラスを評価してください。${describeOperationPolicy(targetOperationPolicy)}移動元は、この分割単位でrole=e（編集可能）として示された対象クラスだけにしてください。role=cの上位・中間クラスは参照用であり、変更元にできません。別の分割単位に属する対象クラスも移動元に含めず、分割単位をまたぐ移動案は最終統合に委ねてください。${namedDestinationChunkInstruction}同じ対象を同じ移動先へ移す操作は1回だけ提案してください。${targetOperationPolicy.allowedTypes.includes('addClass') && targetOperationPolicy.addClassTypes.includes('middle') && targetOperationPolicy.allowedTypes.includes('moveClass') ? '新設した中間クラスへ対象クラスを割り当てる場合は同じ提案にまとめ、親は入力中の上位・中間クラスIDまたは先に追加した中間クラスのtemporaryIdを指定してください。' : ''}入力にない対象クラスや親子関係は推測せず、この分割範囲を超えた全体判断は保留してください。この制約は今回の対象クラス分割範囲だけに適用され、全体として新設が不要と結論するには全チャンクの評価を使ってください。`;
     targetClasses.forEach((target) => {
       targetUnits.push({ target });
     });
@@ -513,8 +517,8 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCh
       Array.isArray(requiredScopeIdsByCategory?.[key]) ? requiredScopeIdsByCategory[key] : expectedScopes
     )]]));
     const payloadLimit = (Number(getMaxRequestCharacters()) || MAX_REQUEST_CHARACTERS) - fixedPromptCharacters;
-    const failureResult = () => ({
-      message: '分割した回答を一つにまとめられませんでした。範囲ごとの回答には重複や食い違いが残る可能性があるため、統合済みの候補一覧としては表示していません。対象範囲を小さくして再依頼してください。',
+    const failureResult = (detail = '') => ({
+      message: `分割した回答を一つにまとめられませんでした。範囲ごとの回答には重複や食い違いが残る可能性があるため、統合済みの候補一覧としては表示していません。対象範囲を小さくして再依頼してください。${detail ? `\n\n${detail}` : ''}`,
       synthesisStatus: 'failed',
       comparison: insufficientComparison(expectedScopes, requiredScopesByCategory, '統合に失敗したため、横断比較結果を確定できません。')
     });
@@ -668,7 +672,7 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCh
       }
     } catch (error) {
       onError(error);
-      return failureResult();
+      return failureResult(error?.message?.includes('出力トークンが不足') ? error.message : '');
     }
   };
 
@@ -686,14 +690,24 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
     if (new Set(rawEditableIds).size !== rawEditableIds.length) {
       return { status: 'incomplete', message: '横断確認の対象IDに重複があります。' };
     }
-    const editableItems = rawEditableIds.map((id) => classById.get(id)).filter(Boolean);
     const hierarchyItems = (scope.classes || []).filter((item) => ['top', 'middle'].includes(item.type));
-    if (editableItems.length !== new Set(scope.selectedEditableIds || []).size) {
+    const rawEditableItems = rawEditableIds.map((id) => classById.get(id)).filter(Boolean);
+    if (rawEditableItems.length !== new Set(scope.selectedEditableIds || []).size) {
       return { status: 'incomplete', message: '横断確認の対象クラス情報が揃っていません。' };
     }
     const roots = new Set(scope.selectedRoots || []);
     const parentByChild = new Map((scope.relations || []).map(({ child, parent }) => [child, parent]));
     const hierarchyById = new Map(hierarchyItems.map((item) => [item.id, item]));
+    const normalizeLabel = (value) => String(value || '').normalize('NFKC').replace(/\s+/g, '').toLocaleLowerCase();
+    const excludedUpperLabels = new Set();
+    String(request || '').split(/[。\n]/u).forEach((sentence) => {
+      if (!/(?:除外|除く|対象外)/u.test(sentence)) return;
+      [...sentence.matchAll(/[「『“"]([^」』”"]+)[」』”"]/gu)]
+        .forEach((match) => excludedUpperLabels.add(normalizeLabel(match[1])));
+    });
+    const excludedUpperIds = new Set(hierarchyItems
+      .filter((item) => item.type === 'top' && excludedUpperLabels.has(normalizeLabel(item.label)))
+      .map((item) => item.id));
     const moveCandidateInstruction = proposalFreedom <= 3
       ? `自由度${proposalFreedom}では、候補として渡された移動先の中から該当候補を探してください。${proposalFreedom === 1 ? '直接説明しにくい関連も仮説として候補にできます。' : 'クラス名と階層から関連を説明できる候補に限ります。'}該当候補があれば所属のずれを確定できなくても暫定的な移動操作を変更案として提案し、根拠と不確実性を示してください。候補が複数なら候補先ごとの代替案を出します。該当候補がない対象だけ操作を作りません。`
       : `自由度${proposalFreedom}では、明示された移動に加え、依頼された候補抽出による推定移動も、対象と候補先を特定でき操作ルールで検証できる場合は操作付き変更案にしてください。推定移動の案は題名の先頭を「推定案：」とし、理由と確信度を示します。推定候補があるという理由だけで確認質問を出しません。`;
@@ -707,6 +721,25 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
       }
       return '';
     };
+    const editableItems = rawEditableItems.filter((item) => !excludedUpperIds.has(topAncestorFor(item.id)));
+    const namedDestinationLabels = [...new Set([...String(request || '').matchAll(/移動先[^「『“"]{0,24}[「『“"]([^」』”"]+)[」』”"]/gu)]
+      .map((match) => normalizeLabel(match[1])))];
+    const namedDestinationIds = hierarchyItems
+      .filter((item) => namedDestinationLabels.includes(normalizeLabel(item.label)))
+      .map((item) => item.id);
+    if (namedDestinationLabels.length && !namedDestinationIds.length) {
+      return { status: 'incomplete', message: `指定された移動先「${namedDestinationLabels.join('」「')}」を入力範囲内の上位・中間クラスから特定できないため、横断操作案は作成できません。` };
+    }
+    const explicitDestinationInstruction = namedDestinationIds.length
+      ? '依頼文で移動先名が指定されているため、類似度に関係なく入力にあるそのクラスを全対象の移動先候補に含めています。'
+      : '';
+    const exhaustiveTargetInstruction = /全件|全て|すべて|一件ずつ|網羅/u.test(String(request || ''))
+      ? '依頼は全件確認を求めています。各editableIdを一件ずつ確認し、例示だけで済ませず、該当する全対象について操作案を返してください。'
+      : '';
+    const excludedTargetInstruction = excludedUpperIds.size
+      ? '依頼で除外された最上位クラス配下の対象は送信範囲から除外済みです。候補や操作案に追加しないでください。'
+      : '';
+    const candidateCoverageInstruction = `${explicitDestinationInstruction}${exhaustiveTargetInstruction}${excludedTargetInstruction}`;
     const candidateHierarchyIdsByTarget = new Map();
     if (strategy === 'hierarchical') {
       const topItems = hierarchyItems.filter((item) => item.type === 'top');
@@ -730,6 +763,10 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
         middleByTop.get(topId).push(item);
       });
       editableItems.forEach((target) => {
+        if (namedDestinationIds.length) {
+          candidateHierarchyIdsByTarget.set(target.id, [...namedDestinationIds]);
+          return;
+        }
         const targetTerms = bigrams(target.label);
         const currentTopId = topAncestorFor(target.id);
         const branchScores = topItems.map((top) => ({
@@ -798,7 +835,7 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
           allowHierarchyEdits: Boolean(scope.allowHierarchyEdits), allowProposals: Boolean(scope.allowProposals)
         } },
         instruction: strategy === 'hierarchical'
-          ? `階層を使った移動先候補の検索です。同じ上位クラス内は分割評価で確認済みのため、この横断工程では各editableIdについてcrossScopeBatch.targetCandidatesのtopIdsとmiddleIdsだけを移動先候補として比較してください。候補は名称が近い別の上位クラス最大${candidateUpperClassLimit}件と、その配下で名称が近い中間クラス（各最大${candidateMiddleClassLimit}件）です。候補外の階層を網羅的に確認したとは扱いません。role=cは親や選択ルートの文脈です。入力にない移動先や関係は推測しません。${moveCandidateInstruction}変更元はeditableIdsのクラスだけにし、移動先はその対象に指定されたtopIdsまたはmiddleIds内の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。質問は出さず、mに候補検索の限界と自由度4〜5では推定案を含む判断、pに操作案、xにバッチIDと確認件数を返してください。`
+          ? `階層を使った移動先候補の検索です。同じ上位クラス内は分割評価で確認済みのため、この横断工程では各editableIdについてcrossScopeBatch.targetCandidatesのtopIdsとmiddleIdsだけを移動先候補として比較してください。候補は名称が近い別の上位クラス最大${candidateUpperClassLimit}件と、その配下で名称が近い中間クラス（各最大${candidateMiddleClassLimit}件）です。候補外の階層を網羅的に確認したとは扱いません。role=cは親や選択ルートの文脈です。入力にない移動先や関係は推測しません。${candidateCoverageInstruction}${moveCandidateInstruction}変更元はeditableIdsのクラスだけにし、移動先はその対象に指定されたtopIdsまたはmiddleIds内の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。質問は出さず、mに候補検索の限界と自由度4〜5では推定案を含む判断、pに操作案、xにバッチIDと確認件数を返してください。`
           : `全体の横断操作検討です。このバッチに含まれるeditableIdsをすべて確認し、selectedScope.data.classesのrole=hで示された全top/middleを候補として比較してください。role=cは親や選択ルートの文脈であり、このバッチの判定対象数には含めません。アプリは全対象と全階層の組み合わせを漏れなくバッチ化しています。入力にない移動先や関係は推測しません。${moveCandidateInstruction}変更元はeditableIdsのクラスだけにし、移動先は入力中の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。削除は配下全体を安全に編集できる場合だけにします。質問は出さず、mに簡潔な判断と自由度4〜5では推定案、pにこのバッチの操作案、xにバッチIDと実際に確認した件数を返してください。`
       });
     };
@@ -806,12 +843,12 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
     const candidateItemsFor = (targets) => candidateIdsFor(targets).map((id) => hierarchyById.get(id)).filter(Boolean);
     const fits = (batchId, targets, hierarchy, targetCandidates = null) => shortenInput(batchInput(batchId, targets, hierarchy, targetCandidates)).length
       + fixedPromptCharacters <= (Number(getMaxRequestCharacters()) || MAX_REQUEST_CHARACTERS);
-    const pack = (items, canFit) => {
+    const pack = (items, canFit, maxGroupSize = Number.POSITIVE_INFINITY) => {
       const groups = [];
       let current = [];
       for (const item of items) {
         const candidate = [...current, item];
-        if (canFit(candidate)) current = candidate;
+        if (candidate.length <= maxGroupSize && canFit(candidate)) current = candidate;
         else {
           if (!current.length || !canFit([item])) return null;
           groups.push(current);
@@ -842,7 +879,7 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
       hierarchy.forEach((item) => coveredHierarchyIds.add(item.id));
       const hierarchyForTargets = (targets) => isCandidateSearch ? candidateItemsFor(targets) : hierarchy;
       const targetGroups = pack(editableItems, (group) => fits(planningBatchId, group, hierarchyForTargets(group),
-        isCandidateSearch ? candidateHierarchyIdsByTarget : null));
+        isCandidateSearch ? candidateHierarchyIdsByTarget : null), namedDestinationIds.length ? 8 : Number.POSITIVE_INFINITY);
       if (!targetGroups) return { status: 'incomplete', message: '選択対象を横断確認用の送信範囲に収められませんでした。' };
       const coveredEditableIds = new Set();
       for (const targets of targetGroups) {
@@ -995,7 +1032,7 @@ export const createRequestSender = ({ responsesClient, responseHandler, apiKey, 
       stage, grouped, summaryOnly, comparisonSynthesis, promptOverride, signal, onStage, onUsage
     });
   };
-  const retryCompleteScopeDataRequest = async (response, isChunk = false) => {
+  const retryCompleteScopeDataRequest = async (response, isChunk = false, stage = defaultStage) => {
     responseHandler.validatePayload(response.result, baseDataHash);
     if (scopeCoverage !== 'all_classes' || !response.result.dataRequests.length) return response;
     if (!response.responseBody.id) throw new Error('修正回答の会話IDを取得できませんでした。');
@@ -1011,7 +1048,7 @@ export const createRequestSender = ({ responsesClient, responseHandler, apiKey, 
         ? 'dataRequestsとquestionsは必ず空配列にしてください。追加データや確認を求めず、判断できない点はmessageに説明してください。'
         : 'dataRequestsは必ず空配列にしてください。追加クラス情報をmessageやquestionsで要求してはいけません。ユーザーの意図や希望する変更方針の確認だけはquestionsで尋ねられます。'
     });
-    const corrected = await send(correctionInput, response.responseBody.id || '');
+    const corrected = await send(correctionInput, response.responseBody.id || '', maxOutputTokens, `${stage}（不足範囲の修正）`);
     responseHandler.validatePayload(corrected.result, baseDataHash);
     if (corrected.result.dataRequests.length) {
       corrected.result = {

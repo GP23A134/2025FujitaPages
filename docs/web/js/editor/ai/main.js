@@ -1,10 +1,10 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261113-inference-preview-v1';
+import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261113-named-destination-cross-scope-v1';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261112-same-class-conflict-isolation-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261113-inference-suggestions-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261112-large-proposal-arrow-bundling-v1';
-import { createAIClient } from './ai-client.js?v=20261112-class-type-normalization-v1';
+import { createAIClient } from './ai-client.js?v=20261113-output-token-shortage-details-v1';
 import { createRequestProgress } from './request-progress.js?v=20261112-zero-second-display-v1';
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261111-ai-tuning-limits-v1';
 import { createProposalView } from './proposal-view.js?v=20261112-conflict-alternatives-v1';
@@ -1363,8 +1363,12 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     // 小さな全体スナップショットより要約の方が長い場合は、トークンを増やさないよう全体データを送ります。
     const usesAnalysisMemory = Boolean(analysisMemoryContent && analysisMemoryContent.length < fullScopeContent.length);
     const userContent = usesAnalysisMemory ? analysisMemoryContent : fullScopeContent;
-    const effectiveCrossScopeStrategy = crossScopeStrategy;
-    const crossScopeCandidateMode = responseMode === 'proposal' && effectiveCrossScopeStrategy === 'hierarchical'
+    const namedDestinationLabel = userText.match(/移動先[^「『“"]{0,24}[「『“"]([^」』”"]+)[」』”"]/u)?.[1]?.normalize('NFKC').replace(/\s+/g, '').toLocaleLowerCase() || '';
+    const namedDestinationRequested = Boolean(namedDestinationLabel);
+    // A specifically requested destination is a bounded search: include it for every editable target
+    // instead of trying to pack the entire hierarchy or pre-filtering targets by similarity.
+    const effectiveCrossScopeStrategy = namedDestinationRequested ? 'hierarchical' : crossScopeStrategy;
+    const crossScopeCandidateMode = responseMode === 'proposal' && !namedDestinationRequested && effectiveCrossScopeStrategy === 'hierarchical'
       && scope.scopeCoverage === 'all_classes'
       && scope.classes.some((item) => item.type === 'class' && scope.editableIds.includes(item.id));
     let splitTasks = null;
@@ -1609,7 +1613,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       let completeCoverageRetryFailed = false;
       if (splitTasks) {
         const hierarchyContextId = needHierarchyReference ? (await sendApiRequest(hierarchyReferenceInput, '', 128,
-          '階層情報共有中', false, true,
+          '階層情報共有（受領確認）', false, true,
           '入力された上位・中間クラスのID、種別、名称、親IDを後続の依頼で参照してください。今回は変更案を作らず、mに受領確認だけを返してください。')).responseBody.id : '';
         if (splitBatches.length && !hierarchyContextId) throw new Error('階層情報の共有に失敗しました。');
         result = { baseDataHash, message: '', proposals: [], questions: [], dataRequests: [] };
@@ -1698,13 +1702,14 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
           const batch = splitBatches.slice(offset, offset + aiRequestConcurrency);
           const chunkProgress = `${offset + 1}/${splitBatches.length}送信バッチを処理中${cachedChunkCount ? `・上位クラス別評価を再利用 ${cachedChunkCount}件` : ''}`;
           requestProgress.setThinkingStage(conversation, '分割処理中', chunkProgress);
-          const parts = await Promise.all(batch.map(async (task) => {
+          const parts = await Promise.all(batch.map(async (task, batchIndex) => {
+            const stage = `分割評価 ${offset + batchIndex + 1}/${splitBatches.length}`;
             if (splitUsesUpperUnits) {
               const outputLimit = task.units.length * CHUNK_OUTPUT_TOKENS;
-              return await sendApiRequest(task.input, hierarchyContextId, outputLimit, '分割処理中', true);
+              return await sendApiRequest(task.input, hierarchyContextId, outputLimit, stage, true);
             }
-            const response = await sendApiRequest(task.input, hierarchyContextId, CHUNK_OUTPUT_TOKENS, '分割処理中');
-            return await retryCompleteScopeDataRequest(response, task.scope.scopeCoverage === 'all_classes_chunk');
+            const response = await sendApiRequest(task.input, hierarchyContextId, CHUNK_OUTPUT_TOKENS, stage);
+            return await retryCompleteScopeDataRequest(response, task.scope.scopeCoverage === 'all_classes_chunk', stage);
           }));
           parts.forEach((part, batchIndex) => {
             const task = batch[batchIndex];
@@ -1832,6 +1837,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
           });
           result.message = synthesis.message;
           let crossScopeOperationStatus = 'not_requested';
+          let crossScopeOperationFailureMessage = '';
           if (responseMode === 'proposal') {
             const allChunksCompleted = splitTasks.every((_, index) => chunkResults[index] && !incompleteChunkIndices.has(index));
             const crossScopeTargetIds = crossScopeCandidateMode
@@ -1842,14 +1848,16 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
               result.proposals = reconcileSplitProposals(result.proposals, [], scope.classes, scope.relations);
             } else if (!crossScopeStructure) {
               crossScopeOperationStatus = 'incomplete';
+              crossScopeOperationFailureMessage = '全階層確認の対象を構成できませんでした。';
               logAiProblem('横断確認を開始できません', new Error('全階層確認の対象を構成できませんでした。'), 'warn', {
                 responseMode, scopeCoverage: scope.scopeCoverage,
                 editableCount: scope.editableIds.length,
                 editableClassCount: crossScopeEditableTargets.length
               });
-            } else if (!allChunksCompleted || result.dataRequests.length || result.questions.length
+            } else if (!allChunksCompleted || result.dataRequests.length
               || result.proposals.some((proposal) => proposal.questions?.length)) {
               crossScopeOperationStatus = 'incomplete';
+              crossScopeOperationFailureMessage = '分割範囲の未完了、追加共有待ち、または確認事項への回答待ちがあります。';
               const incompleteTaskIndices = splitTasks.flatMap((_, index) => (
                 !chunkResults[index] || incompleteChunkIndices.has(index) ? [index + 1] : []
               ));
@@ -1886,7 +1894,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
                 concurrency: aiRequestConcurrency,
                 send: (payload, batchId, batchCount) => {
                   requestProgress.setThinkingStage(conversation, '全範囲横断確認中', `バッチ ${batchId}/${batchCount}`);
-                  return sendApiRequest(payload, '', CROSS_SCOPE_OUTPUT_TOKENS, '全範囲横断確認中');
+                  return sendApiRequest(payload, '', CROSS_SCOPE_OUTPUT_TOKENS, `全範囲横断確認 ${batchId}`);
                 }
               });
               if (crossScopeOperation.status === 'completed') {
@@ -1951,11 +1959,16 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
                 } catch (error) {
                   logAiProblem('全範囲の横断操作検証', error, 'warn');
                   crossScopeOperationStatus = error?.name === 'IncompleteCoverageError' ? 'incomplete' : 'failed';
+                  crossScopeOperationFailureMessage = error?.message || '';
                 }
               } else if (crossScopeOperation.status === 'failed') {
                 logAiProblem('全範囲の横断操作生成', crossScopeOperation.error, 'warn');
                 crossScopeOperationStatus = 'failed';
-              } else crossScopeOperationStatus = 'incomplete';
+                crossScopeOperationFailureMessage = crossScopeOperation.error?.message || '';
+              } else {
+                crossScopeOperationStatus = 'incomplete';
+                crossScopeOperationFailureMessage = crossScopeOperation.message || '';
+              }
               if (crossScopeOperation.status === 'incomplete' && crossScopeOperation.message) {
                 logAiProblem('横断確認の範囲検証', new Error(crossScopeOperation.message), 'warn');
               }
@@ -1980,6 +1993,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
           }
           if (crossScopeOperationStatus === 'incomplete' || crossScopeOperationStatus === 'failed') {
             userFacingLimitations.push('階層をまたぐ移動先の確認が完了していないため、以下の変更案は確認できた範囲に限られます。');
+            if (crossScopeOperationFailureMessage) userFacingLimitations.push(`横断確認の詳細：${crossScopeOperationFailureMessage}`);
           }
           if (userFacingLimitations.length) {
             result.message = [result.message, ...userFacingLimitations].filter(Boolean).join('\n\n');
