@@ -341,6 +341,7 @@
   line-height: 1;
 }
 #edit-tree [data-drag-class-id] { cursor: grab; }
+body.is-ai-chat-open #edit-tree [data-drag-class-id] { cursor: default; }
 #edit-tree [data-drag-class-id].is-dragging { opacity: 0.5; cursor: grabbing; }
 #edit-tree summary.is-drop-target { outline: 2px dashed #0284c7; outline-offset: 2px; background: #e0f2fe; }
 #edit-tree .tree-top-class > summary.is-selected,

@@ -596,7 +596,9 @@ const scheduleTreeDragHoverOpen = (destination) => {
     treeDragHoverOpenTarget = null;
   }, 650);
 };
+const isAiChatOpen = () => document.body.classList.contains('is-ai-chat-open');
 const beginTreeDrag = (id) => {
+  if (isAiChatOpen()) return false;
   const item = classById.get(id);
   const kind = item ? classKind(item) : null;
   if (!item || isUnclassified(item)) return false;
@@ -940,6 +942,7 @@ editTree?.addEventListener('dragend', (event) => {
   activeTreeDragIds = [];
 });
 editTree?.addEventListener('dragover', (event) => {
+  if (isAiChatOpen()) return;
   if (!activeTreeDragIds.length) return;
   event.preventDefault();
   const destination = event.target.closest('summary[data-drag-class-id]');
@@ -947,6 +950,7 @@ editTree?.addEventListener('dragover', (event) => {
   setTreeDropTarget(destination);
 });
 document.addEventListener('dragover', (event) => {
+  if (isAiChatOpen()) return;
   if (!activeTreeDragIds.length) return;
   showTreeDragSummary(event.clientX, event.clientY);
   scrollTreeDuringDrag(event.clientY);
@@ -957,6 +961,15 @@ editTree?.addEventListener('dragleave', (event) => {
   if (destination && !destination.contains(event.relatedTarget)) setTreeDropTarget(null);
 });
 editTree?.addEventListener('drop', (event) => {
+  if (isAiChatOpen()) {
+    if (activeTreeDragIds.length) {
+      event.preventDefault();
+      setTreeDropTarget(null);
+      finishTreeDrag();
+      activeTreeDragIds = [];
+    }
+    return;
+  }
   const destination = event.target.closest('summary[data-drag-class-id]');
   if (!destination || !activeTreeDragIds.length) return;
   event.preventDefault();
@@ -965,6 +978,7 @@ editTree?.addEventListener('drop', (event) => {
   finishTreeDrag();
 });
 editTree?.addEventListener('touchstart', (event) => {
+  if (isAiChatOpen()) return;
   if (event.touches.length !== 1) return;
   const source = event.target.closest('[data-drag-class-id]');
   const control = event.target.closest('input, button');
@@ -1006,7 +1020,7 @@ editTree?.addEventListener('touchend', (event) => {
   window.clearTimeout(touchTreeDrag.timer);
   if (touchTreeDrag.active) {
     event.preventDefault();
-    if (touchTreeDrag.destination && touchTreeDrag.ids.length) applyTreeDrop(touchTreeDrag.destination);
+    if (!isAiChatOpen() && touchTreeDrag.destination && touchTreeDrag.ids.length) applyTreeDrop(touchTreeDrag.destination);
     finishTreeDrag();
     touchTreeDrag.source?.classList.remove('is-dragging');
     document.body.classList.remove('is-tree-touch-dragging');
