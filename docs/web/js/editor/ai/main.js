@@ -673,6 +673,8 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       sendButton.textContent = '↑';
       sendButton.setAttribute('aria-label', '送信');
       sendButton.title = '送信';
+      document.getElementById('ai-new-consultation').disabled = false;
+      conversationView.updateHistoryList();
     }
     status.textContent = text;
     status.className = `ai-status${kind ? ` is-${kind}` : ''}`;
@@ -702,7 +704,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     historyList,
     getConversations: () => conversations,
     getCurrentConversation: () => currentConversation,
-    isSending: () => isSending,
+    isSending: () => isSending || isPreparingRequest,
     activateConversation: (conversation) => activateConversation(conversation),
     persistSavedConversations,
     setStatus
@@ -711,7 +713,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   const updateHistoryList = () => conversationView.updateHistoryList();
   const renderConversation = (options = {}) => conversationRenderer.render(options);
   const activateConversation = (conversation) => {
-    if (isSending || !conversation) return;
+    if (isSending || isPreparingRequest || !conversation) return;
     currentConversation = conversation;
     editor.setSelectedIds(conversation.selectedIds);
     if (conversation.restoredFromStorage) {
@@ -1260,6 +1262,8 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     sendButton.classList.add('is-sending');
     sendButton.setAttribute('aria-label', '依頼内容を準備中');
     sendButton.title = '依頼内容を準備中';
+    document.getElementById('ai-new-consultation').disabled = true;
+    conversationView.updateHistoryList();
     currentConversation.workflowStatus = '';
     messages.querySelector('.ai-workflow-status')?.remove();
     const preparationLabel = userText.startsWith('確認事項への回答です')
@@ -1541,6 +1545,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     refreshConversationTitle(conversation);
     updateUsageSummary();
     isSending = true;
+    conversationView.updateHistoryList();
     window.dispatchEvent(new CustomEvent('ai-request-state-change', { detail: { running: true } }));
     sendButton.disabled = false; document.getElementById('ai-new-consultation').disabled = true;
     conversation.isThinking = true;
@@ -2212,6 +2217,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   };
 
   document.getElementById('ai-new-consultation').addEventListener('click', () => {
+    if (isSending || isPreparingRequest) return;
     currentConversation = createConversation(editor.selectedIds);
     proposalPreview.clear();
     renderConversation();
@@ -2334,16 +2340,30 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     const beforeIds = new Set(snapshot.before.classes.map((item) => item.id));
     const addedClasses = snapshot.after.classes.filter((item) => !beforeIds.has(item.id));
     if (!addedClasses.length) return;
+    const afterParentByChild = new Map(snapshot.after.relations.map(({ child, parent }) => [child, parent]));
     currentConversation.items.filter((item) => item.type === 'proposal' && item !== appliedProposal
       && !['applied', 'dismissed'].includes(item.status)).forEach((item) => {
       const aliases = new Map();
-      item.proposal.operations.forEach((operation) => {
-        if (operation.type !== 'addClass' || !operation.temporaryId) return;
-        const label = String(operation.label || '').trim();
-        const appliedClass = addedClasses.find((candidate) => candidate.type === operation.classType
-          && String(candidate.label || '').trim() === label);
-        if (appliedClass) aliases.set(operation.temporaryId, appliedClass.id);
-      });
+      const additions = item.proposal.operations.filter((operation) => operation.type === 'addClass' && operation.temporaryId);
+      let aliasesChanged = true;
+      while (aliasesChanged) {
+        aliasesChanged = false;
+        additions.forEach((operation) => {
+          if (aliases.has(operation.temporaryId)) return;
+          const parentId = operation.parentId || '';
+          const resolvedParentId = aliases.get(parentId) || parentId;
+          if (parentId && resolvedParentId === parentId
+            && additions.some((candidate) => candidate.temporaryId === parentId)) return;
+          const label = String(operation.label || '').trim();
+          const matches = addedClasses.filter((candidate) => candidate.type === operation.classType
+            && String(candidate.label || '').trim() === label
+            && (afterParentByChild.get(candidate.id) || '') === resolvedParentId);
+          if (matches.length === 1) {
+            aliases.set(operation.temporaryId, matches[0].id);
+            aliasesChanged = true;
+          }
+        });
+      }
       if (!aliases.size) return;
       const originalOperations = item.proposal.operations.map((operation) => ({ ...operation }));
       const originallyExcluded = new Set(item.excludedOperationIndexes || []);
@@ -2354,6 +2374,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
         });
         return normalized;
       };
+      item.proposal.operations = item.proposal.operations.map(resolveAppliedIds);
       item.availableIds = [...new Set([...(item.availableIds || []), ...aliases.values()])];
       responseHandler.normalizeDuplicateClassOperations({ proposals: [item.proposal] }, item.availableIds);
       const normalizedIndexes = new Map();

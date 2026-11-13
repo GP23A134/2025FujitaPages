@@ -255,18 +255,25 @@ export const reconcileSplitProposals = (chunkProposals, crossScopeProposals, cla
     if (operation.type === 'promoteClass') return [['type', 'top'], ['parent', '']];
     return [];
   };
-  const operationsConflict = (left, right, sharedClassIds) => sharedClassIds.some((id) => {
-    const leftAffectsClass = left.type === 'moveChildren'
-      ? (childrenByParent.get(left.from) || []).includes(id)
-      : left.classId === id;
-    const rightAffectsClass = right.type === 'moveChildren'
-      ? (childrenByParent.get(right.from) || []).includes(id)
-      : right.classId === id;
-    if (!leftAffectsClass || !rightAffectsClass) return false;
-    if (left.type === 'deleteClass' || right.type === 'deleteClass') return left.type !== right.type;
-    const rightOutcomes = new Map(operationOutcomes(right));
-    return operationOutcomes(left).some(([key, value]) => rightOutcomes.has(key) && rightOutcomes.get(key) !== value);
-  });
+  const operationsConflict = (left, right, sharedClassIds) => {
+    const deletedClassId = left.type === 'deleteClass' ? left.classId
+      : right.type === 'deleteClass' ? right.classId : null;
+    const otherOperation = left.type === 'deleteClass' ? right : left;
+    if (deletedClassId && ['parentId', 'destinationId', 'from', 'to'].some((key) => otherOperation[key] === deletedClassId)) return true;
+
+    return sharedClassIds.some((id) => {
+      const leftAffectsClass = left.type === 'moveChildren'
+        ? (childrenByParent.get(left.from) || []).includes(id)
+        : left.classId === id;
+      const rightAffectsClass = right.type === 'moveChildren'
+        ? (childrenByParent.get(right.from) || []).includes(id)
+        : right.classId === id;
+      if (!leftAffectsClass || !rightAffectsClass) return false;
+      if (left.type === 'deleteClass' || right.type === 'deleteClass') return left.type !== right.type;
+      const rightOutcomes = new Map(operationOutcomes(right));
+      return operationOutcomes(left).some(([key, value]) => rightOutcomes.has(key) && rightOutcomes.get(key) !== value);
+    });
+  };
 
   const parents = bundles.map((_, index) => index);
   const find = (index) => parents[index] === index ? index : (parents[index] = find(parents[index]));
@@ -317,7 +324,9 @@ export const reconcileSplitProposals = (chunkProposals, crossScopeProposals, cla
   };
   const conflictGroups = [];
   const conflictingBundles = new Set();
+  const combinedBundles = new Set();
   conflicts.forEach((component) => {
+    component.forEach((bundle) => combinedBundles.add(bundle));
     const byProposal = new Map();
     component.forEach((bundle) => {
       if (!byProposal.has(bundle.proposalIndex)) byProposal.set(bundle.proposalIndex, { proposal: bundle.proposal, operations: [] });
@@ -345,8 +354,8 @@ export const reconcileSplitProposals = (chunkProposals, crossScopeProposals, cla
       component.forEach((bundle) => conflictingBundles.add(bundle));
     }
   });
-  if (!conflictGroups.length) return result;
-  const involvedIndexes = new Set([...conflictingBundles].map((bundle) => bundle.proposalIndex));
+  if (!combinedBundles.size) return result;
+  const involvedIndexes = new Set([...combinedBundles].map((bundle) => bundle.proposalIndex));
   const removedIndexesByProposal = new Map();
   conflictingBundles.forEach((bundle) => {
     if (!removedIndexesByProposal.has(bundle.proposalIndex)) removedIndexesByProposal.set(bundle.proposalIndex, new Set());
@@ -372,16 +381,21 @@ export const reconcileSplitProposals = (chunkProposals, crossScopeProposals, cla
     const operations = (source.operations || []).filter((_, operationIndex) => !removedIndexes.has(operationIndex));
     return [index, operations.length ? { ...source, operations } : null];
   }));
+  const commonOperationKeys = new Set();
+  conflictsProposal.operations = [...residualProposalsByIndex.values()]
+    .filter(Boolean)
+    .flatMap((proposal) => canonicalizeTemporaryOperations(proposal.operations))
+    .filter((operation) => {
+      const key = JSON.stringify(operation);
+      if (commonOperationKeys.has(key)) return false;
+      commonOperationKeys.add(key);
+      return true;
+    });
+
   const insertionIndex = Math.min(...involvedIndexes);
   const reconciled = [];
   result.forEach((proposal, index) => {
-    if (index === insertionIndex) {
-      [...involvedIndexes].sort((left, right) => left - right).forEach((sourceIndex) => {
-        const residual = residualProposalsByIndex.get(sourceIndex);
-        if (residual) reconciled.push(residual);
-      });
-      reconciled.push(conflictsProposal);
-    }
+    if (index === insertionIndex) reconciled.push(conflictsProposal);
     if (!involvedIndexes.has(index)) reconciled.push(proposal);
   });
   return reconciled;

@@ -35,6 +35,7 @@
       <h1>クラス編集</h1>
       <p class="page-description">既存クラスの所属を整理します。</p>
       <div class="page-header-actions">
+        
         <!-- 開発者向けの調整UI。撤去時は、このボタンと下のdialogを削除する。 -->
         <button type="button" id="open-test-settings" class="page-link-button" hidden>開発者設定</button>
         <button type="button" id="open-edit-settings" class="page-link-button">表示設定</button>
@@ -42,6 +43,7 @@
         <a id="browse-link" class="page-link-button" href="index.html">閲覧画面へ</a>
       </div>
     </header>
+
     <!-- 編集操作とサイドパネル切り替えをまとめた固定ツールバー。 -->
     <div class="edit-taskbar" role="toolbar" aria-label="編集操作">
       <div class="edit-taskbar-group" aria-label="操作履歴">
@@ -136,6 +138,7 @@
             <button type="button" id="scroll-to-top" class="scroll-to-top-button" title="ページの一番上に戻る" aria-label="ページの一番上に戻る" hidden>↑</button>
           </div>
           <div class="held-panel-spacer" aria-hidden="true"></div>
+
           <!-- 選択中クラス、移動先選択、AI相談を表示する右サイドパネル。 -->
           <aside id="held-panel" class="instance-selection">
             <div id="held-panel-resize" class="held-panel-resize" role="separator" aria-orientation="vertical" aria-label="保持欄の幅を変更" aria-valuemin="240" aria-valuemax="760" aria-valuenow="320" tabindex="0"></div>
@@ -188,6 +191,7 @@
               <div id="held-destination-list" class="held-destination-list"></div>
               <button type="button" id="apply-held-destination" class="held-action-button" disabled>選択先へ移動</button>
             </section>
+
             <!-- AIへの依頼、応答、利用状況を扱うパネル。初期状態では非表示。 -->
             <section id="ai-assistant-panel" class="ai-assistant-panel" aria-label="AIチャット" hidden>
               <header class="ai-chat-header"></header>
@@ -219,6 +223,7 @@
         </div>
       </section>
     </main>
+
     <!-- 表示・編集機能の利用者向け設定。 -->
     <dialog id="edit-settings-dialog" class="edit-settings-dialog edit-display-settings-dialog" aria-labelledby="edit-settings-title">
       <div class="ai-preview-header">
@@ -260,6 +265,7 @@
         </div>
       </section>
     </dialog>
+
     <!-- APIキー、モデル、送信確認を設定するAIチャット設定。 -->
     <dialog id="ai-chat-settings-dialog" class="edit-settings-dialog" aria-labelledby="ai-chat-settings-title">
       <div class="ai-preview-header">
@@ -301,6 +307,7 @@
         <p id="test-preferences-settings-status" class="ai-status" role="status" aria-live="polite"></p>
       </section>
     </dialog>
+
     <!-- 開発者向け調整UI。専用CSS・JSと合わせて撤去できるよう分離している。 -->
     <!-- 開発・検証用の詳細チューニング設定。通常は非表示。 -->
     <dialog id="test-settings-dialog" class="edit-settings-dialog" aria-labelledby="test-settings-title">
@@ -445,6 +452,7 @@
       </div>
       <p id="test-preferences-status" class="ai-status" role="status" aria-live="polite"></p>
     </dialog>
+
     <!-- 選択した対象クラスに含まれるインスタンスの一覧。 -->
     <dialog id="target-instance-dialog" class="target-instance-dialog" aria-labelledby="target-instance-title">
       <form method="dialog" class="target-instance-dialog-header">
@@ -454,6 +462,7 @@
       <p id="target-instance-count" class="target-instance-count"></p>
       <ul id="target-instance-list" class="target-instance-list"></ul>
     </dialog>
+
     <!-- AI提案を確認し、適用する変更を選択する三段階プレビュー。 -->
     <dialog id="ai-preview-dialog" class="ai-preview-dialog" aria-labelledby="ai-preview-title">
       <div class="ai-preview-header">

@@ -21,6 +21,7 @@ export const createProposalPreview = ({
   setStatus
 }) => {
   let previewPlan = null;
+  let previewRequestId = 0;
   let previewPageIndex = 0;
   let previewGroups = [];
   let activeConflictGroupIndex = 0;
@@ -882,6 +883,8 @@ export const createProposalPreview = ({
     document.getElementById('ai-preview-proposal-heading').textContent = `変更案（${operationsCount}件・${status}${questionStatus}）`;
   };
   const showPreview = async (proposalItem, applyRequested = false, fastUpdate = false) => {
+    const requestId = ++previewRequestId;
+    const isCurrentRequest = () => requestId === previewRequestId;
     const previewColumns = document.querySelector('.ai-preview-columns');
     previewColumns?.classList.add('is-loading');
     if (hasUnsubmittedQuestions(proposalItem.responseGroupId)) {
@@ -928,10 +931,17 @@ export const createProposalPreview = ({
       document.getElementById('ai-preview-after').replaceChildren();
       if (!previewDialog.open) previewDialog.showModal();
       await new Promise((resolve) => requestAnimationFrame(resolve));
-      const [, currentHash] = await Promise.all([
-        verifyLoadedDataVersion(),
-        isApplied ? Promise.resolve('') : currentDataHash()
-      ]);
+      let currentHash;
+      try {
+        [, currentHash] = await Promise.all([
+          verifyLoadedDataVersion(),
+          isApplied ? Promise.resolve('') : currentDataHash()
+        ]);
+      } catch (error) {
+        if (!isCurrentRequest()) return false;
+        throw error;
+      }
+      if (!isCurrentRequest()) return false;
       if (!isApplied) previewBaseHash = currentHash;
       if (!isApplied && proposalItem.status !== 'stale' && proposalItem.baseDataHash !== currentHash) {
         throw new Error('提案作成後にデータが変更されています。最新状態で依頼し直してください。');
@@ -1312,7 +1322,7 @@ export const createProposalPreview = ({
         if (proposalGroup) proposalGroup.proposalListOpen = true;
         return { currentProposal: item, nextProposal: nextUnjudgedProposal(item) };
       },
-      clear() { previewPlan = null; previewPageIndex = 0; previewGroups = []; },
+      clear() { previewRequestId += 1; previewPlan = null; previewPageIndex = 0; previewGroups = []; },
       get plan() { return previewPlan; },
       get groups() { return previewGroups; }
     };

@@ -217,6 +217,7 @@ export const createConversationView = ({
           if (!trimmedTitle) return;
           const previousTitle = conversation.title;
           const previousCustomTitle = conversation.titleIsCustom;
+          const previousUpdatedAt = conversation.updatedAt;
           conversation.title = trimmedTitle.slice(0, 80);
           conversation.titleIsCustom = true;
           conversation.updatedAt = Date.now();
@@ -224,6 +225,7 @@ export const createConversationView = ({
           if (result !== true) {
             conversation.title = previousTitle;
             conversation.titleIsCustom = previousCustomTitle;
+            conversation.updatedAt = previousUpdatedAt;
             setStatus(result.message || '相談名を保存できませんでした。', 'error');
           }
           updateHistoryList();

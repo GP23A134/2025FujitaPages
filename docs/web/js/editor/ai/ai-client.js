@@ -348,7 +348,7 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
 
 // Responses APIのリクエスト構築と応答の受け渡しを担当します。
 // 進捗表示・使用量更新・会話状態は呼び出し側から渡します。
-export const createResponsesClient = ({ responseFormat, digest, shortenInputIds, createIdCodec, maxInputCharacters = 48000, getMaxInputCharacters = () => maxInputCharacters }) => ({
+export const createResponsesClient = ({ responseFormat, digest, createIdCodec, maxInputCharacters = 48000, getMaxInputCharacters = () => maxInputCharacters }) => ({
   async send(input, {
     apiKey,
     model,
@@ -365,6 +365,7 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
     onUsage = () => {}
   }) {
     const requestPayload = JSON.parse(input);
+    const idCodec = createIdCodec();
     const chunked = requestPayload.scopeCoverage === 'all_classes_chunk' || requestPayload.chunkedAnalysis === true;
     const crossScopeCandidateMode = requestPayload.crossScopeCandidateMode === true;
     const crossScopeOperation = requestPayload.operationStage === 'cross_scope_operation_synthesis';
@@ -372,7 +373,7 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
       .map((key) => typeof requestPayload[key] === 'string' ? requestPayload[key].trim() : '')
       .filter(Boolean);
     ['instruction', 'proposalPolicy', 'responsePolicy', 'crossScopeCandidateMode'].forEach((key) => { delete requestPayload[key]; });
-    const apiInput = summaryOnly ? JSON.stringify(requestPayload) : shortenInputIds(JSON.stringify(requestPayload));
+    const apiInput = summaryOnly ? JSON.stringify(requestPayload) : idCodec.shortenText(JSON.stringify(requestPayload));
     const formatInstructions = summaryOnly
       ? comparisonSynthesis
         ? responseFormat.getComparisonSynthesisInstructions()
@@ -417,7 +418,7 @@ export const createResponsesClient = ({ responseFormat, digest, shortenInputIds,
     onStage('回答処理中');
     await new Promise((resolve) => requestAnimationFrame(resolve));
     const result = responseFormat.parseAIResponse(responseBody, grouped, summaryOnly, chunked, comparisonSynthesis, crossScopeOperation);
-    const restoreId = createIdCodec().restore;
+    const restoreId = idCodec.restore;
     const responseGroups = grouped ? result.groups : [result];
     responseGroups.forEach((group) => {
       (group.dataRequests || []).forEach((request) => { if (request.classId) request.classId = restoreId(request.classId); });
@@ -445,6 +446,6 @@ export const createAIClient = ({ editor, outputLimits, maxInputCharacters, getMa
   const responseFormat = createResponseFormat(outputLimits);
   const createIdCodec = () => createClassIdCodec(editor.getState().classes);
   const shortenInputIds = (input) => createIdCodec().shortenText(input);
-  const responsesClient = createResponsesClient({ responseFormat, digest, shortenInputIds, createIdCodec, maxInputCharacters, getMaxInputCharacters });
+  const responsesClient = createResponsesClient({ responseFormat, digest, createIdCodec, maxInputCharacters, getMaxInputCharacters });
   return { responseFormat, createIdCodec, shortenInputIds, responsesClient };
 };
