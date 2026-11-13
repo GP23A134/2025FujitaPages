@@ -1,4 +1,4 @@
-import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261111-ai-tuning-limits-v1';
+import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261113-target-unit-cap-v1';
 import { createOperationPolicy, describeOperationPolicy } from './proposal-engine.js?v=20261112-review-fixes-v1';
 
 // 現在の選択範囲を依頼JSONへ変換し、大きすぎる範囲を処理単位へ分割します。
@@ -68,6 +68,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
   // 全体参照が上限を超える場合、階層範囲と対象クラス範囲を分割して漏れなく計画します。
   const makeLargeScopePlan = async (userText, scope, conversation, { promptOverhead = 0 } = {}) => {
     const maxRequestCharacters = Number(getMaxRequestCharacters()) || MAX_REQUEST_CHARACTERS;
+    const maxEditableTargetsPerUnit = AI_TUNING_LIMITS.maxEditableTargetsPerUnit.default;
     const hierarchyParentByChild = new Map(scope.relations.map(({ child, parent }) => [child, parent]));
     const hierarchyRows = scope.classes.filter((item) => ['top', 'middle'].includes(item.type))
       .map((item) => [item.id, item.type, item.label, hierarchyParentByChild.get(item.id) || null]);
@@ -159,7 +160,8 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
           : [];
         let offset = 0;
         while (offset < targets.length) {
-          let low = 1; let high = Math.min(targets.length - offset, scope.allowHierarchyEdits ? 20 : targets.length - offset); let bestSize = 0; let bestTask = null;
+          let low = 1; let high = Math.min(targets.length - offset,
+            scope.allowHierarchyEdits ? 20 : maxEditableTargetsPerUnit); let bestSize = 0; let bestTask = null;
           while (low <= high) {
             await yieldToBrowser();
             const size = Math.floor((low + high) / 2);
@@ -387,7 +389,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
       let targetOffset = 0;
       while (targetOffset < units.length) {
         const remaining = units.length - targetOffset;
-        let low = 1; let high = remaining; let bestSize = 0; let bestTask = null;
+        let low = 1; let high = Math.min(remaining, maxEditableTargetsPerUnit); let bestSize = 0; let bestTask = null;
         while (low <= high) {
           await yieldToBrowser();
           const size = Math.floor((low + high) / 2);
@@ -403,6 +405,12 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
         targetOffset += bestSize;
       }
     }
+    targetTasks.forEach((task, index) => {
+      task.kind = 'upper_class_unit';
+      task.unitId = `upper_target_unit_${index + 1}`;
+      task.instruction = targetOperationInstruction;
+      task.contextCharacterCount = contextCharacterCount;
+    });
     const hierarchyCoverage = new Set(hierarchyTasks.flatMap((task) => task.scope.editableIds));
     const targetCoverage = new Set(targetTasks.flatMap((task) => task.scope.editableIds));
     if (hierarchyEditableIds.size !== hierarchyCoverage.size
