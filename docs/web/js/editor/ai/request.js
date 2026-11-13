@@ -841,8 +841,39 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
     };
     const candidateIdsFor = (targets) => [...new Set(targets.flatMap((item) => candidateHierarchyIdsByTarget.get(item.id) || []))];
     const candidateItemsFor = (targets) => candidateIdsFor(targets).map((id) => hierarchyById.get(id)).filter(Boolean);
-    const fits = (batchId, targets, hierarchy, targetCandidates = null) => shortenInput(batchInput(batchId, targets, hierarchy, targetCandidates)).length
-      + fixedPromptCharacters <= (Number(getMaxRequestCharacters()) || MAX_REQUEST_CHARACTERS);
+    const getBatchInputDiagnostics = (batchId, targets, hierarchy, targetCandidates = null) => {
+      const rawInput = batchInput(batchId, targets, hierarchy, targetCandidates);
+      const input = shortenInput(rawInput);
+      const parsedInput = JSON.parse(input);
+      const data = parsedInput.selectedScope?.data || {};
+      const classes = Array.isArray(data.classes) ? data.classes : [];
+      const classCharacters = classes.reduce((total, item) => total + JSON.stringify(item).length, 0);
+      const relationsCharacters = JSON.stringify(data.relations || []).length;
+      const countsCharacters = JSON.stringify(data.counts || {}).length;
+      const maxCharacters = Number(getMaxRequestCharacters()) || MAX_REQUEST_CHARACTERS;
+      return {
+        maxCharacters,
+        fixedPromptCharacters,
+        batchInputCharacters: input.length,
+        estimatedTotalCharacters: input.length + fixedPromptCharacters,
+        overLimitCharacters: Math.max(0, input.length + fixedPromptCharacters - maxCharacters),
+        requestCharacters: String(parsedInput.request || '').length,
+        conversationContextCharacters: String(parsedInput.conversationContext || '').length,
+        instructionCharacters: String(parsedInput.instruction || '').length,
+        selectedScopeClassCharacters: classCharacters,
+        selectedScopeRelationCharacters: relationsCharacters,
+        selectedScopeCountCharacters: countsCharacters,
+        selectedScopeClassCount: classes.length,
+        selectedScopeRelationCount: Array.isArray(data.relations) ? data.relations.length : 0,
+        editableTargetCount: targets.length,
+        hierarchyCandidateCount: hierarchy.length,
+        contextClassCount: classes.filter((item) => Array.isArray(item) && item[4] === 'c').length
+      };
+    };
+    const maxInputCharacters = Number(getMaxRequestCharacters()) || MAX_REQUEST_CHARACTERS;
+    const fits = (batchId, targets, hierarchy, targetCandidates = null) => shortenInput(
+      batchInput(batchId, targets, hierarchy, targetCandidates)
+    ).length + fixedPromptCharacters <= maxInputCharacters;
     const pack = (items, canFit, maxGroupSize = Number.POSITIVE_INFINITY) => {
       const groups = [];
       let current = [];
@@ -880,7 +911,15 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
       const hierarchyForTargets = (targets) => isCandidateSearch ? candidateItemsFor(targets) : hierarchy;
       const targetGroups = pack(editableItems, (group) => fits(planningBatchId, group, hierarchyForTargets(group),
         isCandidateSearch ? candidateHierarchyIdsByTarget : null), namedDestinationIds.length ? 8 : Number.POSITIVE_INFINITY);
-      if (!targetGroups) return { status: 'incomplete', message: '選択対象を横断確認用の送信範囲に収められませんでした。' };
+      if (!targetGroups) {
+        const diagnosticTarget = editableItems.find((item) => !fits(planningBatchId, [item], hierarchyForTargets([item]),
+          isCandidateSearch ? candidateHierarchyIdsByTarget : null)) || editableItems[0];
+        const diagnostics = diagnosticTarget
+          ? getBatchInputDiagnostics(planningBatchId, [diagnosticTarget], hierarchyForTargets([diagnosticTarget]),
+            isCandidateSearch ? candidateHierarchyIdsByTarget : null)
+          : { maxCharacters: Number(getMaxRequestCharacters()) || MAX_REQUEST_CHARACTERS, fixedPromptCharacters };
+        return { status: 'incomplete', message: '選択対象を横断確認用の送信範囲に収められませんでした。', diagnostics };
+      }
       const coveredEditableIds = new Set();
       for (const targets of targetGroups) {
         if (targets.some((item) => coveredEditableIds.has(item.id))) {
@@ -929,7 +968,8 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
   };
   const synthesize = async ({ plan: batchPlan, send, concurrency = 2 }) => {
     if (!batchPlan || batchPlan.status !== 'completed') {
-      return { status: 'incomplete', message: batchPlan?.message || '横断確認の分割計画を作成できませんでした。' };
+      return { status: 'incomplete', message: batchPlan?.message || '横断確認の分割計画を作成できませんでした。',
+        ...(batchPlan?.diagnostics ? { diagnostics: batchPlan.diagnostics } : {}) };
     }
     const expectedBatchIds = new Set(batchPlan.batches.map((batch) => batch.id));
     if (expectedBatchIds.size !== batchPlan.batches.length) {
