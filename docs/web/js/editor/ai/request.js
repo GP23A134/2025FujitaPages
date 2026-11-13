@@ -314,18 +314,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
     });
     const targetOperationInstruction = `この分割範囲に含まれる対象クラスと対応する上位・中間クラスを評価してください。${describeOperationPolicy(targetOperationPolicy)}移動元は、この分割単位でrole=e（編集可能）として示された対象クラスだけにしてください。role=cの上位・中間クラスは参照用であり、変更元にできません。別の分割単位に属する対象クラスも移動元に含めず、分割単位をまたぐ移動案は最終統合に委ねてください。同じ対象を同じ移動先へ移す操作は1回だけ提案してください。${targetOperationPolicy.allowedTypes.includes('addClass') && targetOperationPolicy.addClassTypes.includes('middle') && targetOperationPolicy.allowedTypes.includes('moveClass') ? '新設した中間クラスへ対象クラスを割り当てる場合は同じ提案にまとめ、親は入力中の上位・中間クラスIDまたは先に追加した中間クラスのtemporaryIdを指定してください。' : ''}入力にない対象クラスや親子関係は推測せず、この分割範囲を超えた全体判断は保留してください。この制約は今回の対象クラス分割範囲だけに適用され、全体として新設が不要と結論するには全チャンクの評価を使ってください。`;
     targetClasses.forEach((target) => {
-      let parentId = parentByChild.get(target.id);
-      let hierarchyTask = null;
-      const seen = new Set();
-      while (parentId && !seen.has(parentId)) {
-        seen.add(parentId);
-        hierarchyTask = hierarchyTasks.find((task) => task.scope.editableIds.includes(parentId)) || hierarchyTask;
-        if (hierarchyById.get(parentId)?.type === 'middle' && hierarchyTask) break;
-        parentId = parentByChild.get(parentId);
-      }
-      if (!hierarchyTask) hierarchyTask = hierarchyTasks.find((task) => task.scope.classes.some((item) => item.id === parentByChild.get(target.id)));
-      if (!hierarchyTask) throw new Error('対象クラスの親階層を分割範囲に対応付けられませんでした。');
-      targetUnits.push({ target, hierarchyTask });
+      targetUnits.push({ target });
     });
 
     const makeTargetScope = (units, topClassId) => {

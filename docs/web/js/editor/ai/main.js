@@ -1,6 +1,6 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261112-review-fixes-v1';
+import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261113-target-split-scope-v1';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261112-same-class-conflict-isolation-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261110-first-line-workflow-status-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261112-large-proposal-arrow-bundling-v1';
