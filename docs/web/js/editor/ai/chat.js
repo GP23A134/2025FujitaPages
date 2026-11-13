@@ -113,6 +113,7 @@ export const createConversationView = ({
     };
     const renderAssistantText = (body, text) => {
       const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+      let contentHost = body;
       let index = 0;
       while (index < lines.length) {
         while (index < lines.length && !lines[index].trim()) index += 1;
@@ -122,7 +123,15 @@ export const createConversationView = ({
           const title = document.createElement('strong');
           title.className = 'ai-message-heading';
           appendInlineText(title, heading[1].trim());
-          body.append(title);
+          if (/^推定案（自由度4〜5）/.test(heading[1].trim())) {
+            contentHost = document.createElement('section');
+            contentHost.className = 'ai-inference-suggestions';
+            body.append(contentHost);
+            contentHost.append(title);
+          } else {
+            contentHost = body;
+            body.append(title);
+          }
           index += 1;
           continue;
         }
@@ -139,7 +148,7 @@ export const createConversationView = ({
             list.append(item);
             index += 1;
           }
-          body.append(list);
+          contentHost.append(list);
           continue;
         }
         const paragraphLines = [];
@@ -151,7 +160,7 @@ export const createConversationView = ({
         if (!paragraphLines.length) { index += 1; continue; }
         const paragraph = document.createElement('p');
         appendInlineText(paragraph, paragraphLines.join(' '));
-        body.append(paragraph);
+        contentHost.append(paragraph);
       }
     };
     const renderMessage = (item) => {

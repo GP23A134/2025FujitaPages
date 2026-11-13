@@ -504,7 +504,7 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCh
     return batches;
   };
 
-  const synthesize = async ({ request, sourceScopeCoverage, initialMessage, assessments, expectedScopeIds = [],
+  const synthesize = async ({ request, sourceScopeCoverage, assessments, expectedScopeIds = [],
     requiredScopeIdsByCategory = null, warnings = [], prompt, fixedPromptCharacters = 0,
     send, onProgress = () => {}, onError = () => {} }) => {
     const expectedScopes = [...new Set(expectedScopeIds.length
@@ -513,8 +513,8 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCh
       Array.isArray(requiredScopeIdsByCategory?.[key]) ? requiredScopeIdsByCategory[key] : expectedScopes
     )]]));
     const payloadLimit = (Number(getMaxRequestCharacters()) || MAX_REQUEST_CHARACTERS) - fixedPromptCharacters;
-    const failureResult = (message) => ({
-      message,
+    const failureResult = () => ({
+      message: '分割した回答を一つにまとめられませんでした。範囲ごとの回答には重複や食い違いが残る可能性があるため、統合済みの候補一覧としては表示していません。対象範囲を小さくして再依頼してください。',
       synthesisStatus: 'failed',
       comparison: insufficientComparison(expectedScopes, requiredScopesByCategory, '統合に失敗したため、横断比較結果を確定できません。')
     });
@@ -627,7 +627,7 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCh
 
     if (!ready) {
       onError(new Error('個別範囲の根拠を圧縮しても統合入力上限に収まりませんでした。'));
-      return failureResult(initialMessage || '確認できた範囲の結果を表示しています。');
+      return failureResult();
     }
 
     try {
@@ -668,7 +668,7 @@ export const createChunkSynthesizer = ({ MAX_REQUEST_CHARACTERS, getMaxRequestCh
       }
     } catch (error) {
       onError(error);
-      return failureResult(initialMessage || '確認できた範囲の結果を表示しています。');
+      return failureResult();
     }
   };
 
@@ -694,9 +694,9 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
     const roots = new Set(scope.selectedRoots || []);
     const parentByChild = new Map((scope.relations || []).map(({ child, parent }) => [child, parent]));
     const hierarchyById = new Map(hierarchyItems.map((item) => [item.id, item]));
-    const moveCandidateInstruction = proposalFreedom <= 4
-      ? `自由度${proposalFreedom}では、候補として渡された移動先の中から該当候補を探してください。${proposalFreedom === 1 ? '直接説明しにくい関連も仮説として候補にできます。' : 'クラス名と階層から関連を説明できる候補に限ります。'}該当候補があれば所属のずれを確定できなくても暫定的な移動操作を提案し、根拠と不確実性を示してください。候補が複数なら${proposalFreedom <= 3 ? '候補先ごとの代替案' : '適用可能な候補ごとの案'}を出します。該当候補がない対象だけ操作を作りません。`
-      : '自由度5では、依頼に明示された移動だけを提案してください。';
+    const moveCandidateInstruction = proposalFreedom <= 3
+      ? `自由度${proposalFreedom}では、候補として渡された移動先の中から該当候補を探してください。${proposalFreedom === 1 ? '直接説明しにくい関連も仮説として候補にできます。' : 'クラス名と階層から関連を説明できる候補に限ります。'}該当候補があれば所属のずれを確定できなくても暫定的な移動操作を変更案として提案し、根拠と不確実性を示してください。候補が複数なら候補先ごとの代替案を出します。該当候補がない対象だけ操作を作りません。`
+      : `自由度${proposalFreedom}では、明示された移動に加え、依頼された候補抽出による推定移動も、対象と候補先を特定でき操作ルールで検証できる場合は操作付き変更案にしてください。推定移動の案は題名の先頭を「推定案：」とし、理由と確信度を示します。推定候補があるという理由だけで確認質問を出しません。`;
     const topAncestorFor = (id) => {
       let currentId = id;
       const seen = new Set();
@@ -798,8 +798,8 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
           allowHierarchyEdits: Boolean(scope.allowHierarchyEdits), allowProposals: Boolean(scope.allowProposals)
         } },
         instruction: strategy === 'hierarchical'
-          ? `階層を使った移動先候補の検索です。同じ上位クラス内は分割評価で確認済みのため、この横断工程では各editableIdについてcrossScopeBatch.targetCandidatesのtopIdsとmiddleIdsだけを移動先候補として比較してください。候補は名称が近い別の上位クラス最大${candidateUpperClassLimit}件と、その配下で名称が近い中間クラス（各最大${candidateMiddleClassLimit}件）です。候補外の階層を網羅的に確認したとは扱いません。role=cは親や選択ルートの文脈です。入力にない移動先や関係は推測しません。${moveCandidateInstruction}変更元はeditableIdsのクラスだけにし、移動先はその対象に指定されたtopIdsまたはmiddleIds内の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。質問は出さず、mに候補検索の限界を含む簡潔な判断、pに操作案、xにバッチIDと確認件数を返してください。`
-          : `全体の横断操作検討です。このバッチに含まれるeditableIdsをすべて確認し、selectedScope.data.classesのrole=hで示された全top/middleを候補として比較してください。role=cは親や選択ルートの文脈であり、このバッチの判定対象数には含めません。アプリは全対象と全階層の組み合わせを漏れなくバッチ化しています。入力にない移動先や関係は推測しません。${moveCandidateInstruction}変更元はeditableIdsのクラスだけにし、移動先は入力中の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。削除は配下全体を安全に編集できる場合だけにします。質問は出さず、mに簡潔な判断、pにこのバッチの操作案、xにバッチIDと実際に確認した件数を返してください。`
+          ? `階層を使った移動先候補の検索です。同じ上位クラス内は分割評価で確認済みのため、この横断工程では各editableIdについてcrossScopeBatch.targetCandidatesのtopIdsとmiddleIdsだけを移動先候補として比較してください。候補は名称が近い別の上位クラス最大${candidateUpperClassLimit}件と、その配下で名称が近い中間クラス（各最大${candidateMiddleClassLimit}件）です。候補外の階層を網羅的に確認したとは扱いません。role=cは親や選択ルートの文脈です。入力にない移動先や関係は推測しません。${moveCandidateInstruction}変更元はeditableIdsのクラスだけにし、移動先はその対象に指定されたtopIdsまたはmiddleIds内の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。質問は出さず、mに候補検索の限界と自由度4〜5では推定案を含む判断、pに操作案、xにバッチIDと確認件数を返してください。`
+          : `全体の横断操作検討です。このバッチに含まれるeditableIdsをすべて確認し、selectedScope.data.classesのrole=hで示された全top/middleを候補として比較してください。role=cは親や選択ルートの文脈であり、このバッチの判定対象数には含めません。アプリは全対象と全階層の組み合わせを漏れなくバッチ化しています。入力にない移動先や関係は推測しません。${moveCandidateInstruction}変更元はeditableIdsのクラスだけにし、移動先は入力中の実在IDに限定します。allowHierarchyEditsがfalseなら対象クラスの移動以外を提案しません。削除は配下全体を安全に編集できる場合だけにします。質問は出さず、mに簡潔な判断と自由度4〜5では推定案、pにこのバッチの操作案、xにバッチIDと実際に確認した件数を返してください。`
       });
     };
     const candidateIdsFor = (targets) => [...new Set(targets.flatMap((item) => candidateHierarchyIdsByTarget.get(item.id) || []))];
@@ -886,7 +886,7 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
         || new Set(batch.hierarchyIds).size !== batch.hierarchyIds.length)) {
       return { status: 'incomplete', message: '横断確認バッチの範囲に重複または不足があります。' };
     }
-    return { status: 'completed', strategy, candidateUpperClassLimit, candidateMiddleClassLimit, batches,
+    return { status: 'completed', strategy, proposalFreedom, candidateUpperClassLimit, candidateMiddleClassLimit, batches,
       expectedEditableCount: editableItems.length, expectedHierarchyCount,
       expectedPairCount: expectedTotalPairs };
   };
@@ -953,10 +953,14 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
     if (completedBatchIds.size !== expectedBatchIds.size || completedPairCount !== batchPlan.expectedPairCount) {
       return { status: 'incomplete', message: '必要な横断確認バッチがすべて完了していません。' };
     }
-    return { status: 'completed', result: {
-      message: batchPlan.strategy === 'hierarchical'
+    const batchMessages = batchResults.map((result) => String(result?.message || '').trim()).filter(Boolean);
+    const combinedMessage = batchPlan.proposalFreedom >= 4
+      ? `横断確認から${proposals.filter((proposal) => proposal.operations.some((operation) => operation.type === 'moveClass')).length}件の推定移動案を作成しました。各案はプレビューで確認してから適用できます。`
+      : batchMessages.length ? [...new Set(batchMessages)].join('\n\n') : batchPlan.strategy === 'hierarchical'
         ? `対象${batchPlan.expectedEditableCount}件について、階層構造と名称から選んだ移動先候補を確認しました。候補を網羅する比較ではありません。`
-        : `選択対象${batchPlan.expectedEditableCount}件と階層${batchPlan.expectedHierarchyCount}件の全組み合わせを横断確認しました。`,
+        : `選択対象${batchPlan.expectedEditableCount}件と階層${batchPlan.expectedHierarchyCount}件の全組み合わせを横断確認しました。`;
+    return { status: 'completed', result: {
+      message: combinedMessage,
       proposals, questions: [], dataRequests: [],
       crossScopeCoverage: { evaluatedEditableCount: batchPlan.expectedEditableCount,
         reviewedHierarchyCount: batchPlan.expectedHierarchyCount, unassessedEditableCount: 0 }

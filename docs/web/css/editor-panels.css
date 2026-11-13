@@ -309,6 +309,9 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-message-body p { margin: 0; white-space: pre-wrap; }
 .ai-message-body ul, .ai-message-body ol { display: grid; gap: 0.25rem; margin: 0; padding-left: 1.35rem; }
 .ai-message-body li { padding-left: 0.1rem; }
+.ai-inference-suggestions { display: grid; gap: 0.5rem; padding: 0.65rem 0.75rem; border: 1px solid #c4b5fd; border-left: 4px solid #8b5cf6; border-radius: 8px; background: #f5f3ff; }
+.ai-inference-suggestions .ai-message-heading { margin: 0; color: #5b21b6; }
+.ai-inference-suggestions ul, .ai-inference-suggestions ol { display: grid; gap: 0.35rem; margin: 0; padding-left: 1.25rem; }
 .ai-message-heading { margin-top: 0.1rem; color: #0f3d63; font-size: 0.98rem; }
 .ai-chat-form { display: grid; flex: 0 0 auto; grid-template-columns: minmax(0, 1fr); align-items: end; gap: 0.45rem; padding-top: 0.45rem; border-top: 1px solid #e2e8f0; }
 .ai-prompt-examples { min-width: 0; }

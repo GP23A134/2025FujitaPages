@@ -1,8 +1,8 @@
 // AIチャット全体の調整役です。UI、依頼計画、API通信、応答検証、提案プレビューを接続します。
 // AI提案は表示・検証だけを行い、利用者が適用するまで編集データには触れません。
-import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261113-target-split-scope-v1';
+import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261113-inference-preview-v1';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261112-same-class-conflict-isolation-v1';
-import { createConversationStore, createConversationView } from './chat.js?v=20261110-first-line-workflow-status-v1';
+import { createConversationStore, createConversationView } from './chat.js?v=20261113-inference-suggestions-v1';
 import { createProposalPreview } from './proposal-preview.js?v=20261112-large-proposal-arrow-bundling-v1';
 import { createAIClient } from './ai-client.js?v=20261112-class-type-normalization-v1';
 import { createRequestProgress } from './request-progress.js?v=20261112-zero-second-display-v1';
@@ -268,7 +268,9 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     if (responseMode === 'proposal' || responseMode === 'evaluation') currentResponseMode = responseMode;
   });
   const responseModeInstruction = (mode) => mode === 'proposal'
-    ? `利用者が改善提案モードを選択しています。依頼内容を評価し、必要で妥当な変更案があれば提案してください。許可された操作は全種類です。依頼文から操作許可を推測・制限せず、削除を含む操作も提案できます。${promptFlexibility <= 4 ? `分類先の整理や所属の見直しでは、自由度${promptFlexibility}の指示に従って候補を探し、該当候補があれば所属のずれを確定できなくても暫定案を提示して不確実性を明記してください。自由度1は直接説明しにくい関連も仮説として検討し、自由度2〜4はクラス名と階層から関連を説明できる候補に限ります。自由度4は依頼された変更範囲内で扱ってください。` : '自由度5では依頼で明示された移動だけを提案してください。'}依頼の条件、編集範囲、操作安全性は守ってください。`
+    ? `利用者が改善提案モードを選択しています。依頼内容を評価し、必要で妥当な変更案があれば提案してください。許可された操作は全種類です。依頼文から操作許可を推測・制限せず、削除を含む操作も提案できます。${promptFlexibility <= 3
+      ? `自由度${promptFlexibility}では、クラス名や階層から推定した移動も適用可能な変更案に含め、理由と不確実性を明記してください。自由度1は直接説明しにくい関連も仮説として検討し、自由度2〜3はクラス名と階層から関連を説明できる候補に限ります。`
+      : `自由度${promptFlexibility}では、明示された変更と回答なしでも成立する変更を通常の操作付き変更案にしてください。依頼された候補抽出で推定した移動も、対象と移動先を特定でき、操作ルールで検証できる場合は操作付き変更案として作成してください。推定移動の案は題名の先頭に「推定案：」を付け、理由と確信度を示してください。推定というだけで確認質問を作らず、回答によって対象や移動先が変わる重要な曖昧さがある場合に限り質問してください。質問に紐づく未確定の変更案は回答前に表示しません。`}依頼の条件、編集範囲、操作安全性は守ってください。`
     : '利用者が評価モードを選択しています。変更操作を含む提案や確認質問を出さず、評価・説明だけを返してください。情報が足りない場合は、判断できない点と理由をmessageに記載してください。';
   const addResponseModeToInput = (input, mode) => {
     const payload = JSON.parse(input);
@@ -1803,7 +1805,9 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
           const baseSynthesisPrompt = await synthesisPromptPromise;
           const synthesisPrompt = responseMode === 'evaluation'
             ? `${baseSynthesisPrompt}\n\n評価モードです。変更案や変更を促す助言、確認質問を加えず、評価・根拠・判断できない点だけを統合してください。操作一覧や大量のクラスIDを再掲せず、全体の傾向と範囲による違いを簡潔に説明してください。`
-            : baseSynthesisPrompt;
+            : responseMode === 'proposal' && promptFlexibility >= 4
+              ? `${baseSynthesisPrompt}\n\n自由度${promptFlexibility}の統合表示です。分割回答中の推定移動候補は、通常の変更案と区別できるよう題名の先頭に「推定案：」を付けた操作付き変更案として重複なく統合してください。対象クラス・移動先・理由・確信度を保ち、回答文では一覧を重複させません。回答で内容が変わるため保留された変更案は、回答前に作成・表示しません。`
+              : baseSynthesisPrompt;
           const comparisonScopeIds = splitTasks.flatMap((task, index) => hasSummaryContent(task) ? [`chunk_${index + 1}`] : []);
           const completedScopeIds = chunkAssessments.map((item) => item.scopeId);
           // Cross-scope overlap and distribution require every eligible range; local findings only require completed ranges.
@@ -1816,7 +1820,6 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
           const synthesis = await chunkSynthesizer.synthesize({
             request: userText,
             sourceScopeCoverage: scope.scopeCoverage,
-            initialMessage: result.message,
             assessments: chunkAssessments,
             expectedScopeIds: splitTasks.map((_, index) => `chunk_${index + 1}`),
             requiredScopeIdsByCategory,
@@ -1901,6 +1904,9 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
                     throw incompleteCoverageError;
                   }
                   responseHandler.validatePayload(crossResult, baseDataHash);
+                  if (promptFlexibility >= 4 && crossResult.message) {
+                    result.message = [result.message, crossResult.message].filter(Boolean).join('\n\n');
+                  }
                   const availableClassIds = scope.classes.map((item) => item.id);
                   const crossScopeEditScope = {
                     ...scope,
