@@ -63,6 +63,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   let refreshResponseOutputLimits = () => {};
   // APIの短縮出力形式と内部データ形式の境界はai-client.jsに集約します。
   const keyInput = document.getElementById('ai-api-key');
+  try { localStorage.removeItem('fujita.ai-api-key-v1'); } catch { /* Remove any key saved by an earlier build. */ }
   const fullGraphScopeToggle = document.getElementById('ai-full-graph-scope');
   const settingsDialog = document.getElementById('ai-chat-settings-dialog');
   const crossScopeStrategySelect = document.getElementById('ai-cross-scope-strategy');

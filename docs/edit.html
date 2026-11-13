@@ -279,7 +279,7 @@
           <input id="ai-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…" />
           <button type="button" id="ai-toggle-key-visibility" class="held-action-button" aria-pressed="false">表示</button>
         </div>
-        <p class="edit-settings-note">キーはページを閉じると消去されます。依頼文と選択範囲または全体分析時のクラス情報はOpenAIへ送信され、応答はAPI側に保存されます。利用料はキーのアカウントに請求されるため、信頼できる端末で使用してください。</p>
+        <p class="edit-settings-note">APIキーはページを閉じるまでメモリー上で使い、ブラウザーには保存しません。依頼文と選択範囲または全体分析時のクラス情報はOpenAIへ送信され、応答はAPI側に保存されます。利用料はキーのアカウントに請求されます。</p>
         <label for="ai-model">モデル</label>
         <select id="ai-model" class="edit-settings-select" aria-describedby="ai-model-description"></select>
         <p id="ai-model-description" class="edit-settings-note">モデル候補は設定ファイルで管理します。</p>
@@ -648,6 +648,6 @@
     </dialog>
     <!-- ダイアログDOMの後に、データ読み込みとAIチャットを初期化する。 -->
     <script data-app-script="web/js/shared/data-upload.js?v=20261112-shared-validation-v2"></script>
-    <script data-app-script="web/js/editor/ai/main.js?v=20261113-payload-snapshot-v1" data-app-type="module"></script>
+    <script data-app-script="web/js/editor/ai/main.js?v=20261113-target-split-scope-v1" data-app-type="module"></script>
   </body>
 </html>
