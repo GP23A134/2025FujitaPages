@@ -249,6 +249,20 @@ if (legacyUnclassifiedMiddleIds.size) {
 }
 
 const classById = new Map(classes.map((item) => [item.id, item]));
+function getEditDataFingerprint() {
+  return JSON.stringify({
+    classes: classes.map((item) => ({ ...item })),
+    relations: data.classData.relations.map((relation) => ({ ...relation }))
+  });
+}
+let savedEditDataFingerprint = getEditDataFingerprint();
+function refreshUnsavedChanges() {
+  hasUnsavedChanges = getEditDataFingerprint() !== savedEditDataFingerprint;
+}
+function markEditDataSaved() {
+  savedEditDataFingerprint = getEditDataFingerprint();
+  hasUnsavedChanges = false;
+}
 const restoredSelection = window.__workspaceSelectionToRestore;
 if (restoredSelection) {
   restoredSelection.instances?.forEach((id) => { const item = classById.get(id); if (item && classKind(item) === 'class') heldInstances.set(id, item); });
@@ -308,7 +322,7 @@ function restoreEditState(snapshot) {
   });
   if (heldDestinationId && !classById.has(heldDestinationId)) heldDestinationId = '';
   recentHeldDestinationIds = [...(snapshot.recentDestinations || [])];
-  hasUnsavedChanges = true;
+  refreshUnsavedChanges();
 }
 async function undoLastEdit() {
   const edit = editUndoStack.at(-1);

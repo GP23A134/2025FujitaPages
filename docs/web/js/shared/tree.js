@@ -85,10 +85,11 @@
     const badge = document.createElement('span');
     badge.className = 'count-badge edit-count';
     const totalCount = options.count ?? 0;
-    const directCount = options.directCount ?? 0;
+    const middleCount = options.middleCount ?? 0;
+    const directTargetCount = options.directTargetCount ?? 0;
     const updateCount = (isOpen) => {
       badge.textContent = isOpen
-        ? ` ${totalCount}件（直接 ${directCount}件）`
+        ? ` 中間${middleCount}件・対象${directTargetCount}件`
         : ` ${totalCount}件`;
     };
     updateCount(false);
@@ -127,9 +128,18 @@
         item.firstElementChild?.classList.contains('tree-leaf-class')
       );
       const positions = items.map((item) => item.getBoundingClientRect().top);
+      const firstItemLeft = items[0]?.getBoundingClientRect().left;
+      const connectorAxis = Number.isFinite(firstItemLeft)
+        ? firstItemLeft - (Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16)
+        : 0;
       positions.forEach((rowTop, index) => {
+        const item = items[index];
+        const itemLeft = item.getBoundingClientRect().left;
+        const connectorWidth = Math.max(0, itemLeft - connectorAxis);
+        item.style.setProperty('--tree-target-connector-left', `${-connectorWidth}px`);
+        item.style.setProperty('--tree-target-connector-width', `${connectorWidth}px`);
         const isRowStart = Math.abs(rowTop - previousRowTop) > 1;
-        items[index].classList.toggle('is-row-start', isRowStart);
+        item.classList.toggle('is-row-start', isRowStart);
         if (isRowStart) previousRowTop = rowTop;
       });
     });
@@ -186,7 +196,8 @@
       const { details, summary, content } = createTreeLevel(node, {
         displayId: options.displayId,
         count: countFor(node),
-        directCount: node.targets.length
+        middleCount: node.children.length,
+        directTargetCount: node.targets.length
       });
       details.style.setProperty('--tree-level-color', treeDepthColor(depth));
       details.style.setProperty('--tree-own-level-color', treeDepthColor(depth));

@@ -608,6 +608,10 @@ body.browse-hide-target-classes #tree-panel .tree-target-row { display: none !im
 #tree-panel .tree > details > ul > li > details > ul > li::before,
 #tree-panel .tree .tree-target-list > li::before,
 #tree-panel .tree .tree-child-middle-list > li::before { border-top-color: var(--tree-level-color, #7dd3fc); }
+#tree-panel .tree .tree-target-list > li::before {
+  left: var(--tree-target-connector-left, -1rem);
+  width: var(--tree-target-connector-width, 1rem);
+}
 
 /* 閲覧・編集のツールバーは共通の外観で表示する。 */
 #tree-panel .tree-controls > .tree-toolbar {

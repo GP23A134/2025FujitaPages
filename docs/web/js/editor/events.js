@@ -125,7 +125,7 @@ async function saveEditChanges(skipValidation = false, action = 'indexeddb') {
     workspace.targetClassData = { ...(workspace.targetClassData || {}), classes: [] };
     workspace.workspaceMeta = { ...(workspace.workspaceMeta || {}), kind: 'uploaded', fileName: '編集済み作業データ' };
     await window.dataWorkspace.save(workspace, null, window.classEditorAI?.selectionSnapshot || []);
-    hasUnsavedChanges = false;
+    markEditDataSaved();
     window.__dataWorkspaceUndoAvailable = true;
     window.__dataWorkspaceRedoAvailable = false;
     if (exportJson) {
