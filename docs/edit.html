@@ -25,7 +25,7 @@
     <script data-app-script="web/js/editor/panels.js?v=20261111-held-table-fixed-header-v2"></script>
     <script data-app-script="web/js/editor/tree.js?v=20261113-tree-selection-v2"></script>
     <script data-app-script="web/js/editor/events.js?v=20261113-data-only-dirty-v1"></script>
-    <script data-app-script="web/js/editor/test-preferences.js?v=20261112-response-count-limits-v1" data-app-type="module"></script>
+    <script data-app-script="web/js/editor/test-preferences.js?v=20261113-automatic-execution-settings-v1" data-app-type="module"></script>
     <script src="web/js/shared/app-startup.js?v=20261112-review-fixes-v1"></script>
   </head>
   <body class="edit-panes-pinned" data-mode="edit">
@@ -322,7 +322,7 @@
           <h4 id="test-ai-tuning-title">送信入力上限</h4>
           <label for="test-ai-input-limit">1回の送信で扱う最大文字数</label>
           <div class="test-range-row"><input id="test-ai-input-limit" type="range" min="12000" max="128000" step="4000" data-preference="maxRequestCharacters" /><output for="test-ai-input-limit"></output></div>
-          <p class="edit-settings-note">送信入力の上限です。モデルのコンテキスト上限を超えた場合は、API側で受け付けられないことがあります。</p>
+          <p class="edit-settings-note">送信入力の上限です。対象範囲に応じて分割を自動で行います。モデルのコンテキスト上限を超えた場合は、API側で受け付けられないことがあります。</p>
         </div>
         <div class="test-settings-group" role="group" aria-labelledby="test-ai-output-title">
           <h4 id="test-ai-output-title">出力トークン上限</h4>
@@ -375,25 +375,6 @@
             </div>
           </div>
           <p class="edit-settings-note">件数を増やすと、出力トークン上限に達して回答が完了しない場合があります。</p>
-        </div>
-        <div class="test-settings-group" role="group" aria-labelledby="test-ai-split-title">
-          <h4 id="test-ai-split-title">分割・統合</h4>
-          <label class="edit-settings-checkbox"><input id="test-ai-split-enabled" type="checkbox" data-preference="aiSplitEnabled" /> 分割送信を使う</label>
-          <p class="edit-settings-note">オフにすると分割分析を行いません。1回の送信上限を超える場合は送信できません。</p>
-          <div class="test-tuning-grid">
-            <div class="test-tuning-control">
-              <label for="test-ai-batch-units">1回の分割送信に含める上位単位数</label>
-              <div class="test-range-row"><input id="test-ai-batch-units" type="range" step="1" data-preference="maxUnitsPerBatch" /><output for="test-ai-batch-units"></output></div>
-            </div>
-            <div class="test-tuning-control">
-              <label for="test-ai-split-threshold">構造最適化で分割を始める対象数</label>
-              <div class="test-range-row"><input id="test-ai-split-threshold" type="range" step="1" data-preference="optimizationSplitThreshold" /><output for="test-ai-split-threshold"></output></div>
-            </div>
-            <div class="test-tuning-control">
-              <label for="test-ai-synthesis-rounds">結果統合の最大回数</label>
-              <div class="test-range-row"><input id="test-ai-synthesis-rounds" type="range" step="1" data-preference="synthesisMaxRounds" /><output for="test-ai-synthesis-rounds"></output></div>
-            </div>
-          </div>
         </div>
         <div class="test-settings-group" role="group" aria-labelledby="test-ai-candidate-title">
           <h4 id="test-ai-candidate-title">移動先候補を探す</h4>
@@ -648,6 +629,6 @@
     </dialog>
     <!-- ダイアログDOMの後に、データ読み込みとAIチャットを初期化する。 -->
     <script data-app-script="web/js/shared/data-upload.js?v=20261112-shared-validation-v2"></script>
-    <script data-app-script="web/js/editor/ai/main.js?v=20261113-cross-scope-size-diagnostics-v1" data-app-type="module"></script>
+    <script data-app-script="web/js/editor/ai/main.js?v=20261113-adaptive-planning-coverage-v1" data-app-type="module"></script>
   </body>
 </html>

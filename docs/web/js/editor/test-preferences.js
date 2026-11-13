@@ -1,5 +1,3 @@
-import { AI_TUNING_LIMITS } from './ai/tuning-limits.js?v=20261111-ai-tuning-limits-v1';
-
 (() => {
   // 開発用の調整UIは edit.html?dev=1 の場合だけ表示する。
   const testModeEnabled = new URLSearchParams(window.location.search).get('dev') === '1';
@@ -11,7 +9,7 @@ import { AI_TUNING_LIMITS } from './ai/tuning-limits.js?v=20261111-ai-tuning-lim
     document.getElementById('test-settings-dialog')?.remove();
   }
   const storageKey = 'classEditorTestPreferences';
-  const defaults = { heldFontSize: 0.92, chatFontSize: 1, proposalFontSize: 0.9, treeTopFontSize: 0.95, treeMiddleFontSize: 0.95, treeTargetFontSize: 0.9, treeColorIntensity: 1, treeDisclosureSize: 0.85, treeTopColor: '#7dd3fc', treeTopTextColor: '#075985', treeTopBackgroundColor: '#e0f2fe', responseMode: 'proposal', promptFlexibility: 5, crossScopeStrategy: 'exhaustive', aiConcurrency: 2, crossScopeTopLimit: 2, crossScopeMiddleLimit: 5, responseOutputTokens: 5000, maxProposalsPerResponse: 30, maxQuestionsPerResponse: 3, maxOperationsPerProposal: 40, maxUncertaintiesPerProposal: 5, maxChunkFindingsPerCategory: 3, maxComparisonFindingsPerCategory: 8, chunkOutputTokens: 3000, synthesisOutputTokens: 4500, crossScopeOutputTokens: 4000, aiSplitEnabled: true, maxRequestCharacters: 48000, maxUnitsPerBatch: AI_TUNING_LIMITS.maxUnitsPerBatch.default, optimizationSplitThreshold: AI_TUNING_LIMITS.optimizationSplitThreshold.default, synthesisMaxRounds: AI_TUNING_LIMITS.synthesisMaxRounds.default };
+  const defaults = { heldFontSize: 0.92, chatFontSize: 1, proposalFontSize: 0.9, treeTopFontSize: 0.95, treeMiddleFontSize: 0.95, treeTargetFontSize: 0.9, treeColorIntensity: 1, treeDisclosureSize: 0.85, treeTopColor: '#7dd3fc', treeTopTextColor: '#075985', treeTopBackgroundColor: '#e0f2fe', responseMode: 'proposal', promptFlexibility: 5, crossScopeStrategy: 'exhaustive', aiConcurrency: 2, crossScopeTopLimit: 2, crossScopeMiddleLimit: 5, responseOutputTokens: 5000, maxProposalsPerResponse: 30, maxQuestionsPerResponse: 3, maxOperationsPerProposal: 40, maxUncertaintiesPerProposal: 5, maxChunkFindingsPerCategory: 3, maxComparisonFindingsPerCategory: 8, chunkOutputTokens: 3000, synthesisOutputTokens: 4500, crossScopeOutputTokens: 4000, maxRequestCharacters: 48000 };
   const limits = {
     heldFontSize: [0.8, 1.3],
     chatFontSize: [0.85, 1.4],
@@ -35,13 +33,10 @@ import { AI_TUNING_LIMITS } from './ai/tuning-limits.js?v=20261111-ai-tuning-lim
     maxUncertaintiesPerProposal: [1, 100],
     maxChunkFindingsPerCategory: [1, 80],
     maxComparisonFindingsPerCategory: [1, 120],
-    maxRequestCharacters: [12000, 128000],
-    maxUnitsPerBatch: [AI_TUNING_LIMITS.maxUnitsPerBatch.min, AI_TUNING_LIMITS.maxUnitsPerBatch.max],
-    optimizationSplitThreshold: [AI_TUNING_LIMITS.optimizationSplitThreshold.min, AI_TUNING_LIMITS.optimizationSplitThreshold.max],
-    synthesisMaxRounds: [AI_TUNING_LIMITS.synthesisMaxRounds.min, AI_TUNING_LIMITS.synthesisMaxRounds.max]
+    maxRequestCharacters: [12000, 128000]
   };
-  const countSettings = new Set(['aiConcurrency', 'crossScopeTopLimit', 'crossScopeMiddleLimit', 'maxRequestCharacters', 'maxProposalsPerResponse', 'maxQuestionsPerResponse', 'maxOperationsPerProposal', 'maxUncertaintiesPerProposal', 'maxChunkFindingsPerCategory', 'maxComparisonFindingsPerCategory', 'maxUnitsPerBatch', 'optimizationSplitThreshold', 'synthesisMaxRounds']);
-  const countUnits = { maxRequestCharacters: '文字', maxUnitsPerBatch: '単位', synthesisMaxRounds: '回' };
+  const countSettings = new Set(['aiConcurrency', 'crossScopeTopLimit', 'crossScopeMiddleLimit', 'maxRequestCharacters', 'maxProposalsPerResponse', 'maxQuestionsPerResponse', 'maxOperationsPerProposal', 'maxUncertaintiesPerProposal', 'maxChunkFindingsPerCategory', 'maxComparisonFindingsPerCategory']);
+  const countUnits = { maxRequestCharacters: '文字' };
   const outputTokenSettings = new Set(['responseOutputTokens', 'chunkOutputTokens', 'synthesisOutputTokens', 'crossScopeOutputTokens']);
   const flexibilityLabels = ['最大限自由', '柔軟', '標準', '厳密', '非常に厳密'];
   const percentageSettings = new Set(['treeColorIntensity']);
@@ -49,7 +44,6 @@ import { AI_TUNING_LIMITS } from './ai/tuning-limits.js?v=20261111-ai-tuning-lim
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}') || {}; } catch {}
     const preferences = { ...defaults };
-    if (typeof saved.aiSplitEnabled === 'boolean') preferences.aiSplitEnabled = saved.aiSplitEnabled;
     for (const [key, [min, max]] of Object.entries(limits)) {
       const value = Number(saved[key]);
       if (Number.isFinite(value) && value >= min && value <= max

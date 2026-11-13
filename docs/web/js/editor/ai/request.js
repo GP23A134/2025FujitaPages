@@ -11,6 +11,35 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
   const operationInstruction = (taskKind, scope) => describeOperationPolicy(createOperationPolicy({
     allowProposals: Boolean(getAllowProposals(scope)), taskKind, scope, proposalFreedom: getProposalFreedom()
   }));
+  const buildAdaptivePlanInput = (userText, scope, responseMode) => {
+    const editableIds = new Set(scope.editableIds || []);
+    const selectedCounts = { top: 0, middle: 0, class: 0 };
+    const editableCounts = { top: 0, middle: 0, class: 0 };
+    scope.classes.forEach((item) => {
+      if (Object.hasOwn(selectedCounts, item.type)) selectedCounts[item.type] += 1;
+      if (editableIds.has(item.id) && Object.hasOwn(editableCounts, item.type)) editableCounts[item.type] += 1;
+    });
+    return JSON.stringify({
+      request: String(userText || '').slice(0, 8000),
+      responseMode,
+      selection: {
+        editableCounts,
+        selectionRootCount: (scope.selectionRoots || scope.selectedIds || []).length,
+        providedClassCount: scope.classes.length
+      },
+      reference: {
+        fullHierarchyAvailable: scope.scopeCoverage === 'all_classes',
+        hierarchyClassCount: scope.scopeCoverage === 'all_classes'
+          ? selectedCounts.top + selectedCounts.middle : 0
+      },
+      constraints: [
+        '選択中の編集対象だけを分析対象にする',
+        '選択外のクラスを編集対象に追加しない',
+        '入力済みの階層情報は必要に応じて参照専用で使う',
+        '選択中の対象クラスは全件確認する'
+      ]
+    });
+  };
   // 長い全体分析の計画中も、ブラウザーに描画と入力イベントの処理を返します。
   const yieldToBrowser = () => new Promise((resolve) => window.setTimeout(resolve, 0));
   // 通常依頼では前回スナップショットとの差分を使い、初回・強制更新では全体を送ります。
@@ -464,7 +493,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
       if (pending.length) batches.push(makeBatch(pending));
       return batches;
     };
-    return { buildUserContent, makeLargeScopePlan, packAnalysisUnits };
+    return { buildUserContent, buildAdaptivePlanInput, makeLargeScopePlan, packAnalysisUnits };
 };
 
 // 分割回答と範囲根拠を統合し、カテゴリ別の横断比較状態も返します。
@@ -802,12 +831,23 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
         included.set(item.id, { ...item, role: previous?.role === 'e' || role === 'e' ? 'e'
           : previous?.role === 'h' || role === 'h' ? 'h' : 'c' });
       };
+      const targetAncestorIds = new Set();
+      targets.forEach((item) => {
+        let currentId = item.id;
+        const seen = new Set([currentId]);
+        while (parentByChild.has(currentId)) {
+          currentId = parentByChild.get(currentId);
+          if (seen.has(currentId)) break;
+          seen.add(currentId);
+          targetAncestorIds.add(currentId);
+        }
+      });
       hierarchy.forEach((item) => add(item, 'h'));
       targets.forEach((item) => add(item, 'e'));
-      roots.forEach((id) => add(classById.get(id), 'c'));
-      targets.forEach((item) => add(classById.get(item.parentId || parentByChild.get(item.id)), 'c'));
+      targetAncestorIds.forEach((id) => add(classById.get(id), 'c'));
       const selectedEditableIds = targets.map((item) => item.id);
-      const selectedIds = [...new Set([...selectedEditableIds, ...[...roots].filter((id) => included.has(id))])];
+      const selectedRootIds = [...roots].filter((id) => included.has(id));
+      const selectedIds = [...new Set([...selectedEditableIds, ...selectedRootIds])];
       const classes = [...included.values()].map((item) => [item.id, item.type, item.label,
         item.parentId || parentByChild.get(item.id) || null, item.role, item.parentLabel || null]);
       const includedIds = new Set(included.keys());
@@ -828,7 +868,7 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
         },
         selectedScope: { kind: 'initial_snapshot', data: {
           mode: 'selected_scope', scopeCoverage: 'all_classes', selectedIds,
-          selectionRoots: [...roots].filter((id) => includedIds.has(id)),
+          selectionRoots: selectedRootIds.filter((id) => includedIds.has(id)),
           editableIds: selectedEditableIds, classes,
           relations: (scope.relations || []).filter(({ child, parent }) => includedIds.has(child) && includedIds.has(parent)),
           counts: Object.fromEntries(Object.entries(scope.targetClassCounts || {}).filter(([id]) => includedIds.has(id))),
@@ -1061,16 +1101,23 @@ export const filterPromptExamples = (examples, context) => examples.filter((exam
 // 送信と全体範囲の再試行を、画面状態から独立した処理として扱います。
 export const createRequestSender = ({ responsesClient, responseHandler, apiKey, model, systemPrompt, proposalPolicy, evaluationMode = false,
   signal, baseDataHash, scopeCoverage, maxOutputTokens, modelMaxOutputTokens = 128000, defaultStage, onStage, onUsage }) => {
-  const send = (input, previousResponseId = '', outputTokens = maxOutputTokens,
+  const send = async (input, previousResponseId = '', outputTokens = maxOutputTokens,
     stage = defaultStage, grouped = false, summaryOnly = false, promptOverride = '', comparisonSynthesis = false) => {
     const modelLimit = Number.isInteger(Number(modelMaxOutputTokens)) && Number(modelMaxOutputTokens) > 0
       ? Math.min(128000, Number(modelMaxOutputTokens)) : 128000;
     const requestedLimit = Math.floor(Number(outputTokens) || Number(maxOutputTokens) || 1);
     const boundedOutputTokens = Math.min(modelLimit, Math.max(1, requestedLimit));
-    return responsesClient.send(input, {
-      apiKey, model, systemPrompt, previousResponseId, maxOutputTokens: boundedOutputTokens,
-      stage, grouped, summaryOnly, comparisonSynthesis, promptOverride, signal, onStage, onUsage
+    const sendWithLimit = (limit, requestStage) => responsesClient.send(input, {
+      apiKey, model, systemPrompt, previousResponseId, maxOutputTokens: limit,
+      stage: requestStage, grouped, summaryOnly, comparisonSynthesis, promptOverride, signal, onStage, onUsage
     });
+    try {
+      return await sendWithLimit(boundedOutputTokens, stage);
+    } catch (error) {
+      if (error?.name !== 'OutputTokenLimitError' || boundedOutputTokens >= modelLimit) throw error;
+      const retryLimit = Math.min(modelLimit, Math.max(boundedOutputTokens + 1000, boundedOutputTokens * 2));
+      return sendWithLimit(retryLimit, `${stage || defaultStage}（出力上限を${retryLimit.toLocaleString()}に増やして再試行）`);
+    }
   };
   const retryCompleteScopeDataRequest = async (response, isChunk = false, stage = defaultStage) => {
     responseHandler.validatePayload(response.result, baseDataHash);

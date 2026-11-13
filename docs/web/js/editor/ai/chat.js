@@ -34,6 +34,12 @@ export const createConversationStore = ({ conversations, savedConversationsKey, 
               mode: typeof item.splitMemory.mode === 'string' ? item.splitMemory.mode : 'selected_scope',
               scopeCoverage: item.splitMemory.scopeCoverage === 'all_classes' ? 'all_classes' : 'selected_classes',
               model: typeof item.splitMemory.model === 'string' ? item.splitMemory.model : '',
+              chunkCacheRequest: typeof item.splitMemory.chunkCacheRequest === 'string'
+                ? item.splitMemory.chunkCacheRequest.slice(0, MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS) : '',
+              chunkCacheContext: typeof item.splitMemory.chunkCacheContext === 'string'
+                ? item.splitMemory.chunkCacheContext.slice(-MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS) : '',
+              chunkCachePlan: item.splitMemory.chunkCachePlan && typeof item.splitMemory.chunkCachePlan === 'object'
+                ? item.splitMemory.chunkCachePlan : null,
               chunkCache: Array.isArray(item.splitMemory.chunkCache) ? item.splitMemory.chunkCache
                 .filter((entry) => entry && typeof entry.key === 'string' && entry.result && typeof entry.result === 'object')
                 .map((entry) => ({ key: entry.key, result: entry.result }))
