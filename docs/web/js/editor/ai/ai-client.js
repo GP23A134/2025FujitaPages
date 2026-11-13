@@ -97,9 +97,10 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
       task: { type: 'string', enum: ['explain', 'inventory', 'compare', 'review', 'propose', 'other'] },
       analysis: { type: 'string', enum: ['focused', 'comprehensive'] },
       context: { type: 'string', enum: ['selected_only', 'selected_and_parents', 'full_hierarchy'] },
-      crossScope: { type: 'boolean' }
+      crossScope: { type: 'boolean' },
+      dataStrategy: { type: 'string', enum: ['reuse_summary', 'reuse_completed_chunks', 'send_scope_data'] }
     },
-    required: ['task', 'analysis', 'context', 'crossScope']
+    required: ['task', 'analysis', 'context', 'crossScope', 'dataStrategy']
   };
   const compactOperationSchema = {
     type: 'object', additionalProperties: false,
@@ -285,8 +286,9 @@ export const createResponseFormat = (AI_OUTPUT_LIMITS) => {
     const allowedTasks = new Set(['explain', 'inventory', 'compare', 'review', 'propose', 'other']);
     const allowedAnalysis = new Set(['focused', 'comprehensive']);
     const allowedContexts = new Set(['selected_only', 'selected_and_parents', 'full_hierarchy']);
+    const allowedDataStrategies = new Set(['reuse_summary', 'reuse_completed_chunks', 'send_scope_data']);
     if (!allowedTasks.has(plan.task) || !allowedAnalysis.has(plan.analysis) || !allowedContexts.has(plan.context)
-      || typeof plan.crossScope !== 'boolean') {
+      || typeof plan.crossScope !== 'boolean' || !allowedDataStrategies.has(plan.dataStrategy)) {
       throw new Error('AIの分析計画に許可されていない設定が含まれています。通常の送信範囲で続行します。');
     }
     return plan;
@@ -437,7 +439,7 @@ export const createResponsesClient = ({ responseFormat, digest, createIdCodec, m
     ['instruction', 'proposalPolicy', 'responsePolicy', 'crossScopeCandidateMode', 'analysisPlan'].forEach((key) => { delete requestPayload[key]; });
     const apiInput = summaryOnly || planOnly ? JSON.stringify(requestPayload) : idCodec.shortenText(JSON.stringify(requestPayload));
     const formatInstructions = planOnly
-      ? '短い分析計画をJSONで返してください。taskは依頼の主目的、analysisはfocusedまたはcomprehensive、contextはselected_only、selected_and_parents、full_hierarchyのいずれかです。crossScopeは異なる上位・中間クラス間の移動先確認が依頼に必要な場合だけtrueにします。通常の評価・説明、同じ階層内だけの相談ではfalseにします。選択対象は固定し、追加クラスは参照専用です。'
+      ? '短い分析計画をJSONで返してください。taskは依頼の主目的、analysisはfocusedまたはcomprehensive、contextはselected_only、selected_and_parents、full_hierarchyのいずれかです。crossScopeは異なる上位・中間クラス間の移動先確認が依頼に必要な場合だけtrueにします。dataStrategyはcacheOptionsで利用可能な方式から選びます。reuse_summaryは要約利用可能時、reuse_completed_chunksは完了済み分割が利用可能時、send_scope_dataは今回の参照範囲を送信する方式です。forceFullReanalysisがtrueならsend_scope_dataを選びます。キャッシュの最終有効性はアプリが検証します。選択対象は固定し、追加クラスは参照専用です。'
       : summaryOnly
       ? comparisonSynthesis
         ? responseFormat.getComparisonSynthesisInstructions()

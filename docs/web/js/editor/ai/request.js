@@ -11,7 +11,7 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
   const operationInstruction = (taskKind, scope) => describeOperationPolicy(createOperationPolicy({
     allowProposals: Boolean(getAllowProposals(scope)), taskKind, scope, proposalFreedom: getProposalFreedom()
   }));
-  const buildAdaptivePlanInput = (userText, scope, responseMode) => {
+  const buildAdaptivePlanInput = (userText, scope, responseMode, cacheOptions = {}) => {
     const editableIds = new Set(scope.editableIds || []);
     const selectedCounts = { top: 0, middle: 0, class: 0 };
     const editableCounts = { top: 0, middle: 0, class: 0 };
@@ -31,6 +31,12 @@ export const createRequestPlanner = ({ editor, MAX_REQUEST_CHARACTERS, getMaxReq
         fullHierarchyAvailable: scope.scopeCoverage === 'all_classes',
         hierarchyClassCount: scope.scopeCoverage === 'all_classes'
           ? selectedCounts.top + selectedCounts.middle : 0
+      },
+      cacheOptions: {
+        summaryAvailable: cacheOptions.summaryAvailable === true,
+        completedChunksAvailable: cacheOptions.completedChunksAvailable === true,
+        reusableChunkCount: Math.max(0, Math.floor(Number(cacheOptions.reusableChunkCount) || 0)),
+        forceFullReanalysis: cacheOptions.forceFullReanalysis === true
       },
       constraints: [
         '選択中の編集対象だけを分析対象にする',
