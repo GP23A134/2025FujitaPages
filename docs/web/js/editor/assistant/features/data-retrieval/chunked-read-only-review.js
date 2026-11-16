@@ -199,7 +199,11 @@ export function createChunkedReadOnlyReview({
         moreFindingsMayExist: Boolean(analysis.moreFindingsMayExist)
       });
       completedCount += items.length;
-      onProgress({ stage: done ? 'analyzing' : 'retrieving', note: `${completedCount} / ${totalCount}件を確認済み` });
+      onProgress({
+        stage: done ? 'analyzing' : 'retrieving',
+        milestone: true,
+        note: `第${batchNumber}バッチ完了。${completedCount.toLocaleString('ja-JP')} / ${totalCount.toLocaleString('ja-JP')}件を確認し、指摘候補は${findings.length.toLocaleString('ja-JP')}件です。`
+      });
       if (done) break;
     }
 

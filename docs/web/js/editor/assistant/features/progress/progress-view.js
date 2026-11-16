@@ -33,6 +33,7 @@ export function createProgressView(statusElement, messages = document.getElement
 
   let indicator = null;
   let activity = null;
+  let lastMilestoneText = '';
   let startedAt = 0;
   let timer = null;
   let waiting = false;
@@ -83,6 +84,17 @@ export function createProgressView(statusElement, messages = document.getElement
     indicator.setAttribute('aria-label', [label, note, display].filter(Boolean).join('。'));
   };
 
+  const appendMilestone = (text) => {
+    if (!messages || !text || lastMilestoneText === text) return;
+    const milestone = document.createElement('p');
+    milestone.className = 'assistant-progress-milestone';
+    milestone.dataset.assistantProgressMilestone = 'true';
+    milestone.textContent = text;
+    lastMilestoneText = text;
+    if (activity?.parentNode === messages) messages.insertBefore(milestone, activity);
+    else messages.append(milestone);
+  };
+
   function render(event) {
     const detail = event?.detail || {};
     if (!PROGRESS_STAGES.has(detail.stage)) return;
@@ -97,7 +109,10 @@ export function createProgressView(statusElement, messages = document.getElement
     const startsNewRun = !isWaiting && !isFinished && (!startedAt || (waiting && !canResumeSameRun) || (terminal && !canResumeSameRun));
     ensureIndicator(startsNewRun);
     if (!isWaiting && !isFinished) {
-      if (startsNewRun) startedAt = Date.now();
+      if (startsNewRun) {
+        startedAt = Date.now();
+        lastMilestoneText = '';
+      }
       waiting = false;
       resumeSameRunAfterWait = false;
       terminal = false;
@@ -119,6 +134,7 @@ export function createProgressView(statusElement, messages = document.getElement
       if (activity) {
         activity.textContent = [label, note].filter(Boolean).join('。');
         activity.classList.toggle('is-active', ACTIVE_STAGES.has(detail.stage));
+        if (detail.milestone === true) appendMilestone(note || label);
         // Keep prior chat entries and move only the current activity line to the bottom.
         messages.append(activity);
         if (isFinished) {

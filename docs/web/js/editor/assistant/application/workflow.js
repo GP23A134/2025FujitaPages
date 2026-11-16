@@ -2,11 +2,11 @@ import { createConversationState, transitionConversation } from './conversation-
 import { buildPlanInput } from '../features/planning/plan-input.js';
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js';
-import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261116-selection-12k-v1';
-import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261116-compact-move-decisions-v6';
+import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261116-progress-milestones-v1';
+import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261116-progress-milestones-v1';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
-import { createAgentRunLoop } from '../agent-runtime/run-loop.js';
+import { createAgentRunLoop } from '../agent-runtime/run-loop.js?v=20261116-progress-milestones-v1';
 import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261116-inference-allowed-v1';
 import { PROPOSAL_RESPONSE_SCHEMA } from '../features/proposals/proposal-schema.js';
 import { validateProposalResponse } from '../features/proposals/proposal-contract.js';
@@ -427,13 +427,12 @@ export function createAssistantWorkflow({
     }
     if (outcome.proposals?.length) {
       setStatus('needs_proposal_review');
-      emitProgress('waiting_for_review');
     } else {
       setStatus('completed');
-      emitProgress('completed');
     }
     lastResult = outcome;
     onEvent({ type: 'result', result: outcome, plan: currentPlan, state });
+    emitProgress('completed');
     return { status: state.status, result: outcome, plan: currentPlan };
   }
 

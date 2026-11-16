@@ -1,14 +1,14 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
-import { createProgressView } from './features/progress/progress-view.js?v=20261116-progress-duration-v6';
+import { createProgressView } from './features/progress/progress-view.js?v=20261116-progress-milestones-v1';
 import { buildPlanInput } from './features/planning/plan-input.js';
 import { createOpenAIClient } from './adapters/openai-client.js';
 import { createPlanningService } from './features/planning/planning-service.js?v=20261116-inference-allowed-v1';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261116-stop-processing-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261116-move-proposal-plan-guard-v5';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261116-proposal-complete-v1';
 import { createQuestionView } from './features/planning/question-view.js?v=20261116-agent-interaction-dock-v2';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261116-no-result-elapsed-v2';
-import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261116-proposals-in-chat-v3';
+import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261116-proposal-complete-v1';
 import { createSettingsView } from './settings/settings-view.js?v=20261116-setting-errors-v1';
 import { createHistoryService } from './conversations/history-service.js';
 
@@ -139,8 +139,7 @@ if (window.classEditorAI && statusElement) {
         addHistoryMessage('user', typeof answers === 'string' ? answers : JSON.stringify(answers));
         await workflow.answerProposalQuestions(proposal.id, answers);
       }
-    },
-    onFinishReview: () => workflow.finishReview()
+    }
   });
   const workflowView = createWorkflowView(document.getElementById('assistant-results'), questionView, proposalResultView, {
     messages: document.getElementById('ai-chat-messages'),
@@ -159,7 +158,9 @@ if (window.classEditorAI && statusElement) {
     reportUsage: ({ model, usage }) => window.dispatchEvent(new CustomEvent('assistant-api-usage', { detail: { model, usage } })),
     onEvent: (event) => {
       workflowView.handle(event);
-      if (event.type === 'plan' && event.plan?.summary) {
+      if (event.type === 'progress' && event.milestone && event.note) {
+        addHistoryMessage('assistant', event.note);
+      } else if (event.type === 'plan' && event.plan?.summary) {
         addHistoryMessage('assistant', event.plan.summary);
       } else if (event.type === 'questions') {
         const questions = (event.questions || []).map((question) => question.text).filter(Boolean);

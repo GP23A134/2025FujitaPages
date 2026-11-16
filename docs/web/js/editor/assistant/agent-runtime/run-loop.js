@@ -121,7 +121,7 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
         const instanceNote = call.name === 'read_instance_context' && Array.isArray(data?.items)
           ? `対象クラス${data.items.length}件、インスタンス${data.items.reduce((sum, item) => sum + (item.returnedCount || 0), 0)}件を確認`
           : '';
-        onProgress?.({ stage: 'analyzing', note: `${description}を確認しました。${instanceNote || countNote}` });
+        onProgress?.({ stage: 'analyzing', milestone: true, note: `${description}を確認しました。${instanceNote || countNote}` });
         newResults.push({ tool: call.name, arguments: call.arguments, result });
       }
       const candidateInput = [...baseInput, {

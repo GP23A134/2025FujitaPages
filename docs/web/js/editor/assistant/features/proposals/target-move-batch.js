@@ -327,7 +327,12 @@ export function createTargetMoveBatchProcessor({
         group.uncertainties.push(...(note?.uncertainties || []));
       });
       processed += targetItems.length;
-      onProgress({ stage: morePages || pageBuffer.length ? 'retrieving' : 'analyzing', note: `第${batchNumber}バッチ完了（${processed}件確認済み）` });
+      const moveCount = [...groupedMoves.values()].reduce((sum, group) => sum + group.operations.length, 0);
+      onProgress({
+        stage: morePages || pageBuffer.length ? 'retrieving' : 'analyzing',
+        milestone: true,
+        note: `第${batchNumber}バッチを確認しました。累計${processed.toLocaleString('ja-JP')}件、移動候補${moveCount.toLocaleString('ja-JP')}件、判断保留${uncertain.length.toLocaleString('ja-JP')}件です。`
+      });
     } while (morePages || pageBuffer.length);
 
     const proposals = [...groupedMoves.values()].map((group, index) => ({

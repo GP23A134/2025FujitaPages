@@ -1,4 +1,4 @@
-export function createProposalResultView(root, { onPreview, onAnswerQuestions, onFinishReview, onSelectAlternative = () => {} }) {
+export function createProposalResultView(root, { onPreview, onAnswerQuestions, onSelectAlternative = () => {} }) {
   const resultStates = new WeakMap();
   const itemRows = new WeakMap();
   let nextResultId = 0;
@@ -61,7 +61,6 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
       if (item) await onAnswerQuestions(item.proposal);
       return;
     }
-    if (event.target.closest('[data-finish-review]')) await onFinishReview();
   });
 
   function render(result) {
@@ -191,12 +190,6 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
     heading.append(disclosure, previewAll);
     queue.append(heading);
     body.append(queue);
-    const finish = document.createElement('button');
-    finish.type = 'button';
-    finish.className = 'search-button secondary-search-button';
-    finish.dataset.finishReview = 'true';
-    finish.textContent = '確認を終える';
-    body.append(finish);
     updateStatusCounts(message, state);
     root.append(message);
     messagesScrollToLatest();
