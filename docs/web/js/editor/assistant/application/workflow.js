@@ -203,14 +203,15 @@ export function createAssistantWorkflow({
       includeInstanceIds: settings['instances.includeId'],
       plannedInstanceContext: plan.dataNeeds.instanceContext
     });
-    const chunkedReadOnly = plan.taskType === 'read_only'
+    const chunkedReview = plan.taskType === 'read_only'
       && plan.dataNeeds.selectedClassDetails
       && !plan.dataNeeds.hierarchyIndex
       && plan.dataNeeds.parentContext !== 'ancestor_chain'
-      && plan.dataNeeds.instanceContext === 'none';
+      && plan.dataNeeds.instanceContext === 'none'
+      && plan.changeOperations.length === 0;
     let loop = null;
     let uniqueTools = [];
-    if (!chunkedReadOnly) {
+    if (!chunkedReview) {
       const permissionGuard = createPermissionGuard({ getReferenceScope: () => [...grants.reference] });
       const dispatcher = createToolDispatcher({
         registry: reader.registry,
@@ -243,7 +244,7 @@ export function createAssistantWorkflow({
       emitProgress(attempt ? 'validating' : (uniqueTools.length ? 'retrieving' : 'analyzing'));
       let result;
       try {
-        result = chunkedReadOnly
+        result = chunkedReview
           ? await createChunkedReadOnlyReview({
             reader,
             client,
@@ -260,7 +261,7 @@ export function createAssistantWorkflow({
           }).run()
           : await loop.run({ messages, signal, allowedTools: uniqueTools, onProgress: emitProgress });
       } catch (error) {
-        throw withErrorSource(error, chunkedReadOnly
+        throw withErrorSource(error, chunkedReview
           ? 'features/data-retrieval/chunked-read-only-review.js'
           : 'agent-runtime/run-loop.js');
       }
@@ -314,7 +315,7 @@ export function createAssistantWorkflow({
         }) }];
         continue;
       }
-      lastAgentContext = chunkedReadOnly ? null : { loop, messages: result.messages, allowedTools: uniqueTools };
+      lastAgentContext = chunkedReview ? null : { loop, messages: result.messages, allowedTools: uniqueTools };
       return {
         ...validation,
         ...(result.budgetLimited ? { proposals: [], alternativeGroups: [] } : {}),

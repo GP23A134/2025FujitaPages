@@ -1,8 +1,8 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
-import { createProgressView } from './features/progress/progress-view.js?v=20261116-agent-interaction-dock-v2';
+import { createProgressView } from './features/progress/progress-view.js?v=20261116-agent-usage-accurate-v1';
 import { buildPlanInput } from './features/planning/plan-input.js';
 import { createOpenAIClient } from './adapters/openai-client.js';
-import { createPlanningService } from './features/planning/planning-service.js?v=20261116-chat-plan-prose-v1';
+import { createPlanningService } from './features/planning/planning-service.js?v=20261116-move-suggestion-plan-v2';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261116-agent-interaction-dock-v2';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
 import { createAssistantWorkflow } from './application/workflow.js?v=20261116-selection-12k-v1';
@@ -156,6 +156,21 @@ if (window.classEditorAI && statusElement) {
     chatForm?.classList.toggle('is-processing', promptExamplesRunningStages.has(event.detail?.stage));
   });
   let newSystemSubmitting = false;
+  const appendUserRequest = (text) => {
+    const message = document.createElement('div');
+    message.className = 'ai-message is-user';
+    message.setAttribute('role', 'article');
+    const author = document.createElement('strong');
+    author.textContent = 'あなた';
+    const body = document.createElement('div');
+    body.className = 'ai-message-body';
+    const content = document.createElement('p');
+    content.textContent = text;
+    body.append(content);
+    message.append(author, body);
+    messages.append(message);
+    messages.scrollTop = messages.scrollHeight;
+  };
   const runNewSystem = async () => {
     if (newSystemSubmitting || workflow.isBusy() || !interactionDock.hidden) {
       statusElement.textContent = !interactionDock.hidden
@@ -174,6 +189,7 @@ if (window.classEditorAI && statusElement) {
     const wasSendDisabled = sendButton.disabled;
     sendButton.disabled = true;
     try {
+      appendUserRequest(request);
       await workflow.start({
         request,
         apiKey: apiKeyInput.value,

@@ -25,6 +25,12 @@ export function createProgressView(statusElement, messages = document.getElement
   let startedAt = 0;
   let timer = null;
   let waiting = false;
+  let terminal = false;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let usageReports = 0;
+  let inputUsageComplete = true;
+  let outputUsageComplete = true;
 
   const formatElapsed = (milliseconds) => {
     const seconds = Math.max(0, Math.floor(milliseconds / 1000));
@@ -52,9 +58,15 @@ export function createProgressView(statusElement, messages = document.getElement
     const label = indicator.dataset.progressLabel || '';
     const note = indicator.dataset.progressNote || '';
     const stage = indicator.dataset.progressStage || '';
-    const isActive = !waiting && !['budget_exhausted', 'completed', 'failed', 'scope_denied'].includes(stage);
-    indicator.hidden = !isActive;
-    const text = isActive ? `${elapsedSeconds}s作業中` : '';
+    const isTerminal = ['budget_exhausted', 'completed', 'failed', 'scope_denied'].includes(stage);
+    indicator.hidden = false;
+    const formatUsage = (tokens, complete) => complete
+      ? tokens.toLocaleString('ja-JP')
+      : `${tokens.toLocaleString('ja-JP')}+不明`;
+    const usageText = usageReports
+      ? `API実績 入力 ${formatUsage(inputTokens, inputUsageComplete)} / 出力 ${formatUsage(outputTokens, outputUsageComplete)} tokens`
+      : isTerminal ? 'APIトークン実績なし' : 'APIトークン実績待ち';
+    const text = [`${elapsedSeconds}s`, label, note, usageText].filter(Boolean).join(' · ');
     indicator.textContent = text;
     indicator.setAttribute('aria-label', [label, note, formatElapsed(Date.now() - startedAt)].filter(Boolean).join('。'));
   };
@@ -69,13 +81,22 @@ export function createProgressView(statusElement, messages = document.getElement
     const isFinished = ['budget_exhausted', 'completed', 'failed', 'scope_denied'].includes(detail.stage);
     ensureIndicator();
     if (!isWaiting && !isFinished) {
-      if (!startedAt || waiting) startedAt = Date.now();
+      if (terminal) {
+        inputTokens = 0;
+        outputTokens = 0;
+        usageReports = 0;
+        inputUsageComplete = true;
+        outputUsageComplete = true;
+      }
+      if (!startedAt || waiting || terminal) startedAt = Date.now();
       waiting = false;
+      terminal = false;
       indicator?.classList.remove('is-complete');
       if (timer === null) timer = window.setInterval(updateIndicator, 1000);
     } else {
       if (!startedAt) startedAt = Date.now();
       waiting = true;
+      terminal ||= isFinished;
       stopTimer();
       indicator?.classList.add('is-complete');
     }
@@ -84,7 +105,6 @@ export function createProgressView(statusElement, messages = document.getElement
       indicator.dataset.progressNote = [scope, note].filter(Boolean).join('。');
       indicator.dataset.progressStage = detail.stage;
       updateIndicator();
-      messages.append(indicator);
       messages.scrollTop = messages.scrollHeight;
     }
     // Agent progress is shown in the chat log itself; keep the legacy status slot empty.
@@ -92,11 +112,23 @@ export function createProgressView(statusElement, messages = document.getElement
     statusElement.dataset.workflowStage = detail.stage;
   }
 
+  function renderUsage(event) {
+    const usage = event?.detail?.usage;
+    usageReports += 1;
+    if (Number.isSafeInteger(usage?.input_tokens) && usage.input_tokens >= 0) inputTokens += usage.input_tokens;
+    else inputUsageComplete = false;
+    if (Number.isSafeInteger(usage?.output_tokens) && usage.output_tokens >= 0) outputTokens += usage.output_tokens;
+    else outputUsageComplete = false;
+    updateIndicator();
+  }
+
   window.addEventListener('assistant:progress', render);
+  window.addEventListener('assistant-api-usage', renderUsage);
   return Object.freeze({
     getElapsed: () => startedAt ? formatElapsed(Date.now() - startedAt) : '',
     dispose() {
       window.removeEventListener('assistant:progress', render);
+      window.removeEventListener('assistant-api-usage', renderUsage);
       stopTimer();
     },
     render

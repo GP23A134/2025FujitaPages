@@ -122,6 +122,19 @@ test('ready read-only workflow completes without exposing IDs or API keys to pla
   assert.equal(stateText.includes('top-secret-id'), false);
 });
 
+test('movement recommendations use the agent proposal workflow with hierarchy and selected-class readers', async () => {
+  const movePlan = plan({
+    taskType: 'mixed',
+    dataNeeds: { hierarchyIndex: true, selectedClassDetails: true, parentContext: 'direct_parent', instanceContext: 'none' },
+    changeOperations: ['move_target_class']
+  });
+  const { workflow } = harness([movePlan]);
+  const result = await workflow.start({ request: '配置を確認して移動案も提案', apiKey: 'secret-api-key', model: 'model-x', referenceAllHierarchy: true });
+  assert.equal(result.status, 'completed', result.error?.stack || JSON.stringify(result.error));
+  assert.ok(agentRunOptions[0].allowedTools.includes('read_hierarchy_index'));
+  assert.ok(agentRunOptions[0].allowedTools.includes('read_selected_class_details'));
+});
+
 test('unsupported plans stop before running the agent', async () => {
   const unsupported = plan({ status: 'unsupported', unsupportedParts: [{ description: '削除', reason: '対象外' }] });
   const { workflow, events } = harness([unsupported]);
