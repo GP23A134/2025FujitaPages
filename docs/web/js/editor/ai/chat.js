@@ -20,6 +20,7 @@ export const createConversationStore = ({ conversations, savedConversationsKey, 
         .map((item) => ({
           id: item.id,
           title: typeof item.title === 'string' ? item.title : '保存した相談',
+          assistantMode: item.assistantMode === 'agent' ? 'agent' : 'legacy',
           titleIsCustom: Boolean(item.titleIsCustom),
           updatedAt: Number.isFinite(item.updatedAt) ? item.updatedAt : Date.now(),
           selectedIds: Array.isArray(item.selectedIds) ? item.selectedIds.filter((id) => typeof id === 'string') : [],
@@ -75,14 +76,18 @@ export const createConversationStore = ({ conversations, savedConversationsKey, 
       titleIsCustom: Boolean(conversation.titleIsCustom),
       updatedAt: conversation.updatedAt,
       selectedIds: conversation.selectedIds,
-      splitMemory: conversation.splitMemory ? {
+      assistantMode: conversation.assistantMode === 'agent' ? 'agent' : 'legacy',
+      splitMemory: conversation.assistantMode === 'agent' ? null : conversation.splitMemory ? {
         ...conversation.splitMemory,
         scopeCoverage: conversation.splitMemory.scopeCoverage === 'all_classes' ? 'all_classes' : 'selected_classes',
         chunkCache: boundSplitChunkCache(conversation.splitMemory.chunkCache || []),
         summaryText: String(conversation.splitMemory.summaryText || '').slice(0, MAX_CACHED_SPLIT_SUMMARY_CHARACTERS),
         followupContext: String(conversation.splitMemory.followupContext || '').slice(-MAX_CACHED_SPLIT_FOLLOWUP_CHARACTERS)
       } : null,
-      items: conversation.items
+          items: conversation.assistantMode === 'agent'
+            ? conversation.items.filter((item) => item?.type === 'message' && ['user', 'assistant'].includes(item.role)
+              && typeof item.text === 'string').map(({ type, role, text }) => ({ type, role, text }))
+            : conversation.items
     }));
     try {
       localStorage.setItem(savedConversationsKey, JSON.stringify(saved));

@@ -1,5 +1,5 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
-import { createProgressView } from './features/progress/progress-view.js?v=20261116-progress-duration-v1';
+import { createProgressView } from './features/progress/progress-view.js?v=20261116-progress-duration-v3';
 import { buildPlanInput } from './features/planning/plan-input.js';
 import { createOpenAIClient } from './adapters/openai-client.js';
 import { createPlanningService } from './features/planning/planning-service.js?v=20261116-inference-allowed-v1';
@@ -11,7 +11,7 @@ import { createWorkflowView } from './features/progress/workflow-view.js?v=20261
 import { createProposalResultView } from './features/proposals/proposal-result-view.js';
 import { createProposalPreviewView } from './features/proposals/proposal-preview-view.js';
 import { createSettingsView } from './settings/settings-view.js?v=20261116-setting-errors-v1';
-import { createSessionService } from './conversations/session-service.js';
+import { createHistoryService } from './conversations/history-service.js';
 
 const statusElement = document.getElementById('ai-status');
 if (window.classEditorAI && statusElement) {
@@ -25,7 +25,7 @@ if (window.classEditorAI && statusElement) {
   });
   const questionView = createQuestionView(document.getElementById('assistant-question-dialog'), { dock: interactionDock, messages });
   const settingsRegistry = createAssistantSettingsRegistry();
-  const sessionService = createSessionService();
+  const historyService = createHistoryService();
   const settingsStorageKey = 'classEditorAssistantDeveloperSettings-v1';
   let settings = settingsRegistry.defaults();
   try {
@@ -55,9 +55,7 @@ if (window.classEditorAI && statusElement) {
     settings = candidate;
     try { localStorage.setItem(settingsStorageKey, JSON.stringify(settings)); } catch { /* Settings remain active for this page. */ }
     if (key === 'conversations.persistAcrossTabs') {
-      const snapshot = workflow?.getPersistenceSnapshot?.();
-      if (snapshot) sessionService.save(snapshot, Boolean(value));
-      else if (!value) sessionService.clear();
+      historyService.setPersistAcrossTabs(Boolean(value));
     }
     if (workflow) workflow.updateDeveloperSettings({ ...settings }).catch((error) => {
       statusElement.textContent = error.message;
@@ -99,6 +97,22 @@ if (window.classEditorAI && statusElement) {
     })
   });
   let workflow;
+  let activeHistory = null;
+  const historyPersistenceEnabled = () => Boolean(settings['conversations.persistAcrossTabs']);
+  const publishHistory = () => {
+    if (!activeHistory) return;
+    activeHistory.updatedAt = Date.now();
+    const title = activeHistory.items.find((item) => item.role === 'user')?.text || '新しい相談';
+    activeHistory.title = title.replace(/\s+/g, ' ').trim().slice(0, 80) || '新しい相談';
+    historyService.upsert(activeHistory, historyPersistenceEnabled());
+    window.aiAssistant?.upsertAgentHistory?.(activeHistory);
+  };
+  const addHistoryMessage = (role, text) => {
+    const normalized = String(text || '').trim();
+    if (!activeHistory || !normalized) return;
+    activeHistory.items.push({ type: 'message', role, text: normalized });
+    publishHistory();
+  };
   let proposalResultView;
   const previewView = createProposalPreviewView(document.getElementById('assistant-proposal-dialog'), {
     onApply: async (item) => {
@@ -115,13 +129,19 @@ if (window.classEditorAI && statusElement) {
     },
     onAnswerQuestions: async (proposal) => {
       const answers = await questionView.ask(proposal.questions, { submitLabel: '回答して案を再検討' });
-      if (answers) await workflow.answerProposalQuestions(proposal.id, answers);
+      if (answers) {
+        addHistoryMessage('user', typeof answers === 'string' ? answers : JSON.stringify(answers));
+        await workflow.answerProposalQuestions(proposal.id, answers);
+      }
     },
     onFinishReview: () => workflow.finishReview()
   });
   const workflowView = createWorkflowView(document.getElementById('assistant-results'), questionView, proposalResultView, {
     messages: document.getElementById('ai-chat-messages'),
-    onAnswerQuestions: (answers) => workflow.answerQuestions(answers)
+    onAnswerQuestions: async (answers) => {
+      addHistoryMessage('user', typeof answers === 'string' ? answers : JSON.stringify(answers));
+      return workflow.answerQuestions(answers);
+    }
   });
   workflow = createAssistantWorkflow({
     editor: window.classEditorAI,
@@ -133,17 +153,29 @@ if (window.classEditorAI && statusElement) {
     reportUsage: ({ model, usage }) => window.dispatchEvent(new CustomEvent('assistant-api-usage', { detail: { model, usage } })),
     onEvent: (event) => {
       workflowView.handle(event);
-      const snapshot = workflow?.getPersistenceSnapshot?.();
-      if (snapshot) {
-        const pending = !['completed', 'cancelled', 'failed', 'scope_denied'].includes(snapshot.state.status);
-        if (pending) sessionService.save(snapshot, Boolean(settings['conversations.persistAcrossTabs']));
-        else sessionService.clear();
+      if (event.type === 'plan' && event.plan?.summary) {
+        addHistoryMessage('assistant', event.plan.summary);
+      } else if (event.type === 'questions') {
+        const questions = (event.questions || []).map((question) => question.text).filter(Boolean);
+        if (questions.length) addHistoryMessage('assistant', questions.join('\n'));
+      } else if (event.type === 'unsupported') {
+        addHistoryMessage('assistant', event.plan?.unsupportedParts?.map((part) => part.reason).filter(Boolean).join('\n')
+          || 'この依頼は現在の機能では対応できません。');
+      } else if (event.type === 'scope_blocked') {
+        addHistoryMessage('assistant', '続行に追加の範囲許可が必要です。');
+      } else if (event.type === 'result') {
+        const result = event.result;
+        const summaries = [result?.message, ...(result?.proposals || []).map((item) => item.proposal?.title || item.proposal?.summary)]
+          .filter((text) => typeof text === 'string' && text.trim());
+        if (summaries.length) addHistoryMessage('assistant', [...new Set(summaries)].join('\n'));
+      } else if (event.type === 'error') {
+        addHistoryMessage('assistant', event.error?.message || '処理中にエラーが発生しました。');
+      } else if (event.type === 'proposal_applied') {
+        addHistoryMessage('assistant', '変更案を適用しました。');
       }
-      if (event.type === 'resume_requires_replan') statusElement.textContent = event.reason;
     }
   });
 
-  const resumeButton = document.getElementById('assistant-resume');
   const requestInput = document.getElementById('ai-chat-input');
   const apiKeyInput = document.getElementById('ai-api-key');
   const modelSelect = document.getElementById('ai-model');
@@ -200,6 +232,15 @@ if (window.classEditorAI && statusElement) {
     setProcessingButton(true);
     try {
       appendUserRequest(request);
+      activeHistory = {
+        id: `agent-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`,
+        title: request.replace(/\s+/g, ' ').slice(0, 80),
+        updatedAt: Date.now(),
+        selectedIds: [...(window.classEditorAI.selectedIds || [])],
+        assistantMode: 'agent',
+        items: [{ type: 'message', role: 'user', text: request }]
+      };
+      publishHistory();
       requestInput.value = '';
       requestInput.dispatchEvent(new Event('input', { bubbles: true }));
       await workflow.start({
@@ -224,22 +265,7 @@ if (window.classEditorAI && statusElement) {
       statusElement.textContent = error.message;
     });
   }, true);
-  const savedSession = sessionService.read(Boolean(settings['conversations.persistAcrossTabs']));
-  resumeButton.hidden = !savedSession;
-  resumeButton.addEventListener('click', async () => {
-    const saved = sessionService.read(Boolean(settings['conversations.persistAcrossTabs']));
-    if (!saved) { resumeButton.hidden = true; return; }
-    resumeButton.disabled = true;
-    try {
-      const resumed = await workflow.resume(saved, { apiKey: apiKeyInput.value, model: modelSelect.value });
-      resumeButton.hidden = !resumed.requiresCredentials;
-      requestInput.value = saved.state.request;
-    } catch (error) {
-      if (error && typeof error === 'object' && !error.sourceModule) error.sourceModule = 'entry.js';
-      console.error(`[assistant] ${error?.sourceModule || 'entry.js'}`, error);
-      statusElement.textContent = error.message;
-    } finally { resumeButton.disabled = false; }
-  });
+  historyService.read(historyPersistenceEnabled()).forEach((record) => window.aiAssistant?.upsertAgentHistory?.(record));
 
   // Only counts and an internal data version cross this public boundary.
   window.classEditorAssistant = Object.freeze({

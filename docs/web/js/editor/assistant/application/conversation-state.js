@@ -1,4 +1,4 @@
-// 一依頼の進行状態と遷移だけを管理します。永続化処理はsession-serviceに置きます。
+// 一依頼の進行状態と遷移だけを管理します。ここに永続化用の再開データは保持しません。
 export const WORKFLOW_STATUSES = Object.freeze([
   'planning',
   'needs_clarification',

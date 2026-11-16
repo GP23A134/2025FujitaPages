@@ -207,16 +207,10 @@ test('clarification answers update the request and trigger a counted replan', as
   assert.equal(workflow.getState().counters.replans, 1);
 });
 
-test('restores a clarification checkpoint without credentials and preserves its counters', async () => {
-  const questionPlan = plan({ status: 'needs_clarification', questions: [{ id: 'q1', text: 'どちらを優先しますか？' }] });
-  const first = harness([questionPlan]);
-  await first.workflow.start({ request: '整理して', apiKey: 'secret-api-key', model: 'model-x' });
-  const snapshot = first.workflow.getPersistenceSnapshot();
-  assert.equal(JSON.stringify(snapshot).includes('secret-api-key'), false);
-
-  const resumed = harness([plan()]);
-  assert.equal((await resumed.workflow.resume(snapshot, { apiKey: 'secret-api-key', model: 'model-x' })).status, 'needs_clarification');
-  assert.equal(resumed.workflow.getState().counters.replans, 0);
-  assert.equal((await resumed.workflow.answerQuestions('上位分類を優先')).status, 'completed');
-  assert.equal(resumed.workflow.getState().counters.replans, 1);
+test('workflow exposes transcript-oriented interaction without checkpoint resume APIs', () => {
+  const { workflow } = harness([]);
+  assert.equal(typeof workflow.start, 'function');
+  assert.equal(typeof workflow.answerQuestions, 'function');
+  assert.equal('resume' in workflow, false);
+  assert.equal('getPersistenceSnapshot' in workflow, false);
 });

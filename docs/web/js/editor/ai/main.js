@@ -758,8 +758,8 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   const activateConversation = (conversation) => {
     if (isSending || isPreparingRequest || !conversation) return;
     currentConversation = conversation;
-    editor.setSelectedIds(conversation.selectedIds);
-    if (conversation.restoredFromStorage) {
+    if (conversation.assistantMode !== 'agent') editor.setSelectedIds(conversation.selectedIds);
+    if (conversation.restoredFromStorage && conversation.assistantMode !== 'agent') {
       conversation.localContext = summarizeVisibleConversation(conversation);
       conversation.restoredFromStorage = false;
       conversation.status = '保存済み相談を再開しました。次の依頼には現在のクラス情報を使います。以前の変更案は適用できません。';
@@ -2819,6 +2819,32 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     }
   });
   window.aiAssistant = {
+    upsertAgentHistory(record) {
+      if (!record || typeof record.id !== 'string' || !Array.isArray(record.items)) return false;
+      let conversation = conversations.find((item) => item.id === record.id);
+      if (!conversation) {
+        conversation = {
+          ...createConversation(Array.isArray(record.selectedIds) ? record.selectedIds : []),
+          id: record.id,
+          saved: false,
+          assistantMode: 'agent'
+        };
+      }
+      conversation.assistantMode = 'agent';
+      conversation.title = typeof record.title === 'string' && record.title.trim() ? record.title : '新しい相談';
+      conversation.titleIsCustom = false;
+      conversation.updatedAt = Number.isFinite(record.updatedAt) ? record.updatedAt : Date.now();
+      conversation.selectedIds = Array.isArray(record.selectedIds) ? [...record.selectedIds] : [];
+      conversation.items = record.items.filter((item) => item?.type === 'message'
+        && ['user', 'assistant'].includes(item.role) && typeof item.text === 'string')
+        .map(({ type, role, text }) => ({ type, role, text }));
+      conversation.status = '';
+      conversation.workflowStatus = '';
+      conversation.splitMemory = null;
+      if (conversation === currentConversation) renderConversation();
+      updateHistoryList();
+      return true;
+    },
     onScopeChange() {
       if (currentConversation) currentConversation.selectedIds = [...editor.selectedIds];
       renderPromptExamples();

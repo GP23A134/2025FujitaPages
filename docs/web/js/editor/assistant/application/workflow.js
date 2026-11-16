@@ -3,7 +3,7 @@ import { buildPlanInput } from '../features/planning/plan-input.js';
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261116-selection-12k-v1';
-import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261116-compact-move-decisions-v1';
+import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261116-compact-move-decisions-v3';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
 import { createAgentRunLoop } from '../agent-runtime/run-loop.js';
@@ -548,91 +548,6 @@ export function createAssistantWorkflow({
     });
   }
 
-  function getPersistenceSnapshot() {
-    if (!state) return null;
-    return {
-      state,
-      plan,
-      dataVersion: window.classEditorAssistant?.getDataVersion?.() || null,
-      result: lastResult ? {
-        message: lastResult.message,
-        proposals: lastResult.proposals.filter((item) => !['applied', 'alternative_excluded'].includes(item.status)).map(({ proposal }) => proposal),
-        alternativeGroups: lastResult.alternativeGroups || [],
-        blocked: lastResult.blocked || []
-      } : null
-    };
-  }
-
-  async function resume(snapshot, { apiKey, model, signal } = {}) {
-    if (active) throw new Error('別のAI処理が実行中です。');
-    if (!snapshot?.state?.id || !snapshot.state.settingsSnapshot) throw new TypeError('再開データが不正です。');
-    const saved = snapshot.state;
-    selectedClassIds = Array.isArray(saved.selectedClassIds)
-      ? saved.selectedClassIds.filter((id) => typeof id === 'string')
-      : [...(saved.scopeGrants?.change || [])];
-    state = {
-      ...saved,
-      status: ['needs_clarification', 'needs_proposal_review', 'budget_exhausted', 'scope_denied', 'cancelled', 'completed', 'failed'].includes(saved.status) ? saved.status : 'planning',
-      counters: { responseRounds: 0, retrievalCalls: 0, replans: 0, inputTokensReserved: 0, inputTokensActual: 0, ...saved.counters }
-    };
-    if (state.counters.inputTokensReserved > 0) {
-      state.counters.inputTokensActual += state.counters.inputTokensReserved;
-      state.counters.inputTokensReserved = 0;
-    }
-    grants = { reference: new Set(saved.scopeGrants?.reference || []), change: new Set(saved.scopeGrants?.change || []) };
-    plan = snapshot.plan || null;
-    currentApiKey = apiKey || null;
-    currentModel = model || null;
-    lastAgentContext = null;
-    lastResult = null;
-    selectedAlternatives.clear();
-    createBudgetForState();
-    if (state.status === 'needs_proposal_review' && snapshot.result) {
-      const currentVersion = window.classEditorAssistant?.getDataVersion?.() || null;
-      if (snapshot.dataVersion === currentVersion) {
-        const checked = validateProposalResponse({
-          message: snapshot.result.message || '保存した変更案を再検証しました。',
-          proposals: snapshot.result.proposals || [],
-          alternativeGroups: snapshot.result.alternativeGroups || []
-        }, {
-          editor,
-          referenceIds: [...grants.reference],
-          changeIds: [...grants.change],
-          allowedOperations: plan?.changeOperations || [],
-          targetRenameEnabled: state.settingsSnapshot['proposals.targetClassRenameEnabled'],
-          dataVersion: currentVersion
-        });
-        lastResult = { ...checked, blocked: [...(snapshot.result.blocked || []), ...checked.blocked] };
-      }
-      if (!lastResult?.proposals.length) {
-        state = { ...state, status: 'planning' };
-        updateState(state);
-        onEvent({ type: 'resume_requires_replan', reason: 'データが更新されたか、保存した変更案を再検証できませんでした。' });
-        if (!currentApiKey || !currentModel) return { status: state.status, requiresCredentials: true };
-        active = true;
-        try { return await runPlan({ replan: true, signal }); }
-        finally { active = false; }
-      }
-      updateState(state);
-      onEvent({ type: 'result', result: lastResult, plan, state });
-      return { status: state.status, result: lastResult, resumed: true, requiresCredentials: !currentApiKey || !currentModel };
-    }
-    updateState(state);
-    if (state.status === 'needs_clarification' && plan?.questions) onEvent({ type: 'questions', questions: plan.questions });
-    if (state.status === 'budget_exhausted') {
-      onEvent({ type: 'resume_requires_replan', reason: '上限に達した処理です。開発者設定で上限を調整し、新しい依頼として再実行してください。' });
-      return { status: state.status, requiresNewRun: true };
-    }
-    if (['scope_denied', 'cancelled', 'completed', 'failed'].includes(state.status)) return { status: state.status, resumed: true };
-    if (state.status === 'planning') {
-      if (!currentApiKey || !currentModel) return { status: state.status, requiresCredentials: true };
-      active = true;
-      try { return await runPlan({ replan: true, signal }); }
-      finally { active = false; }
-    }
-    return { status: state.status, resumed: true, requiresCredentials: !currentApiKey || !currentModel };
-  }
-
   async function answerQuestions(answers, signal) {
     if (!state || state.status !== 'needs_clarification') throw new Error('回答を受け付ける確認待ち状態ではありません。');
     const formattedAnswers = formatAnswers(plan?.questions, answers);
@@ -780,5 +695,5 @@ export function createAssistantWorkflow({
     selectedAlternatives.set(groupId, proposalId);
   }
 
-  return Object.freeze({ start, resume, cancel, updateDeveloperSettings, answerQuestions, answerProposalQuestions, selectAlternative, preparePreview, applyProposal, finishReview, clearSecrets, getState, isBusy: () => active, getPlan: () => plan, getPersistenceSnapshot });
+  return Object.freeze({ start, cancel, updateDeveloperSettings, answerQuestions, answerProposalQuestions, selectAlternative, preparePreview, applyProposal, finishReview, clearSecrets, getState, isBusy: () => active, getPlan: () => plan });
 }

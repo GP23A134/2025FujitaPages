@@ -48,8 +48,8 @@ export function createProgressView(statusElement, messages = document.getElement
     return `${remainingSeconds}s`;
   };
 
-  const ensureIndicator = () => {
-    if (indicator || !messages) return;
+  const ensureIndicator = (newRun = false) => {
+    if (!messages || (indicator && !newRun)) return;
     indicator = document.createElement('div');
     indicator.className = 'ai-thinking-indicator is-agent-progress';
     indicator.setAttribute('role', 'status');
@@ -90,9 +90,10 @@ export function createProgressView(statusElement, messages = document.getElement
       : DEFAULT_LABELS[detail.stage];
     const isWaiting = ['waiting_for_answer', 'waiting_for_scope_approval', 'waiting_for_review'].includes(detail.stage);
     const isFinished = ['budget_exhausted', 'completed', 'cancelled', 'failed', 'scope_denied'].includes(detail.stage);
-    ensureIndicator();
+    const startsNewRun = !isWaiting && !isFinished && (!startedAt || waiting || terminal);
+    ensureIndicator(startsNewRun);
     if (!isWaiting && !isFinished) {
-      if (!startedAt || waiting || terminal) startedAt = Date.now();
+      if (startsNewRun) startedAt = Date.now();
       waiting = false;
       terminal = false;
       indicator?.classList.remove('is-complete');
@@ -114,6 +115,10 @@ export function createProgressView(statusElement, messages = document.getElement
         activity.classList.toggle('is-active', ACTIVE_STAGES.has(detail.stage));
         // Keep prior chat entries and move only the current activity line to the bottom.
         messages.append(activity);
+        if (isFinished) {
+          activity.classList.add('is-terminal');
+          activity = null;
+        }
       }
       messages.scrollTop = messages.scrollHeight;
     }
