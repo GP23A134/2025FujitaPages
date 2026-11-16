@@ -297,7 +297,43 @@ export const reconcileSplitProposals = (chunkProposals, crossScopeProposals, cla
   const conflicts = [...conflictComponents.values()].filter((component) =>
     new Set(component.map((bundle) => bundle.proposalIndex)).size > 1
       && !component.some((bundle) => bundle.proposal.questions?.length));
-  if (!conflicts.length) return result;
+  if (!conflicts.length) {
+    const identicalOperationKey = (operation) => JSON.stringify(normalizeOperationSequence([operation])[0]);
+    const duplicateParents = result.map((_, index) => index);
+    const duplicateFind = (index) => duplicateParents[index] === index
+      ? index : (duplicateParents[index] = duplicateFind(duplicateParents[index]));
+    const duplicateUnion = (left, right) => { duplicateParents[duplicateFind(right)] = duplicateFind(left); };
+    const operationOwners = new Map();
+    result.forEach((proposal, proposalIndex) => (proposal.operations || []).forEach((operation) => {
+      const key = identicalOperationKey(operation);
+      if (!operationOwners.has(key)) operationOwners.set(key, []);
+      operationOwners.get(key).push(proposalIndex);
+    }));
+    operationOwners.forEach((owners) => {
+      const distinct = [...new Set(owners)];
+      for (let index = 1; index < distinct.length; index += 1) duplicateUnion(distinct[0], distinct[index]);
+    });
+    const duplicateGroups = new Map();
+    result.forEach((proposal, index) => {
+      const root = duplicateFind(index);
+      if (!duplicateGroups.has(root)) duplicateGroups.set(root, []);
+      duplicateGroups.get(root).push(proposal);
+    });
+    const merged = [];
+    duplicateGroups.forEach((group) => {
+      if (group.length < 2) { merged.push(group[0]); return; }
+      const operations = [];
+      const keys = new Set();
+      group.forEach((proposal) => (proposal.operations || []).forEach((operation) => {
+        const key = identicalOperationKey(operation);
+        if (!keys.has(key)) { keys.add(key); operations.push(operation); }
+      }));
+      const combined = { ...group[0], operations, conflictGroups: [], sourceType: 'combined' };
+      group.slice(1).forEach((proposal) => mergeProposalRationale(combined, proposal));
+      merged.push(combined);
+    });
+    return merged;
+  }
 
   let combinedTemporarySequence = 0;
   const canonicalizeTemporaryOperations = (operations) => {

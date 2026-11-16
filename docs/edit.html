@@ -197,6 +197,9 @@
               <header class="ai-chat-header"></header>
               <div id="ai-chat-messages" class="ai-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
               <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
+              <button type="button" id="assistant-resume" class="search-button secondary-search-button" hidden>保存した処理を再開</button>
+              <div id="assistant-usage-summary" class="assistant-usage-summary" aria-live="polite"></div>
+              <div id="assistant-results" class="assistant-results" aria-live="polite"></div>
               <p id="ai-key-guidance" class="ai-key-guidance" hidden>AIチャットを使うにはAPIキーが必要です。<button type="button" id="ai-open-settings" class="ai-settings-inline-link">AIチャット設定</button>から入力してください。</p>
               <p id="ai-usage-summary" class="ai-usage-summary" aria-live="polite"><span class="ai-usage-label">合計</span><strong class="ai-usage-cost">$0.000000</strong><span class="ai-usage-detail">入力 0 / 出力 0 tokens</span><span class="ai-usage-requests">送信 0回</span></p>
               <form id="ai-chat-form" class="ai-chat-form">
@@ -318,6 +321,7 @@
       <p class="edit-settings-note">変更はすぐに反映され、自動保存されます。「保存して閉じる」からも保存できます。</p>
       <section class="edit-settings-section" aria-labelledby="test-ai-chat-title">
         <h3 id="test-ai-chat-title">AIチャット</h3>
+        <div id="assistant-developer-settings" class="assistant-developer-settings" aria-label="新AI処理の調整"></div>
         <div class="test-settings-group" role="group" aria-labelledby="test-ai-tuning-title">
           <h4 id="test-ai-tuning-title">送信入力上限</h4>
           <label for="test-ai-input-limit">1回の送信で扱う最大文字数</label>
@@ -442,6 +446,36 @@
       </form>
       <p id="target-instance-count" class="target-instance-count"></p>
       <ul id="target-instance-list" class="target-instance-list"></ul>
+    </dialog>
+
+    <dialog id="assistant-scope-dialog" class="edit-settings-dialog assistant-scope-dialog" aria-labelledby="assistant-scope-title">
+      <h2 data-scope-title id="assistant-scope-title">追加範囲の選択</h2>
+      <p data-scope-summary></p>
+      <p class="edit-settings-note">参照許可と変更対象への追加は個別に選べます。上位・中間クラスを選ぶと配下も含みます。変更範囲の許可だけで変更は適用されません。</p>
+      <label class="assistant-scope-search">クラスを検索<input type="search" data-scope-search autocomplete="off" /></label>
+      <div class="assistant-scope-header"><span>クラス・階層</span><span data-scope-reference>参照</span><span data-scope-change>変更対象</span></div>
+      <div data-scope-list class="assistant-scope-list"></div>
+      <div class="assistant-scope-pagination"><button type="button" data-scope-previous>前へ</button><span data-scope-page></span><button type="button" data-scope-next>次へ</button></div>
+      <div class="test-settings-actions">
+        <button type="button" data-scope-allow class="search-button">選んだ範囲を許可</button>
+        <button type="button" data-scope-original class="search-button secondary-search-button">元の範囲で続ける</button>
+        <button type="button" data-scope-cancel class="search-button secondary-search-button">キャンセル</button>
+      </div>
+    </dialog>
+
+    <dialog id="assistant-question-dialog" class="edit-settings-dialog assistant-question-dialog" aria-labelledby="assistant-question-title">
+      <h2 id="assistant-question-title">確認事項への回答</h2>
+      <ol data-question-list></ol>
+      <label>回答<textarea data-question-answer rows="4"></textarea></label>
+      <div class="test-settings-actions"><button type="button" data-question-submit class="search-button">回答して再計画</button><button type="button" data-question-cancel class="search-button secondary-search-button">キャンセル</button></div>
+    </dialog>
+
+    <dialog id="assistant-proposal-dialog" class="assistant-proposal-dialog" aria-labelledby="assistant-proposal-preview-title">
+      <div class="ai-preview-header"><h2 data-proposal-preview-title id="assistant-proposal-preview-title"></h2><button type="button" data-proposal-preview-close class="target-instance-dialog-close" aria-label="閉じる">×</button></div>
+      <p data-proposal-preview-summary></p>
+      <h3>操作の順序</h3><ol data-proposal-preview-operations></ol>
+      <div class="assistant-preview-columns"><section><h3>変更前</h3><div data-proposal-preview-before></div></section><section><h3>変更後</h3><div data-proposal-preview-after></div></section></div>
+      <div class="test-settings-actions"><button type="button" data-proposal-preview-apply class="search-button">この案を適用</button><button type="button" data-proposal-preview-close class="search-button secondary-search-button">閉じる</button></div>
     </dialog>
 
     <!-- AI提案を確認し、適用する変更を選択する三段階プレビュー。 -->
@@ -631,5 +665,6 @@
     <!-- ダイアログDOMの後に、データ読み込みとAIチャットを初期化する。 -->
     <script data-app-script="web/js/shared/data-upload.js?v=20261112-shared-validation-v2"></script>
     <script data-app-script="web/js/editor/ai/main.js?v=20261113-chat-compact-chunk-memos-v1" data-app-type="module"></script>
+    <script data-app-script="web/js/editor/assistant/entry.js?v=20261116-initial-editor-bridge-v1" data-app-type="module"></script>
   </body>
 </html>

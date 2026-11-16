@@ -775,7 +775,8 @@ window.classEditorAI = {
         && !operationPolicy.moveSourceTypes.includes('middle')) throw new Error('この依頼範囲では配下一括移動ができません。');
       if (['renameClass', 'deleteClass'].includes(operation.type) && operationPolicy?.moveSourceTypes) {
         const source = byId.get(resolve(operation.classId));
-        if (!operationPolicy.moveSourceTypes.includes(source?.type)) throw new Error('この依頼範囲では指定した種類のクラスを変更できません。');
+        const allowedTargetRename = operation.type === 'renameClass' && source?.type === 'class' && operationPolicy.allowTargetRename;
+        if (!allowedTargetRename && !operationPolicy.moveSourceTypes.includes(source?.type)) throw new Error('この依頼範囲では指定した種類のクラスを変更できません。');
       }
       if (operation.type === 'deleteClass' && operationPolicy && !operationPolicy.allowDelete) {
         throw new Error('この依頼ではクラス削除が許可されていません。');
@@ -877,12 +878,13 @@ window.classEditorAI = {
       if (operation.type === 'renameClass') {
         const id = resolve(operation.classId); const item = byId.get(id);
         editableSource(id);
-        if (!item || !['top', 'middle'].includes(item.type) || item.label === '未分類') throw new Error('改名できるのは未分類以外の上位・中間クラスだけです。');
+        const targetRenameAllowed = item?.type === 'class' && operationPolicy?.allowTargetRename;
+        if (!item || (!['top', 'middle'].includes(item.type) && !targetRenameAllowed) || item.label === '未分類') throw new Error('改名できるのは未分類以外の上位・中間クラスと、設定で許可された対象クラスだけです。');
         const label = String(operation.label || '').trim();
         if (!label) throw new Error('クラス名を空にはできません。');
         if (label === item.label) return;
         if (label === '未分類') throw new Error('未分類クラスへの改名はできません。');
-        if (candidateClasses.some((other) => other.id !== id && other.type === item.type && other.label.trim() === label)) throw new Error(`同じ種類の「${label}」が既にあります。`);
+        if (item.type !== 'class' && candidateClasses.some((other) => other.id !== id && other.type === item.type && other.label.trim() === label)) throw new Error(`同じ種類の「${label}」が既にあります。`);
         if (item.type === 'middle' && candidateClasses.some((other) => other.type === 'top' && other.label.trim() === label)) throw new Error(`同名の上位クラス「${label}」があるため、中間クラスをその名前にできません。`);
         item.label = label; return;
       }
