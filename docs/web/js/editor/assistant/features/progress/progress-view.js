@@ -26,7 +26,7 @@ const TOOL_LABELS = Object.freeze({
   read_selected_class_details: '選択クラスの詳細を取得しています',
   read_instance_context: 'インスタンス情報を取得しています'
 });
-const ACTIVE_STAGES = new Set(['planning', 'checking_scope', 'waiting_for_scope_approval', 'retrieving', 'analyzing', 'validating']);
+const ACTIVE_STAGES = new Set(['planning', 'checking_scope', 'retrieving', 'analyzing', 'validating']);
 
 export function createProgressView(statusElement, messages = document.getElementById('ai-chat-messages')) {
   if (!statusElement) throw new TypeError('進捗表示要素が必要です。');
@@ -36,6 +36,7 @@ export function createProgressView(statusElement, messages = document.getElement
   let startedAt = 0;
   let timer = null;
   let waiting = false;
+  let resumeSameRunAfterWait = false;
   let terminal = false;
 
   const formatElapsed = (milliseconds) => {
@@ -90,19 +91,22 @@ export function createProgressView(statusElement, messages = document.getElement
     const label = detail.stage === 'retrieving'
       ? TOOL_LABELS[detail.tool] || DEFAULT_LABELS[detail.stage]
       : DEFAULT_LABELS[detail.stage];
-    const isWaiting = ['waiting_for_answer', 'waiting_for_review'].includes(detail.stage);
+    const isWaiting = ['waiting_for_answer', 'waiting_for_scope_approval', 'waiting_for_review'].includes(detail.stage);
     const isFinished = ['budget_exhausted', 'completed', 'cancelled', 'failed', 'scope_denied'].includes(detail.stage);
-    const startsNewRun = !isWaiting && !isFinished && (!startedAt || waiting || terminal);
+    const canResumeSameRun = waiting && resumeSameRunAfterWait;
+    const startsNewRun = !isWaiting && !isFinished && (!startedAt || (waiting && !canResumeSameRun) || (terminal && !canResumeSameRun));
     ensureIndicator(startsNewRun);
     if (!isWaiting && !isFinished) {
       if (startsNewRun) startedAt = Date.now();
       waiting = false;
+      resumeSameRunAfterWait = false;
       terminal = false;
       indicator?.classList.remove('is-complete');
       if (timer === null) timer = window.setInterval(updateIndicator, 1000);
     } else {
       if (!startedAt) startedAt = Date.now();
       waiting = true;
+      resumeSameRunAfterWait = ['waiting_for_answer', 'waiting_for_scope_approval', 'scope_denied'].includes(detail.stage);
       terminal ||= isFinished;
       stopTimer();
       indicator?.classList.add('is-complete');

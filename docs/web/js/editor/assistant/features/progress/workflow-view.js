@@ -10,7 +10,6 @@ export function createWorkflowView(root, questionView, proposalView, { onAnswerQ
   function renderPlan(plan) {
     root.replaceChildren();
     if (messages) {
-      messages.querySelector('[data-assistant-plan-message]')?.remove();
       const message = document.createElement('div');
       message.className = 'ai-message';
       message.dataset.assistantPlanMessage = 'true';

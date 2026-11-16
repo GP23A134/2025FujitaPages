@@ -1,5 +1,5 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
-import { createProgressView } from './features/progress/progress-view.js?v=20261116-progress-duration-v5';
+import { createProgressView } from './features/progress/progress-view.js?v=20261116-progress-duration-v6';
 import { buildPlanInput } from './features/planning/plan-input.js';
 import { createOpenAIClient } from './adapters/openai-client.js';
 import { createPlanningService } from './features/planning/planning-service.js?v=20261116-inference-allowed-v1';
@@ -7,7 +7,7 @@ import { createScopeApprovalView } from './features/scope-approval/scope-approva
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
 import { createAssistantWorkflow } from './application/workflow.js?v=20261116-move-proposal-plan-guard-v5';
 import { createQuestionView } from './features/planning/question-view.js?v=20261116-agent-interaction-dock-v2';
-import { createWorkflowView } from './features/progress/workflow-view.js?v=20261116-no-result-elapsed-v1';
+import { createWorkflowView } from './features/progress/workflow-view.js?v=20261116-no-result-elapsed-v2';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js';
 import { createSettingsView } from './settings/settings-view.js?v=20261116-setting-errors-v1';
 import { createHistoryService } from './conversations/history-service.js';
