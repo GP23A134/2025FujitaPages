@@ -7,7 +7,7 @@ function hierarchyTree(state, seeds) {
     children.get(parent).push(child);
     childIds.add(child);
   }
-  const visible = new Set(seeds.filter((id) => classes.has(id)));
+  const visible = new Set(Array.from(seeds || []).filter((id) => classes.has(id)));
   for (const id of [...visible]) {
     let parent = state.relations.find((relation) => relation.child === id)?.parent;
     const seen = new Set([id]);

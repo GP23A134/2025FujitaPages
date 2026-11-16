@@ -640,7 +640,7 @@ export function createAssistantWorkflow({
     } finally { activeController = null; active = false; }
   }
 
-  function applyProposal(item) {
+  function applyProposal(item, selectedOperationIndexes = null) {
     if (!state || state.status !== 'needs_proposal_review') throw new Error('変更案を適用できる確認待ち状態ではありません。');
     if (!lastResult?.proposals.includes(item)) throw new Error('この変更案は現在の確認対象ではありません。');
     if (item.proposal.questions.length) throw new Error('未回答の確認事項がある提案は適用できません。');
@@ -648,9 +648,16 @@ export function createAssistantWorkflow({
     if (choiceGroup && selectedAlternatives.get(choiceGroup.id) !== item.proposal.id) throw new Error('代替案または競合案を明示的に選択してください。');
     const currentVersion = window.classEditorAssistant?.getDataVersion?.() || null;
     if (item.dataVersion && currentVersion && item.dataVersion !== currentVersion) throw new Error('データ版が変わりました。最新のデータで再計画してください。');
+    const operationIndexes = selectedOperationIndexes === null
+      ? item.operations.map((_, index) => index)
+      : [...new Set(selectedOperationIndexes)];
+    if (!operationIndexes.length || operationIndexes.some((index) => !Number.isSafeInteger(index) || index < 0 || index >= item.operations.length)) {
+      throw new Error('プレビューで選択された変更内容が不正です。');
+    }
+    const operations = operationIndexes.map((index) => item.operations[index]);
     const current = editor.getState();
     const fingerprint = JSON.stringify({ classes: current.classes, relations: current.relations });
-    const candidate = editor.applyOperations(item.operations, fingerprint, item.editableIds, item.availableIds, item.operationPolicy);
+    const candidate = editor.applyOperations(operations, fingerprint, item.editableIds, item.availableIds, item.operationPolicy);
     editor.commitCandidate(candidate, { assistantConversationId: state.id, assistantProposalId: item.proposal.id });
     item.status = 'applied';
     if (choiceGroup) lastResult.proposals.filter((other) => choiceGroup.proposalIds.includes(other.proposal.id)

@@ -479,14 +479,6 @@
       <div class="test-settings-actions"><button type="button" data-question-submit class="search-button">回答して再計画</button><button type="button" data-question-cancel class="search-button secondary-search-button">キャンセル</button></div>
     </dialog>
 
-    <dialog id="assistant-proposal-dialog" class="assistant-proposal-dialog" aria-labelledby="assistant-proposal-preview-title">
-      <div class="ai-preview-header"><h2 data-proposal-preview-title id="assistant-proposal-preview-title"></h2><button type="button" data-proposal-preview-close class="target-instance-dialog-close" aria-label="閉じる">×</button></div>
-      <p data-proposal-preview-summary></p>
-      <h3>操作の順序</h3><ol data-proposal-preview-operations></ol>
-      <div class="assistant-preview-columns"><section><h3>変更前</h3><div data-proposal-preview-before></div></section><section><h3>変更後</h3><div data-proposal-preview-after></div></section></div>
-      <div class="test-settings-actions"><button type="button" data-proposal-preview-apply class="search-button">この案を適用</button><button type="button" data-proposal-preview-close class="search-button secondary-search-button">閉じる</button></div>
-    </dialog>
-
     <!-- AI提案を確認し、適用する変更を選択する三段階プレビュー。 -->
     <dialog id="ai-preview-dialog" class="ai-preview-dialog" aria-labelledby="ai-preview-title">
       <div class="ai-preview-header">
@@ -673,7 +665,7 @@
     </dialog>
     <!-- ダイアログDOMの後に、データ読み込みとAIチャットを初期化する。 -->
     <script data-app-script="web/js/shared/data-upload.js?v=20261112-shared-validation-v2"></script>
-    <script data-app-script="web/js/editor/ai/main.js?v=20261113-chat-compact-chunk-memos-v1" data-app-type="module"></script>
-    <script data-app-script="web/js/editor/assistant/entry.js?v=20261116-progress-duration-v5" data-app-type="module"></script>
+    <script data-app-script="web/js/editor/ai/main.js?v=20261116-agent-preview-bridge-v2" data-app-type="module"></script>
+    <script data-app-script="web/js/editor/assistant/entry.js?v=20261116-progress-duration-v6" data-app-type="module"></script>
   </body>
 </html>

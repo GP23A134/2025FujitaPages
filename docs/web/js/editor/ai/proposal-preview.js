@@ -819,9 +819,14 @@ export const createProposalPreview = ({
     }
     renderPreviewGroupOverview(proposalItem);
   };
-  const previewableProposals = () => getCurrentConversation().items.filter((item) => item.type === 'proposal'
-    && hasProposalOperations(item)
-    && !['awaiting-answers', 'superseded', 'alternative-rejected', 'invalid'].includes(item.status));
+  const previewableProposals = () => {
+    const items = getCurrentConversation().items;
+    const agentItems = items.filter((item) => item.type === 'proposal' && typeof item.agentApply === 'function');
+    if (agentItems.length) return agentItems;
+    return items.filter((item) => item.type === 'proposal'
+      && hasProposalOperations(item)
+      && !['awaiting-answers', 'superseded', 'alternative-rejected', 'invalid'].includes(item.status));
+  };
   const previewNavigationProposals = () => [...previewableProposals()].sort((a, b) => {
     const aUnjudged = ['pending', 'previewed', 'stale'].includes(a.status);
     const bUnjudged = ['pending', 'previewed', 'stale'].includes(b.status);
@@ -1268,6 +1273,14 @@ export const createProposalPreview = ({
     const currentHash = await currentDataHash();
     if (currentHash !== plan.expectedBaseHash) throw new Error('提案の作成後にデータが変更されました。最新データで提案し直してください。');
     const candidate = editor.applyOperations(plan.operations, plan.expectedFingerprint, currentProposal.editableIds, currentProposal.availableIds, currentProposal.operationPolicy);
+    if (typeof currentProposal.agentApply === 'function') {
+      const operationIndexes = currentProposal.proposal.operations
+        .map((_, index) => index)
+        .filter((index) => !currentProposal.excludedOperationIndexes.has(index));
+      await currentProposal.agentApply(operationIndexes);
+      currentProposal.status = 'applied';
+      return { currentProposal, nextProposal: null, external: true };
+    }
     const conversationItems = getCurrentConversation().items;
     const proposalStatusesBefore = conversationItems.filter((item) => item.type === 'proposal')
       .map((item) => ({ item, status: item.status }));

@@ -3,7 +3,7 @@
 import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261113-chat-optional-coverage-v1';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261113-chat-clarification-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261113-split-cache-restore-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261112-large-proposal-arrow-bundling-v1';
+import { createProposalPreview } from './proposal-preview.js?v=20261116-agent-preview-bridge-v2';
 import { createAIClient } from './ai-client.js?v=20261113-chat-compact-chunk-memos-v1';
 import { createRequestProgress } from './request-progress.js?v=20261112-zero-second-display-v1';
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261113-target-unit-cap-v1';
@@ -2638,8 +2638,19 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       event.preventDefault(); document.getElementById('ai-chat-form').requestSubmit();
     }
   });
-  const closePreview = () => { previewDialog.close(); proposalPreview.clear(); };
+  let agentPreviewProxy = null;
+  let agentPreviewOwner = null;
+  const clearAgentPreviewProxy = () => {
+    if (agentPreviewProxy && agentPreviewOwner) {
+      const index = agentPreviewOwner.items.indexOf(agentPreviewProxy);
+      if (index >= 0) agentPreviewOwner.items.splice(index, 1);
+    }
+    agentPreviewProxy = null;
+    agentPreviewOwner = null;
+  };
+  const closePreview = () => { clearAgentPreviewProxy(); previewDialog.close(); proposalPreview.clear(); };
   previewDialog.addEventListener('close', () => {
+    clearAgentPreviewProxy();
     proposalPreview.clear();
     document.getElementById('ai-preview-impact').classList.remove('is-loading');
     document.getElementById('ai-apply-proposal').disabled = true;
@@ -2778,6 +2789,18 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     });
   };
   document.getElementById('ai-apply-proposal').addEventListener('click', async () => {
+    if (typeof proposalPreview.plan?.proposalItem?.agentApply === 'function') {
+      const applyButton = document.getElementById('ai-apply-proposal');
+      applyButton.disabled = true;
+      try {
+        const result = await proposalPreview.applyCurrentProposal();
+        if (result?.external) closePreview();
+      } catch (error) {
+        reportPreviewError(error);
+        if (previewDialog.open) applyButton.disabled = false;
+      }
+      return;
+    }
     const applyConversation = currentConversation;
     const applyStartedAt = Date.now();
     const previousWorkflowStatus = applyConversation.workflowStatus;
@@ -2819,6 +2842,43 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     }
   });
   window.aiAssistant = {
+    async previewAgentProposal({ item, onApply }) {
+      if (!item?.proposal || typeof onApply !== 'function') throw new TypeError('エージェント提案のプレビュー情報が不足しています。');
+      if (agentPreviewProxy) closePreview();
+      const proxy = {
+        type: 'proposal',
+        id: `agent_preview_${Date.now()}`,
+        responseGroupId: `agent_preview_${Date.now()}`,
+        proposal: {
+          id: item.proposal.id,
+          title: item.proposal.title,
+          summary: item.proposal.summary,
+          reason: item.proposal.reason,
+          uncertainties: item.proposal.uncertainties || [],
+          questions: [],
+          conflictGroups: [],
+          operations: item.operations
+        },
+        selectedConflictChoices: {},
+        excludedOperationIndexes: new Set(),
+        editableIds: item.editableIds,
+        availableIds: item.availableIds,
+        operationPolicy: item.operationPolicy,
+        status: 'pending',
+        agentApply: onApply
+      };
+      agentPreviewProxy = proxy;
+      agentPreviewOwner = currentConversation;
+      agentPreviewOwner.items.push(proxy);
+      try {
+        proxy.baseDataHash = await currentDataHash();
+        await proposalPreview.showPreview(proxy);
+      } catch (error) {
+        closePreview();
+        throw error;
+      }
+      return true;
+    },
     upsertAgentHistory(record) {
       if (!record || typeof record.id !== 'string' || !Array.isArray(record.items)) return false;
       let conversation = conversations.find((item) => item.id === record.id);

@@ -5,11 +5,10 @@ import { createOpenAIClient } from './adapters/openai-client.js';
 import { createPlanningService } from './features/planning/planning-service.js?v=20261116-inference-allowed-v1';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261116-stop-processing-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261116-move-proposal-plan-guard-v4';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261116-move-proposal-plan-guard-v5';
 import { createQuestionView } from './features/planning/question-view.js?v=20261116-agent-interaction-dock-v2';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261116-no-result-elapsed-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js';
-import { createProposalPreviewView } from './features/proposals/proposal-preview-view.js';
 import { createSettingsView } from './settings/settings-view.js?v=20261116-setting-errors-v1';
 import { createHistoryService } from './conversations/history-service.js';
 
@@ -114,18 +113,24 @@ if (window.classEditorAI && statusElement) {
     publishHistory();
   };
   let proposalResultView;
-  const previewView = createProposalPreviewView(document.getElementById('assistant-proposal-dialog'), {
-    onApply: async (item) => {
-      workflow.applyProposal(item);
-      proposalResultView.markApplied(item.proposal.id);
-    }
-  });
   proposalResultView = createProposalResultView(document.getElementById('assistant-results'), {
     onSelectAlternative: (groupId, proposalId) => workflow.selectAlternative(groupId, proposalId),
-    onPreview: (item) => {
-      const states = workflow.preparePreview(item);
-      item.candidate = states.after;
-      previewView.show(item, states.before, states.after);
+    onPreview: async (item) => {
+      try {
+        workflow.preparePreview(item);
+        if (!window.aiAssistant?.previewAgentProposal) throw new Error('既存のプレビュー画面を開けません。');
+        await window.aiAssistant.previewAgentProposal({
+          item,
+          onApply: (operationIndexes) => {
+            workflow.applyProposal(item, operationIndexes);
+            proposalResultView.markApplied(item.proposal.id);
+          }
+        });
+      } catch (error) {
+        if (error && typeof error === 'object' && !error.sourceModule) error.sourceModule = 'entry.js';
+        console.error(`[assistant] ${error?.sourceModule || 'entry.js'}`, error);
+        statusElement.textContent = error.message;
+      }
     },
     onAnswerQuestions: async (proposal) => {
       const answers = await questionView.ask(proposal.questions, { submitLabel: '回答して案を再検討' });
