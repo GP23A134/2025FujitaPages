@@ -14,7 +14,7 @@ const DEFAULT_LABELS = Object.freeze({
   validating: '変更案を検証しています',
   waiting_for_review: '変更案の確認をお待ちしています',
   budget_exhausted: '処理上限に達したため一時停止しています',
-  completed: '処理が完了しました',
+  completed: '',
   cancelled: '処理を中止しました',
   failed: '処理を続けられませんでした'
 });
@@ -131,7 +131,7 @@ export function createProgressView(statusElement, messages = document.getElement
       indicator.dataset.progressNote = [scope, note].filter(Boolean).join('。');
       indicator.dataset.progressStage = detail.stage;
       updateIndicator();
-      if (activity) {
+      if (activity && detail.stage !== 'completed') {
         activity.textContent = [label, note].filter(Boolean).join('。');
         activity.classList.toggle('is-active', ACTIVE_STAGES.has(detail.stage));
         if (detail.milestone === true) appendMilestone(note || label);
@@ -141,6 +141,9 @@ export function createProgressView(statusElement, messages = document.getElement
           activity.classList.add('is-terminal');
           activity = null;
         }
+      } else if (activity && detail.stage === 'completed') {
+        activity.remove();
+        activity = null;
       }
       messages.scrollTop = messages.scrollHeight;
     }

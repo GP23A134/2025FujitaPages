@@ -86,8 +86,8 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
     resultStates.set(message, state);
 
     const summary = document.createElement('p');
-    summary.textContent = result.message || '処理が完了しました。';
-    body.append(summary);
+    summary.textContent = result.message || '';
+    if (summary.textContent) body.append(summary);
     if (result.blocked?.length) {
       const list = document.createElement('ul');
       result.blocked.forEach((item) => {
