@@ -6,7 +6,7 @@ function appendText(parent, tag, text, className = '') {
   return element;
 }
 
-export function createWorkflowView(root, questionView, proposalView, { onAnswerQuestions, messages, getElapsed = () => '' }) {
+export function createWorkflowView(root, questionView, proposalView, { onAnswerQuestions, messages }) {
   function renderPlan(plan) {
     root.replaceChildren();
     if (messages) {
@@ -67,8 +67,6 @@ export function createWorkflowView(root, questionView, proposalView, { onAnswerQ
         message.className = 'ai-message';
         message.dataset.assistantBudgetResult = 'true';
         message.setAttribute('role', 'article');
-        const elapsed = getElapsed();
-        if (elapsed) appendText(message, 'small', `所要時間 ${elapsed}`, 'ai-message-time');
         const body = document.createElement('div');
         body.className = 'ai-message-body';
         appendText(body, 'p', event.result.message || '処理上限に達したため一時停止しました。');

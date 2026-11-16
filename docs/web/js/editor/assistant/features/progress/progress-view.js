@@ -26,6 +26,7 @@ const TOOL_LABELS = Object.freeze({
   read_selected_class_details: '選択クラスの詳細を取得しています',
   read_instance_context: 'インスタンス情報を取得しています'
 });
+const ACTIVE_STAGES = new Set(['planning', 'checking_scope', 'retrieving', 'analyzing', 'validating']);
 
 export function createProgressView(statusElement, messages = document.getElementById('ai-chat-messages')) {
   if (!statusElement) throw new TypeError('進捗表示要素が必要です。');
@@ -39,7 +40,12 @@ export function createProgressView(statusElement, messages = document.getElement
 
   const formatElapsed = (milliseconds) => {
     const seconds = Math.max(0, Math.floor(milliseconds / 1000));
-    return `${seconds}s`;
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    if (hours) return `${hours}h${minutes}m${remainingSeconds}s`;
+    if (minutes) return `${minutes}m${remainingSeconds}s`;
+    return `${remainingSeconds}s`;
   };
 
   const ensureIndicator = () => {
@@ -64,13 +70,14 @@ export function createProgressView(statusElement, messages = document.getElement
 
   const updateIndicator = () => {
     if (!indicator) return;
-    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
     const label = indicator.dataset.progressLabel || '';
     const note = indicator.dataset.progressNote || '';
     const stage = indicator.dataset.progressStage || '';
+    const elapsed = formatElapsed(Date.now() - startedAt);
+    const display = stage === 'completed' ? `${elapsed}間作業しました` : elapsed;
     indicator.hidden = false;
-    indicator.textContent = `${elapsedSeconds}s`;
-    indicator.setAttribute('aria-label', [label, note, formatElapsed(Date.now() - startedAt)].filter(Boolean).join('。'));
+    indicator.textContent = display;
+    indicator.setAttribute('aria-label', [label, note, display].filter(Boolean).join('。'));
   };
 
   function render(event) {
@@ -102,7 +109,12 @@ export function createProgressView(statusElement, messages = document.getElement
       indicator.dataset.progressNote = [scope, note].filter(Boolean).join('。');
       indicator.dataset.progressStage = detail.stage;
       updateIndicator();
-      if (activity) activity.textContent = [label, note].filter(Boolean).join('。');
+      if (activity) {
+        activity.textContent = [label, note].filter(Boolean).join('。');
+        activity.classList.toggle('is-active', ACTIVE_STAGES.has(detail.stage));
+        // Keep prior chat entries and move only the current activity line to the bottom.
+        messages.append(activity);
+      }
       messages.scrollTop = messages.scrollHeight;
     }
     // Agent progress is shown in the chat log itself; keep the legacy status slot empty.

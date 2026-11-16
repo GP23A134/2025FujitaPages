@@ -30,8 +30,16 @@ const { createConversationState, transitionConversation } = evaluate('applicatio
 const { buildPlanInput } = evaluate('features/planning/plan-input.js', 'buildPlanInput');
 const readerOptions = [];
 const agentRunOptions = [];
+const targetMoveProcessorOptions = [];
 const { createAssistantWorkflow } = evaluate('application/workflow.js', 'createAssistantWorkflow', {
   createConversationState, transitionConversation, buildPlanInput,
+  createTargetMoveBatchProcessor: (options) => {
+    targetMoveProcessorOptions.push(options);
+    return { run: async () => {
+      options.onProgress({ stage: 'retrieving', tool: 'read_hierarchy_index' });
+      return { text: JSON.stringify({ message: 'バッチごとに移動候補を確認しました。', proposals: [], alternativeGroups: [] }), messages: [] };
+    } };
+  },
   createBudgetGuard: ({ state, limits, onChange }) => {
     const counters = { ...state.counters };
     return {
@@ -78,6 +86,7 @@ function harness(planSequence) {
   const planningOptions = [];
   readerOptions.length = 0;
   agentRunOptions.length = 0;
+  targetMoveProcessorOptions.length = 0;
   agentRunResponseQueue.length = 0;
   agentProgressQueue.length = 0;
   const editor = { selectedIds: ['target-id'], getState: () => classState };
@@ -129,18 +138,21 @@ test('ready read-only workflow completes without exposing IDs or API keys to pla
   assert.equal(stateText.includes('top-secret-id'), false);
 });
 
-test('movement recommendations use the agent proposal workflow with hierarchy and selected-class readers', async () => {
+test('an explicit estimated move request cannot fall through to the read-only review path', async () => {
   const movePlan = plan({
-    taskType: 'mixed',
-    dataNeeds: { hierarchyIndex: true, selectedClassDetails: true, parentContext: 'direct_parent', instanceContext: 'none' },
-    changeOperations: ['move_target_class']
+    summary: '目的語の配下への移動案を作成します',
+    executionBrief: { objective: '対象を目的語へ移す', successCriteria: [], expectedResult: '移動案と理由' }
   });
   const { workflow, progressReports } = harness([movePlan]);
   agentProgressQueue.push({ stage: 'retrieving', tool: 'read_hierarchy_index' });
-  const result = await workflow.start({ request: '配置を確認して移動案も提案', apiKey: 'secret-api-key', model: 'model-x', referenceAllHierarchy: true });
+  const result = await workflow.start({ request: '目的語に該当する対象クラスを目的語の配下へ移す案を出してください。推定でもよい。', apiKey: 'secret-api-key', model: 'model-x', referenceAllHierarchy: true });
   assert.equal(result.status, 'completed', result.error?.stack || JSON.stringify(result.error));
-  assert.ok(agentRunOptions[0].allowedTools.includes('read_hierarchy_index'));
-  assert.ok(agentRunOptions[0].allowedTools.includes('read_selected_class_details'));
+  assert.equal(workflow.getPlan().taskType, 'mixed');
+  assert.deepEqual([...workflow.getPlan().changeOperations], ['move_target_class']);
+  assert.equal(workflow.getPlan().dataNeeds.hierarchyIndex, true);
+  assert.equal(targetMoveProcessorOptions.length, 1);
+  assert.equal(targetMoveProcessorOptions[0].plan.taskType, 'mixed');
+  assert.equal(agentRunOptions.length, 0);
   assert.ok(progressReports.some((event) => event.stage === 'retrieving' && event.tool === 'read_hierarchy_index'));
 });
 

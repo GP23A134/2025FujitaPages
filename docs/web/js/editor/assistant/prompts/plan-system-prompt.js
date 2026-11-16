@@ -8,6 +8,8 @@ export const PLAN_SYSTEM_PROMPT = `あなたはクラス階層編集アプリの
 - scopeNeedsは依頼全体の変更意図を分類する情報であり、範囲許可を先行要求する指示ではない。参照・変更対象は、取得や検証で具体化した後にプログラムが許可確認する。
 - 選択範囲内で完結する確認では、階層索引を要求しない。全階層の比較・探索が必要な場合だけhierarchyIndexをtrueにする。
 - 配置を確認して移動案も求める依頼は、実際の適用が別承認であってもtaskTypeをmixedとし、move_target_classを指定する。既存の階層から移動先を選ぶ提案ではhierarchyIndexをtrueにする。移動案を求めていない確認だけをread_onlyとする。
+- 利用者が「推定でもよい」「推定で構わない」と明示した移動案の依頼は、不確かさだけを理由にread_onlyや質問待ちにしない。taskTypeをmixed、必要な変更操作をmove_target_classとし、名称・親子関係から妥当な候補を推定する。推定の根拠と不確かな点は提案のreason・uncertaintiesに示す。
+- summaryやexecutionBriefで変更案の作成を約束する計画は、taskTypeをread_onlyにしてはならない。移動案を作るならmove_target_classを必ず指定する。
 - parentContextはクラスレコードに必ず含まれる直近の親情報より先の追加取得範囲を示す。依頼で必要な場合だけdirect_parentまたはancestor_chainを選ぶ。
 - インスタンス情報の設定が無効な場合はinstanceContextをnoneにする。
 - 確認質問にはoptionsとして回答候補を最大4件まで付けられる。各候補はidと利用者向けlabelを持ち、候補が不要なら空配列にする。選択肢は回答例であり、変更適用の承認ではない。

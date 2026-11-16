@@ -3,10 +3,11 @@ import { buildPlanInput } from '../features/planning/plan-input.js';
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261116-selection-12k-v1';
+import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261116-compact-move-decisions-v1';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
 import { createAgentRunLoop } from '../agent-runtime/run-loop.js';
-import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261116-selected-range-completion-v1';
+import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261116-inference-allowed-v1';
 import { PROPOSAL_RESPONSE_SCHEMA } from '../features/proposals/proposal-schema.js';
 import { validateProposalResponse } from '../features/proposals/proposal-contract.js';
 
@@ -33,6 +34,29 @@ const parseResponse = (text) => {
       code: 'INVALID_PROPOSAL_JSON', sourceModule: 'features/proposals/proposal-contract.js'
     });
   }
+};
+const explicitlyRequestsMoveProposal = (request, plannedText = '') => {
+  const requestText = String(request || '');
+  const planText = String(plannedText || '');
+  const combined = `${requestText}\n${planText}`;
+  const negated = /移動案.{0,16}(?:不要|出さない|作らない|求めない)|移動(?:は|を)?(?:しない|行わない|させない|したくない)|変更しない/;
+  if (negated.test(combined)) return false;
+  return /移動案|移す案|移動を提案|移動させて(?:ほしい|ください)|移動して(?:ほしい|ください)|移して(?:ほしい|ください)/.test(requestText)
+    || /移動案|移す案|移動を提案/.test(planText);
+};
+const correctMoveProposalPlan = (candidate, request) => {
+  const brief = candidate.executionBrief || {};
+  const plannedText = [candidate.summary, brief.objective, brief.expectedResult].join('\n');
+  if (!explicitlyRequestsMoveProposal(request, plannedText)) return candidate;
+  if (candidate.taskType !== 'read_only' && candidate.changeOperations.includes('move_target_class')
+    && candidate.dataNeeds.hierarchyIndex && candidate.dataNeeds.selectedClassDetails) return candidate;
+  return {
+    ...candidate,
+    taskType: 'mixed',
+    dataNeeds: { ...candidate.dataNeeds, hierarchyIndex: true, selectedClassDetails: true },
+    scopeNeeds: { ...candidate.scopeNeeds, referenceBeyondSelection: true },
+    changeOperations: [...new Set([...candidate.changeOperations, 'move_target_class'])]
+  };
 };
 const formatAnswers = (questions, answers) => {
   if (typeof answers === 'string') return answers.trim();
@@ -190,7 +214,7 @@ export function createAssistantWorkflow({
     } catch (error) {
       throw withErrorSource(error, 'features/planning/planning-service.js');
     }
-    plan = result.plan;
+    plan = correctMoveProposalPlan(result.plan, state.request);
     onEvent({ type: 'plan', plan, usage: result.usage, counts: currentCounts() });
     return plan;
   }
@@ -220,9 +244,22 @@ export function createAssistantWorkflow({
       && plan.dataNeeds.parentContext !== 'ancestor_chain'
       && plan.dataNeeds.instanceContext === 'none'
       && plan.changeOperations.length === 0;
+    const batchedTargetMove = plan.changeOperations.length === 1
+      && plan.changeOperations[0] === 'move_target_class'
+      && plan.dataNeeds.selectedClassDetails
+      && plan.dataNeeds.hierarchyIndex
+      && plan.dataNeeds.instanceContext === 'none';
     let loop = null;
     let uniqueTools = [];
-    if (!chunkedReview) {
+    let targetMoveProcessor = null;
+    if (batchedTargetMove) {
+      targetMoveProcessor = createTargetMoveBatchProcessor({
+        reader, client, budgetGuard, model: currentModel, apiKey: currentApiKey,
+        request: state.request, plan,
+        maxOutputTokens: settings['runtime.maxOutputTokens'], signal,
+        onProgress: emitProgress, onUsage: reportUsage
+      });
+    } else if (!chunkedReview) {
       const permissionGuard = createPermissionGuard({ getReferenceScope: () => [...grants.reference] });
       const dispatcher = createToolDispatcher({
         registry: reader.registry,
@@ -270,10 +307,13 @@ export function createAssistantWorkflow({
             onProgress: emitProgress,
             onUsage: reportUsage
           }).run()
-          : await loop.run({ messages, signal, allowedTools: uniqueTools, onProgress: emitProgress });
+          : targetMoveProcessor
+            ? await targetMoveProcessor.run()
+            : await loop.run({ messages, signal, allowedTools: uniqueTools, onProgress: emitProgress });
       } catch (error) {
         throw withErrorSource(error, chunkedReview
           ? 'features/data-retrieval/chunked-read-only-review.js'
+          : targetMoveProcessor ? 'features/proposals/target-move-batch.js'
           : 'agent-runtime/run-loop.js');
       }
       if (result.status === 'needs_scope_approval') {
@@ -338,7 +378,7 @@ export function createAssistantWorkflow({
         }) }];
         continue;
       }
-      lastAgentContext = chunkedReview ? null : { loop, messages: result.messages, allowedTools: uniqueTools };
+      lastAgentContext = chunkedReview || targetMoveProcessor ? null : { loop, messages: result.messages, allowedTools: uniqueTools };
       return {
         ...validation,
         ...(result.budgetLimited ? { proposals: [], alternativeGroups: [] } : {}),

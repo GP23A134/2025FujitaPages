@@ -13,10 +13,16 @@ test('progress view stays after the submitted request and ahead of later message
   let intervalCallback;
   const listeners = new Map();
   let timerId = 0;
-  const makeElement = () => ({
-    className: '', textContent: '', dataset: {}, attributes: {}, classList: { add() {}, remove() {} },
-    setAttribute(name, value) { this.attributes[name] = value; }
-  });
+  const makeElement = () => {
+    const element = { className: '', textContent: '', dataset: {}, attributes: {}, classes: new Set() };
+    element.classList = {
+      add(name) { element.classes.add(name); },
+      remove(name) { element.classes.delete(name); },
+      toggle(name, force) { if (force) element.classes.add(name); else element.classes.delete(name); return force; }
+    };
+    element.setAttribute = (name, value) => { element.attributes[name] = value; };
+    return element;
+  };
   const status = makeElement();
   const messages = { children: [], scrollTop: 0, scrollHeight: 20, append(element) {
     this.children = this.children.filter((item) => item !== element);
@@ -50,6 +56,8 @@ test('progress view stays after the submitted request and ahead of later message
   assert.equal(messages.children[0], userRequest);
   assert.equal(status.textContent, '');
   assert.equal(messages.children[1].textContent, '0s');
+  assert.equal(messages.children[2].textContent, '依頼を整理しています');
+  assert.equal(messages.children[2].classes.has('is-active'), true);
   listeners.get('assistant:progress')({ detail: {
     stage: 'retrieving', tool: 'read_hierarchy_index', note: '100件取得。続きがあります'
   } });
@@ -59,17 +67,19 @@ test('progress view stays after the submitted request and ahead of later message
   messages.append(earlierMessage);
   listeners.get('assistant:progress')({ detail: { stage: 'analyzing' } });
   assert.equal(messages.children[1].textContent, '0s');
-  assert.equal(messages.children[2].textContent, '取得した情報を確認しています');
-  assert.equal(messages.children[3], earlierMessage);
-  now = 12000;
+  assert.equal(messages.children[2], earlierMessage);
+  assert.equal(messages.children[3].textContent, '取得した情報を確認しています');
+  now = 3662000;
   intervalCallback();
-  assert.equal(messages.children[1].textContent, '11s');
+  assert.equal(messages.children[1].textContent, '1h1m1s');
   listeners.get('assistant:progress')({ detail: { stage: 'completed' } });
   assert.equal(messages.children.length, 4);
   assert.equal(messages.children[1].hidden, false);
-  assert.equal(messages.children[1].textContent, '11s');
-  assert.equal(messages.children[2].textContent, '処理が完了しました');
-  assert.equal(view.getElapsed(), '11s');
+  assert.equal(messages.children[1].textContent, '1h1m1s間作業しました');
+  assert.equal(messages.children[2], earlierMessage);
+  assert.equal(messages.children[3].textContent, '処理が完了しました');
+  assert.equal(messages.children[3].classes.has('is-active'), false);
+  assert.equal(view.getElapsed(), '1h1m1s');
   assert.equal(intervalCallback, null);
   view.dispose();
 });

@@ -1,5 +1,5 @@
 import { PLAN_RESPONSE_SCHEMA } from './plan-schema.js';
-import { buildPlanSystemPrompt } from '../../prompts/plan-system-prompt.js?v=20261116-move-suggestion-plan-v2';
+import { buildPlanSystemPrompt } from '../../prompts/plan-system-prompt.js?v=20261116-inference-allowed-v1';
 import { validatePlan } from './plan-contract.js';
 
 function extractJsonText(response) {

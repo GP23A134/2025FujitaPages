@@ -1,13 +1,13 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
-import { createProgressView } from './features/progress/progress-view.js?v=20261116-progress-activity-v1';
+import { createProgressView } from './features/progress/progress-view.js?v=20261116-progress-duration-v1';
 import { buildPlanInput } from './features/planning/plan-input.js';
 import { createOpenAIClient } from './adapters/openai-client.js';
-import { createPlanningService } from './features/planning/planning-service.js?v=20261116-move-suggestion-plan-v2';
+import { createPlanningService } from './features/planning/planning-service.js?v=20261116-inference-allowed-v1';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261116-stop-processing-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261116-progress-details-v1';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261116-move-proposal-plan-guard-v1';
 import { createQuestionView } from './features/planning/question-view.js?v=20261116-agent-interaction-dock-v2';
-import { createWorkflowView } from './features/progress/workflow-view.js?v=20261116-no-ai-label-v1';
+import { createWorkflowView } from './features/progress/workflow-view.js?v=20261116-no-result-elapsed-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js';
 import { createProposalPreviewView } from './features/proposals/proposal-preview-view.js';
 import { createSettingsView } from './settings/settings-view.js?v=20261116-setting-errors-v1';
@@ -121,7 +121,6 @@ if (window.classEditorAI && statusElement) {
   });
   const workflowView = createWorkflowView(document.getElementById('assistant-results'), questionView, proposalResultView, {
     messages: document.getElementById('ai-chat-messages'),
-    getElapsed: () => progressView.getElapsed(),
     onAnswerQuestions: (answers) => workflow.answerQuestions(answers)
   });
   workflow = createAssistantWorkflow({
