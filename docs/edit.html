@@ -198,7 +198,6 @@
               <div id="ai-chat-messages" class="ai-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
               <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
               <button type="button" id="assistant-resume" class="search-button secondary-search-button" hidden>保存した処理を再開</button>
-              <div id="assistant-usage-summary" class="assistant-usage-summary" aria-live="polite"></div>
               <div id="assistant-results" class="assistant-results" aria-live="polite"></div>
               <p id="ai-key-guidance" class="ai-key-guidance" hidden>AIチャットを使うにはAPIキーが必要です。<button type="button" id="ai-open-settings" class="ai-settings-inline-link">AIチャット設定</button>から入力してください。</p>
               <p id="ai-usage-summary" class="ai-usage-summary" aria-live="polite"><span class="ai-usage-label">合計</span><strong class="ai-usage-cost">$0.000000</strong><span class="ai-usage-detail">入力 0 / 出力 0 tokens</span><span class="ai-usage-requests">送信 0回</span></p>
@@ -290,6 +289,12 @@
       </section>
       <section class="edit-settings-section" aria-labelledby="edit-ai-behavior-settings-title">
         <h3 id="edit-ai-behavior-settings-title">AIチャットの動作</h3>
+        <fieldset class="ai-chat-format-choice">
+          <legend>AIチャット形式</legend>
+          <label><input type="radio" name="ai-chat-system-mode" value="agent" /> エージェント形式</label>
+          <label><input type="radio" name="ai-chat-system-mode" value="legacy" /> 従来のAIチャット形式</label>
+        </fieldset>
+        <p class="edit-settings-note">初期設定はエージェント形式です。</p>
         <label class="edit-settings-toggle"><input type="checkbox" id="ai-confirm-before-send" checked /> 送信前に内容を確認する</label>
         <p class="edit-settings-note">ONにすると送信前に内容を確認します。確認画面で「これ以降表示しない」を選ぶと、次回以降はOFFになります。</p>
         <div class="edit-ai-behavior-grid">

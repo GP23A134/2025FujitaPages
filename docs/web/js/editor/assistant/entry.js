@@ -12,8 +12,6 @@ import { createProposalResultView } from './features/proposals/proposal-result-v
 import { createProposalPreviewView } from './features/proposals/proposal-preview-view.js';
 import { createSettingsView } from './settings/settings-view.js';
 import { createSessionService } from './conversations/session-service.js';
-import { createUsageAccounting } from './features/usage/usage-accounting.js';
-import { createUsageView } from './features/usage/usage-view.js';
 
 const statusElement = document.getElementById('ai-status');
 if (window.classEditorAI && statusElement) {
@@ -21,13 +19,6 @@ if (window.classEditorAI && statusElement) {
   createProgressView(statusElement);
   const scopeApproval = createScopeApprovalView(document.getElementById('assistant-scope-dialog'), window.classEditorAI);
   const questionView = createQuestionView(document.getElementById('assistant-question-dialog'));
-  const usageAccounting = createUsageAccounting();
-  let pricingConfig = null;
-  const usageView = createUsageView(document.getElementById('assistant-usage-summary'), usageAccounting, () => pricingConfig);
-  fetch('web/data/config/ai-models.json', { cache: 'no-store' })
-    .then((response) => { if (!response.ok) throw new Error('model config unavailable'); return response.json(); })
-    .then((config) => { pricingConfig = config; usageView.render(); })
-    .catch(() => usageView.render());
   const settingsRegistry = createAssistantSettingsRegistry();
   const sessionService = createSessionService();
   const settingsStorageKey = 'classEditorAssistantDeveloperSettings-v1';
@@ -38,14 +29,12 @@ if (window.classEditorAI && statusElement) {
       .filter((item) => Object.hasOwn(saved, item.key)).map((item) => [item.key, saved[item.key]])) };
     if (settingsRegistry.validate(candidate).valid) settings = candidate;
   } catch { /* Use feature defaults when saved settings are unavailable or invalid. */ }
-  const legacyUsageSummary = document.getElementById('ai-usage-summary');
-  const newUsageSummary = document.getElementById('assistant-usage-summary');
-  const syncUsageVisibility = () => {
-    const useNewSystem = Boolean(settings['chat.useNewSystem']);
-    legacyUsageSummary.hidden = useNewSystem;
-    newUsageSummary.hidden = !useNewSystem;
+  const syncChatSystemChoice = () => {
+    document.querySelectorAll('[name="ai-chat-system-mode"]').forEach((radio) => {
+      radio.checked = (radio.value === 'agent') === Boolean(settings['chat.useNewSystem']);
+    });
   };
-  syncUsageVisibility();
+  syncChatSystemChoice();
   const updateSetting = (key, value) => {
     if (!settingsRegistry.list().some((definition) => definition.key === key)) throw new Error(`未登録の開発者設定です: ${key}`);
     const candidate = { ...settings, [key]: value };
@@ -62,11 +51,16 @@ if (window.classEditorAI && statusElement) {
       statusElement.textContent = error.message;
     });
     settingsView.refresh(settings);
-    syncUsageVisibility();
+    syncChatSystemChoice();
   };
   const settingsView = createSettingsView(document.getElementById('assistant-developer-settings'), settingsRegistry, {
     getValue: (key) => settings[key],
     onChange: updateSetting
+  });
+  document.querySelectorAll('[name="ai-chat-system-mode"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      if (radio.checked) updateSetting('chat.useNewSystem', radio.value === 'agent');
+    });
   });
   const client = createOpenAIClient();
   const planningService = createPlanningService({
@@ -105,7 +99,7 @@ if (window.classEditorAI && statusElement) {
     scopeApproval,
     getSettings: () => ({ ...settings }),
     reportProgress: (detail) => window.dispatchEvent(new CustomEvent('assistant:progress', { detail })),
-    reportUsage: ({ model, usage }) => { usageAccounting.record(model, usage); usageView.render(); },
+    reportUsage: ({ model, usage }) => window.dispatchEvent(new CustomEvent('assistant-api-usage', { detail: { model, usage } })),
     onEvent: (event) => {
       workflowView.handle(event);
       const snapshot = workflow?.getPersistenceSnapshot?.();
@@ -133,8 +127,6 @@ if (window.classEditorAI && statusElement) {
       return false;
     }
     newSystemSubmitting = true;
-    usageAccounting.resetTask();
-    usageView.render();
     const sendButton = document.getElementById('ai-send');
     const wasSendDisabled = sendButton.disabled;
     sendButton.disabled = true;

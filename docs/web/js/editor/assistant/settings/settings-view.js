@@ -11,6 +11,7 @@ const FEATURE_LABELS = Object.freeze({
 export function createSettingsView(container, registry, { getValue, onChange }) {
   const groups = new Map();
   for (const definition of registry.list()) {
+    if (definition.developerVisible === false) continue;
     if (!groups.has(definition.feature)) {
       const section = document.createElement('section');
       section.className = 'assistant-settings-group';

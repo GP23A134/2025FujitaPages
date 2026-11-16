@@ -24,7 +24,7 @@
 - `application/workflow.js`: 計画・取得・提案確認・承認後適用の状態進行
 - `agent-runtime/`: ツール登録、許可範囲、API応答ループ、処理上限
 - `features/proposals/`: 提案形式、原子的な検証、競合選択とプレビュー
-- `features/usage/`: API実績トークンの集計と、確認済みモデル単価による料金概算表示
+- OpenAIの利用実績を既存AIチャットの料金集計へ渡し、従来の利用量表示に合算
 - `features/data-retrieval/`: 索引、直下クラス、詳細、インスタンスの読み取り専用取得
 - `settings/`: 機能別の設定登録・検証・画面表示
 

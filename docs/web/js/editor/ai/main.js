@@ -479,7 +479,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   currentConversation = createConversation();
 
   const formatUsd = (value) => `$${Number(value || 0).toFixed(6)}`;
-  const selectedModelPricing = () => modelConfig?.models.find((item) => item.id === modelSelect.value);
+  const selectedModelPricing = (modelId = modelSelect.value) => modelConfig?.models.find((item) => item.id === modelId);
   const updateUsageSummary = () => {
     if (!usageSummary) return;
     const sessionCost = sessionUsage.requests ? formatUsd(sessionUsage.costUsd) : '$0.000000';
@@ -497,10 +497,10 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     requests.textContent = `送信 ${sessionUsage.requests}回`;
     usageSummary.replaceChildren(label, amount, details, requests);
   };
-  const recordUsage = (responseBody) => {
+  const recordUsage = (responseBody, { modelId = modelSelect.value, includeConversation = true } = {}) => {
     const usage = responseBody?.usage;
     if (!usage || !Number.isFinite(usage.input_tokens) || !Number.isFinite(usage.output_tokens)) return;
-    const rates = selectedModelPricing();
+    const rates = selectedModelPricing(modelId);
     const inputTokens = usage.input_tokens;
     const outputTokens = usage.output_tokens;
     const inputDetails = usage.input_tokens_details || {};
@@ -515,7 +515,8 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
         + cacheWriteTokens * rates.cacheWriteUsdPerMillion
         + outputTokens * rates.outputUsdPerMillion) / 1_000_000
       : 0;
-    [currentConversation.usage, sessionUsage].forEach((total) => {
+    const totals = includeConversation ? [currentConversation?.usage, sessionUsage] : [sessionUsage];
+    totals.filter(Boolean).forEach((total) => {
       total.requests += 1;
       total.inputTokens += inputTokens;
       total.outputTokens += outputTokens;
@@ -524,6 +525,10 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     });
     updateUsageSummary();
   };
+  window.addEventListener('assistant-api-usage', (event) => {
+    const { model, usage } = event.detail || {};
+    void modelConfigPromise.then(() => recordUsage({ usage }, { modelId: model, includeConversation: false }));
+  });
   // 正確なトークナイザーを使わない事前見積もりです。実請求額ではなく送信確認用の概算です。
   const estimateTokensFromText = (text) => {
     let japanese = 0;
