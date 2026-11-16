@@ -3,7 +3,7 @@ import { buildPlanInput } from '../features/planning/plan-input.js';
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261116-selection-12k-v1';
-import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261116-compact-move-decisions-v5';
+import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261116-compact-move-decisions-v6';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
 import { createAgentRunLoop } from '../agent-runtime/run-loop.js';

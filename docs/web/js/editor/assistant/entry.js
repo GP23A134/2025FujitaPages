@@ -5,7 +5,7 @@ import { createOpenAIClient } from './adapters/openai-client.js';
 import { createPlanningService } from './features/planning/planning-service.js?v=20261116-inference-allowed-v1';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261116-stop-processing-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261116-move-proposal-plan-guard-v3';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261116-move-proposal-plan-guard-v4';
 import { createQuestionView } from './features/planning/question-view.js?v=20261116-agent-interaction-dock-v2';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261116-no-result-elapsed-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js';
