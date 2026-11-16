@@ -1,11 +1,11 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
-import { createProgressView } from './features/progress/progress-view.js?v=20261116-progress-duration-v3';
+import { createProgressView } from './features/progress/progress-view.js?v=20261116-progress-duration-v5';
 import { buildPlanInput } from './features/planning/plan-input.js';
 import { createOpenAIClient } from './adapters/openai-client.js';
 import { createPlanningService } from './features/planning/planning-service.js?v=20261116-inference-allowed-v1';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261116-stop-processing-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261116-move-proposal-plan-guard-v1';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261116-move-proposal-plan-guard-v3';
 import { createQuestionView } from './features/planning/question-view.js?v=20261116-agent-interaction-dock-v2';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261116-no-result-elapsed-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js';
@@ -187,6 +187,7 @@ if (window.classEditorAI && statusElement) {
     chatForm?.classList.toggle('is-processing', promptExamplesRunningStages.has(event.detail?.stage));
   });
   let newSystemSubmitting = false;
+  let activeRequestText = '';
   const sendButton = document.getElementById('ai-send');
   const setProcessingButton = (processing) => {
     chatForm?.setAttribute('aria-busy', String(processing));
@@ -211,9 +212,18 @@ if (window.classEditorAI && statusElement) {
     messages.append(message);
     messages.scrollTop = messages.scrollHeight;
   };
+  const restoreStoppedRequest = (request) => {
+    const draft = requestInput.value.trim();
+    requestInput.value = draft ? `${request}\n\n${draft}` : request;
+    requestInput.dispatchEvent(new Event('input', { bubbles: true }));
+    requestInput.focus();
+  };
   const runNewSystem = async () => {
     if (newSystemSubmitting || workflow.isBusy()) {
-      workflow.cancel();
+      if (workflow.cancel() && activeRequestText) {
+        restoreStoppedRequest(activeRequestText);
+        activeRequestText = '';
+      }
       return false;
     }
     if (!interactionDock.hidden) {
@@ -229,6 +239,7 @@ if (window.classEditorAI && statusElement) {
       return false;
     }
     newSystemSubmitting = true;
+    activeRequestText = request;
     setProcessingButton(true);
     try {
       appendUserRequest(request);
@@ -243,15 +254,20 @@ if (window.classEditorAI && statusElement) {
       publishHistory();
       requestInput.value = '';
       requestInput.dispatchEvent(new Event('input', { bubbles: true }));
-      await workflow.start({
+      const outcome = await workflow.start({
         request,
         apiKey: apiKeyInput.value,
         model: modelSelect.value,
         referenceAllHierarchy: document.getElementById('ai-full-graph-scope')?.getAttribute('aria-checked') === 'true'
       });
+      if (outcome?.status === 'cancelled' && activeRequestText) {
+        restoreStoppedRequest(activeRequestText);
+        activeRequestText = '';
+      }
       return true;
     } finally {
       newSystemSubmitting = false;
+      activeRequestText = '';
       setProcessingButton(false);
     }
   };

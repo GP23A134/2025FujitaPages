@@ -1,20 +1,30 @@
 const MAX_BATCH_SIZE = 500;
-const DECISION_SCHEMA = {
-  type: 'object', additionalProperties: false,
-  properties: {
-    decisions: { type: 'array', minItems: 1, maxItems: MAX_BATCH_SIZE, items: { type: 'string', maxLength: 32 } },
-    destinationNotes: { type: 'array', maxItems: 100, items: {
-      type: 'object', additionalProperties: false,
-      properties: {
-        destinationKey: { type: 'string' },
-        reason: { type: 'string', maxLength: 500 },
-        uncertainties: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 200 } }
+function createDecisionSchema(itemCount, destinationKeys) {
+  const allowedCodes = [
+    ...destinationKeys.flatMap((key) => ['h', 'e', 'u'].map((confidence) => `m:${key}:${confidence}`)),
+    ...['h', 'e', 'u'].map((confidence) => `k:-:${confidence}`),
+    'u:-:u'
+  ];
+  return {
+    type: 'object', additionalProperties: false,
+    properties: {
+      decisions: {
+        type: 'array', minItems: itemCount, maxItems: itemCount,
+        items: { type: 'string', enum: allowedCodes }
       },
-      required: ['destinationKey', 'reason', 'uncertainties']
-    } }
-  },
-  required: ['decisions', 'destinationNotes']
-};
+      destinationNotes: { type: 'array', maxItems: destinationKeys.length, items: {
+        type: 'object', additionalProperties: false,
+        properties: {
+          destinationKey: { type: 'string', enum: destinationKeys },
+          reason: { type: 'string', maxLength: 500 },
+          uncertainties: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 200 } }
+        },
+        required: ['destinationKey', 'reason', 'uncertainties']
+      } }
+    },
+    required: ['decisions', 'destinationNotes']
+  };
+}
 
 const responseText = (response) => (response.output || []).flatMap((item) => item.content || [])
   .find((item) => item.type === 'output_text')?.text || '';
@@ -91,7 +101,7 @@ function parseDecisions(text, items, destinationKeys) {
 }
 
 export function createTargetMoveBatchProcessor({
-  reader, client, budgetGuard, model, apiKey, request, plan, maxOutputTokens, signal,
+  reader, client, budgetGuard, model, apiKey, request, plan, maxOutputTokens, maxRetries = 2, signal,
   onProgress = () => {}, onUsage = () => {}
 }) {
   if (!reader?.readHierarchyIndex || !reader?.readSelectedClassDetails || !client?.request || !budgetGuard) {
@@ -233,8 +243,25 @@ export function createTargetMoveBatchProcessor({
       onProgress({ stage: 'analyzing', note: `第${batchNumber}バッチを確認しています（${processed}件完了）` });
       // Reserve enough response room for the complete decision list, including model reasoning.
       const batchOutputLimit = Math.min(32000, Math.max(maxOutputTokens, 1024 + targetItems.length * 16));
-      const response = await requestAI(input, 'target_move_batch', DECISION_SCHEMA, batchOutputLimit);
-      const { decisions, notes } = parseDecisions(responseText(response), targetItems, new Set(destinationByKey.keys()));
+      const batchSchema = createDecisionSchema(targetItems.length, [...destinationByKey.keys()]);
+      let parsed;
+      for (let attempt = 0; ; attempt += 1) {
+        const attemptInput = attempt === 0 ? input : [
+          { role: 'system', content: `${input[0].content}\n前回の応答は検証に失敗しました（${parsed?.error?.message || '形式不正'}）。今回の対象件数と許可された短縮コードに合わせ、JSONスキーマに従って全件を再回答してください。` },
+          input[1]
+        ];
+        const response = await requestAI(attemptInput, 'target_move_batch', batchSchema, batchOutputLimit);
+        try {
+          parsed = { value: parseDecisions(responseText(response), targetItems, new Set(destinationByKey.keys())) };
+          break;
+        } catch (error) {
+          parsed = { error };
+          const retryable = ['INVALID_MOVE_DECISIONS', 'MOVE_DECISION_COUNT_MISMATCH'].includes(error.code);
+          if (!retryable || attempt >= maxRetries) throw error;
+          onProgress({ stage: 'analyzing', note: `第${batchNumber}バッチの判断形式を修正して再試行しています（${attempt + 1}/${maxRetries}）` });
+        }
+      }
+      const { decisions, notes } = parsed.value;
       decisions.forEach((decision, itemNumber) => {
         const item = targetItems[itemNumber - 1];
         if (decision.decision === 'uncertain') {

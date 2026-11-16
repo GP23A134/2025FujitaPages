@@ -26,7 +26,7 @@ const TOOL_LABELS = Object.freeze({
   read_selected_class_details: '選択クラスの詳細を取得しています',
   read_instance_context: 'インスタンス情報を取得しています'
 });
-const ACTIVE_STAGES = new Set(['planning', 'checking_scope', 'retrieving', 'analyzing', 'validating']);
+const ACTIVE_STAGES = new Set(['planning', 'checking_scope', 'waiting_for_scope_approval', 'retrieving', 'analyzing', 'validating']);
 
 export function createProgressView(statusElement, messages = document.getElementById('ai-chat-messages')) {
   if (!statusElement) throw new TypeError('進捗表示要素が必要です。');
@@ -74,7 +74,9 @@ export function createProgressView(statusElement, messages = document.getElement
     const note = indicator.dataset.progressNote || '';
     const stage = indicator.dataset.progressStage || '';
     const elapsed = formatElapsed(Date.now() - startedAt);
-    const display = stage === 'completed' ? `${elapsed}間作業しました` : elapsed;
+    const display = stage === 'completed'
+      ? `${elapsed}間作業しました`
+      : ACTIVE_STAGES.has(stage) ? `${elapsed} 作業中` : elapsed;
     indicator.hidden = false;
     indicator.textContent = display;
     indicator.setAttribute('aria-label', [label, note, display].filter(Boolean).join('。'));
@@ -88,7 +90,7 @@ export function createProgressView(statusElement, messages = document.getElement
     const label = detail.stage === 'retrieving'
       ? TOOL_LABELS[detail.tool] || DEFAULT_LABELS[detail.stage]
       : DEFAULT_LABELS[detail.stage];
-    const isWaiting = ['waiting_for_answer', 'waiting_for_scope_approval', 'waiting_for_review'].includes(detail.stage);
+    const isWaiting = ['waiting_for_answer', 'waiting_for_review'].includes(detail.stage);
     const isFinished = ['budget_exhausted', 'completed', 'cancelled', 'failed', 'scope_denied'].includes(detail.stage);
     const startsNewRun = !isWaiting && !isFinished && (!startedAt || waiting || terminal);
     ensureIndicator(startsNewRun);
