@@ -1,5 +1,5 @@
 import { PLAN_RESPONSE_SCHEMA } from './plan-schema.js';
-import { buildPlanSystemPrompt } from './system-prompt.js';
+import { buildPlanSystemPrompt } from '../../prompts/plan-system-prompt.js';
 import { validatePlan } from './plan-contract.js';
 
 function extractJsonText(response) {
@@ -12,12 +12,13 @@ function extractJsonText(response) {
 export function createPlanningService({ client, getDeveloperSettings }) {
   if (!client || typeof client.request !== 'function') throw new TypeError('AI通信クライアントが必要です。');
 
-  async function createPlan({ apiKey, model, planInput, signal, budgetGuard, onUsage = () => {} }) {
+  async function createPlan({ apiKey, model, planInput, signal, budgetGuard, hierarchyIndexAvailable = false, onUsage = () => {} }) {
     const settings = getDeveloperSettings?.() || {};
     const input = [
       { role: 'system', content: buildPlanSystemPrompt({
         instanceInformationEnabled: settings.instanceInformationEnabled === true,
-        targetClassRenameEnabled: settings.targetClassRenameEnabled === true
+        targetClassRenameEnabled: settings.targetClassRenameEnabled === true,
+        hierarchyIndexAvailable
       }) },
       { role: 'user', content: JSON.stringify(planInput) }
     ];

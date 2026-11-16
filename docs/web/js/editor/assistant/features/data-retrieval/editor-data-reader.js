@@ -114,13 +114,19 @@ export function createEditorDataReader({
     };
   }
 
-  function readSelectedClassDetails() {
+  function readSelectedClassDetails({ cursor = null } = {}) {
     const data = snapshot();
     const selectedIds = [...new Set(getSelectedIds() || [])];
     scopeError(selectedIds, '選択クラス詳細の取得', data);
     const foundIds = selectedIds.filter((id) => data.classesById.has(id));
     includeParents(foundIds, '選択クラス詳細', data);
-    return { items: foundIds.map((id) => detailFor(id, data)), notFoundIds: selectedIds.filter((id) => !data.classesById.has(id)) };
+    const records = foundIds.sort((left, right) => String(left).localeCompare(String(right)))
+      .map((id) => detailFor(id, data));
+    return {
+      ...paginate('selected_class_details', records, cursor, data),
+      totalCount: records.length,
+      notFoundIds: cursor ? [] : selectedIds.filter((id) => !data.classesById.has(id))
+    };
   }
 
   const stableHash = (value) => {
@@ -249,8 +255,8 @@ export function createEditorDataReader({
       execute: readClassDetails
     })
     .register({
-      name: 'read_selected_class_details', permission: 'reference', description: '利用者が選択したクラスの詳細を取得します。ID指定は必要ありません。',
-      parameters: { type: 'object', additionalProperties: false, properties: {}, required: [] },
+      name: 'read_selected_class_details', permission: 'reference', description: '利用者が選択したクラスの詳細を設定上限まで取得します。続きは返されたカーソルを使います。',
+      parameters: { type: 'object', additionalProperties: false, properties: { cursor: { type: ['string', 'null'] } }, required: ['cursor'] },
       execute: readSelectedClassDetails
     });
 

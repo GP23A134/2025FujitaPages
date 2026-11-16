@@ -8,7 +8,9 @@
 - `features/planning/plan-input.js`: 依頼文とクラス件数だけの計画入力を作成
 - `features/planning/planning-service.js`: 計画API呼び出しと計画結果検査
 - `features/planning/plan-schema.js`: APIへ渡す厳密な計画JSONスキーマ
-- `features/planning/system-prompt.js`: 計画段階の固定指示
+- `prompts/plan-system-prompt.js`: 計画段階の固定指示
+- `prompts/agent-system-prompt.js`: 調査・変更案作成エージェントの固定指示
+- `prompts/evaluation-prompt.md`: 評価モードの固定指示
 - `adapters/openai-client.js`: APIキーを保存せずResponses APIへ送信
 - `features/data-retrieval/settings.js`: 取得件数と詳細ID数に共通する開発者設定
 - `features/progress/progress-view.js`: チャット欄の工程吹き出し、範囲・状態・経過時間の表示

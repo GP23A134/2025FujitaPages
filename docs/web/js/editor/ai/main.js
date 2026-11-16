@@ -120,7 +120,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       if (!trimmedPrompt) throw new Error(`提案自由度${level}のプロンプトが空です。`);
       return trimmedPrompt;
     });
-  const evaluationPromptPromise = fetch('web/data/config/ai-evaluation-prompt.md', { cache: 'no-store' })
+  const evaluationPromptPromise = fetch('web/js/editor/assistant/prompts/evaluation-prompt.md', { cache: 'no-store' })
     .then((response) => { if (!response.ok) throw new Error('評価モード専用プロンプトを読み込めません。'); return response.text(); })
     .then((prompt) => {
       const trimmedPrompt = prompt.trim();

@@ -122,6 +122,13 @@ if (window.classEditorAI && statusElement) {
   const apiKeyInput = document.getElementById('ai-api-key');
   const modelSelect = document.getElementById('ai-model');
   const chatForm = document.getElementById('ai-chat-form');
+  const promptExamplesRunningStages = new Set([
+    'planning', 'retrieving', 'analyzing', 'validating',
+    'waiting_for_scope_approval', 'waiting_for_answer'
+  ]);
+  window.addEventListener('assistant:progress', (event) => {
+    chatForm?.classList.toggle('is-processing', promptExamplesRunningStages.has(event.detail?.stage));
+  });
   let newSystemSubmitting = false;
   const runNewSystem = async () => {
     if (newSystemSubmitting) return false;
@@ -136,7 +143,12 @@ if (window.classEditorAI && statusElement) {
     const wasSendDisabled = sendButton.disabled;
     sendButton.disabled = true;
     try {
-      await workflow.start({ request, apiKey: apiKeyInput.value, model: modelSelect.value });
+      await workflow.start({
+        request,
+        apiKey: apiKeyInput.value,
+        model: modelSelect.value,
+        referenceAllHierarchy: document.getElementById('ai-full-graph-scope')?.getAttribute('aria-checked') === 'true'
+      });
       return true;
     } finally {
       newSystemSubmitting = false;

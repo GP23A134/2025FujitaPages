@@ -94,11 +94,12 @@ test('planning service sends only the prepared request and counts and validates 
   const responsePlan = validPlan();
   let sentInput;
   let reportedUsage;
+  let promptOptions;
   vm.runInNewContext(source, {
     module: sandboxModule,
     exports: sandboxModule.exports,
     PLAN_RESPONSE_SCHEMA: {},
-    buildPlanSystemPrompt: () => 'fixed prompt',
+    buildPlanSystemPrompt: (options) => { promptOptions = options; return 'fixed prompt'; },
     validatePlan: () => ({ valid: true, errors: [] }),
     JSON, Object, Number, TypeError, Error, SyntaxError
   });
@@ -111,9 +112,10 @@ test('planning service sends only the prepared request and counts and validates 
   const planInput = buildPlanInput('依頼', {
     available: { top: 2, middle: 3, target: 4 }, selected: { top: 1, middle: 1, target: 2 }
   });
-  const result = await service.createPlan({ apiKey: 'test-key', model: 'test-model', planInput, onUsage: (event) => { reportedUsage = event; } });
+  const result = await service.createPlan({ apiKey: 'test-key', model: 'test-model', planInput, hierarchyIndexAvailable: true, onUsage: (event) => { reportedUsage = event; } });
   assert.deepEqual(JSON.parse(sentInput[1].content), JSON.parse(JSON.stringify(planInput)));
   assert.equal(sentInput[0].content, 'fixed prompt');
+  assert.equal(promptOptions.hierarchyIndexAvailable, true);
   assert.equal(result.usage, 19);
   assert.equal(reportedUsage.model, 'test-model');
   assert.equal(reportedUsage.usage.input_tokens, 19);

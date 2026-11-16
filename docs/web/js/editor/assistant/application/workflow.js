@@ -5,7 +5,7 @@ import { createEditorDataReader } from '../features/data-retrieval/editor-data-r
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
 import { createAgentRunLoop } from '../agent-runtime/run-loop.js';
-import { buildAgentSystemPrompt } from '../agent-runtime/agent-prompt.js';
+import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js';
 import { PROPOSAL_RESPONSE_SCHEMA } from '../features/proposals/proposal-schema.js';
 import { validateProposalResponse } from '../features/proposals/proposal-contract.js';
 
@@ -54,6 +54,7 @@ export function createAssistantWorkflow({
   let grants = { reference: new Set(), change: new Set() };
   let budgetGuard = null;
   let selectedClassIds = [];
+  let hierarchyIndexAvailable = false;
   let currentApiKey = null;
   let currentModel = null;
   let lastResult = null;
@@ -169,6 +170,7 @@ export function createAssistantWorkflow({
         apiKey: currentApiKey,
         model: currentModel,
         planInput: buildPlanInput(state.request, currentCounts(), { instanceCount: currentCounts().instanceCount }),
+        hierarchyIndexAvailable,
         signal,
         budgetGuard,
         onUsage: reportUsage
@@ -225,7 +227,7 @@ export function createAssistantWorkflow({
       textFormat: { type: 'json_schema', name: 'class_edit_proposals', strict: true, schema: PROPOSAL_RESPONSE_SCHEMA },
       onUsage: reportUsage
     });
-    let messages = [{ role: 'user', content: JSON.stringify({ request: state.request, plan }) }];
+    let messages = [{ role: 'user', content: state.request }];
     const retries = settings['validation.maxRepairRetries'];
     for (let attempt = 0; ; attempt += 1) {
       emitProgress(attempt ? 'validating' : (uniqueTools.length ? 'retrieving' : 'analyzing'));
@@ -283,7 +285,13 @@ export function createAssistantWorkflow({
         continue;
       }
       lastAgentContext = { loop, messages: result.messages, allowedTools: uniqueTools };
-      return { ...validation, usage: result.usage, messages: result.messages };
+      return {
+        ...validation,
+        ...(result.budgetLimited ? { proposals: [], alternativeGroups: [] } : {}),
+        budgetLimited: Boolean(result.budgetLimited),
+        usage: result.usage,
+        messages: result.messages
+      };
     }
   }
 
@@ -315,6 +323,13 @@ export function createAssistantWorkflow({
     }
     if (state.status === 'retrieving') setStatus('analyzing');
     setStatus('validating');
+    if (outcome.budgetLimited) {
+      setStatus('budget_exhausted');
+      emitProgress('budget_exhausted');
+      lastResult = outcome;
+      onEvent({ type: 'result', result: outcome, plan: currentPlan, state });
+      return { status: state.status, result: outcome, plan: currentPlan };
+    }
     if (outcome.proposals?.length) {
       setStatus('needs_proposal_review');
       emitProgress('waiting_for_review');
@@ -327,25 +342,31 @@ export function createAssistantWorkflow({
     return { status: state.status, result: outcome, plan: currentPlan };
   }
 
-  async function start({ request, apiKey, model, signal }) {
+  async function start({ request, apiKey, model, signal, referenceAllHierarchy = false }) {
     if (active) throw new Error('別のAI処理が実行中です。');
     active = true;
     const activeSignal = beginActive(signal);
     try {
       const settings = getSettings();
       selectedClassIds = [...(editor.selectedIds || [])];
+      hierarchyIndexAvailable = referenceAllHierarchy === true;
       plan = null;
       lastResult = null;
       lastAgentContext = null;
       selectedAlternatives.clear();
-      grants = { reference: new Set(selectedClassIds), change: new Set(selectedClassIds) };
+      const referenceIds = new Set(selectedClassIds);
+      if (hierarchyIndexAvailable) {
+        editor.getState().classes.filter((item) => item.type === 'top' || item.type === 'middle')
+          .forEach((item) => referenceIds.add(item.id));
+      }
+      grants = { reference: referenceIds, change: new Set(selectedClassIds) };
       state = createConversationState({
         id: crypto.randomUUID(),
         request,
         settingsSnapshot: settings,
         selectedClassIds
       });
-      state = { ...state, scopeGrants: { reference: selectedClassIds, change: selectedClassIds } };
+      state = { ...state, scopeGrants: { reference: [...referenceIds], change: selectedClassIds } };
       currentApiKey = apiKey;
       currentModel = model;
       updateState(state);

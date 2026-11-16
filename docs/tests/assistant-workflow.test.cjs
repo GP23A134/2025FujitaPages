@@ -26,6 +26,8 @@ function evaluate(relativePath, exportNames, stubs = {}) {
 }
 const { createConversationState, transitionConversation } = evaluate('application/conversation-state.js', 'createConversationState, transitionConversation');
 const { buildPlanInput } = evaluate('features/planning/plan-input.js', 'buildPlanInput');
+const readerOptions = [];
+const agentRunOptions = [];
 const { createAssistantWorkflow } = evaluate('application/workflow.js', 'createAssistantWorkflow', {
   createConversationState, transitionConversation, buildPlanInput,
   createBudgetGuard: ({ state, limits, onChange }) => {
@@ -40,10 +42,13 @@ const { createAssistantWorkflow } = evaluate('application/workflow.js', 'createA
       getCounters: () => ({ ...counters })
     };
   },
-  createEditorDataReader: () => ({ registry: { names: () => [], definitions: () => [] } }),
+  createEditorDataReader: (options) => { readerOptions.push(options); return { registry: { names: () => [], definitions: () => [] } }; },
   createPermissionGuard: () => ({}),
   createToolDispatcher: () => ({}),
-  createAgentRunLoop: ({ systemInstruction }) => ({ run: async () => ({ text: JSON.stringify({ message: systemInstruction, proposals: [], alternativeGroups: [] }), messages: [] }) }),
+  createAgentRunLoop: ({ systemInstruction }) => ({ run: async (options) => {
+    agentRunOptions.push(options);
+    return { text: JSON.stringify({ message: systemInstruction, proposals: [], alternativeGroups: [] }), messages: [] };
+  } }),
   buildAgentSystemPrompt: () => 'agent prompt',
   PROPOSAL_RESPONSE_SCHEMA: {},
   validateProposalResponse: () => ({ message: '完了', proposals: [], alternativeGroups: [], blocked: [] })
@@ -65,6 +70,9 @@ const plan = (overrides = {}) => ({
 function harness(planSequence) {
   const events = [];
   const planInputs = [];
+  const planningOptions = [];
+  readerOptions.length = 0;
+  agentRunOptions.length = 0;
   const editor = { selectedIds: ['target-id'], getState: () => classState };
   const settings = {
     'runtime.inputTokenCap': 30000, 'runtime.maxResponseRounds': 30, 'runtime.maxRetrievalCalls': 50, 'runtime.maxReplans': 5,
@@ -75,10 +83,11 @@ function harness(planSequence) {
   const workflow = createAssistantWorkflow({
     editor,
     client: { request: async () => ({}) },
-    planningService: { createPlan: async ({ apiKey, model, planInput }) => {
+    planningService: { createPlan: async ({ apiKey, model, planInput, hierarchyIndexAvailable }) => {
       assert.equal(apiKey, 'secret-api-key');
       assert.equal(model, 'model-x');
       planInputs.push(planInput);
+      planningOptions.push({ hierarchyIndexAvailable });
       const nextPlan = planSequence[Math.min(index++, planSequence.length - 1)];
       if (nextPlan instanceof Error) throw nextPlan;
       return { plan: nextPlan, usage: 9 };
@@ -87,8 +96,18 @@ function harness(planSequence) {
     onEvent: (event) => events.push(event),
     reportProgress() {}
   });
-  return { workflow, events, planInputs };
+  return { workflow, events, planInputs, planningOptions };
 }
+
+test('full-hierarchy toggle makes the index available to planning without enabling retrieval automatically', async () => {
+  const { workflow, events, planningOptions } = harness([plan()]);
+  await workflow.start({ request: '選択クラスの配置を確認', apiKey: 'secret-api-key', model: 'model-x', referenceAllHierarchy: true });
+  assert.equal(planningOptions[0].hierarchyIndexAvailable, true);
+  assert.deepEqual([...readerOptions[0].getReferenceScope()].sort(), ['target-id', 'top-secret-id']);
+  assert.equal(agentRunOptions[0].allowedTools.length, 0);
+  assert.equal(events.at(-1).state.scopeGrants.change.includes('top-secret-id'), false);
+  assert.equal(events.at(-1).state.scopeGrants.change.includes('target-id'), true);
+});
 
 test('ready read-only workflow completes without exposing IDs or API keys to planning state', async () => {
   const { workflow, planInputs } = harness([plan()]);

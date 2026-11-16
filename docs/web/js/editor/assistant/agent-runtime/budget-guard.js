@@ -15,12 +15,19 @@ export function createBudgetGuard({ state, limits, onChange }) {
     code, status: 'budget_exhausted', sourceModule: 'agent-runtime/budget-guard.js'
   });
 
-  function reserveInput(input) {
+  function reserveInput(input, { reserveForInput = null } = {}) {
     const estimate = estimateInputTokens(input);
+    const reserve = reserveForInput === null ? 0 : estimateInputTokens(reserveForInput);
     const cap = limits.inputTokenCap;
     if (!Number.isSafeInteger(cap) || cap <= 0) throw new Error('入力トークン上限が開発者設定にありません。');
     if (counters.inputTokensActual + counters.inputTokensReserved + estimate > cap) {
       throw fail('累積入力トークン上限のため、次のAI要求を送信できません。', 'INPUT_TOKEN_BUDGET');
+    }
+    if (reserve && counters.inputTokensActual + counters.inputTokensReserved + estimate + reserve > cap) {
+      throw Object.assign(new Error('最終回答用の入力枠を確保するため、追加のAI要求を止めます。'), {
+        code: 'INPUT_TOKEN_FINALIZATION_REQUIRED', status: 'budget_soft_stop',
+        sourceModule: 'agent-runtime/budget-guard.js'
+      });
     }
     const id = ++nextReservationId;
     reservations.set(id, estimate);
@@ -45,6 +52,13 @@ export function createBudgetGuard({ state, limits, onChange }) {
     return { overBudget: counters.inputTokensActual + counters.inputTokensReserved > limits.inputTokenCap, actualKnown: true };
   }
 
+  function releaseInput(reservation) {
+    if (!reservation || !reservations.has(reservation.id)) throw new Error('入力トークン予約が見つかりません。');
+    counters.inputTokensReserved -= reservations.get(reservation.id);
+    reservations.delete(reservation.id);
+    notify();
+  }
+
   function assertResponseAllowed() {
     if (counters.responseRounds >= limits.maxResponseRounds) throw fail('AI応答回数の上限に達しました。', 'RESPONSE_LIMIT');
   }
@@ -66,6 +80,7 @@ export function createBudgetGuard({ state, limits, onChange }) {
   return Object.freeze({
     reserveInput,
     reconcileInput,
+    releaseInput,
     assertResponseAllowed,
     countResponse,
     countRetrieval,

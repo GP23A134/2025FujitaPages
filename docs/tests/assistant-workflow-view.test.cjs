@@ -39,7 +39,7 @@ test('workflow plan is presented as plain chat text rather than a plan card', ()
   view.handle({ type: 'plan', plan: {
     summary: '選択範囲のクラス配置を確認します。',
     executionBrief: { objective: '親子関係を確認する。' },
-    steps: ['階層構造を確認', '配置結果を報告'],
+    steps: ['まず、選択範囲の対象クラスを確認します。', '親子関係を見て、結果をお伝えします。'],
     unsupportedParts: []
   } });
 
@@ -47,7 +47,7 @@ test('workflow plan is presented as plain chat text rather than a plan card', ()
   assert.equal(messages.children.length, 1);
   assert.equal(messages.children[0].dataset.assistantPlanMessage, 'true');
   assert.equal(messages.children[0].children[0].textContent,
-    '処理計画\n\n選択範囲のクラス配置を確認します。\n親子関係を確認する。\n\n1. 階層構造を確認\n2. 配置結果を報告');
+    '選択範囲のクラス配置を確認します。\n\nまず、選択範囲の対象クラスを確認します。\n\n親子関係を見て、結果をお伝えします。');
   pendingFrame();
   assert.deepEqual(JSON.parse(JSON.stringify(scrollRequest)), { top: 120, behavior: 'smooth' });
 });

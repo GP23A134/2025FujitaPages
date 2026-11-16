@@ -17,7 +17,7 @@ function load(relativePath, exportNames, stubs = {}) {
 const { createToolRegistry } = load('agent-runtime/tool-registry.js', 'createToolRegistry');
 const { createEditorDataReader } = load('features/data-retrieval/editor-data-reader.js', 'createEditorDataReader', { createToolRegistry });
 
-function fixture(scope, pageLimit = 100, idLimit = pageLimit) {
+function fixture(scope, pageLimit = 100, idLimit = pageLimit, selectedIds = []) {
   let version = 'v1';
   const state = {
     classes: [
@@ -30,7 +30,7 @@ function fixture(scope, pageLimit = 100, idLimit = pageLimit) {
     counts: { t1: 1, m1: 1, m2: 0 }
   };
   const reader = createEditorDataReader({
-    editor: { getState: () => state }, getReferenceScope: () => scope,
+    editor: { getState: () => state }, getReferenceScope: () => scope, getSelectedIds: () => selectedIds,
     getDataVersion: () => version, pageLimit, idLimit
   });
   return { reader, setVersion: (value) => { version = value; } };
@@ -102,6 +102,19 @@ test('pagination cursor is opaque, stable by version, and target details omit de
 test('detail retrieval enforces the shared per-call ID cap', () => {
   const { reader } = fixture(['t1', 'm1', 'm2', 'c1'], 2, 2);
   assert.throws(() => reader.readClassDetails({ classIds: ['t1', 'm1', 'm2'] }), (error) => error.code === 'ID_LIMIT');
+});
+
+test('selected class details are paged under the shared retrieval limit', () => {
+  const { reader } = fixture(['t1', 'm1', 'm2', 'c1'], 2, 2, ['c1', 'm1', 't1', 'missing']);
+  const first = reader.readSelectedClassDetails();
+  assert.equal(first.items.length, 2);
+  assert.equal(first.totalCount, 3);
+  assert.deepEqual(JSON.parse(JSON.stringify(first.notFoundIds)), ['missing']);
+  assert.match(first.nextCursor, /^cursor_/);
+  const last = reader.readSelectedClassDetails({ cursor: first.nextCursor });
+  assert.equal(last.items.length, 1);
+  assert.equal(last.nextCursor, null);
+  assert.deepEqual(JSON.parse(JSON.stringify([...first.items, ...last.items].map((item) => item.id))), ['c1', 'm1', 't1']);
 });
 
 test('instance contents obey per-class and task caps with reproducible sampling and no IDs by default', () => {

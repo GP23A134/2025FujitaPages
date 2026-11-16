@@ -25,18 +25,11 @@ export function createWorkflowView(root, questionView, proposalView, { onAnswerQ
       message.setAttribute('role', 'article');
       const body = document.createElement('div');
       body.className = 'ai-message-body assistant-plan-message';
-      const lines = [
-        '処理計画',
-        '',
-        plan.summary,
-        plan.executionBrief.objective,
-        '',
-        ...plan.steps.map((step, index) => `${index + 1}. ${step}`)
-      ];
+      const lines = [plan.summary, ...plan.steps];
       if (plan.unsupportedParts.length) {
-        lines.push('', ...plan.unsupportedParts.map((part) => `対応できない内容：${part.description}。理由：${part.reason}`));
+        lines.push(...plan.unsupportedParts.map((part) => `今回対応できない内容は「${part.description}」です。${part.reason}`));
       }
-      body.textContent = lines.join('\n');
+      body.textContent = lines.join('\n\n');
       message.append(body);
       messages.append(message);
       const scrollToLatest = () => {
@@ -49,16 +42,10 @@ export function createWorkflowView(root, questionView, proposalView, { onAnswerQ
     }
     const card = document.createElement('section');
     card.className = 'assistant-plan-card';
-    appendText(card, 'h3', '処理計画');
     appendText(card, 'p', plan.summary);
-    appendText(card, 'p', plan.executionBrief.objective);
-    const steps = document.createElement('ol');
-    plan.steps.forEach((step) => appendText(steps, 'li', step));
-    card.append(steps);
+    plan.steps.forEach((step) => appendText(card, 'p', step));
     if (plan.unsupportedParts.length) {
-      const unsupported = document.createElement('ul');
-      plan.unsupportedParts.forEach((part) => appendText(unsupported, 'li', `${part.description}：${part.reason}`));
-      card.append(unsupported);
+      plan.unsupportedParts.forEach((part) => appendText(card, 'p', `今回対応できない内容は「${part.description}」です。${part.reason}`));
     }
     root.append(card);
   }
