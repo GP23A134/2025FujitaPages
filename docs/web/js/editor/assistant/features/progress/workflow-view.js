@@ -6,23 +6,47 @@ function appendText(parent, tag, text, className = '') {
   return element;
 }
 
-export function createWorkflowView(root, questionView, proposalView, { onAnswerQuestions, onAnswerProposal }) {
+export function createWorkflowView(root, questionView, proposalView, { onAnswerQuestions, messages }) {
   root.addEventListener('click', async (event) => {
     if (event.target.closest('[data-answer-plan]')) {
       const questions = root.__activeQuestions || [];
-      const answer = await questionView.ask(questions);
-      if (answer) await onAnswerQuestions(answer);
-    }
-    const answerButton = event.target.closest('[data-proposal-answer]');
-    if (answerButton) {
-      const id = answerButton.dataset.proposalAnswer;
-      const textarea = root.querySelector(`[data-answer-text="${CSS.escape(id)}"]`);
-      if (textarea?.value.trim()) await onAnswerProposal(id, textarea.value.trim());
+      const answers = await questionView.ask(questions);
+      if (answers) await onAnswerQuestions(answers);
     }
   });
 
   function renderPlan(plan) {
     root.replaceChildren();
+    if (messages) {
+      messages.querySelector('[data-assistant-plan-message]')?.remove();
+      const message = document.createElement('div');
+      message.className = 'ai-message';
+      message.dataset.assistantPlanMessage = 'true';
+      message.setAttribute('role', 'article');
+      const body = document.createElement('div');
+      body.className = 'ai-message-body assistant-plan-message';
+      const lines = [
+        '処理計画',
+        '',
+        plan.summary,
+        plan.executionBrief.objective,
+        '',
+        ...plan.steps.map((step, index) => `${index + 1}. ${step}`)
+      ];
+      if (plan.unsupportedParts.length) {
+        lines.push('', ...plan.unsupportedParts.map((part) => `対応できない内容：${part.description}。理由：${part.reason}`));
+      }
+      body.textContent = lines.join('\n');
+      message.append(body);
+      messages.append(message);
+      const scrollToLatest = () => {
+        messages.scrollTo?.({ top: messages.scrollHeight, behavior: 'smooth' });
+        if (!messages.scrollTo) messages.scrollTop = messages.scrollHeight;
+      };
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(scrollToLatest);
+      else scrollToLatest();
+      return;
+    }
     const card = document.createElement('section');
     card.className = 'assistant-plan-card';
     appendText(card, 'h3', '処理計画');

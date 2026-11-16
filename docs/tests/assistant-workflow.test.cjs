@@ -5,6 +5,7 @@ const vm = require('node:vm');
 const test = require('node:test');
 const { TextEncoder } = require('node:util');
 const { randomUUID } = require('node:crypto');
+const workflowLogs = [];
 
 const base = path.join(__dirname, '../web/js/editor/assistant');
 function evaluate(relativePath, exportNames, stubs = {}) {
@@ -18,6 +19,7 @@ function evaluate(relativePath, exportNames, stubs = {}) {
     TypeError, RangeError, Error, SyntaxError, structuredClone, TextEncoder, crypto: { randomUUID },
     AbortController,
     window: { classEditorAssistant: { getDataVersion: () => 'data-v1' } },
+    console: { error: (...args) => workflowLogs.push(args) },
     ...stubs
   });
   return sandboxModule.exports;
@@ -77,7 +79,9 @@ function harness(planSequence) {
       assert.equal(apiKey, 'secret-api-key');
       assert.equal(model, 'model-x');
       planInputs.push(planInput);
-      return { plan: planSequence[Math.min(index++, planSequence.length - 1)], usage: 9 };
+      const nextPlan = planSequence[Math.min(index++, planSequence.length - 1)];
+      if (nextPlan instanceof Error) throw nextPlan;
+      return { plan: nextPlan, usage: 9 };
     } },
     getSettings: () => settings,
     onEvent: (event) => events.push(event),
@@ -107,13 +111,34 @@ test('unsupported plans stop before running the agent', async () => {
   assert.equal(events.some((event) => event.type === 'result'), false);
 });
 
+test('scope intent in a plan does not request an unrestricted scope expansion', async () => {
+  const firstPlan = plan({ scopeNeeds: { referenceBeyondSelection: true, changeBeyondSelection: false } });
+  const { workflow, planInputs } = harness([firstPlan, plan()]);
+  const result = await workflow.start({ request: '配置を確認', apiKey: 'secret-api-key', model: 'model-x' });
+  assert.equal(result.status, 'completed', result.error?.stack || JSON.stringify(result.error));
+  assert.equal(planInputs.length, 1);
+  assert.equal(workflow.getState().counters.replans, 0);
+});
+
+test('workflow errors expose their source module in the console and error event', async () => {
+  const planningError = Object.assign(new Error('計画検証に失敗しました'), {
+    code: 'INVALID_PLAN', sourceModule: 'features/planning/plan-contract.js'
+  });
+  const { workflow, events } = harness([planningError]);
+  const result = await workflow.start({ request: '調べて', apiKey: 'secret-api-key', model: 'model-x' });
+  assert.equal(result.status, 'failed');
+  const errorEvent = events.find((event) => event.type === 'error');
+  assert.equal(errorEvent.error.sourceModule, 'features/planning/plan-contract.js');
+  assert.ok(workflowLogs.some(([label]) => label.includes('features/planning/plan-contract.js')));
+});
+
 test('clarification answers update the request and trigger a counted replan', async () => {
   const questionPlan = plan({ status: 'needs_clarification', questions: [{ id: 'q1', text: 'どちらを優先しますか？' }] });
   const { workflow, planInputs } = harness([questionPlan, plan()]);
   assert.equal((await workflow.start({ request: '整理して', apiKey: 'secret-api-key', model: 'model-x' })).status, 'needs_clarification');
   assert.equal((await workflow.answerQuestions('名称を優先')).status, 'completed');
   assert.equal(planInputs.length, 2);
-  assert.match(planInputs[1].request, /利用者の回答: 名称を優先/);
+  assert.match(planInputs[1].request, /利用者の回答:\n名称を優先/);
   assert.equal(workflow.getState().counters.replans, 1);
 });
 

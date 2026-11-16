@@ -66,6 +66,8 @@ export function createProposalPreviewView(dialog, { onApply, onClose = () => {} 
       await onApply(current);
       closeDialog();
     } catch (error) {
+      if (error && typeof error === 'object' && !error.sourceModule) error.sourceModule = 'features/proposals/proposal-preview-view.js';
+      console.error(`[assistant] ${error?.sourceModule || 'features/proposals/proposal-preview-view.js'}`, error);
       summary.textContent = error.message;
     } finally { apply.disabled = false; }
   });

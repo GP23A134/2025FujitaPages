@@ -11,8 +11,9 @@
 - `features/planning/system-prompt.js`: 計画段階の固定指示
 - `adapters/openai-client.js`: APIキーを保存せずResponses APIへ送信
 - `features/data-retrieval/settings.js`: 取得件数と詳細ID数に共通する開発者設定
-- `features/progress/progress-view.js`: 工程・範囲・状態の短い進捗表示
-- `features/scope-approval/scope-approval-view.js`: 参照範囲と変更範囲を別々に選ぶ許可画面
+- `features/progress/progress-view.js`: チャット欄の工程吹き出し、範囲・状態・経過時間の表示
+- `features/scope-approval/scope-approval-view.js`: チャットの概要から要求範囲を一括で許可・拒否し、詳細を読み取り表示
+- `features/planning/question-view.js`: 全体質問・提案ごとの確認に最大4件の回答候補と自由入力を表示
 - `features/validation/settings.js`: 提案修正の再試行設定
 - `adapters/editor-bridge.js`: 既存エディターから件数と内部データ版だけを読む境界
 - `entry.js`: 編集画面での新モジュール初期化
@@ -36,5 +37,5 @@
 
 1. `node --test tests/assistant-*.test.cjs` で新モジュールを検証
 2. `node --test tests/*.test.cjs` で既存編集機能との回帰を検証
-3. ブラウザー上で新規依頼・範囲許可・質問回答・提案プレビュー・適用を手動確認
+3. ブラウザー上で新規依頼・範囲許可・質問の候補選択／自由入力・提案プレビュー・適用を手動確認
 4. 実データと費用に基づき暫定の処理上限を調整

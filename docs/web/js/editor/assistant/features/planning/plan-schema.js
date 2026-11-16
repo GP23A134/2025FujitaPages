@@ -2,8 +2,15 @@ import { CHANGE_OPERATIONS } from './plan-contract.js';
 
 const questionSchema = {
   type: 'object', additionalProperties: false,
-  properties: { id: { type: 'string' }, text: { type: 'string' } },
-  required: ['id', 'text']
+  properties: {
+    id: { type: 'string' }, text: { type: 'string' },
+    options: { type: 'array', maxItems: 4, items: {
+      type: 'object', additionalProperties: false,
+      properties: { id: { type: 'string' }, label: { type: 'string' } },
+      required: ['id', 'label']
+    } }
+  },
+  required: ['id', 'text', 'options']
 };
 
 const unsupportedPartSchema = {

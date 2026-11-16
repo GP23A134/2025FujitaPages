@@ -1,7 +1,7 @@
 const PAGE_SIZE = 100;
 const TYPE_LABEL = Object.freeze({ top: '上位', middle: '中間', class: '対象' });
 
-export function createScopeApprovalView(dialog, editor) {
+export function createScopeApprovalView(dialog, editor, { messages } = {}) {
   if (!dialog || !editor?.getState) throw new TypeError('範囲許可画面の依存要素が不足しています。');
   const title = dialog.querySelector('[data-scope-title]');
   const summary = dialog.querySelector('[data-scope-summary]');
@@ -10,12 +10,70 @@ export function createScopeApprovalView(dialog, editor) {
   const pageStatus = dialog.querySelector('[data-scope-page]');
   const previous = dialog.querySelector('[data-scope-previous]');
   const next = dialog.querySelector('[data-scope-next]');
-  const referenceToggle = dialog.querySelector('[data-scope-reference]');
-  const changeToggle = dialog.querySelector('[data-scope-change]');
   const allowButton = dialog.querySelector('[data-scope-allow]');
-  const originalButton = dialog.querySelector('[data-scope-original]');
-  const cancelButton = dialog.querySelector('[data-scope-cancel]');
+  const denyButton = dialog.querySelector('[data-scope-deny]');
+  const closeButton = dialog.querySelector('[data-scope-close]');
   let current = null;
+
+  function showSummary({ candidates, allowReference, allowChange, purpose, processSummary }) {
+    if (!messages) return null;
+    const counts = { top: 0, middle: 0, class: 0 };
+    const permissionCounts = { reference: { top: 0, middle: 0, class: 0 }, change: { top: 0, middle: 0, class: 0 } };
+    candidates.forEach((item) => {
+      const type = typeof item === 'string' ? null : item.type;
+      if (Object.hasOwn(counts, type)) counts[type] += 1;
+      if (!Object.hasOwn(counts, type)) return;
+      if (item.needsReference ?? allowReference) permissionCounts.reference[type] += 1;
+      if (item.needsChange ?? allowChange) permissionCounts.change[type] += 1;
+    });
+    const countText = [['top', '上位'], ['middle', '中間'], ['class', '対象']]
+      .filter(([type]) => counts[type] > 0)
+      .map(([type, label]) => `${label}クラス ${counts[type]}件`)
+      .join('・') || `候補クラス ${candidates.length}件`;
+    const formatCounts = (group) => Object.entries(group).filter(([, count]) => count)
+      .map(([type, count]) => `${TYPE_LABEL[type]}クラス ${count}件`).join('・') || 'なし';
+    const permissions = [
+      (allowReference || candidates.some((item) => item.needsReference)) && `参照（${formatCounts(permissionCounts.reference)}）`,
+      (allowChange || candidates.some((item) => item.needsChange)) && `変更対象（${formatCounts(permissionCounts.change)}）`
+    ].filter(Boolean).join('、');
+    const card = document.createElement('section');
+    card.className = 'ai-scope-request-summary';
+    card.setAttribute('role', 'group');
+    const heading = document.createElement('strong');
+    heading.textContent = '追加範囲の許可が必要です';
+    const overview = document.createElement('p');
+    overview.textContent = `${purpose || '選択範囲外のクラス情報が必要です。'} 候補: ${countText}。必要な許可: ${permissions || '参照'}。`;
+    const continuation = document.createElement('p');
+    continuation.textContent = `続ける処理: ${processSummary || '許可された範囲を使って処理を続けます。'}`;
+    const actions = document.createElement('div');
+    actions.className = 'ai-scope-request-actions';
+    const approveButton = document.createElement('button');
+    approveButton.type = 'button';
+    approveButton.className = 'search-button';
+    approveButton.textContent = '許可する';
+    approveButton.addEventListener('click', () => finish('allow'));
+    const denyButton = document.createElement('button');
+    denyButton.type = 'button';
+    denyButton.className = 'search-button secondary-search-button';
+    denyButton.textContent = '許可しない';
+    denyButton.addEventListener('click', () => finish('original_scope'));
+    const detailButton = document.createElement('button');
+    detailButton.type = 'button';
+    detailButton.className = 'search-button secondary-search-button';
+    detailButton.textContent = '詳細を見る';
+    detailButton.addEventListener('click', () => {
+      if (current && !dialog.open) dialog.showModal();
+    });
+    actions.append(approveButton, denyButton, detailButton);
+    card.append(heading, overview, continuation, actions);
+    messages.append(card);
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => messages.scrollTo?.({ top: messages.scrollHeight, behavior: 'smooth' }));
+    } else {
+      messages.scrollTop = messages.scrollHeight;
+    }
+    return { card, approveButton, denyButton, detailButton };
+  }
 
   function render() {
     if (!current) return;
@@ -39,33 +97,6 @@ export function createScopeApprovalView(dialog, editor) {
       meta.textContent = `${item.path || TYPE_LABEL[item.type] || item.type}${count}`;
       description.append(name, meta);
       row.append(description);
-      for (const [permission, enabled] of [['reference', current.allowReference], ['change', current.allowChange]]) {
-        const label = document.createElement('label');
-        label.className = 'assistant-scope-choice';
-        label.hidden = !enabled;
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.disabled = !enabled;
-        checkbox.checked = current.selections[permission].has(item.id);
-        checkbox.addEventListener('change', () => {
-          const subtree = [item.id];
-          const pending = [...(current.childrenByParent.get(item.id) || [])];
-          const seen = new Set(subtree);
-          while (pending.length) {
-            const childId = pending.pop();
-            if (seen.has(childId)) continue;
-            seen.add(childId);
-            subtree.push(childId);
-            pending.push(...(current.childrenByParent.get(childId) || []));
-          }
-          subtree.forEach((id) => {
-            if (checkbox.checked) current.selections[permission].add(id);
-            else current.selections[permission].delete(id);
-          });
-        });
-        label.append(checkbox, document.createTextNode(permission === 'reference' ? '参照' : '変更対象'));
-        row.append(label);
-      }
       list.append(row);
     }
     pageStatus.textContent = `${filtered.length ? current.page * PAGE_SIZE + 1 : 0}〜${Math.min((current.page + 1) * PAGE_SIZE, filtered.length)}件 / ${filtered.length}件`;
@@ -79,32 +110,47 @@ export function createScopeApprovalView(dialog, editor) {
 
   const finish = (choice) => {
     if (!current) return;
-    const result = {
-      choice,
-      referenceIds: choice === 'allow' ? [...current.selections.reference] : [],
-      changeIds: choice === 'allow' ? [...current.selections.change] : []
-    };
+    const referenceIds = new Set();
+    const changeIds = new Set();
+    if (choice === 'allow') {
+      for (const item of current.candidates) {
+        if (item.needsReference) referenceIds.add(item.id);
+        if (item.needsChange) changeIds.add(item.id);
+      }
+    }
+    const result = { choice, referenceIds: [...referenceIds], changeIds: [...changeIds] };
     const resolve = current.resolve;
+    current.summaryView?.card.setAttribute('data-decision', choice);
+    if (current.summaryView) {
+      current.summaryView.detailButton.disabled = true;
+      current.summaryView.approveButton.disabled = true;
+      current.summaryView.denyButton.disabled = true;
+      current.summaryView.approveButton.textContent = choice === 'allow' ? '許可しました' : '許可する';
+      current.summaryView.denyButton.textContent = choice === 'original_scope' ? '許可しませんでした' : '許可しない';
+    }
     current = null;
     dialog.close();
     resolve(result);
   };
   allowButton.addEventListener('click', () => finish('allow'));
-  originalButton.addEventListener('click', () => finish('original_scope'));
-  cancelButton.addEventListener('click', () => finish('cancel'));
-  dialog.addEventListener('cancel', (event) => { event.preventDefault(); finish('cancel'); });
+  denyButton.addEventListener('click', () => finish('original_scope'));
+  closeButton?.addEventListener('click', () => dialog.close());
+  dialog.addEventListener('cancel', (event) => { event.preventDefault(); dialog.close(); });
 
   function request({ candidates, allowReference, allowChange, purpose, processSummary }) {
     if (current) throw new Error('別の範囲選択が進行中です。');
     const data = editor.getState();
     const byId = new Map(data.classes.map((item) => [item.id, item]));
     const parentByChild = new Map(data.relations.map(({ child, parent }) => [child, parent]));
-    const childrenByParent = new Map();
-    data.relations.forEach(({ child, parent }) => {
-      if (!childrenByParent.has(parent)) childrenByParent.set(parent, []);
-      childrenByParent.get(parent).push(child);
+    const requestedById = new Map();
+    candidates.forEach((candidate) => {
+      const id = typeof candidate === 'string' ? candidate : candidate.id;
+      const prior = requestedById.get(id) || { needsReference: false, needsChange: false };
+      requestedById.set(id, {
+        needsReference: prior.needsReference || (typeof candidate === 'object' && typeof candidate.needsReference === 'boolean' ? candidate.needsReference : allowReference),
+        needsChange: prior.needsChange || (typeof candidate === 'object' && typeof candidate.needsChange === 'boolean' ? candidate.needsChange : allowChange)
+      });
     });
-    const requestedIds = new Set(candidates.map((item) => typeof item === 'string' ? item : item.id));
     const buildPath = (item) => {
       const labels = [item.label];
       let parentId = parentByChild.get(item.id);
@@ -118,27 +164,29 @@ export function createScopeApprovalView(dialog, editor) {
       }
       return labels.join(' › ');
     };
-    const normalized = [...requestedIds].map((id) => byId.get(id)).filter(Boolean).map((item) => ({
-      id: item.id,
-      label: item.label,
-      type: item.type,
-      path: buildPath(item),
-      descendantTargetClassCount: data.counts?.[item.id] || 0
-    })).sort((a, b) => a.path.localeCompare(b.path, 'ja'));
+    const normalized = [...requestedById].map(([id, permissions]) => {
+      const item = byId.get(id);
+      if (!item) return null;
+      return {
+        id,
+        ...permissions,
+        label: item.label,
+        type: item.type,
+        path: buildPath(item),
+        descendantTargetClassCount: data.counts?.[id] || 0
+      };
+    }).filter(Boolean).sort((a, b) => a.path.localeCompare(b.path, 'ja'));
 
-    title.textContent = allowReference && allowChange
-      ? '追加する参照・変更範囲を選択'
-      : allowReference ? '追加する参照範囲を選択' : '追加する変更範囲を選択';
+    title.textContent = '追加許可を求めている範囲';
     summary.textContent = [purpose, processSummary].filter(Boolean).join('。');
-    referenceToggle.hidden = !allowReference;
-    changeToggle.hidden = !allowChange;
     search.value = '';
     current = {
-      candidates: normalized, allowReference, allowChange, page: 0, childrenByParent,
-      selections: { reference: new Set(), change: new Set() }, resolve: null
+      candidates: normalized, allowReference, allowChange, page: 0,
+      resolve: null,
+      summaryView: showSummary({ candidates: normalized, allowReference, allowChange, purpose, processSummary })
     };
     render();
-    dialog.showModal();
+    if (!current.summaryView) dialog.showModal();
     return new Promise((resolve) => { current.resolve = resolve; });
   }
 

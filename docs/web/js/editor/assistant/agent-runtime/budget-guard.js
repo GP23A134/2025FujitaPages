@@ -11,7 +11,9 @@ export function createBudgetGuard({ state, limits, onChange }) {
   const reservations = new Map();
   let nextReservationId = 0;
   const notify = () => onChange?.({ ...counters });
-  const fail = (message, code) => Object.assign(new Error(message), { code, status: 'budget_exhausted' });
+  const fail = (message, code) => Object.assign(new Error(message), {
+    code, status: 'budget_exhausted', sourceModule: 'agent-runtime/budget-guard.js'
+  });
 
   function reserveInput(input) {
     const estimate = estimateInputTokens(input);

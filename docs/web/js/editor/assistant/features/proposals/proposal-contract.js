@@ -77,6 +77,7 @@ function toEditorOperation(operation, byId, temporaryIds, targetRenameEnabled) {
 
 export function validateProposalResponse(response, { editor, referenceIds, changeIds, allowedOperations = [...TYPES], targetRenameEnabled = false, dataVersion = null }) {
   const errors = [];
+  const scopeRequests = new Map();
   if (!record(response) || !only(response, ['message', 'proposals', 'alternativeGroups'])) throw new Error('変更案の応答形式が不正です。');
   if (!nonempty(response.message) || !Array.isArray(response.proposals) || !Array.isArray(response.alternativeGroups)) throw new Error('変更案の必須項目がありません。');
   const state = editor.getState();
@@ -94,18 +95,42 @@ export function validateProposalResponse(response, { editor, referenceIds, chang
       if (![raw.title, raw.summary, raw.reason].every(nonempty) || !Array.isArray(raw.operations) || !raw.operations.length) throw new Error('提案の説明または操作がありません。');
       if (!Array.isArray(raw.uncertainties) || raw.uncertainties.some((item) => !nonempty(item))
         || !Array.isArray(raw.questions) || raw.questions.some((question) => !record(question)
-          || !only(question, ['id', 'text']) || !nonempty(question.id) || !nonempty(question.text))) {
+          || !only(question, ['id', 'text', 'options']) || !nonempty(question.id) || !nonempty(question.text)
+          || !Array.isArray(question.options) || question.options.length > 4
+          || question.options.some((option, index) => !record(option) || !only(option, ['id', 'label'])
+            || !nonempty(option.id) || !nonempty(option.label)
+            || question.options.findIndex((item) => item?.id === option.id) !== index))) {
         throw new Error('提案の質問・不確実点が不正です。');
       }
       if (raw.operations.some((operation) => !allowedOperations.includes(operation?.type))) throw new Error('計画で許可されていない操作が含まれています。');
       const temporaryIds = new Map();
       const operations = raw.operations.map((operation) => toEditorOperation(operation, byId, temporaryIds, targetRenameEnabled));
+      const proposalScopeRequests = new Map();
+      const addScopeRequest = (classId, needsReference, needsChange) => {
+        if (!needsReference && !needsChange) return;
+        const prior = proposalScopeRequests.get(classId) || { classId, needsReference: false, needsChange: false };
+        prior.needsReference ||= needsReference;
+        prior.needsChange ||= needsChange;
+        proposalScopeRequests.set(classId, prior);
+      };
       for (const operation of raw.operations) {
         const sourceRef = operation.target;
-        if (sourceRef?.kind === 'existing_class' && !changeIds.includes(sourceRef.classId)) throw new Error('変更対象が許可範囲外です。');
-        for (const ref of [sourceRef, operation.newParent]) {
-          if (ref?.kind === 'existing_class' && !references.has(ref.classId)) throw new Error('参照または変更範囲外のクラスが使われています。');
+        if (sourceRef?.kind === 'existing_class') {
+          addScopeRequest(sourceRef.classId, !references.has(sourceRef.classId), !changeIds.includes(sourceRef.classId));
         }
+        for (const ref of [sourceRef, operation.newParent]) {
+          if (ref?.kind === 'existing_class' && !references.has(ref.classId)) addScopeRequest(ref.classId, true, false);
+        }
+      }
+      if (proposalScopeRequests.size) {
+        const requested = [...proposalScopeRequests.values()];
+        requested.forEach((item) => {
+          const prior = scopeRequests.get(item.classId) || { ...item };
+          prior.needsReference ||= item.needsReference;
+          prior.needsChange ||= item.needsChange;
+          scopeRequests.set(item.classId, prior);
+        });
+        throw new Error('変更案に、まだ許可されていないクラス範囲が含まれています。');
       }
       const candidate = editor.applyOperations(operations, baseFingerprint, [...changeIds], [...references], {
         allowedTypes: ['addClass', 'renameClass', 'moveClass', 'promoteClass', 'deleteClass'],
@@ -263,5 +288,5 @@ export function validateProposalResponse(response, { editor, referenceIds, chang
     if (group.proposalIds.length < 2) alternativeGroups.splice(index, 1);
   }
 
-  return { message: response.message, proposals: validated, alternativeGroups, blocked: errors };
+  return { message: response.message, proposals: validated, alternativeGroups, blocked: errors, scopeRequests: [...scopeRequests.values()] };
 }

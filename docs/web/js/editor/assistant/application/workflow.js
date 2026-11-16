@@ -10,6 +10,10 @@ import { PROPOSAL_RESPONSE_SCHEMA } from '../features/proposals/proposal-schema.
 import { validateProposalResponse } from '../features/proposals/proposal-contract.js';
 
 const now = () => new Date().toISOString();
+const withErrorSource = (error, sourceModule) => {
+  if (error && typeof error === 'object' && !error.sourceModule) error.sourceModule = sourceModule;
+  return error;
+};
 const countsFor = (classes, ids) => {
   const selected = new Set(ids);
   const counts = { top: 0, middle: 0, target: 0 };
@@ -23,7 +27,21 @@ const countsFor = (classes, ids) => {
 const allClassCounts = (classes) => countsFor(classes, classes.map((item) => item.id));
 const parseResponse = (text) => {
   try { return JSON.parse(text); }
-  catch { throw Object.assign(new Error('AIの提案が有効なJSONではありません。'), { code: 'INVALID_PROPOSAL_JSON' }); }
+  catch {
+    throw Object.assign(new Error('AIの提案が有効なJSONではありません。'), {
+      code: 'INVALID_PROPOSAL_JSON', sourceModule: 'features/proposals/proposal-contract.js'
+    });
+  }
+};
+const formatAnswers = (questions, answers) => {
+  if (typeof answers === 'string') return answers.trim();
+  const answerById = new Map((answers || []).map((answer) => [answer.questionId, answer]));
+  return (questions || []).map((question) => {
+    const answer = answerById.get(question.id);
+    if (!answer) return null;
+    const kind = answer.optionId ? '選択した候補' : '自由入力';
+    return `- ${question.text}\n  ${kind}: ${answer.text}`;
+  }).filter(Boolean).join('\n');
 };
 
 export function createAssistantWorkflow({
@@ -35,6 +53,7 @@ export function createAssistantWorkflow({
   let plan = null;
   let grants = { reference: new Set(), change: new Set() };
   let budgetGuard = null;
+  let selectedClassIds = [];
   let currentApiKey = null;
   let currentModel = null;
   let lastResult = null;
@@ -44,12 +63,20 @@ export function createAssistantWorkflow({
   let settingsInvalidated = false;
   const selectedAlternatives = new Map();
   const updateState = (next) => { state = next; onEvent({ type: 'state', state }); };
-  const setStatus = (status) => updateState(transitionConversation(state, status, now()));
+  const setStatus = (status) => {
+    if (state?.status === status) return;
+    updateState(transitionConversation(state, status, now()));
+  };
   const emitProgress = (stage, detail = {}) => {
     reportProgress({ stage, ...detail });
     onEvent({ type: 'progress', stage, ...detail });
   };
-  const emitError = (error) => onEvent({ type: 'error', error: { code: error.code || 'WORKFLOW_ERROR', message: error.message } });
+  const emitError = (error) => {
+    const sourceModule = error?.sourceModule || 'application/workflow.js';
+    const code = error?.code || 'WORKFLOW_ERROR';
+    globalThis.console?.error?.(`[assistant] ${sourceModule} (${code})`, error);
+    onEvent({ type: 'error', error: { code, message: error?.message || String(error), sourceModule } });
+  };
   const beginActive = (externalSignal) => {
     const controller = new AbortController();
     activeController = controller;
@@ -98,12 +125,6 @@ export function createAssistantWorkflow({
     };
   }
 
-  function allUnapprovedClasses(requestReference, requestChange) {
-    return editor.getState().classes
-      .filter((item) => (requestReference && !grants.reference.has(item.id))
-        || (requestChange && !grants.change.has(item.id)));
-  }
-
   async function askForScope({ candidates, allowReference, allowChange, purpose }) {
     if (!scopeApproval?.request) return { choice: 'original_scope', referenceIds: [], changeIds: [] };
     setStatus('needs_scope_approval');
@@ -125,6 +146,10 @@ export function createAssistantWorkflow({
     if (decision.choice === 'allow') {
       decision.referenceIds.forEach((id) => grants.reference.add(id));
       decision.changeIds.forEach((id) => grants.change.add(id));
+    } else if (decision.choice === 'original_scope') {
+      setStatus('scope_denied');
+      emitProgress('scope_denied');
+      return false;
     }
     updateState({
       ...state,
@@ -138,35 +163,22 @@ export function createAssistantWorkflow({
   async function createPlan({ replan = false, signal } = {}) {
     if (replan) budgetGuard.countReplan();
     emitProgress('planning');
-    const result = await planningService.createPlan({
-      apiKey: currentApiKey,
-      model: currentModel,
-      planInput: buildPlanInput(state.request, currentCounts(), { instanceCount: currentCounts().instanceCount }),
-      signal,
-      budgetGuard,
-      onUsage: reportUsage
-    });
+    let result;
+    try {
+      result = await planningService.createPlan({
+        apiKey: currentApiKey,
+        model: currentModel,
+        planInput: buildPlanInput(state.request, currentCounts(), { instanceCount: currentCounts().instanceCount }),
+        signal,
+        budgetGuard,
+        onUsage: reportUsage
+      });
+    } catch (error) {
+      throw withErrorSource(error, 'features/planning/planning-service.js');
+    }
     plan = result.plan;
     onEvent({ type: 'plan', plan, usage: result.usage, counts: currentCounts() });
     return plan;
-  }
-
-  async function resolvePlannedScope() {
-    const needReference = plan.scopeNeeds.referenceBeyondSelection;
-    const needChange = plan.scopeNeeds.changeBeyondSelection;
-    if (!needReference && !needChange) return null;
-    const candidates = allUnapprovedClasses(needReference, needChange);
-    const decision = await askForScope({
-      candidates,
-      allowReference: needReference,
-      allowChange: needChange,
-      purpose: '計画された処理に、選択範囲外のクラスが必要です。'
-    });
-    if (!await applyScopeDecision(decision)) return { status: state.status, plan };
-    if (decision.choice === 'original_scope') {
-      state = { ...state, request: `${state.request}\n\n範囲の追加許可は得られなかったため、許可済みの範囲だけで成立する作業に限定してください。` };
-    }
-    return { needsReplan: true };
   }
 
   async function runAgent({ signal }) {
@@ -177,7 +189,7 @@ export function createAssistantWorkflow({
     const reader = createEditorDataReader({
       editor,
       getReferenceScope: () => [...grants.reference],
-      getSelectedIds: () => editor.selectedIds || [],
+      getSelectedIds: () => [...selectedClassIds],
       getDataVersion: () => window.classEditorAssistant?.getDataVersion?.(),
       pageLimit: settings['dataRetrieval.pageAndIdLimit'],
       idLimit: settings['dataRetrieval.pageAndIdLimit'],
@@ -198,6 +210,7 @@ export function createAssistantWorkflow({
     const allowedTools = [];
     if (plan.dataNeeds.hierarchyIndex) allowedTools.push('read_hierarchy_index', 'read_direct_children', 'read_class_details');
     if (plan.dataNeeds.selectedClassDetails) allowedTools.push('read_selected_class_details', 'read_direct_children', 'read_class_details');
+    if (plan.dataNeeds.parentContext !== 'none') allowedTools.push('read_selected_class_details', 'read_class_details');
     if (plan.dataNeeds.instanceContext !== 'none') allowedTools.push('read_instance_context');
     const uniqueTools = [...new Set(allowedTools)];
     const loop = createAgentRunLoop({
@@ -216,7 +229,9 @@ export function createAssistantWorkflow({
     const retries = settings['validation.maxRepairRetries'];
     for (let attempt = 0; ; attempt += 1) {
       emitProgress(attempt ? 'validating' : (uniqueTools.length ? 'retrieving' : 'analyzing'));
-      const result = await loop.run({ messages, signal, allowedTools: uniqueTools, onProgress: emitProgress });
+      let result;
+      try { result = await loop.run({ messages, signal, allowedTools: uniqueTools, onProgress: emitProgress }); }
+      catch (error) { throw withErrorSource(error, 'agent-runtime/run-loop.js'); }
       if (result.status === 'needs_scope_approval') {
         const decision = await askForScope({
           candidates: result.scopeRequest.candidates || [],
@@ -224,21 +239,42 @@ export function createAssistantWorkflow({
           allowChange: false,
           purpose: result.scopeRequest.purpose || '取得に追加の参照範囲が必要です。'
         });
-        if (!await applyScopeDecision(decision)) return { status: state.status, scopeRequest: result.scopeRequest };
+        if (!await applyScopeDecision(decision)) return { status: state.status === 'cancelled' ? 'cancelled' : 'scope_blocked', scopeRequest: result.scopeRequest };
         if (decision.choice === 'original_scope' || !decision.referenceIds.length) {
           return { status: 'scope_blocked', scopeRequest: result.scopeRequest };
         }
         return { status: 'replan_required' };
       }
       const response = parseResponse(result.text);
-      const validation = validateProposalResponse(response, {
-        editor,
-        referenceIds: [...grants.reference],
-        changeIds: [...grants.change],
-        allowedOperations: plan.changeOperations,
-        targetRenameEnabled: settings['proposals.targetClassRenameEnabled'],
-        dataVersion: window.classEditorAssistant?.getDataVersion?.() || null
-      });
+      let validation;
+      try {
+        validation = validateProposalResponse(response, {
+          editor,
+          referenceIds: [...grants.reference],
+          changeIds: [...grants.change],
+          allowedOperations: plan.changeOperations,
+          targetRenameEnabled: settings['proposals.targetClassRenameEnabled'],
+          dataVersion: window.classEditorAssistant?.getDataVersion?.() || null
+        });
+      } catch (error) {
+        throw withErrorSource(error, 'features/proposals/proposal-contract.js');
+      }
+      if (validation.scopeRequests?.length) {
+        const candidates = reader.getScopeCandidates(validation.scopeRequests.map((item) => item.classId))
+          .map((candidate) => {
+            const request = validation.scopeRequests.find((item) => item.classId === candidate.id);
+            return { ...candidate, needsReference: request.needsReference, needsChange: request.needsChange };
+          });
+        const needsReference = candidates.some((item) => item.needsReference);
+        const needsChange = candidates.some((item) => item.needsChange);
+        const decision = await askForScope({
+          candidates, allowReference: needsReference, allowChange: needsChange,
+          purpose: '変更案の検証で、選択範囲外のクラスを参照または変更対象に含める必要があります。'
+        });
+        if (!await applyScopeDecision(decision)) return { status: state.status === 'cancelled' ? 'cancelled' : 'scope_blocked', scopeRequest: { candidates } };
+        if (decision.choice === 'allow' && (decision.referenceIds.length || decision.changeIds.length)) return { status: 'replan_required' };
+        return { status: 'scope_blocked', scopeRequest: { candidates } };
+      }
       if (validation.blocked.length && attempt < retries) {
         messages = [...result.messages, { role: 'user', content: JSON.stringify({
           validationErrors: validation.blocked,
@@ -266,14 +302,13 @@ export function createAssistantWorkflow({
       onEvent({ type: 'questions', questions: currentPlan.questions });
       return { status: state.status, plan: currentPlan };
     }
-    const scopeResolution = await resolvePlannedScope();
-    if (scopeResolution?.needsReplan) return runPlan({ replan: true, signal });
-    if (scopeResolution) return scopeResolution;
     if (state.status !== 'planning') setStatus('planning');
-    if (currentPlan.dataNeeds.hierarchyIndex || currentPlan.dataNeeds.selectedClassDetails) setStatus('retrieving');
+    if (currentPlan.dataNeeds.hierarchyIndex || currentPlan.dataNeeds.selectedClassDetails
+      || currentPlan.dataNeeds.parentContext !== 'none' || currentPlan.dataNeeds.instanceContext !== 'none') setStatus('retrieving');
     else setStatus('analyzing');
     const outcome = await runAgent({ signal });
     if (outcome.status === 'replan_required') return runPlan({ replan: true, signal });
+    if (outcome.status === 'cancelled') return outcome;
     if (outcome.status === 'scope_blocked') {
       onEvent({ type: 'scope_blocked', scopeRequest: outcome.scopeRequest });
       return outcome;
@@ -298,18 +333,19 @@ export function createAssistantWorkflow({
     const activeSignal = beginActive(signal);
     try {
       const settings = getSettings();
-      const selectedIds = [...(editor.selectedIds || [])];
+      selectedClassIds = [...(editor.selectedIds || [])];
       plan = null;
       lastResult = null;
       lastAgentContext = null;
       selectedAlternatives.clear();
-      grants = { reference: new Set(selectedIds), change: new Set(selectedIds) };
+      grants = { reference: new Set(selectedClassIds), change: new Set(selectedClassIds) };
       state = createConversationState({
         id: crypto.randomUUID(),
         request,
-        settingsSnapshot: settings
+        settingsSnapshot: settings,
+        selectedClassIds
       });
-      state = { ...state, scopeGrants: { reference: selectedIds, change: selectedIds } };
+      state = { ...state, scopeGrants: { reference: selectedClassIds, change: selectedClassIds } };
       currentApiKey = apiKey;
       currentModel = model;
       updateState(state);
@@ -411,9 +447,12 @@ export function createAssistantWorkflow({
     if (active) throw new Error('別のAI処理が実行中です。');
     if (!snapshot?.state?.id || !snapshot.state.settingsSnapshot) throw new TypeError('再開データが不正です。');
     const saved = snapshot.state;
+    selectedClassIds = Array.isArray(saved.selectedClassIds)
+      ? saved.selectedClassIds.filter((id) => typeof id === 'string')
+      : [...(saved.scopeGrants?.change || [])];
     state = {
       ...saved,
-      status: ['needs_clarification', 'needs_proposal_review', 'budget_exhausted'].includes(saved.status) ? saved.status : 'planning',
+      status: ['needs_clarification', 'needs_proposal_review', 'budget_exhausted', 'scope_denied', 'cancelled', 'completed', 'failed'].includes(saved.status) ? saved.status : 'planning',
       counters: { responseRounds: 0, retrievalCalls: 0, replans: 0, inputTokensReserved: 0, inputTokensActual: 0, ...saved.counters }
     };
     if (state.counters.inputTokensReserved > 0) {
@@ -464,6 +503,7 @@ export function createAssistantWorkflow({
       onEvent({ type: 'resume_requires_replan', reason: '上限に達した処理です。開発者設定で上限を調整し、新しい依頼として再実行してください。' });
       return { status: state.status, requiresNewRun: true };
     }
+    if (['scope_denied', 'cancelled', 'completed', 'failed'].includes(state.status)) return { status: state.status, resumed: true };
     if (state.status === 'planning') {
       if (!currentApiKey || !currentModel) return { status: state.status, requiresCredentials: true };
       active = true;
@@ -473,10 +513,11 @@ export function createAssistantWorkflow({
     return { status: state.status, resumed: true, requiresCredentials: !currentApiKey || !currentModel };
   }
 
-  async function answerQuestions(answer, signal) {
+  async function answerQuestions(answers, signal) {
     if (!state || state.status !== 'needs_clarification') throw new Error('回答を受け付ける確認待ち状態ではありません。');
-    if (typeof answer !== 'string' || !answer.trim()) throw new TypeError('回答を入力してください。');
-    state = { ...state, request: `${state.request}\n\n利用者の回答: ${answer.trim()}`, updatedAt: now() };
+    const formattedAnswers = formatAnswers(plan?.questions, answers);
+    if (!formattedAnswers) throw new TypeError('各質問に回答してください。');
+    state = { ...state, request: `${state.request}\n\n利用者の回答:\n${formattedAnswers}`, updatedAt: now() };
     setStatus('planning');
     active = true;
     const activeSignal = beginActive(signal);
@@ -493,13 +534,14 @@ export function createAssistantWorkflow({
     } finally { activeController = null; active = false; }
   }
 
-  async function answerProposalQuestions(proposalId, answer, signal) {
+  async function answerProposalQuestions(proposalId, answers, signal) {
     if (!state || state.status !== 'needs_proposal_review' || active) throw new Error('個別提案の回答を受け付けられません。');
     const prior = lastResult?.proposals.find((item) => item.proposal.id === proposalId);
     if (!prior || !prior.proposal.questions.length) throw new Error('この提案には回答待ちの質問がありません。');
-    if (typeof answer !== 'string' || !answer.trim()) throw new TypeError('回答を入力してください。');
+    const formattedAnswers = formatAnswers(prior.proposal.questions, answers);
+    if (!formattedAnswers) throw new TypeError('各質問に回答してください。');
     if (!lastAgentContext) {
-      state = { ...state, request: `${state.request}\n\n提案「${prior.proposal.title}」への回答: ${answer.trim()}`, updatedAt: now() };
+      state = { ...state, request: `${state.request}\n\n提案「${prior.proposal.title}」への回答:\n${formattedAnswers}`, updatedAt: now() };
       setStatus('planning');
       active = true;
       try { budgetGuard.countReplan(); return await runPlan({ signal }); }
@@ -513,7 +555,7 @@ export function createAssistantWorkflow({
         content: JSON.stringify({
           proposalId,
           questions: prior.proposal.questions,
-          answer: answer.trim(),
+          answers: Array.isArray(answers) ? answers : [{ questionId: prior.proposal.questions[0]?.id, optionId: null, text: formattedAnswers }],
           instruction: 'この提案とその依存操作だけを再検討してください。提案IDを維持してください。他の独立提案は変更しないでください。'
         })
       }];

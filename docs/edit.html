@@ -456,15 +456,15 @@
     <dialog id="assistant-scope-dialog" class="edit-settings-dialog assistant-scope-dialog" aria-labelledby="assistant-scope-title">
       <h2 data-scope-title id="assistant-scope-title">追加範囲の選択</h2>
       <p data-scope-summary></p>
-      <p class="edit-settings-note">参照許可と変更対象への追加は個別に選べます。上位・中間クラスを選ぶと配下も含みます。変更範囲の許可だけで変更は適用されません。</p>
+      <p class="edit-settings-note">ここでは範囲の詳細を確認できます。許可すると表示された必要範囲をこの依頼内で許可しますが、変更案の適用には別途プレビューでの承認が必要です。</p>
       <label class="assistant-scope-search">クラスを検索<input type="search" data-scope-search autocomplete="off" /></label>
-      <div class="assistant-scope-header"><span>クラス・階層</span><span data-scope-reference>参照</span><span data-scope-change>変更対象</span></div>
+      <div class="assistant-scope-header"><span>追加許可を求めているクラス・階層</span></div>
       <div data-scope-list class="assistant-scope-list"></div>
       <div class="assistant-scope-pagination"><button type="button" data-scope-previous>前へ</button><span data-scope-page></span><button type="button" data-scope-next>次へ</button></div>
       <div class="test-settings-actions">
-        <button type="button" data-scope-allow class="search-button">選んだ範囲を許可</button>
-        <button type="button" data-scope-original class="search-button secondary-search-button">元の範囲で続ける</button>
-        <button type="button" data-scope-cancel class="search-button secondary-search-button">キャンセル</button>
+        <button type="button" data-scope-allow class="search-button">許可する</button>
+        <button type="button" data-scope-deny class="search-button secondary-search-button">許可しない</button>
+        <button type="button" data-scope-close class="search-button secondary-search-button">閉じる</button>
       </div>
     </dialog>
 

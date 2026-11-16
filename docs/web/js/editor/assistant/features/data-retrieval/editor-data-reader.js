@@ -267,8 +267,12 @@ export function createEditorDataReader({
     execute: readInstanceContext
   });
 
-  return Object.freeze({ registry, readHierarchyIndex, readChildren, readClassDetails, readSelectedClassDetails, readInstanceContext, getScopeCandidates: (ids) => {
+  return Object.freeze({ registry, readHierarchyIndex, readChildren, readClassDetails, readSelectedClassDetails, readInstanceContext, getScopeCandidates: (ids, permissions = {}) => {
     const data = snapshot();
-    return [...new Set(ids)].map((id) => detailFor(id, data)).filter(Boolean);
+    return [...new Set(ids)].map((id) => detailFor(id, data)).filter(Boolean).map((item) => ({
+      ...item,
+      needsReference: permissions.needsReference ?? true,
+      needsChange: permissions.needsChange ?? false
+    }));
   } });
 }

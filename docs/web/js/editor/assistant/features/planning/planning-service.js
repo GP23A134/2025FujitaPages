@@ -1,5 +1,5 @@
 import { PLAN_RESPONSE_SCHEMA } from './plan-schema.js';
-import { PLAN_SYSTEM_PROMPT } from './system-prompt.js';
+import { buildPlanSystemPrompt } from './system-prompt.js';
 import { validatePlan } from './plan-contract.js';
 
 function extractJsonText(response) {
@@ -13,8 +13,12 @@ export function createPlanningService({ client, getDeveloperSettings }) {
   if (!client || typeof client.request !== 'function') throw new TypeError('AI通信クライアントが必要です。');
 
   async function createPlan({ apiKey, model, planInput, signal, budgetGuard, onUsage = () => {} }) {
+    const settings = getDeveloperSettings?.() || {};
     const input = [
-      { role: 'system', content: PLAN_SYSTEM_PROMPT },
+      { role: 'system', content: buildPlanSystemPrompt({
+        instanceInformationEnabled: settings.instanceInformationEnabled === true,
+        targetClassRenameEnabled: settings.targetClassRenameEnabled === true
+      }) },
       { role: 'user', content: JSON.stringify(planInput) }
     ];
     const textFormat = { type: 'json_schema', name: 'class_edit_plan', strict: true, schema: PLAN_RESPONSE_SCHEMA };
@@ -51,10 +55,13 @@ export function createPlanningService({ client, getDeveloperSettings }) {
     let plan;
     try { plan = JSON.parse(extractJsonText(response)); }
     catch (error) {
-      if (error instanceof SyntaxError) throw new Error('AIの計画が有効なJSONではありません。');
+      if (error instanceof SyntaxError) {
+        throw Object.assign(new Error('AIの計画が有効なJSONではありません。'), {
+          sourceModule: 'features/planning/planning-service.js'
+        });
+      }
       throw error;
     }
-    const settings = getDeveloperSettings?.() || {};
     const validation = validatePlan(plan, {
       instanceInformationEnabled: settings.instanceInformationEnabled === true,
       targetClassRenameEnabled: settings.targetClassRenameEnabled === true
@@ -63,6 +70,7 @@ export function createPlanningService({ client, getDeveloperSettings }) {
       const error = new Error('AIの計画がアプリの規則を満たしていません。');
       error.code = 'INVALID_PLAN';
       error.details = validation.errors;
+      error.sourceModule = 'features/planning/plan-contract.js';
       throw error;
     }
     return Object.freeze({

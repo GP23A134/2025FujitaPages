@@ -61,6 +61,17 @@ test('plan contract accepts supported operations and rejects forbidden data and 
   assert.equal(planContract.validatePlan(instanceRequest, { instanceInformationEnabled: true }).valid, true);
 });
 
+test('question confirmations allow at most four answer choices and require option IDs and labels', () => {
+  const question = { id: 'q1', text: 'どちらを優先しますか？', options: [
+    { id: 'a', label: '案A' }, { id: 'b', label: '案B' }, { id: 'c', label: '案C' }, { id: 'd', label: '案D' }
+  ] };
+  assert.equal(planContract.validatePlan({ ...validPlan(), status: 'needs_clarification', questions: [question] }).valid, true);
+  const tooMany = { ...question, options: [...question.options, { id: 'e', label: '案E' }] };
+  assert.equal(planContract.validatePlan({ ...validPlan(), status: 'needs_clarification', questions: [tooMany] }).valid, false);
+  const duplicateIds = { ...question, options: [{ id: 'a', label: '案A' }, { id: 'a', label: '案B' }] };
+  assert.equal(planContract.validatePlan({ ...validPlan(), status: 'needs_clarification', questions: [duplicateIds] }).valid, false);
+});
+
 test('plan contract does not expose target-class addition or deletion operations', () => {
   assert.ok(!planContract.CHANGE_OPERATIONS.includes('add_target_class'));
   assert.ok(!planContract.CHANGE_OPERATIONS.includes('delete_target_class'));
@@ -87,7 +98,7 @@ test('planning service sends only the prepared request and counts and validates 
     module: sandboxModule,
     exports: sandboxModule.exports,
     PLAN_RESPONSE_SCHEMA: {},
-    PLAN_SYSTEM_PROMPT: 'fixed prompt',
+    buildPlanSystemPrompt: () => 'fixed prompt',
     validatePlan: () => ({ valid: true, errors: [] }),
     JSON, Object, Number, TypeError, Error, SyntaxError
   });

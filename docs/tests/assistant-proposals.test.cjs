@@ -53,10 +53,11 @@ test('holds proposals that modify outside the change grant or reference outside 
   }]);
   const changeDenied = validateProposalResponse(response([raw]), { editor, referenceIds: ['m2'], changeIds: [] });
   assert.equal(changeDenied.proposals.length, 0);
-  assert.match(changeDenied.blocked[0].reason, /変更対象/);
+  assert.match(changeDenied.blocked[0].reason, /許可されていないクラス範囲/);
+  assert.deepEqual(JSON.parse(JSON.stringify(changeDenied.scopeRequests)), [{ classId: 'c1', needsReference: true, needsChange: true }]);
   const referenceDenied = validateProposalResponse(response([raw]), { editor, referenceIds: ['c1'], changeIds: ['c1'] });
   assert.equal(referenceDenied.proposals.length, 0);
-  assert.match(referenceDenied.blocked[0].reason, /範囲外/);
+  assert.match(referenceDenied.blocked[0].reason, /許可されていないクラス範囲/);
 });
 
 test('temporary IDs are usable only after ordered addition and resolve to editor operations', () => {
@@ -82,6 +83,18 @@ test('program validation failures keep invalid proposals out of the preview', ()
   }])]), { editor, referenceIds: ['t1', 'm1', 'm2', 'c1'], changeIds: ['c1'] });
   assert.equal(result.proposals.length, 0);
   assert.equal(result.blocked[0].reason, 'hierarchy rejected');
+});
+
+test('proposal questions accept up to four options and hold malformed confirmation choices', () => {
+  const { editor } = fixture();
+  const raw = { ...proposal([{ type: 'move_target_class', target: existing('c1'), newParent: existing('m2'), tempId: null, label: null }]),
+    questions: [{ id: 'q1', text: 'どちらですか？', options: [
+      { id: 'a', label: 'A' }, { id: 'b', label: 'B' }, { id: 'c', label: 'C' }, { id: 'd', label: 'D' }, { id: 'e', label: 'E' }
+    ] }]
+  };
+  const result = validateProposalResponse(response([raw]), { editor, referenceIds: ['c1', 'm2'], changeIds: ['c1'] });
+  assert.equal(result.proposals.length, 0);
+  assert.match(result.blocked[0].reason, /質問/);
 });
 
 test('alternative groups accept only existing proposals with at most three choices', () => {

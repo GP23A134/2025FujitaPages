@@ -83,8 +83,12 @@ export function validatePlan(plan, { instanceInformationEnabled = false, targetC
   }
 
   if (!Array.isArray(plan.questions) || plan.questions.some((question) => !isRecord(question)
-    || !hasOnlyKeys(question, ['id', 'text']) || !isString(question.id) || !isString(question.text))) {
-    errors.push('questionsはidとtextを持つ質問オブジェクトの配列が必要です。');
+    || !hasOnlyKeys(question, ['id', 'text', 'options']) || !isString(question.id) || !isString(question.text)
+    || !Array.isArray(question.options) || question.options.length > 4
+    || question.options.some((option, index) => !isRecord(option) || !hasOnlyKeys(option, ['id', 'label'])
+      || !isString(option.id) || !option.id.trim() || !isString(option.label) || !option.label.trim()
+      || question.options.findIndex((item) => item?.id === option.id) !== index))) {
+    errors.push('questionsはid・text・最大4件のoptionsを持つ質問オブジェクトの配列が必要です。');
   }
   if (!Array.isArray(plan.unsupportedParts) || plan.unsupportedParts.some((part) => !isRecord(part)
     || !hasOnlyKeys(part, ['description', 'reason']) || !isString(part.description) || !isString(part.reason))) {

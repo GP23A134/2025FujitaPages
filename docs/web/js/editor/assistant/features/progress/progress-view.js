@@ -1,5 +1,5 @@
 const PROGRESS_STAGES = new Set([
-  'planning', 'waiting_for_answer', 'checking_scope', 'waiting_for_scope_approval',
+  'planning', 'waiting_for_answer', 'checking_scope', 'waiting_for_scope_approval', 'scope_denied',
   'retrieving', 'analyzing', 'validating', 'waiting_for_review', 'budget_exhausted', 'completed', 'failed'
 ]);
 
@@ -8,6 +8,7 @@ const DEFAULT_LABELS = Object.freeze({
   waiting_for_answer: '確認への回答をお待ちしています',
   checking_scope: '必要な参照・変更範囲を確認しています',
   waiting_for_scope_approval: '追加範囲の選択をお待ちしています',
+  scope_denied: '追加範囲が許可されなかったため処理を停止しました',
   retrieving: '許可された範囲からデータを取得しています',
   analyzing: '取得した情報を確認しています',
   validating: '変更案を検証しています',
@@ -17,21 +18,82 @@ const DEFAULT_LABELS = Object.freeze({
   failed: '処理を続けられませんでした'
 });
 
-export function createProgressView(statusElement) {
+export function createProgressView(statusElement, messages = document.getElementById('ai-chat-messages')) {
   if (!statusElement) throw new TypeError('進捗表示要素が必要です。');
+
+  let indicator = null;
+  let startedAt = 0;
+  let timer = null;
+  let waiting = false;
+
+  const formatElapsed = (milliseconds) => {
+    const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return minutes ? `${minutes}分${remainder}秒` : `${remainder}秒`;
+  };
+
+  const ensureIndicator = () => {
+    if (indicator || !messages) return;
+    indicator = document.createElement('div');
+    indicator.className = 'ai-thinking-indicator';
+    indicator.setAttribute('role', 'status');
+    indicator.setAttribute('aria-live', 'polite');
+    messages.append(indicator);
+    messages.scrollTop = messages.scrollHeight;
+  };
+
+  const stopTimer = () => {
+    if (timer !== null) window.clearInterval(timer);
+    timer = null;
+  };
+
+  const updateIndicator = () => {
+    if (!indicator) return;
+    const elapsed = formatElapsed(Date.now() - startedAt);
+    const label = indicator.dataset.progressLabel || '';
+    const note = indicator.dataset.progressNote || '';
+    const text = [label, note, `（${elapsed}）`].filter(Boolean).join('：');
+    indicator.textContent = text;
+    indicator.setAttribute('aria-label', text);
+  };
 
   function render(event) {
     const detail = event?.detail || {};
     if (!PROGRESS_STAGES.has(detail.stage)) return;
     const note = typeof detail.note === 'string' ? detail.note.trim() : '';
     const scope = typeof detail.scopeSummary === 'string' ? detail.scopeSummary.trim() : '';
-    statusElement.textContent = [DEFAULT_LABELS[detail.stage], scope, note].filter(Boolean).join('。');
+    const label = DEFAULT_LABELS[detail.stage];
+    const isWaiting = ['waiting_for_answer', 'waiting_for_scope_approval', 'waiting_for_review'].includes(detail.stage);
+    const isFinished = ['budget_exhausted', 'completed', 'failed', 'scope_denied'].includes(detail.stage);
+    ensureIndicator();
+    if (!isWaiting && !isFinished) {
+      if (!startedAt || waiting) startedAt = Date.now();
+      waiting = false;
+      indicator?.classList.remove('is-complete');
+      if (timer === null) timer = window.setInterval(updateIndicator, 1000);
+    } else {
+      if (!startedAt) startedAt = Date.now();
+      waiting = true;
+      stopTimer();
+      indicator?.classList.add('is-complete');
+    }
+    if (indicator) {
+      indicator.dataset.progressLabel = label;
+      indicator.dataset.progressNote = [scope, note].filter(Boolean).join('。');
+      updateIndicator();
+      messages.scrollTop = messages.scrollHeight;
+    }
+    statusElement.textContent = [label, scope, note].filter(Boolean).join('。');
     statusElement.dataset.workflowStage = detail.stage;
   }
 
   window.addEventListener('assistant:progress', render);
   return Object.freeze({
-    dispose() { window.removeEventListener('assistant:progress', render); },
+    dispose() {
+      window.removeEventListener('assistant:progress', render);
+      stopTimer();
+    },
     render
   });
 }

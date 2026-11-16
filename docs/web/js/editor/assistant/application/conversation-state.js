@@ -3,6 +3,7 @@ export const WORKFLOW_STATUSES = Object.freeze([
   'planning',
   'needs_clarification',
   'needs_scope_approval',
+  'scope_denied',
   'retrieving',
   'analyzing',
   'validating',
@@ -14,20 +15,20 @@ export const WORKFLOW_STATUSES = Object.freeze([
 ]);
 
 const transitions = Object.freeze({
-  planning: ['needs_clarification', 'needs_scope_approval', 'retrieving', 'analyzing', 'budget_exhausted', 'completed', 'cancelled', 'failed'],
+  planning: ['needs_clarification', 'needs_scope_approval', 'retrieving', 'analyzing', 'budget_exhausted', 'completed', 'cancelled', 'failed', 'scope_denied'],
   needs_clarification: ['planning', 'cancelled', 'failed'],
-  needs_scope_approval: ['planning', 'cancelled', 'failed'],
-  retrieving: ['planning', 'analyzing', 'needs_scope_approval', 'budget_exhausted', 'cancelled', 'failed'],
-  analyzing: ['planning', 'validating', 'needs_clarification', 'needs_scope_approval', 'budget_exhausted', 'cancelled', 'failed'],
+  needs_scope_approval: ['planning', 'cancelled', 'failed', 'scope_denied'],
+  retrieving: ['planning', 'analyzing', 'needs_scope_approval', 'budget_exhausted', 'cancelled', 'failed', 'scope_denied'],
+  analyzing: ['planning', 'validating', 'needs_clarification', 'needs_scope_approval', 'budget_exhausted', 'cancelled', 'failed', 'scope_denied'],
   validating: ['planning', 'needs_proposal_review', 'needs_clarification', 'budget_exhausted', 'completed', 'cancelled', 'failed'],
-  needs_proposal_review: ['planning', 'completed', 'cancelled', 'failed'],
+  needs_proposal_review: ['planning', 'needs_scope_approval', 'completed', 'cancelled', 'failed', 'scope_denied'],
   budget_exhausted: ['planning', 'cancelled'],
   completed: [],
   cancelled: [],
   failed: ['planning', 'cancelled']
 });
 
-export function createConversationState({ id, request, settingsSnapshot, createdAt = new Date().toISOString() }) {
+export function createConversationState({ id, request, settingsSnapshot, selectedClassIds = [], createdAt = new Date().toISOString() }) {
   if (!id || typeof id !== 'string') throw new TypeError('会話IDが必要です。');
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('依頼文が必要です。');
   if (!settingsSnapshot || typeof settingsSnapshot !== 'object' || Array.isArray(settingsSnapshot)) {
@@ -39,6 +40,7 @@ export function createConversationState({ id, request, settingsSnapshot, created
     request: request.trim(),
     status: 'planning',
     settingsSnapshot: structuredClone(settingsSnapshot),
+    selectedClassIds: [...new Set(selectedClassIds.filter((id) => typeof id === 'string'))],
     counters: { responseRounds: 0, retrievalCalls: 0, replans: 0, inputTokensReserved: 0, inputTokensActual: 0 },
     scopeGrants: { reference: [], change: [] },
     artifacts: [],

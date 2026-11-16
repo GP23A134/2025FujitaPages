@@ -22,8 +22,7 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
     if (answer) {
       const item = currentResult?.proposals.find((entry) => entry.proposal.id === answer.dataset.answerProposal);
       if (!item) return;
-      const textarea = root.querySelector(`[data-proposal-answer="${CSS.escape(item.proposal.id)}"]`);
-      if (textarea?.value.trim()) await onAnswerQuestions(item.proposal, textarea.value.trim());
+      await onAnswerQuestions(item.proposal);
       return;
     }
     if (event.target.closest('[data-finish-review]')) await onFinishReview();
@@ -94,15 +93,11 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
           li.textContent = question.text;
           questions.append(li);
         });
-        const answer = document.createElement('textarea');
-        answer.dataset.proposalAnswer = item.proposal.id;
-        answer.rows = 2;
-        answer.setAttribute('aria-label', `${item.proposal.title}への回答`);
         const answerButton = document.createElement('button');
         answerButton.type = 'button';
         answerButton.dataset.answerProposal = item.proposal.id;
         answerButton.textContent = '回答して案を再検討';
-        card.append(questions, answer, answerButton);
+        card.append(questions, answerButton);
       }
       const preview = document.createElement('button');
       preview.type = 'button';

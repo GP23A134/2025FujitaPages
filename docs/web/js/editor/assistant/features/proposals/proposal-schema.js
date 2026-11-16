@@ -26,8 +26,15 @@ export const PROPOSAL_RESPONSE_SCHEMA = Object.freeze({
           uncertainties: { type: 'array', items: { type: 'string' }, maxItems: 8 },
           questions: { type: 'array', items: {
             type: 'object', additionalProperties: false,
-            properties: { id: { type: 'string' }, text: { type: 'string' } },
-            required: ['id', 'text']
+            properties: {
+              id: { type: 'string' }, text: { type: 'string' },
+              options: { type: 'array', maxItems: 4, items: {
+                type: 'object', additionalProperties: false,
+                properties: { id: { type: 'string' }, label: { type: 'string' } },
+                required: ['id', 'label']
+              } }
+            },
+            required: ['id', 'text', 'options']
           }, maxItems: 5 },
           operations: { type: 'array', maxItems: 100, items: {
             type: 'object', additionalProperties: false,

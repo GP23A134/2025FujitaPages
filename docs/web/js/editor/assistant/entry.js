@@ -17,7 +17,9 @@ const statusElement = document.getElementById('ai-status');
 if (window.classEditorAI && statusElement) {
   const editorBridge = createEditorBridge();
   createProgressView(statusElement);
-  const scopeApproval = createScopeApprovalView(document.getElementById('assistant-scope-dialog'), window.classEditorAI);
+  const scopeApproval = createScopeApprovalView(document.getElementById('assistant-scope-dialog'), window.classEditorAI, {
+    messages: document.getElementById('ai-chat-messages')
+  });
   const questionView = createQuestionView(document.getElementById('assistant-question-dialog'));
   const settingsRegistry = createAssistantSettingsRegistry();
   const sessionService = createSessionService();
@@ -85,12 +87,15 @@ if (window.classEditorAI && statusElement) {
       item.candidate = states.after;
       previewView.show(item, states.before, states.after);
     },
-    onAnswerQuestions: (proposal, answer) => workflow.answerProposalQuestions(proposal.id, answer),
+    onAnswerQuestions: async (proposal) => {
+      const answers = await questionView.ask(proposal.questions, { submitLabel: '回答して案を再検討' });
+      if (answers) await workflow.answerProposalQuestions(proposal.id, answers);
+    },
     onFinishReview: () => workflow.finishReview()
   });
   const workflowView = createWorkflowView(document.getElementById('assistant-results'), questionView, proposalResultView, {
-    onAnswerQuestions: (answer) => workflow.answerQuestions(answer),
-    onAnswerProposal: (proposalId, answer) => workflow.answerProposalQuestions(proposalId, answer)
+    messages: document.getElementById('ai-chat-messages'),
+    onAnswerQuestions: (answers) => workflow.answerQuestions(answers)
   });
   workflow = createAssistantWorkflow({
     editor: window.classEditorAI,
@@ -104,7 +109,7 @@ if (window.classEditorAI && statusElement) {
       workflowView.handle(event);
       const snapshot = workflow?.getPersistenceSnapshot?.();
       if (snapshot) {
-        const pending = !['completed', 'cancelled', 'failed'].includes(snapshot.state.status);
+        const pending = !['completed', 'cancelled', 'failed', 'scope_denied'].includes(snapshot.state.status);
         if (pending) sessionService.save(snapshot, Boolean(settings['conversations.persistAcrossTabs']));
         else sessionService.clear();
       }
@@ -142,7 +147,11 @@ if (window.classEditorAI && statusElement) {
     if (!settings['chat.useNewSystem']) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    void runNewSystem().catch((error) => { statusElement.textContent = error.message; });
+    void runNewSystem().catch((error) => {
+      if (error && typeof error === 'object' && !error.sourceModule) error.sourceModule = 'entry.js';
+      console.error(`[assistant] ${error?.sourceModule || 'entry.js'}`, error);
+      statusElement.textContent = error.message;
+    });
   }, true);
   const savedSession = sessionService.read(Boolean(settings['conversations.persistAcrossTabs']));
   resumeButton.hidden = !savedSession;
@@ -154,6 +163,10 @@ if (window.classEditorAI && statusElement) {
       const resumed = await workflow.resume(saved, { apiKey: apiKeyInput.value, model: modelSelect.value });
       resumeButton.hidden = !resumed.requiresCredentials;
       requestInput.value = saved.state.request;
+    } catch (error) {
+      if (error && typeof error === 'object' && !error.sourceModule) error.sourceModule = 'entry.js';
+      console.error(`[assistant] ${error?.sourceModule || 'entry.js'}`, error);
+      statusElement.textContent = error.message;
     } finally { resumeButton.disabled = false; }
   });
 

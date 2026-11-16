@@ -4,7 +4,7 @@ const browserStorage = (name) => { try { return globalThis[name]; } catch { retu
 
 function safeSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== 'object' || !snapshot.state?.id) return null;
-  const state = Object.fromEntries(['id', 'request', 'status', 'settingsSnapshot', 'counters', 'scopeGrants', 'createdAt', 'updatedAt']
+  const state = Object.fromEntries(['id', 'request', 'status', 'selectedClassIds', 'settingsSnapshot', 'counters', 'scopeGrants', 'createdAt', 'updatedAt']
     .filter((key) => Object.hasOwn(snapshot.state, key)).map((key) => [key, snapshot.state[key]]));
   return {
     version: 1,
