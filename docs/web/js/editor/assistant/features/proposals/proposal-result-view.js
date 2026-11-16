@@ -1,136 +1,237 @@
 export function createProposalResultView(root, { onPreview, onAnswerQuestions, onFinishReview, onSelectAlternative = () => {} }) {
-  let currentResult = null;
-  let selectedAlternatives = new Map();
+  const resultStates = new WeakMap();
+  const itemRows = new WeakMap();
+  let nextResultId = 0;
+
+  const statusOf = (state, item) => ['applied', 'dismissed'].includes(state.statuses.get(item))
+    ? state.statuses.get(item) : 'unjudged';
+  const updateStatusCounts = (message, state) => {
+    const counts = { unjudged: 0, applied: 0, dismissed: 0 };
+    state.result.proposals.forEach((item) => { counts[statusOf(state, item)] += 1; });
+    message.querySelector('[data-proposal-status-counts]')?.replaceChildren(...[
+      ['unjudged', '未判断', counts.unjudged],
+      ['applied', '適用済み', counts.applied],
+      ['dismissed', '見送り', counts.dismissed]
+    ].map(([key, label, count]) => {
+      const badge = document.createElement('span');
+      badge.className = `ai-proposal-status-badge is-${key}`;
+      badge.textContent = `${label} ${count}件`;
+      return badge;
+    }));
+  };
+
+  const canPreview = (state, item) => !item.proposal.questions.length
+    && (!state.groupByProposal.get(item.proposal.id)
+      || state.selectedAlternatives.get(state.groupByProposal.get(item.proposal.id).id) === item.proposal.id);
+
   root.addEventListener('click', async (event) => {
+    const message = event.target.closest('[data-assistant-proposal-result]');
+    if (!message || !root.contains(message)) return;
+    const state = resultStates.get(message);
+    if (!state) return;
+
     const choice = event.target.closest('[data-alternative-group]');
     if (choice) {
-      selectedAlternatives.set(choice.dataset.alternativeGroup, choice.value);
+      state.selectedAlternatives.set(choice.dataset.alternativeGroup, choice.value);
       onSelectAlternative(choice.dataset.alternativeGroup, choice.value);
-      root.querySelectorAll(`[data-alternative-choice="${CSS.escape(choice.dataset.alternativeGroup)}"]`).forEach((input) => {
-        const card = input.closest('.assistant-proposal-card');
-        card.querySelector('[data-preview-proposal]').disabled = !input.checked || card.dataset.hasQuestions === 'true';
+      message.querySelectorAll(`[data-alternative-choice="${CSS.escape(choice.dataset.alternativeGroup)}"]`).forEach((input) => {
+        const item = state.result.proposals.find((candidate) => candidate.proposal.id === input.value);
+        const row = itemRows.get(item);
+        const preview = row?.querySelector('[data-preview-proposal]');
+        if (preview) preview.disabled = !canPreview(state, item);
       });
+      const firstPreview = message.querySelector('[data-preview-first]');
+      if (firstPreview) firstPreview.disabled = !state.result.proposals.some((item) => canPreview(state, item));
       return;
     }
     const preview = event.target.closest('[data-preview-proposal]');
     if (preview) {
-      const proposal = currentResult?.proposals.find((item) => item.proposal.id === preview.dataset.previewProposal);
-      if (proposal) onPreview(proposal);
+      const item = state.result.proposals.find((candidate) => candidate.proposal.id === preview.dataset.previewProposal);
+      if (item && canPreview(state, item)) onPreview(item);
+      return;
+    }
+    if (event.target.closest('[data-preview-first]')) {
+      const item = state.result.proposals.find((candidate) => canPreview(state, candidate));
+      if (item) onPreview(item);
       return;
     }
     const answer = event.target.closest('[data-answer-proposal]');
     if (answer) {
-      const item = currentResult?.proposals.find((entry) => entry.proposal.id === answer.dataset.answerProposal);
-      if (!item) return;
-      await onAnswerQuestions(item.proposal);
+      const item = state.result.proposals.find((candidate) => candidate.proposal.id === answer.dataset.answerProposal);
+      if (item) await onAnswerQuestions(item.proposal);
       return;
     }
     if (event.target.closest('[data-finish-review]')) await onFinishReview();
   });
 
   function render(result) {
-    currentResult = result;
-    selectedAlternatives = new Map();
-    root.replaceChildren();
-    const message = document.createElement('p');
-    message.textContent = result.message || '処理が完了しました。';
-    root.append(message);
+    root.querySelectorAll('[data-assistant-proposal-result]:not([data-archived])').forEach((message) => {
+      message.dataset.archived = 'true';
+      message.querySelectorAll('button, input').forEach((control) => { control.disabled = true; });
+    });
 
+    const message = document.createElement('div');
+    message.className = 'ai-message assistant-proposal-result-message';
+    message.dataset.assistantProposalResult = 'true';
+    message.dataset.proposalResultId = String(++nextResultId);
+    message.setAttribute('role', 'article');
+    const body = document.createElement('div');
+    body.className = 'ai-message-body';
+    message.append(body);
+    const state = {
+      result,
+      selectedAlternatives: new Map(),
+      statuses: new Map((result.proposals || []).map((item) => [item, item.status || 'unjudged'])),
+      groupByProposal: new Map()
+    };
+    resultStates.set(message, state);
+
+    const summary = document.createElement('p');
+    summary.textContent = result.message || '処理が完了しました。';
+    body.append(summary);
     if (result.blocked?.length) {
-      const section = document.createElement('section');
-      const heading = document.createElement('h3');
-      heading.textContent = '保留した案';
       const list = document.createElement('ul');
       result.blocked.forEach((item) => {
         const row = document.createElement('li');
         row.textContent = `${item.proposalId ? `${item.proposalId}: ` : ''}${item.reason}`;
         list.append(row);
       });
-      section.append(heading, list);
-      root.append(section);
+      body.append(list);
+    }
+    if (!result.proposals?.length) {
+      root.append(message);
+      messagesScrollToLatest();
+      return;
     }
 
-    const groupByProposal = new Map();
-    (result.alternativeGroups || []).forEach((group) => group.proposalIds.forEach((id) => groupByProposal.set(id, group)));
-    for (const item of result.proposals || []) {
-      const card = document.createElement('article');
-      card.className = 'assistant-proposal-card';
-      const heading = document.createElement('h3');
-      heading.textContent = item.proposal.title;
-      const summary = document.createElement('p');
-      summary.textContent = item.proposal.summary;
-      const reason = document.createElement('p');
-      reason.textContent = item.proposal.reason;
-      const count = document.createElement('p');
-      count.textContent = `変更 ${item.operations.length}件`;
-      card.append(heading, summary, reason, count);
-      const group = groupByProposal.get(item.proposal.id);
+    const queue = document.createElement('section');
+    queue.className = 'ai-proposal-queue ai-proposal-queue-compact';
+    const heading = document.createElement('div');
+    heading.className = 'ai-proposal-queue-heading';
+    const disclosure = document.createElement('details');
+    disclosure.className = 'ai-proposal-queue-disclosure';
+    disclosure.open = false;
+    const queueTitle = document.createElement('span');
+    queueTitle.className = 'ai-proposal-queue-title';
+    queueTitle.textContent = `変更案 ${result.proposals.length}件`;
+    const badges = document.createElement('span');
+    badges.className = 'ai-proposal-queue-status-counts';
+    badges.dataset.proposalStatusCounts = 'true';
+    const disclosureSummary = document.createElement('summary');
+    disclosureSummary.append(queueTitle, badges);
+    const content = document.createElement('div');
+    content.className = 'ai-proposal-queue-content';
+    const list = document.createElement('div');
+    list.className = 'ai-proposal-list';
+    const previewAll = document.createElement('button');
+    previewAll.type = 'button';
+    previewAll.className = 'ai-proposal-preview ai-proposal-queue-preview';
+    previewAll.dataset.previewFirst = 'true';
+    previewAll.textContent = 'プレビュー';
+    previewAll.disabled = !result.proposals.some((item) => canPreview(state, item));
+
+    (result.alternativeGroups || []).forEach((group) => {
+      group.proposalIds.forEach((id) => state.groupByProposal.set(id, group));
+    });
+    result.proposals.forEach((item) => {
+      const status = statusOf(state, item);
+      const row = document.createElement('article');
+      row.className = `ai-proposal-list-item is-${status}`;
+      itemRows.set(item, row);
+      const main = document.createElement('div');
+      main.className = 'ai-proposal-list-main';
+      const meta = document.createElement('div');
+      meta.className = 'ai-proposal-list-meta';
+      const title = document.createElement('strong');
+      title.className = 'ai-proposal-list-title';
+      title.textContent = item.proposal.title;
+      meta.append(title);
+      const description = document.createElement('p');
+      description.className = 'ai-proposal-list-description';
+      description.textContent = item.proposal.summary;
+      main.append(meta, description);
+      const actions = document.createElement('div');
+      actions.className = 'ai-proposal-list-actions';
+      const badge = document.createElement('span');
+      badge.className = `ai-proposal-status-badge is-${status}`;
+      badge.dataset.proposalStatus = 'true';
+      badge.textContent = ({ unjudged: '未判断', applied: '適用済み', dismissed: '見送り' })[status] || '未判断';
+      actions.append(badge);
+      const group = state.groupByProposal.get(item.proposal.id);
       if (group) {
-        const selected = selectedAlternatives.get(group.id) || '';
-        if (group.id.startsWith('conflict_')) {
-          const groupNote = document.createElement('p');
-          groupNote.className = 'assistant-proposal-conflict';
-          groupNote.textContent = 'この案は同じ変更対象を扱うため、同時には適用できません。';
-          card.append(groupNote);
-        }
-        const radioLabel = document.createElement('label');
-        radioLabel.className = 'assistant-alternative-choice';
         const radio = document.createElement('input');
         radio.type = 'radio';
-        radio.name = `alternative-${group.id}`;
+        radio.name = `alternative-${message.dataset.proposalResultId}-${group.id}`;
         radio.value = item.proposal.id;
-        radio.checked = selected === item.proposal.id;
         radio.dataset.alternativeGroup = group.id;
         radio.dataset.alternativeChoice = group.id;
-        radioLabel.append(radio, document.createTextNode('この代替案を選択'));
-        card.append(radioLabel);
-      }
-      if (item.proposal.questions.length) {
-        card.dataset.hasQuestions = 'true';
-        const questions = document.createElement('ul');
-        item.proposal.questions.forEach((question) => {
-          const li = document.createElement('li');
-          li.textContent = question.text;
-          questions.append(li);
-        });
-        const answerButton = document.createElement('button');
-        answerButton.type = 'button';
-        answerButton.dataset.answerProposal = item.proposal.id;
-        answerButton.textContent = '回答して案を再検討';
-        card.append(questions, answerButton);
+        actions.append(radio);
       }
       const preview = document.createElement('button');
       preview.type = 'button';
-      preview.className = 'search-button';
+      preview.className = 'ai-proposal-preview';
       preview.dataset.previewProposal = item.proposal.id;
-      preview.textContent = 'プレビューを確認';
-      preview.disabled = item.proposal.questions.length > 0 || (Boolean(group) && selectedAlternatives.get(group.id) !== item.proposal.id);
-      card.append(preview);
-      root.append(card);
-    }
-    if (result.proposals?.length) {
-      const finish = document.createElement('button');
-      finish.type = 'button';
-      finish.className = 'search-button secondary-search-button';
-      finish.dataset.finishReview = 'true';
-      finish.textContent = '確認を終える';
-      root.append(finish);
-    }
+      preview.textContent = item.proposal.questions.length ? '回答が必要' : 'プレビュー';
+      preview.disabled = !canPreview(state, item);
+      actions.append(preview);
+      row.append(main, actions);
+      if (item.proposal.questions.length) {
+        const answer = document.createElement('button');
+        answer.type = 'button';
+        answer.dataset.answerProposal = item.proposal.id;
+        answer.textContent = '回答して案を再検討';
+        row.append(answer);
+      }
+      list.append(row);
+    });
+    content.append(list);
+    disclosure.append(disclosureSummary, content);
+    disclosure.addEventListener('toggle', () => { previewAll.hidden = disclosure.open; });
+    previewAll.hidden = disclosure.open;
+    heading.append(disclosure, previewAll);
+    queue.append(heading);
+    body.append(queue);
+    const finish = document.createElement('button');
+    finish.type = 'button';
+    finish.className = 'search-button secondary-search-button';
+    finish.dataset.finishReview = 'true';
+    finish.textContent = '確認を終える';
+    body.append(finish);
+    updateStatusCounts(message, state);
+    root.append(message);
+    messagesScrollToLatest();
   }
-  function markApplied(proposalId) {
-    const card = root.querySelector(`[data-preview-proposal="${CSS.escape(proposalId)}"]`)?.closest('.assistant-proposal-card');
-    if (!card) return;
-    card.dataset.applied = 'true';
-    card.querySelector('[data-preview-proposal]').disabled = true;
-    card.querySelector('[data-preview-proposal]').textContent = '適用済み';
-    const choice = card.querySelector('[data-alternative-group]');
-    if (choice) {
-      const groupId = choice.dataset.alternativeGroup;
-      root.querySelectorAll(`[data-alternative-choice="${CSS.escape(groupId)}"]`).forEach((input) => {
-        input.disabled = true;
-        input.closest('.assistant-proposal-card').querySelector('[data-preview-proposal]').disabled = true;
-      });
-    }
+
+  function messagesScrollToLatest() {
+    root.scrollTo?.({ top: root.scrollHeight, behavior: 'smooth' });
+    if (!root.scrollTo) root.scrollTop = root.scrollHeight;
   }
-  return Object.freeze({ render, markApplied });
+
+  function markApplied(item) {
+    setStatus(item, 'applied', '適用済み');
+  }
+
+  function markDismissed(item) {
+    setStatus(item, 'dismissed', '見送り');
+  }
+
+  function setStatus(item, status, label) {
+    const row = item && typeof item === 'object' ? itemRows.get(item) : null;
+    const message = row?.closest('[data-assistant-proposal-result]');
+    const state = message && resultStates.get(message);
+    if (!row || !state) return;
+    state.statuses.set(item, status);
+    row.classList.remove('is-unjudged', 'is-dismissed');
+    row.classList.remove('is-applied');
+    row.classList.add(`is-${status}`);
+    const badge = row.querySelector('[data-proposal-status]');
+    if (badge) {
+      badge.className = `ai-proposal-status-badge is-${status}`;
+      badge.textContent = label;
+    }
+    const preview = row.querySelector('[data-preview-proposal]');
+    if (preview) { preview.disabled = true; preview.textContent = label; }
+    updateStatusCounts(message, state);
+  }
+  return Object.freeze({ render, markApplied, markDismissed });
 }

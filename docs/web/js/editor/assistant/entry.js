@@ -8,7 +8,7 @@ import { createAssistantSettingsRegistry } from './settings/register-defaults.js
 import { createAssistantWorkflow } from './application/workflow.js?v=20261116-move-proposal-plan-guard-v5';
 import { createQuestionView } from './features/planning/question-view.js?v=20261116-agent-interaction-dock-v2';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261116-no-result-elapsed-v2';
-import { createProposalResultView } from './features/proposals/proposal-result-view.js';
+import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261116-proposals-in-chat-v3';
 import { createSettingsView } from './settings/settings-view.js?v=20261116-setting-errors-v1';
 import { createHistoryService } from './conversations/history-service.js';
 
@@ -113,7 +113,7 @@ if (window.classEditorAI && statusElement) {
     publishHistory();
   };
   let proposalResultView;
-  proposalResultView = createProposalResultView(document.getElementById('assistant-results'), {
+  proposalResultView = createProposalResultView(messages, {
     onSelectAlternative: (groupId, proposalId) => workflow.selectAlternative(groupId, proposalId),
     onPreview: async (item) => {
       try {
@@ -121,9 +121,10 @@ if (window.classEditorAI && statusElement) {
         if (!window.aiAssistant?.previewAgentProposal) throw new Error('既存のプレビュー画面を開けません。');
         await window.aiAssistant.previewAgentProposal({
           item,
+          onDismiss: () => proposalResultView.markDismissed(item),
           onApply: (operationIndexes) => {
             workflow.applyProposal(item, operationIndexes);
-            proposalResultView.markApplied(item.proposal.id);
+            proposalResultView.markApplied(item);
           }
         });
       } catch (error) {

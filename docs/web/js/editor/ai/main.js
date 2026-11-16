@@ -2666,6 +2666,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
   document.getElementById('ai-dismiss-proposal').addEventListener('click', async () => {
     const dismissed = proposalPreview.dismissCurrentProposal();
     if (!dismissed) return;
+    if (typeof dismissed.currentProposal?.agentDismiss === 'function') dismissed.currentProposal.agentDismiss();
     renderConversation();
     if (dismissed.nextProposal) {
       setStatus('変更案を見送りました。次の案を確認しています。編集データは変更していません。');
@@ -2842,7 +2843,7 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
     }
   });
   window.aiAssistant = {
-    async previewAgentProposal({ item, onApply }) {
+    async previewAgentProposal({ item, onApply, onDismiss }) {
       if (!item?.proposal || typeof onApply !== 'function') throw new TypeError('エージェント提案のプレビュー情報が不足しています。');
       if (agentPreviewProxy) closePreview();
       const proxy = {
@@ -2865,7 +2866,8 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
         availableIds: item.availableIds,
         operationPolicy: item.operationPolicy,
         status: 'pending',
-        agentApply: onApply
+        agentApply: onApply,
+        agentDismiss: onDismiss
       };
       agentPreviewProxy = proxy;
       agentPreviewOwner = currentConversation;
