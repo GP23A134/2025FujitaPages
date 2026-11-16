@@ -55,10 +55,26 @@ if (window.classEditorAI && statusElement) {
     settingsView.refresh(settings);
     syncChatSystemChoice();
   };
-  const settingsView = createSettingsView(document.getElementById('assistant-developer-settings'), settingsRegistry, {
+  let settingsContainer = document.getElementById('assistant-developer-settings');
+  if (!settingsContainer) {
+    const settingsHost = document.querySelector('#test-settings-dialog .edit-settings-section')
+      || document.getElementById('test-settings-dialog');
+    if (settingsHost) {
+      settingsContainer = document.createElement('div');
+      settingsContainer.id = 'assistant-developer-settings';
+      settingsContainer.className = 'assistant-developer-settings';
+      settingsContainer.setAttribute('aria-label', '新AI処理の調整');
+      settingsHost.append(settingsContainer);
+      console.warn('[assistant] entry.js: 設定欄がHTMLにないため、開発者設定ダイアログに補完しました。');
+    }
+  }
+  const settingsView = settingsContainer
+    ? createSettingsView(settingsContainer, settingsRegistry, {
     getValue: (key) => settings[key],
     onChange: updateSetting
-  });
+    })
+    : Object.freeze({ refresh() {} });
+  if (!settingsContainer) console.error('[assistant] entry.js: 開発者設定欄を作成できません。設定UIを初期化せず、チャットを継続します。');
   document.querySelectorAll('[name="ai-chat-system-mode"]').forEach((radio) => {
     radio.addEventListener('change', () => {
       if (radio.checked) updateSetting('chat.useNewSystem', radio.value === 'agent');
