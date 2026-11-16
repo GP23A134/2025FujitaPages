@@ -62,26 +62,13 @@ if (window.classEditorAI && statusElement) {
     settingsView.refresh(settings);
     syncChatSystemChoice();
   };
-  let settingsContainer = document.getElementById('assistant-developer-settings');
-  if (!settingsContainer) {
-    const settingsHost = document.querySelector('#test-settings-dialog .edit-settings-section')
-      || document.getElementById('test-settings-dialog');
-    if (settingsHost) {
-      settingsContainer = document.createElement('div');
-      settingsContainer.id = 'assistant-developer-settings';
-      settingsContainer.className = 'assistant-developer-settings';
-      settingsContainer.setAttribute('aria-label', '新AI処理の調整');
-      settingsHost.append(settingsContainer);
-      console.warn('[assistant] entry.js: 設定欄がHTMLにないため、開発者設定ダイアログに補完しました。');
-    }
-  }
+  const settingsContainer = document.getElementById('assistant-developer-settings');
   const settingsView = settingsContainer
     ? createSettingsView(settingsContainer, settingsRegistry, {
     getValue: (key) => settings[key],
     onChange: updateSetting
     })
     : Object.freeze({ refresh() {} });
-  if (!settingsContainer) console.error('[assistant] entry.js: 開発者設定欄を作成できません。設定UIを初期化せず、チャットを継続します。');
   document.querySelectorAll('[name="ai-chat-system-mode"]').forEach((radio) => {
     radio.addEventListener('change', () => {
       if (radio.checked) updateSetting('chat.useNewSystem', radio.value === 'agent');
@@ -104,7 +91,7 @@ if (window.classEditorAI && statusElement) {
     const title = activeHistory.items.find((item) => item.role === 'user')?.text || '新しい相談';
     activeHistory.title = title.replace(/\s+/g, ' ').trim().slice(0, 80) || '新しい相談';
     historyService.upsert(activeHistory, historyPersistenceEnabled());
-    window.aiAssistant?.upsertAgentHistory?.(activeHistory);
+    window.editorAssistantHost?.upsertHistory?.(activeHistory);
   };
   const addHistoryMessage = (role, text) => {
     const normalized = String(text || '').trim();
@@ -118,8 +105,8 @@ if (window.classEditorAI && statusElement) {
     onPreview: async (item) => {
       try {
         workflow.preparePreview(item);
-        if (!window.aiAssistant?.previewAgentProposal) throw new Error('既存のプレビュー画面を開けません。');
-        await window.aiAssistant.previewAgentProposal({
+        if (!window.editorAssistantHost?.previewProposal) throw new Error('提案プレビューを利用できません。');
+        await window.editorAssistantHost.previewProposal({
           item,
           onDismiss: () => proposalResultView.markDismissed(item),
           onApply: (operationIndexes) => {
@@ -288,7 +275,7 @@ if (window.classEditorAI && statusElement) {
       statusElement.textContent = error.message;
     });
   }, true);
-  historyService.read(historyPersistenceEnabled()).forEach((record) => window.aiAssistant?.upsertAgentHistory?.(record));
+  historyService.read(historyPersistenceEnabled()).forEach((record) => window.editorAssistantHost?.upsertHistory?.(record));
 
   // Only counts and an internal data version cross this public boundary.
   window.classEditorAssistant = Object.freeze({

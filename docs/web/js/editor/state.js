@@ -342,7 +342,7 @@ async function undoLastEdit() {
   editRedoStack.push(edit);
   logEditAction(`「${edit.actionLabel}」を元に戻しました。`);
   render();
-  if (edit.aiProposalId) await window.aiAssistant?.onAIProposalHistoryChange?.(edit, 'undo');
+  if (edit.aiProposalId) await window.editorAssistantHost?.onProposalHistoryChange?.(edit, 'undo');
 }
 async function redoLastEdit() {
   const edit = editRedoStack.at(-1);
@@ -362,7 +362,7 @@ async function redoLastEdit() {
   editUndoStack.push(edit);
   logEditAction(`「${edit.actionLabel}」をやり直しました。`);
   render();
-  if (edit.aiProposalId) await window.aiAssistant?.onAIProposalHistoryChange?.(edit, 'redo');
+  if (edit.aiProposalId) await window.editorAssistantHost?.onProposalHistoryChange?.(edit, 'redo');
 }
 
 // ============================================================

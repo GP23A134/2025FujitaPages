@@ -9,6 +9,7 @@ import { createRequestProgress } from './request-progress.js?v=20261112-zero-sec
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261113-target-unit-cap-v1';
 import { createProposalView } from './proposal-view.js?v=20261112-conflict-alternatives-v1';
 import { createConversationRenderer } from './conversation-renderer.js?v=20261111-ai-chat-renderer-v1';
+import { createEditorAssistantHost } from '../assistant/adapters/editor-assistant-host.js?v=20261117-editor-host-v1';
 
 (() => {
   const editor = window.classEditorAI;
@@ -2638,19 +2639,10 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       event.preventDefault(); document.getElementById('ai-chat-form').requestSubmit();
     }
   });
-  let agentPreviewProxy = null;
-  let agentPreviewOwner = null;
-  const clearAgentPreviewProxy = () => {
-    if (agentPreviewProxy && agentPreviewOwner) {
-      const index = agentPreviewOwner.items.indexOf(agentPreviewProxy);
-      if (index >= 0) agentPreviewOwner.items.splice(index, 1);
-    }
-    agentPreviewProxy = null;
-    agentPreviewOwner = null;
-  };
-  const closePreview = () => { clearAgentPreviewProxy(); previewDialog.close(); proposalPreview.clear(); };
+  let editorAssistantHost = null;
+  const closePreview = () => { editorAssistantHost?.clearPreviewProxy(); previewDialog.close(); proposalPreview.clear(); };
   previewDialog.addEventListener('close', () => {
-    clearAgentPreviewProxy();
+    editorAssistantHost?.clearPreviewProxy();
     proposalPreview.clear();
     document.getElementById('ai-preview-impact').classList.remove('is-loading');
     document.getElementById('ai-apply-proposal').disabled = true;
@@ -2846,95 +2838,24 @@ import { createConversationRenderer } from './conversation-renderer.js?v=2026111
       renderConversation();
     }
   });
-  window.aiAssistant = {
-    async previewAgentProposal({ item, onApply, onDismiss }) {
-      if (!item?.proposal || typeof onApply !== 'function') throw new TypeError('エージェント提案のプレビュー情報が不足しています。');
-      if (agentPreviewProxy) closePreview();
-      const proxy = {
-        type: 'proposal',
-        id: `agent_preview_${Date.now()}`,
-        responseGroupId: `agent_preview_${Date.now()}`,
-        proposal: {
-          id: item.proposal.id,
-          title: item.proposal.title,
-          summary: item.proposal.summary,
-          reason: item.proposal.reason,
-          uncertainties: item.proposal.uncertainties || [],
-          questions: [],
-          conflictGroups: [],
-          operations: item.operations
-        },
-        selectedConflictChoices: {},
-        excludedOperationIndexes: new Set(),
-        editableIds: item.editableIds,
-        availableIds: item.availableIds,
-        operationPolicy: item.operationPolicy,
-        status: 'pending',
-        agentApply: onApply,
-        agentDismiss: onDismiss
-      };
-      agentPreviewProxy = proxy;
-      agentPreviewOwner = currentConversation;
-      agentPreviewOwner.items.push(proxy);
-      try {
-        proxy.baseDataHash = await currentDataHash();
-        await proposalPreview.showPreview(proxy);
-      } catch (error) {
-        closePreview();
-        throw error;
-      }
-      return true;
-    },
-    upsertAgentHistory(record) {
-      if (!record || typeof record.id !== 'string' || !Array.isArray(record.items)) return false;
-      let conversation = conversations.find((item) => item.id === record.id);
-      if (!conversation) {
-        conversation = {
-          ...createConversation(Array.isArray(record.selectedIds) ? record.selectedIds : []),
-          id: record.id,
-          saved: false,
-          assistantMode: 'agent'
-        };
-      }
-      conversation.assistantMode = 'agent';
-      conversation.title = typeof record.title === 'string' && record.title.trim() ? record.title : '新しい相談';
-      conversation.titleIsCustom = false;
-      conversation.updatedAt = Number.isFinite(record.updatedAt) ? record.updatedAt : Date.now();
-      conversation.selectedIds = Array.isArray(record.selectedIds) ? [...record.selectedIds] : [];
-      conversation.items = record.items.filter((item) => item?.type === 'message'
-        && ['user', 'assistant'].includes(item.role) && typeof item.text === 'string')
-        .map(({ type, role, text }) => ({ type, role, text }));
-      conversation.status = '';
-      conversation.workflowStatus = '';
-      conversation.splitMemory = null;
-      if (conversation === currentConversation) renderConversation();
-      updateHistoryList();
-      return true;
-    },
-    onScopeChange() {
-      if (currentConversation) currentConversation.selectedIds = [...editor.selectedIds];
-      renderPromptExamples();
-    },
-    async onAIProposalHistoryChange(edit, direction) {
-      const statusSnapshot = direction === 'undo' ? edit.proposalStatusesBefore : edit.proposalStatusesAfter;
-      if (!Array.isArray(statusSnapshot)) return;
-      statusSnapshot.forEach(({ item, status }) => { item.status = status; });
-      renderConversation();
-      persistSavedConversations();
-      const appliedProposal = edit.aiProposalItem;
-      if (appliedProposal && currentConversation?.items.includes(appliedProposal)
-        && document.getElementById('ai-preview-dialog').open) {
-        try {
-          await proposalPreview.transitionPreview(() => proposalPreview.showPreview(appliedProposal));
-          renderConversation();
-        } catch (error) { reportPreviewError(error); }
-      }
-      setStatus(direction === 'undo'
-        ? 'AI提案を元に戻し、提案状態も適用前に戻しました。'
-        : 'AI提案をやり直しました。');
-    }
-  };
-  window.aiAssistant.onScopeChange();
+  editorAssistantHost = createEditorAssistantHost({
+    editor,
+    getCurrentConversation: () => currentConversation,
+    getConversations: () => conversations,
+    createConversation,
+    currentDataHash,
+    getPreview: () => proposalPreview,
+    getPreviewDialog: () => previewDialog,
+    closePreview,
+    renderConversation,
+    updateHistoryList,
+    persistSavedConversations,
+    renderPromptExamples,
+    reportPreviewError,
+    setStatus
+  });
+  window.editorAssistantHost = editorAssistantHost;
+  editorAssistantHost.onScopeChange();
 
   window.addEventListener('pagehide', () => {
     activeRequestController?.abort();

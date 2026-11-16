@@ -410,7 +410,7 @@ function renderInstances() {
   }
   applyDestination.disabled = !heldDestinationId || !selectionKind;
   syncTargetButtonAvailability();
-  window.aiAssistant?.onScopeChange?.();
+  window.editorAssistantHost?.onScopeChange?.();
 }
 
 function activeSelectionKind() {
