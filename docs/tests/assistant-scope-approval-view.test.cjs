@@ -76,4 +76,13 @@ test('scope approval shows summary first, details are read-only, and approval gr
   const denied = await deniedPromise;
   assert.equal(denied.choice, 'original_scope');
   assert.equal(denied.referenceIds.length, 0);
+
+  const cancelledPromise = view.request({
+    candidates: [{ id: 'middle-1' }], allowReference: true, allowChange: false,
+    purpose: '参照範囲を追加します。', processSummary: '配置を確認します。'
+  });
+  assert.equal(view.cancel(), true);
+  const cancelled = await cancelledPromise;
+  assert.equal(cancelled.choice, 'cancel');
+  assert.equal(interactionDock.hidden, true);
 });

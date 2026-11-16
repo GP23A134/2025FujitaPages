@@ -358,7 +358,8 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-scope-summary-note { margin: 0.35rem 0; color: #64748b; font-size: 0.75rem; }
 .ai-scope-summary ul { max-height: 12rem; overflow: auto; margin: 0.4rem 0 0; padding-left: 1.2rem; }
 .ai-scope-summary li { margin: 0.15rem 0; overflow-wrap: anywhere; }
-.ai-chat-messages { display: flex; flex: 1 1 0; flex-direction: column; gap: 0.75rem; min-height: 0; overflow: auto; padding: 0.15rem 0.1rem; scroll-behavior: smooth; }
+.ai-chat-messages { display: flex; flex: 1 1 0; flex-direction: column; gap: 0.75rem; min-height: 0; overflow: auto; padding: 0.15rem 0.1rem; scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none; }
+.ai-chat-messages::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .assistant-interaction-dock { display: grid; flex: 0 0 auto; gap: 0.35rem; max-height: min(38vh, 300px); overflow-y: auto; padding: 0.25rem 0; scrollbar-width: none; }
 .assistant-interaction-dock::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .assistant-interaction-dock[hidden] { display: none; }
@@ -380,12 +381,13 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .assistant-interaction-dock .ai-scope-request-actions button { min-height: 2rem; padding: 0.3rem 0.65rem; }
 .assistant-interaction-dock .ai-scope-request-actions button:last-child { margin-left: auto; }
 .ai-thinking-indicator { display: flex; flex: 0 0 auto; align-self: flex-start; align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem; border: 1px solid #dbeafe; border-radius: 10px; color: #475569; background: #f8fbff; font-size: 0.8rem; }
-.ai-thinking-indicator.is-agent-progress { width: 100%; max-width: 100%; min-height: 0; align-self: stretch; margin-bottom: 0.25rem; padding: 0 0 0.35rem; border: 0; border-bottom: 1px solid #dbe2ea; border-radius: 0; color: #a3a3a3; background: transparent; font-size: 0.85rem; line-height: 1.5; box-sizing: border-box; }
+.ai-thinking-indicator.is-agent-progress { width: 100%; max-width: 100%; min-height: 0; align-self: stretch; margin-bottom: 0.25rem; padding: 0 0 0.35rem; border: 0; border-bottom: 1px solid #dbe2ea; border-radius: 0; color: #2563eb; background: transparent; font-size: 0.85rem; line-height: 1.5; box-sizing: border-box; }
 .ai-thinking-indicator.is-agent-progress::before { display: none; }
 .ai-thinking-indicator::before { width: 0.85rem; height: 0.85rem; flex: 0 0 auto; border: 2px solid #bae6fd; border-top-color: #0284c7; border-radius: 50%; content: ""; animation: search-loading-spin 0.8s linear infinite; }
 .ai-thinking-indicator.is-complete { border-color: #e2e8f0; color: #64748b; background: #f8fafc; }
-.ai-thinking-indicator.is-agent-progress.is-complete { border: 0; border-bottom: 1px solid #dbe2ea; color: #a3a3a3; background: transparent; }
+.ai-thinking-indicator.is-agent-progress.is-complete { border: 0; border-bottom: 1px solid #dbe2ea; color: #2563eb; background: transparent; }
 .ai-thinking-indicator.is-complete::before { display: none; }
+.assistant-progress-activity { align-self: flex-start; max-width: 100%; margin: -0.35rem 0 0.25rem; color: #475569; font-size: 0.9rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ai-message { padding: 0.15rem 0.2rem; color: #1e293b; font-size: 1rem; }
 .ai-message.is-user { align-self: flex-end; max-width: 88%; padding: 0.55rem 0.7rem; border: 1px solid #dbeafe; border-radius: 12px; background: #eff6ff; }
 .ai-message strong { color: #0f3d63; font-size: 0.9rem; }

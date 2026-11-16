@@ -1,13 +1,13 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
-import { createProgressView } from './features/progress/progress-view.js?v=20261116-agent-usage-accurate-v1';
+import { createProgressView } from './features/progress/progress-view.js?v=20261116-progress-activity-v1';
 import { buildPlanInput } from './features/planning/plan-input.js';
 import { createOpenAIClient } from './adapters/openai-client.js';
 import { createPlanningService } from './features/planning/planning-service.js?v=20261116-move-suggestion-plan-v2';
-import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261116-agent-interaction-dock-v2';
+import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261116-stop-processing-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261116-selection-12k-v1';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261116-progress-details-v1';
 import { createQuestionView } from './features/planning/question-view.js?v=20261116-agent-interaction-dock-v2';
-import { createWorkflowView } from './features/progress/workflow-view.js?v=20261116-agent-interaction-dock-v2';
+import { createWorkflowView } from './features/progress/workflow-view.js?v=20261116-no-ai-label-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js';
 import { createProposalPreviewView } from './features/proposals/proposal-preview-view.js';
 import { createSettingsView } from './settings/settings-view.js?v=20261116-setting-errors-v1';
@@ -156,6 +156,15 @@ if (window.classEditorAI && statusElement) {
     chatForm?.classList.toggle('is-processing', promptExamplesRunningStages.has(event.detail?.stage));
   });
   let newSystemSubmitting = false;
+  const sendButton = document.getElementById('ai-send');
+  const setProcessingButton = (processing) => {
+    chatForm?.setAttribute('aria-busy', String(processing));
+    sendButton.disabled = false;
+    sendButton.classList.toggle('is-cancel', processing);
+    sendButton.textContent = processing ? '■' : '↑';
+    sendButton.setAttribute('aria-label', processing ? '処理を中止' : '送信');
+    sendButton.title = processing ? '処理を中止' : '送信';
+  };
   const appendUserRequest = (text) => {
     const message = document.createElement('div');
     message.className = 'ai-message is-user';
@@ -172,7 +181,11 @@ if (window.classEditorAI && statusElement) {
     messages.scrollTop = messages.scrollHeight;
   };
   const runNewSystem = async () => {
-    if (newSystemSubmitting || workflow.isBusy() || !interactionDock.hidden) {
+    if (newSystemSubmitting || workflow.isBusy()) {
+      workflow.cancel();
+      return false;
+    }
+    if (!interactionDock.hidden) {
       statusElement.textContent = !interactionDock.hidden
         ? '表示中の確認に回答してから、次の依頼を送信してください。'
         : '処理中です。完了してから次の依頼を送信してください。';
@@ -185,11 +198,11 @@ if (window.classEditorAI && statusElement) {
       return false;
     }
     newSystemSubmitting = true;
-    const sendButton = document.getElementById('ai-send');
-    const wasSendDisabled = sendButton.disabled;
-    sendButton.disabled = true;
+    setProcessingButton(true);
     try {
       appendUserRequest(request);
+      requestInput.value = '';
+      requestInput.dispatchEvent(new Event('input', { bubbles: true }));
       await workflow.start({
         request,
         apiKey: apiKeyInput.value,
@@ -199,7 +212,7 @@ if (window.classEditorAI && statusElement) {
       return true;
     } finally {
       newSystemSubmitting = false;
-      sendButton.disabled = wasSendDisabled;
+      setProcessingButton(false);
     }
   };
   chatForm.addEventListener('submit', (event) => {

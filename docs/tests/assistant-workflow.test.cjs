@@ -6,6 +6,8 @@ const test = require('node:test');
 const { TextEncoder } = require('node:util');
 const { randomUUID } = require('node:crypto');
 const workflowLogs = [];
+const agentRunResponseQueue = [];
+const agentProgressQueue = [];
 
 const base = path.join(__dirname, '../web/js/editor/assistant');
 function evaluate(relativePath, exportNames, stubs = {}) {
@@ -47,7 +49,9 @@ const { createAssistantWorkflow } = evaluate('application/workflow.js', 'createA
   createToolDispatcher: () => ({}),
   createAgentRunLoop: ({ systemInstruction }) => ({ run: async (options) => {
     agentRunOptions.push(options);
-    return { text: JSON.stringify({ message: systemInstruction, proposals: [], alternativeGroups: [] }), messages: [] };
+    agentProgressQueue.splice(0).forEach((detail) => options.onProgress?.(detail));
+    return agentRunResponseQueue.shift()
+      || { text: JSON.stringify({ message: systemInstruction, proposals: [], alternativeGroups: [] }), messages: [] };
   } }),
   buildAgentSystemPrompt: () => 'agent prompt',
   PROPOSAL_RESPONSE_SCHEMA: {},
@@ -69,10 +73,13 @@ const plan = (overrides = {}) => ({
 });
 function harness(planSequence) {
   const events = [];
+  const progressReports = [];
   const planInputs = [];
   const planningOptions = [];
   readerOptions.length = 0;
   agentRunOptions.length = 0;
+  agentRunResponseQueue.length = 0;
+  agentProgressQueue.length = 0;
   const editor = { selectedIds: ['target-id'], getState: () => classState };
   const settings = {
     'runtime.inputTokenCap': 300000, 'runtime.maxResponseRounds': 30, 'runtime.maxRetrievalCalls': 200, 'runtime.maxReplans': 5,
@@ -94,9 +101,9 @@ function harness(planSequence) {
     } },
     getSettings: () => settings,
     onEvent: (event) => events.push(event),
-    reportProgress() {}
+    reportProgress: (detail) => progressReports.push(detail)
   });
-  return { workflow, events, planInputs, planningOptions };
+  return { workflow, events, planInputs, planningOptions, progressReports };
 }
 
 test('full-hierarchy toggle makes the index available to planning without enabling retrieval automatically', async () => {
@@ -128,11 +135,25 @@ test('movement recommendations use the agent proposal workflow with hierarchy an
     dataNeeds: { hierarchyIndex: true, selectedClassDetails: true, parentContext: 'direct_parent', instanceContext: 'none' },
     changeOperations: ['move_target_class']
   });
-  const { workflow } = harness([movePlan]);
+  const { workflow, progressReports } = harness([movePlan]);
+  agentProgressQueue.push({ stage: 'retrieving', tool: 'read_hierarchy_index' });
   const result = await workflow.start({ request: '配置を確認して移動案も提案', apiKey: 'secret-api-key', model: 'model-x', referenceAllHierarchy: true });
   assert.equal(result.status, 'completed', result.error?.stack || JSON.stringify(result.error));
   assert.ok(agentRunOptions[0].allowedTools.includes('read_hierarchy_index'));
   assert.ok(agentRunOptions[0].allowedTools.includes('read_selected_class_details'));
+  assert.ok(progressReports.some((event) => event.stage === 'retrieving' && event.tool === 'read_hierarchy_index'));
+});
+
+test('retries an unreadable proposal response with a JSON-only repair request', async () => {
+  const { workflow } = harness([plan()]);
+  agentRunResponseQueue.push(
+    { text: 'Here is my analysis, but no JSON.', messages: [{ role: 'user', content: 'request' }] },
+    { text: JSON.stringify({ message: '確認しました。', proposals: [], alternativeGroups: [] }), messages: [] }
+  );
+  const result = await workflow.start({ request: '調べて', apiKey: 'secret-api-key', model: 'model-x' });
+  assert.equal(result.status, 'completed', result.error?.stack || JSON.stringify(result.error));
+  assert.equal(agentRunOptions.length, 2);
+  assert.match(agentRunOptions[1].messages.at(-1).content, /有効な提案JSON/);
 });
 
 test('unsupported plans stop before running the agent', async () => {

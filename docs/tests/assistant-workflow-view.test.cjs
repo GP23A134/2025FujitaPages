@@ -46,7 +46,7 @@ test('workflow plan is presented as plain chat text rather than a plan card', ()
   assert.equal(root.children.length, 0);
   assert.equal(messages.children.length, 1);
   assert.equal(messages.children[0].dataset.assistantPlanMessage, 'true');
-  assert.equal(messages.children[0].children[1].textContent,
+  assert.equal(messages.children[0].children[0].textContent,
     '選択範囲のクラス配置を確認します。');
   pendingFrame();
   assert.deepEqual(JSON.parse(JSON.stringify(scrollRequest)), { top: 120, behavior: 'smooth' });

@@ -70,8 +70,11 @@ export function createAssistantWorkflow({
     updateState(transitionConversation(state, status, now()));
   };
   const emitProgress = (stage, detail = {}) => {
-    reportProgress({ stage, ...detail });
-    onEvent({ type: 'progress', stage, ...detail });
+    const payload = stage && typeof stage === 'object'
+      ? { ...stage, ...detail }
+      : { stage, ...detail };
+    reportProgress(payload);
+    onEvent({ type: 'progress', ...payload });
   };
   const emitError = (error) => {
     const sourceModule = error?.sourceModule || 'application/workflow.js';
@@ -88,6 +91,13 @@ export function createAssistantWorkflow({
     }
     return controller.signal;
   };
+  function cancel() {
+    if (!active) return false;
+    const reason = Object.assign(new Error('処理を中止しました。'), { name: 'AbortError' });
+    activeController?.abort(reason);
+    scopeApproval?.cancel?.();
+    return true;
+  }
   const recoverAfterSettingsChange = async () => {
     settingsInvalidated = false;
     if (state.status !== 'planning') setStatus('planning');
@@ -143,6 +153,7 @@ export function createAssistantWorkflow({
   async function applyScopeDecision(decision) {
     if (decision.choice === 'cancel') {
       setStatus('cancelled');
+      emitProgress('cancelled');
       return false;
     }
     if (decision.choice === 'allow') {
@@ -278,7 +289,19 @@ export function createAssistantWorkflow({
         }
         return { status: 'replan_required' };
       }
-      const response = parseResponse(result.text);
+      let response;
+      try {
+        response = parseResponse(result.text);
+      } catch (error) {
+        if (attempt >= retries) {
+          error.message = 'AIの応答を提案JSONとして読み取れませんでした。再試行上限に達したため処理を停止しました。';
+          throw error;
+        }
+        messages = [...(result.messages || messages), { role: 'user', content: JSON.stringify({
+          instruction: '直前の応答は有効な提案JSONとして読み取れませんでした。取得済みデータと依頼を保ち、指定されたJSONスキーマに一致する完全なJSONだけを返してください。Markdownや説明文を付けないでください。'
+        }) }];
+        continue;
+      }
       let validation;
       try {
         validation = validateProposalResponse(response, {
@@ -415,6 +438,11 @@ export function createAssistantWorkflow({
     } catch (error) {
       if (settingsInvalidated) {
         return await recoverAfterSettingsChange();
+      }
+      if (error?.name === 'AbortError') {
+        try { setStatus('cancelled'); } catch { /* A scope response may already have cancelled the workflow. */ }
+        emitProgress('cancelled');
+        return { status: 'cancelled' };
       }
       const canBudgetStop = error.status === 'budget_exhausted' || error.code?.includes('BUDGET') || error.code?.includes('LIMIT');
       try { setStatus(canBudgetStop ? 'budget_exhausted' : 'failed'); } catch { /* Terminal state may already be set. */ }
@@ -712,5 +740,5 @@ export function createAssistantWorkflow({
     selectedAlternatives.set(groupId, proposalId);
   }
 
-  return Object.freeze({ start, resume, updateDeveloperSettings, answerQuestions, answerProposalQuestions, selectAlternative, preparePreview, applyProposal, finishReview, clearSecrets, getState, isBusy: () => active, getPlan: () => plan, getPersistenceSnapshot });
+  return Object.freeze({ start, resume, cancel, updateDeveloperSettings, answerQuestions, answerProposalQuestions, selectAlternative, preparePreview, applyProposal, finishReview, clearSecrets, getState, isBusy: () => active, getPlan: () => plan, getPersistenceSnapshot });
 }

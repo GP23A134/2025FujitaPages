@@ -56,6 +56,12 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
 
     while (true) {
       assertNotAborted();
+      onProgress?.({
+        stage: 'analyzing',
+        note: retrievedData.length
+          ? '取得した情報をもとに、次に必要な確認内容を判断しています'
+          : '計画に沿って、最初に取得する情報を判断しています'
+      });
       const definitions = registry.definitions(allowedTools);
       const request = { model, input, tools: definitions, max_output_tokens: maxOutputTokens, textFormat };
       const finalizationInput = [...input, { role: 'user', content: finalizationText }];
@@ -98,6 +104,24 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
         const result = await dispatcher.dispatch(call.name, call.arguments);
         const scopeRequest = dispatcher.takeScopeRequest?.();
         if (scopeRequest) return { status: 'needs_scope_approval', scopeRequest, counters: budgetGuard.getCounters() };
+        const data = result?.data;
+        const itemCount = Array.isArray(data?.items) ? data.items.length : null;
+        const totalCount = Number.isSafeInteger(data?.totalCount) ? data.totalCount : null;
+        const nextPage = Boolean(data?.nextCursor);
+        const descriptions = {
+          read_hierarchy_index: '階層索引',
+          read_selected_class_details: '選択クラスの詳細',
+          read_class_details: '指定クラスの詳細',
+          read_direct_children: '指定クラスの直下'
+        };
+        const description = descriptions[call.name] || (call.name === 'read_instance_context' ? 'インスタンス情報' : '取得データ');
+        const countNote = itemCount === null ? '' : totalCount === null
+          ? `${itemCount}件取得${nextPage ? '。続きがあります' : ''}`
+          : `${itemCount}件取得（全${totalCount}件）${nextPage ? '。続きがあります' : ''}`;
+        const instanceNote = call.name === 'read_instance_context' && Array.isArray(data?.items)
+          ? `対象クラス${data.items.length}件、インスタンス${data.items.reduce((sum, item) => sum + (item.returnedCount || 0), 0)}件を確認`
+          : '';
+        onProgress?.({ stage: 'analyzing', note: `${description}を確認しました。${instanceNote || countNote}` });
         newResults.push({ tool: call.name, arguments: call.arguments, result });
       }
       const candidateInput = [...baseInput, {

@@ -1,6 +1,6 @@
 const PROGRESS_STAGES = new Set([
   'planning', 'waiting_for_answer', 'checking_scope', 'waiting_for_scope_approval', 'scope_denied',
-  'retrieving', 'analyzing', 'validating', 'waiting_for_review', 'budget_exhausted', 'completed', 'failed'
+  'retrieving', 'analyzing', 'validating', 'waiting_for_review', 'budget_exhausted', 'completed', 'cancelled', 'failed'
 ]);
 
 const DEFAULT_LABELS = Object.freeze({
@@ -15,22 +15,27 @@ const DEFAULT_LABELS = Object.freeze({
   waiting_for_review: '変更案の確認をお待ちしています',
   budget_exhausted: '処理上限に達したため一時停止しています',
   completed: '処理が完了しました',
+  cancelled: '処理を中止しました',
   failed: '処理を続けられませんでした'
+});
+
+const TOOL_LABELS = Object.freeze({
+  read_hierarchy_index: '階層索引を取得しています',
+  read_direct_children: '指定クラスの直下を取得しています',
+  read_class_details: '指定クラスの詳細を取得しています',
+  read_selected_class_details: '選択クラスの詳細を取得しています',
+  read_instance_context: 'インスタンス情報を取得しています'
 });
 
 export function createProgressView(statusElement, messages = document.getElementById('ai-chat-messages')) {
   if (!statusElement) throw new TypeError('進捗表示要素が必要です。');
 
   let indicator = null;
+  let activity = null;
   let startedAt = 0;
   let timer = null;
   let waiting = false;
   let terminal = false;
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let usageReports = 0;
-  let inputUsageComplete = true;
-  let outputUsageComplete = true;
 
   const formatElapsed = (milliseconds) => {
     const seconds = Math.max(0, Math.floor(milliseconds / 1000));
@@ -44,6 +49,11 @@ export function createProgressView(statusElement, messages = document.getElement
     indicator.setAttribute('role', 'status');
     indicator.setAttribute('aria-live', 'polite');
     messages.append(indicator);
+    activity = document.createElement('p');
+    activity.className = 'assistant-progress-activity';
+    activity.setAttribute('role', 'status');
+    activity.setAttribute('aria-live', 'polite');
+    messages.append(activity);
     messages.scrollTop = messages.scrollHeight;
   };
 
@@ -58,16 +68,8 @@ export function createProgressView(statusElement, messages = document.getElement
     const label = indicator.dataset.progressLabel || '';
     const note = indicator.dataset.progressNote || '';
     const stage = indicator.dataset.progressStage || '';
-    const isTerminal = ['budget_exhausted', 'completed', 'failed', 'scope_denied'].includes(stage);
     indicator.hidden = false;
-    const formatUsage = (tokens, complete) => complete
-      ? tokens.toLocaleString('ja-JP')
-      : `${tokens.toLocaleString('ja-JP')}+不明`;
-    const usageText = usageReports
-      ? `API実績 入力 ${formatUsage(inputTokens, inputUsageComplete)} / 出力 ${formatUsage(outputTokens, outputUsageComplete)} tokens`
-      : isTerminal ? 'APIトークン実績なし' : 'APIトークン実績待ち';
-    const text = [`${elapsedSeconds}s`, label, note, usageText].filter(Boolean).join(' · ');
-    indicator.textContent = text;
+    indicator.textContent = `${elapsedSeconds}s`;
     indicator.setAttribute('aria-label', [label, note, formatElapsed(Date.now() - startedAt)].filter(Boolean).join('。'));
   };
 
@@ -76,18 +78,13 @@ export function createProgressView(statusElement, messages = document.getElement
     if (!PROGRESS_STAGES.has(detail.stage)) return;
     const note = typeof detail.note === 'string' ? detail.note.trim() : '';
     const scope = typeof detail.scopeSummary === 'string' ? detail.scopeSummary.trim() : '';
-    const label = DEFAULT_LABELS[detail.stage];
+    const label = detail.stage === 'retrieving'
+      ? TOOL_LABELS[detail.tool] || DEFAULT_LABELS[detail.stage]
+      : DEFAULT_LABELS[detail.stage];
     const isWaiting = ['waiting_for_answer', 'waiting_for_scope_approval', 'waiting_for_review'].includes(detail.stage);
-    const isFinished = ['budget_exhausted', 'completed', 'failed', 'scope_denied'].includes(detail.stage);
+    const isFinished = ['budget_exhausted', 'completed', 'cancelled', 'failed', 'scope_denied'].includes(detail.stage);
     ensureIndicator();
     if (!isWaiting && !isFinished) {
-      if (terminal) {
-        inputTokens = 0;
-        outputTokens = 0;
-        usageReports = 0;
-        inputUsageComplete = true;
-        outputUsageComplete = true;
-      }
       if (!startedAt || waiting || terminal) startedAt = Date.now();
       waiting = false;
       terminal = false;
@@ -105,6 +102,7 @@ export function createProgressView(statusElement, messages = document.getElement
       indicator.dataset.progressNote = [scope, note].filter(Boolean).join('。');
       indicator.dataset.progressStage = detail.stage;
       updateIndicator();
+      if (activity) activity.textContent = [label, note].filter(Boolean).join('。');
       messages.scrollTop = messages.scrollHeight;
     }
     // Agent progress is shown in the chat log itself; keep the legacy status slot empty.
@@ -112,23 +110,11 @@ export function createProgressView(statusElement, messages = document.getElement
     statusElement.dataset.workflowStage = detail.stage;
   }
 
-  function renderUsage(event) {
-    const usage = event?.detail?.usage;
-    usageReports += 1;
-    if (Number.isSafeInteger(usage?.input_tokens) && usage.input_tokens >= 0) inputTokens += usage.input_tokens;
-    else inputUsageComplete = false;
-    if (Number.isSafeInteger(usage?.output_tokens) && usage.output_tokens >= 0) outputTokens += usage.output_tokens;
-    else outputUsageComplete = false;
-    updateIndicator();
-  }
-
   window.addEventListener('assistant:progress', render);
-  window.addEventListener('assistant-api-usage', renderUsage);
   return Object.freeze({
     getElapsed: () => startedAt ? formatElapsed(Date.now() - startedAt) : '',
     dispose() {
       window.removeEventListener('assistant:progress', render);
-      window.removeEventListener('assistant-api-usage', renderUsage);
       stopTimer();
     },
     render

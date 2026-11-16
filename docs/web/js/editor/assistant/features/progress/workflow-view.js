@@ -21,7 +21,6 @@ export function createWorkflowView(root, questionView, proposalView, { onAnswerQ
       if (plan.unsupportedParts.length) {
         lines.push(...plan.unsupportedParts.map((part) => `今回対応できない内容は「${part.description}」です。${part.reason}`));
       }
-      appendText(message, 'strong', 'AI');
       body.textContent = lines.join('\n\n');
       message.append(body);
       messages.append(message);
@@ -68,7 +67,6 @@ export function createWorkflowView(root, questionView, proposalView, { onAnswerQ
         message.className = 'ai-message';
         message.dataset.assistantBudgetResult = 'true';
         message.setAttribute('role', 'article');
-        appendText(message, 'strong', 'AI');
         const elapsed = getElapsed();
         if (elapsed) appendText(message, 'small', `所要時間 ${elapsed}`, 'ai-message-time');
         const body = document.createElement('div');

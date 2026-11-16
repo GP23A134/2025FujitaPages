@@ -205,5 +205,16 @@ export function createScopeApprovalView(dialog, editor, { messages, interactionD
     return new Promise((resolve) => { current.resolve = resolve; });
   }
 
-  return Object.freeze({ request });
+  function cancel() {
+    if (!current) return false;
+    const pending = current;
+    current = null;
+    pending.summaryView?.card.remove();
+    if (interactionDock) interactionDock.hidden = true;
+    if (dialog.open) dialog.close();
+    pending.resolve({ choice: 'cancel', referenceIds: [], changeIds: [] });
+    return true;
+  }
+
+  return Object.freeze({ request, cancel });
 }
