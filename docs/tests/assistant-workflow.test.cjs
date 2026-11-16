@@ -75,7 +75,7 @@ function harness(planSequence) {
   agentRunOptions.length = 0;
   const editor = { selectedIds: ['target-id'], getState: () => classState };
   const settings = {
-    'runtime.inputTokenCap': 30000, 'runtime.maxResponseRounds': 30, 'runtime.maxRetrievalCalls': 50, 'runtime.maxReplans': 5,
+    'runtime.inputTokenCap': 300000, 'runtime.maxResponseRounds': 30, 'runtime.maxRetrievalCalls': 200, 'runtime.maxReplans': 5,
     'runtime.maxOutputTokens': 5000, 'dataRetrieval.pageAndIdLimit': 100, 'validation.maxRepairRetries': 2,
     'instances.enabled': false, 'proposals.targetClassRenameEnabled': false
   };

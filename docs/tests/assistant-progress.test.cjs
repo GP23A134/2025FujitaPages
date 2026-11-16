@@ -18,7 +18,11 @@ test('progress view shows a live stage bubble with elapsed seconds and freezes a
     setAttribute(name, value) { this.attributes[name] = value; }
   });
   const status = makeElement();
-  const messages = { children: [], scrollTop: 0, scrollHeight: 20, append(element) { this.children.push(element); } };
+  const messages = { children: [], scrollTop: 0, scrollHeight: 20, append(element) {
+    this.children = this.children.filter((item) => item !== element);
+    this.children.push(element);
+    element.parentElement = this;
+  } };
   const sandbox = {
     module: { exports: {} },
     document: { createElement: makeElement },
@@ -36,12 +40,15 @@ test('progress view shows a live stage bubble with elapsed seconds and freezes a
 
   listener({ detail: { stage: 'planning' } });
   assert.equal(messages.children.length, 1);
-  assert.match(messages.children[0].textContent, /依頼を整理しています：（0秒）/);
+  assert.equal(status.textContent, '');
+  assert.equal(messages.children[0].textContent, '0s作業中');
   now = 12000;
   intervalCallback();
-  assert.match(messages.children[0].textContent, /11秒/);
+  assert.equal(messages.children[0].textContent, '11s作業中');
   listener({ detail: { stage: 'completed' } });
-  assert.match(messages.children[0].textContent, /処理が完了しました：（11秒）/);
+  assert.equal(messages.children.length, 1);
+  assert.equal(messages.children[0].hidden, true);
+  assert.equal(view.getElapsed(), '11s');
   assert.equal(intervalCallback, null);
   view.dispose();
 });

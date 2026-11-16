@@ -24,6 +24,24 @@ export function createSettingsView(container, registry, { getValue, onChange }) 
     const section = groups.get(definition.feature);
     const field = document.createElement('div');
     field.className = 'assistant-setting-field';
+    const errorNote = document.createElement('small');
+    errorNote.className = 'assistant-setting-error';
+    errorNote.hidden = true;
+    const commit = (control, value) => {
+      try {
+        onChange(definition.key, value);
+        errorNote.hidden = true;
+        errorNote.textContent = '';
+        control.removeAttribute('aria-invalid');
+      } catch (error) {
+        const currentValue = getValue(definition.key);
+        if (definition.type === 'boolean') control.checked = Boolean(currentValue);
+        else control.value = String(currentValue);
+        control.setAttribute('aria-invalid', 'true');
+        errorNote.textContent = error.message || 'この設定値は使用できません。';
+        errorNote.hidden = false;
+      }
+    };
     const label = document.createElement('label');
     const input = document.createElement(definition.type === 'boolean' ? 'input' : 'input');
     input.id = `assistant-setting-${definition.key.replaceAll('.', '-')}`;
@@ -58,12 +76,13 @@ export function createSettingsView(container, registry, { getValue, onChange }) 
       field.append(label, select);
       input.remove();
       section.append(field);
-      select.addEventListener('change', () => onChange(definition.key, select.value));
+      select.addEventListener('change', () => commit(select, select.value));
       if (definition.description) {
         const note = document.createElement('small');
         note.textContent = definition.description;
         field.append(note);
       }
+      field.append(errorNote);
       continue;
     }
     if (definition.type === 'boolean') field.append(label);
@@ -72,8 +91,9 @@ export function createSettingsView(container, registry, { getValue, onChange }) 
       note.textContent = [definition.description, definition.provisional ? '初期値は運用候補です。処理量と費用を確認して調整してください。' : ''].filter(Boolean).join(' ');
       field.append(note);
     }
+    field.append(errorNote);
     section.append(field);
-    input.addEventListener('change', () => onChange(definition.key, definition.type === 'boolean' ? input.checked : Number(input.value)));
+    input.addEventListener('change', () => commit(input, definition.type === 'boolean' ? input.checked : Number(input.value)));
   }
   return Object.freeze({
     refresh(values) {

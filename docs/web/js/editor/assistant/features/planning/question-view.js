@@ -1,4 +1,145 @@
-export function createQuestionView(dialog) {
+function createQuestionDockView(dock, messages) {
+  let resolveCurrent = null;
+
+  const appendAnswerMessage = (questions, answers) => {
+    if (!messages) return;
+    const byId = new Map(answers.map((answer) => [answer.questionId, answer]));
+    const lines = questions.map((question) => `${question.text}\n${byId.get(question.id)?.text || ''}`);
+    const message = document.createElement('div');
+    message.className = 'ai-message is-user';
+    message.setAttribute('role', 'article');
+    const author = document.createElement('strong');
+    author.textContent = 'あなた';
+    const body = document.createElement('div');
+    body.className = 'ai-message-body';
+    const text = document.createElement('p');
+    text.textContent = lines.join('\n\n');
+    body.append(text);
+    message.append(author, body);
+    messages.append(message);
+    messages.scrollTop = messages.scrollHeight;
+  };
+
+  const finish = (answers, questions) => {
+    if (!resolveCurrent) return;
+    const resolve = resolveCurrent;
+    resolveCurrent = null;
+    dock.replaceChildren();
+    dock.hidden = true;
+    appendAnswerMessage(questions, answers);
+    resolve(answers);
+  };
+
+  return Object.freeze({
+    ask(questions) {
+      if (resolveCurrent) throw new Error('別の確認質問が表示されています。');
+      const currentQuestions = questions || [];
+      const panel = document.createElement('section');
+      panel.className = 'assistant-question-panel';
+      const answers = currentQuestions.map((question) => ({ questionId: question.id, optionId: null, text: '' }));
+
+      const updateSubmit = (submit) => { submit.disabled = answers.some((answer) => !answer.text.trim()); };
+      currentQuestions.forEach((question, index) => {
+        const item = document.createElement('fieldset');
+        item.className = 'assistant-question-item';
+        const prompt = document.createElement('p');
+        prompt.className = 'assistant-question-title';
+        prompt.textContent = question.text;
+        item.append(prompt);
+        const options = document.createElement('div');
+        options.className = 'assistant-question-options';
+        (question.options || []).forEach((option, optionIndex) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'assistant-question-option';
+          button.textContent = `${optionIndex + 1}. ${option.label}`;
+          button.dataset.questionOption = String(index);
+          button.setAttribute('aria-pressed', 'false');
+          button.addEventListener('click', () => {
+            options.querySelectorAll('[data-question-option]').forEach((candidate) => {
+              candidate.setAttribute('aria-pressed', 'false');
+              candidate.classList.remove('is-selected');
+            });
+            button.setAttribute('aria-pressed', 'true');
+            button.classList.add('is-selected');
+            freeformToggle.setAttribute('aria-expanded', 'false');
+            answerInput.hidden = true;
+            answerInput.value = '';
+            freeform.classList.remove('is-selected');
+            answers[index] = { questionId: question.id, optionId: option.id, text: option.label };
+            updateSubmit(submit);
+          });
+          options.append(button);
+        });
+
+        const freeform = document.createElement('div');
+        freeform.className = 'assistant-question-freeform';
+        const freeformToggle = document.createElement('button');
+        freeformToggle.type = 'button';
+        freeformToggle.className = 'assistant-question-freeform-toggle';
+        freeformToggle.textContent = (question.options || []).length ? '自由入力で回答' : '回答を入力';
+        freeformToggle.setAttribute('aria-expanded', 'false');
+        const answerInput = document.createElement('textarea');
+        answerInput.rows = 2;
+        answerInput.placeholder = '候補にない回答を入力';
+        answerInput.setAttribute('aria-label', `${question.text}への回答`);
+        answerInput.hidden = true;
+        freeformToggle.addEventListener('click', () => {
+          const expanded = freeformToggle.getAttribute('aria-expanded') !== 'true';
+          options.querySelectorAll('[data-question-option]').forEach((button) => {
+            button.setAttribute('aria-pressed', 'false');
+            button.classList.remove('is-selected');
+          });
+          freeformToggle.setAttribute('aria-expanded', String(expanded));
+          answerInput.hidden = !expanded;
+          freeform.classList.toggle('is-selected', expanded || Boolean(answerInput.value.trim()));
+          answers[index] = { questionId: question.id, optionId: null, text: answerInput.value.trim() };
+          if (expanded) answerInput.focus();
+          updateSubmit(submit);
+        });
+        answerInput.addEventListener('input', () => {
+          answers[index] = { questionId: question.id, optionId: null, text: answerInput.value.trim() };
+          freeform.classList.toggle('is-selected', freeformToggle.getAttribute('aria-expanded') === 'true' || Boolean(answerInput.value.trim()));
+          updateSubmit(submit);
+        });
+        freeform.append(freeformToggle, answerInput);
+        options.append(freeform);
+        item.append(options);
+        panel.append(item);
+      });
+
+      const actions = document.createElement('div');
+      actions.className = 'assistant-question-actions';
+      const skip = document.createElement('button');
+      skip.type = 'button';
+      skip.className = 'secondary-search-button';
+      skip.textContent = 'スキップ';
+      skip.addEventListener('click', () => finish(currentQuestions.map((question) => ({
+        questionId: question.id,
+        optionId: null,
+        text: '回答はスキップします。追加条件はありません。AIの判断で進めてください。'
+      })), currentQuestions));
+      const submit = document.createElement('button');
+      submit.type = 'button';
+      submit.className = 'search-button';
+      submit.textContent = '回答を送信';
+      submit.disabled = true;
+      submit.addEventListener('click', () => {
+        if (answers.some((answer) => !answer.text.trim())) return;
+        finish(answers.map((answer) => ({ ...answer })), currentQuestions);
+      });
+      actions.append(skip, submit);
+      panel.append(actions);
+      dock.replaceChildren(panel);
+      dock.hidden = false;
+      dock.scrollIntoView?.({ block: 'nearest' });
+      return new Promise((resolve) => { resolveCurrent = resolve; });
+    }
+  });
+}
+
+export function createQuestionView(dialog, { dock = null, messages = null } = {}) {
+  if (dock) return createQuestionDockView(dock, messages);
   const list = dialog.querySelector('[data-question-list]');
   const submit = dialog.querySelector('[data-question-submit]');
   const cancel = dialog.querySelector('[data-question-cancel]');

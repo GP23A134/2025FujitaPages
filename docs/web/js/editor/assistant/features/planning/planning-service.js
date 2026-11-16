@@ -1,5 +1,5 @@
 import { PLAN_RESPONSE_SCHEMA } from './plan-schema.js';
-import { buildPlanSystemPrompt } from '../../prompts/plan-system-prompt.js';
+import { buildPlanSystemPrompt } from '../../prompts/plan-system-prompt.js?v=20261116-chat-plan-prose-v1';
 import { validatePlan } from './plan-contract.js';
 
 function extractJsonText(response) {

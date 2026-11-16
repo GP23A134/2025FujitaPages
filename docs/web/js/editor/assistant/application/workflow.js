@@ -2,10 +2,11 @@ import { createConversationState, transitionConversation } from './conversation-
 import { buildPlanInput } from '../features/planning/plan-input.js';
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js';
+import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261116-selection-12k-v1';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
 import { createAgentRunLoop } from '../agent-runtime/run-loop.js';
-import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js';
+import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261116-selected-range-completion-v1';
 import { PROPOSAL_RESPONSE_SCHEMA } from '../features/proposals/proposal-schema.js';
 import { validateProposalResponse } from '../features/proposals/proposal-contract.js';
 
@@ -202,38 +203,67 @@ export function createAssistantWorkflow({
       includeInstanceIds: settings['instances.includeId'],
       plannedInstanceContext: plan.dataNeeds.instanceContext
     });
-    const permissionGuard = createPermissionGuard({ getReferenceScope: () => [...grants.reference] });
-    const dispatcher = createToolDispatcher({
-      registry: reader.registry,
-      permissionGuard,
-      budgetGuard,
-      getScopeCandidates: reader.getScopeCandidates
-    });
-    const allowedTools = [];
-    if (plan.dataNeeds.hierarchyIndex) allowedTools.push('read_hierarchy_index', 'read_direct_children', 'read_class_details');
-    if (plan.dataNeeds.selectedClassDetails) allowedTools.push('read_selected_class_details', 'read_direct_children', 'read_class_details');
-    if (plan.dataNeeds.parentContext !== 'none') allowedTools.push('read_selected_class_details', 'read_class_details');
-    if (plan.dataNeeds.instanceContext !== 'none') allowedTools.push('read_instance_context');
-    const uniqueTools = [...new Set(allowedTools)];
-    const loop = createAgentRunLoop({
-      client,
-      registry: reader.registry,
-      dispatcher,
-      budgetGuard,
-      model: currentModel,
-      apiKey: currentApiKey,
-      systemInstruction: buildAgentSystemPrompt(plan),
-      maxOutputTokens: settings['runtime.maxOutputTokens'],
-      textFormat: { type: 'json_schema', name: 'class_edit_proposals', strict: true, schema: PROPOSAL_RESPONSE_SCHEMA },
-      onUsage: reportUsage
-    });
+    const chunkedReadOnly = plan.taskType === 'read_only'
+      && plan.dataNeeds.selectedClassDetails
+      && !plan.dataNeeds.hierarchyIndex
+      && plan.dataNeeds.parentContext !== 'ancestor_chain'
+      && plan.dataNeeds.instanceContext === 'none';
+    let loop = null;
+    let uniqueTools = [];
+    if (!chunkedReadOnly) {
+      const permissionGuard = createPermissionGuard({ getReferenceScope: () => [...grants.reference] });
+      const dispatcher = createToolDispatcher({
+        registry: reader.registry,
+        permissionGuard,
+        budgetGuard,
+        getScopeCandidates: reader.getScopeCandidates
+      });
+      const allowedTools = [];
+      if (plan.dataNeeds.hierarchyIndex) allowedTools.push('read_hierarchy_index', 'read_direct_children', 'read_class_details');
+      if (plan.dataNeeds.selectedClassDetails) allowedTools.push('read_selected_class_details', 'read_direct_children', 'read_class_details');
+      if (plan.dataNeeds.parentContext !== 'none') allowedTools.push('read_selected_class_details', 'read_class_details');
+      if (plan.dataNeeds.instanceContext !== 'none') allowedTools.push('read_instance_context');
+      uniqueTools = [...new Set(allowedTools)];
+      loop = createAgentRunLoop({
+        client,
+        registry: reader.registry,
+        dispatcher,
+        budgetGuard,
+        model: currentModel,
+        apiKey: currentApiKey,
+        systemInstruction: buildAgentSystemPrompt(plan),
+        maxOutputTokens: settings['runtime.maxOutputTokens'],
+        textFormat: { type: 'json_schema', name: 'class_edit_proposals', strict: true, schema: PROPOSAL_RESPONSE_SCHEMA },
+        onUsage: reportUsage
+      });
+    }
     let messages = [{ role: 'user', content: state.request }];
     const retries = settings['validation.maxRepairRetries'];
     for (let attempt = 0; ; attempt += 1) {
       emitProgress(attempt ? 'validating' : (uniqueTools.length ? 'retrieving' : 'analyzing'));
       let result;
-      try { result = await loop.run({ messages, signal, allowedTools: uniqueTools, onProgress: emitProgress }); }
-      catch (error) { throw withErrorSource(error, 'agent-runtime/run-loop.js'); }
+      try {
+        result = chunkedReadOnly
+          ? await createChunkedReadOnlyReview({
+            reader,
+            client,
+            budgetGuard,
+            model: currentModel,
+            apiKey: currentApiKey,
+            request: state.request,
+            plan,
+            pageLimit: settings['dataRetrieval.pageAndIdLimit'],
+            maxOutputTokens: settings['runtime.maxOutputTokens'],
+            signal,
+            onProgress: emitProgress,
+            onUsage: reportUsage
+          }).run()
+          : await loop.run({ messages, signal, allowedTools: uniqueTools, onProgress: emitProgress });
+      } catch (error) {
+        throw withErrorSource(error, chunkedReadOnly
+          ? 'features/data-retrieval/chunked-read-only-review.js'
+          : 'agent-runtime/run-loop.js');
+      }
       if (result.status === 'needs_scope_approval') {
         const decision = await askForScope({
           candidates: result.scopeRequest.candidates || [],
@@ -284,7 +314,7 @@ export function createAssistantWorkflow({
         }) }];
         continue;
       }
-      lastAgentContext = { loop, messages: result.messages, allowedTools: uniqueTools };
+      lastAgentContext = chunkedReadOnly ? null : { loop, messages: result.messages, allowedTools: uniqueTools };
       return {
         ...validation,
         ...(result.budgetLimited ? { proposals: [], alternativeGroups: [] } : {}),
@@ -681,5 +711,5 @@ export function createAssistantWorkflow({
     selectedAlternatives.set(groupId, proposalId);
   }
 
-  return Object.freeze({ start, resume, updateDeveloperSettings, answerQuestions, answerProposalQuestions, selectAlternative, preparePreview, applyProposal, finishReview, clearSecrets, getState, getPlan: () => plan, getPersistenceSnapshot });
+  return Object.freeze({ start, resume, updateDeveloperSettings, answerQuestions, answerProposalQuestions, selectAlternative, preparePreview, applyProposal, finishReview, clearSecrets, getState, isBusy: () => active, getPlan: () => plan, getPersistenceSnapshot });
 }

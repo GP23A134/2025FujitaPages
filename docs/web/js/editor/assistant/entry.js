@@ -1,39 +1,49 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
-import { createProgressView } from './features/progress/progress-view.js';
+import { createProgressView } from './features/progress/progress-view.js?v=20261116-agent-interaction-dock-v2';
 import { buildPlanInput } from './features/planning/plan-input.js';
 import { createOpenAIClient } from './adapters/openai-client.js';
-import { createPlanningService } from './features/planning/planning-service.js';
-import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js';
+import { createPlanningService } from './features/planning/planning-service.js?v=20261116-chat-plan-prose-v1';
+import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261116-agent-interaction-dock-v2';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js';
-import { createQuestionView } from './features/planning/question-view.js';
-import { createWorkflowView } from './features/progress/workflow-view.js';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261116-selection-12k-v1';
+import { createQuestionView } from './features/planning/question-view.js?v=20261116-agent-interaction-dock-v2';
+import { createWorkflowView } from './features/progress/workflow-view.js?v=20261116-agent-interaction-dock-v2';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js';
 import { createProposalPreviewView } from './features/proposals/proposal-preview-view.js';
-import { createSettingsView } from './settings/settings-view.js';
+import { createSettingsView } from './settings/settings-view.js?v=20261116-setting-errors-v1';
 import { createSessionService } from './conversations/session-service.js';
 
 const statusElement = document.getElementById('ai-status');
 if (window.classEditorAI && statusElement) {
   const editorBridge = createEditorBridge();
-  createProgressView(statusElement);
+  const progressView = createProgressView(statusElement);
+  const messages = document.getElementById('ai-chat-messages');
+  const interactionDock = document.getElementById('assistant-interaction-dock');
   const scopeApproval = createScopeApprovalView(document.getElementById('assistant-scope-dialog'), window.classEditorAI, {
-    messages: document.getElementById('ai-chat-messages')
+    messages,
+    interactionDock
   });
-  const questionView = createQuestionView(document.getElementById('assistant-question-dialog'));
+  const questionView = createQuestionView(document.getElementById('assistant-question-dialog'), { dock: interactionDock, messages });
   const settingsRegistry = createAssistantSettingsRegistry();
   const sessionService = createSessionService();
   const settingsStorageKey = 'classEditorAssistantDeveloperSettings-v1';
   let settings = settingsRegistry.defaults();
   try {
     const saved = JSON.parse(localStorage.getItem(settingsStorageKey) || '{}');
+    // Migrate the previous default so existing sessions can also process large selections.
+    if (saved['runtime.inputTokenCap'] === 30000) saved['runtime.inputTokenCap'] = 300000;
+    if (saved['runtime.maxRetrievalCalls'] === 50) saved['runtime.maxRetrievalCalls'] = 200;
     const candidate = { ...settings, ...Object.fromEntries(settingsRegistry.list()
       .filter((item) => Object.hasOwn(saved, item.key)).map((item) => [item.key, saved[item.key]])) };
     if (settingsRegistry.validate(candidate).valid) settings = candidate;
   } catch { /* Use feature defaults when saved settings are unavailable or invalid. */ }
   const syncChatSystemChoice = () => {
+    const activeMode = settings['chat.useNewSystem'] ? 'agent' : 'legacy';
     document.querySelectorAll('[name="ai-chat-system-mode"]').forEach((radio) => {
-      radio.checked = (radio.value === 'agent') === Boolean(settings['chat.useNewSystem']);
+      radio.checked = radio.value === activeMode;
+    });
+    document.querySelectorAll('[data-chat-mode-settings]').forEach((section) => {
+      section.hidden = section.dataset.chatModeSettings !== activeMode;
     });
   };
   syncChatSystemChoice();
@@ -111,6 +121,7 @@ if (window.classEditorAI && statusElement) {
   });
   const workflowView = createWorkflowView(document.getElementById('assistant-results'), questionView, proposalResultView, {
     messages: document.getElementById('ai-chat-messages'),
+    getElapsed: () => progressView.getElapsed(),
     onAnswerQuestions: (answers) => workflow.answerQuestions(answers)
   });
   workflow = createAssistantWorkflow({
@@ -139,15 +150,19 @@ if (window.classEditorAI && statusElement) {
   const modelSelect = document.getElementById('ai-model');
   const chatForm = document.getElementById('ai-chat-form');
   const promptExamplesRunningStages = new Set([
-    'planning', 'retrieving', 'analyzing', 'validating',
-    'waiting_for_scope_approval', 'waiting_for_answer'
+    'planning', 'retrieving', 'analyzing', 'validating'
   ]);
   window.addEventListener('assistant:progress', (event) => {
     chatForm?.classList.toggle('is-processing', promptExamplesRunningStages.has(event.detail?.stage));
   });
   let newSystemSubmitting = false;
   const runNewSystem = async () => {
-    if (newSystemSubmitting) return false;
+    if (newSystemSubmitting || workflow.isBusy() || !interactionDock.hidden) {
+      statusElement.textContent = !interactionDock.hidden
+        ? '表示中の確認に回答してから、次の依頼を送信してください。'
+        : '処理中です。完了してから次の依頼を送信してください。';
+      return false;
+    }
     const request = requestInput.value.trim();
     if (!request) {
       statusElement.textContent = '依頼内容を入力してください。';

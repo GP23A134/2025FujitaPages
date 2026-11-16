@@ -1,7 +1,7 @@
 const PAGE_SIZE = 100;
 const TYPE_LABEL = Object.freeze({ top: '上位', middle: '中間', class: '対象' });
 
-export function createScopeApprovalView(dialog, editor, { messages } = {}) {
+export function createScopeApprovalView(dialog, editor, { messages, interactionDock } = {}) {
   if (!dialog || !editor?.getState) throw new TypeError('範囲許可画面の依存要素が不足しています。');
   const title = dialog.querySelector('[data-scope-title]');
   const summary = dialog.querySelector('[data-scope-summary]');
@@ -16,7 +16,8 @@ export function createScopeApprovalView(dialog, editor, { messages } = {}) {
   let current = null;
 
   function showSummary({ candidates, allowReference, allowChange, purpose, processSummary }) {
-    if (!messages) return null;
+    const host = interactionDock || messages;
+    if (!host) return null;
     const counts = { top: 0, middle: 0, class: 0 };
     const permissionCounts = { reference: { top: 0, middle: 0, class: 0 }, change: { top: 0, middle: 0, class: 0 } };
     candidates.forEach((item) => {
@@ -64,9 +65,11 @@ export function createScopeApprovalView(dialog, editor, { messages } = {}) {
     detailButton.addEventListener('click', () => {
       if (current && !dialog.open) dialog.showModal();
     });
-    actions.append(approveButton, denyButton, detailButton);
+    actions.append(denyButton, approveButton, detailButton);
     card.append(heading, overview, continuation, actions);
-    messages.append(card);
+    host.append(card);
+    if (interactionDock) interactionDock.hidden = false;
+    if (!messages) return { card, approveButton, denyButton, detailButton };
     if (typeof requestAnimationFrame === 'function') {
       requestAnimationFrame(() => messages.scrollTo?.({ top: messages.scrollHeight, behavior: 'smooth' }));
     } else {
@@ -120,13 +123,25 @@ export function createScopeApprovalView(dialog, editor, { messages } = {}) {
     }
     const result = { choice, referenceIds: [...referenceIds], changeIds: [...changeIds] };
     const resolve = current.resolve;
-    current.summaryView?.card.setAttribute('data-decision', choice);
+    current.summaryView?.card.remove();
     if (current.summaryView) {
       current.summaryView.detailButton.disabled = true;
-      current.summaryView.approveButton.disabled = true;
-      current.summaryView.denyButton.disabled = true;
-      current.summaryView.approveButton.textContent = choice === 'allow' ? '許可しました' : '許可する';
-      current.summaryView.denyButton.textContent = choice === 'original_scope' ? '許可しませんでした' : '許可しない';
+      if (interactionDock) interactionDock.hidden = true;
+    }
+    if (messages) {
+      const response = document.createElement('div');
+      response.className = 'ai-message is-user';
+      response.setAttribute('role', 'article');
+      const author = document.createElement('strong');
+      author.textContent = 'あなた';
+      const body = document.createElement('div');
+      body.className = 'ai-message-body';
+      const text = document.createElement('p');
+      text.textContent = choice === 'allow' ? '追加する範囲を許可します。' : '追加する範囲を許可しません。';
+      body.append(text);
+      response.append(author, body);
+      messages.append(response);
+      messages.scrollTop = messages.scrollHeight;
     }
     current = null;
     dialog.close();

@@ -11,8 +11,9 @@ const source = fs.readFileSync(sourcePath, 'utf8').replace(/^export /gm, '')
 class Element {
   constructor() { this.children = []; this.listeners = {}; this.dataset = {}; this.hidden = false; this.value = ''; }
   addEventListener(name, callback) { this.listeners[name] = callback; }
-  append(...elements) { this.children.push(...elements); }
+  append(...elements) { elements.forEach((element) => { element.parentElement = this; }); this.children.push(...elements); }
   replaceChildren(...elements) { this.children = elements; }
+  remove() { this.parentElement?.children.splice(this.parentElement.children.indexOf(this), 1); }
   setAttribute() {}
   click() { this.listeners.click?.({ preventDefault() {} }); }
 }
@@ -32,6 +33,7 @@ test('scope approval shows summary first, details are read-only, and approval gr
     close() { this.open = false; }
   };
   const messages = new Element();
+  const interactionDock = new Element();
   const sandbox = { module: { exports: {} }, document: { createElement: () => new Element() }, TypeError, Set, Map, Math };
   vm.runInNewContext(source, sandbox);
   const view = sandbox.module.exports.createScopeApprovalView(dialog, {
@@ -44,21 +46,25 @@ test('scope approval shows summary first, details are read-only, and approval gr
       relations: [{ parent: 'top-1', child: 'middle-1' }, { parent: 'middle-1', child: 'target-1' }],
       counts: { 'middle-1': 1 }
     })
-  }, { messages });
+  }, { messages, interactionDock });
 
   const decisionPromise = view.request({
     candidates: [{ id: 'middle-1' }], allowReference: true, allowChange: false,
     purpose: '参照範囲を追加します。', processSummary: '配置を確認します。'
   });
   assert.equal(dialog.open, false);
-  assert.match(messages.children[0].children[1].textContent, /中間クラス 1件/);
-  const actions = messages.children[0].children[3];
+  assert.equal(messages.children.length, 0);
+  assert.equal(interactionDock.hidden, false);
+  assert.match(interactionDock.children[0].children[1].textContent, /中間クラス 1件/);
+  const actions = interactionDock.children[0].children[3];
   actions.children[2].click();
   assert.equal(dialog.open, true);
   assert.equal(elements.get('[data-scope-list]').children[0].children.length, 1);
   elements.get('[data-scope-allow]').click();
   const result = await decisionPromise;
   assert.equal(result.choice, 'allow');
+  assert.equal(interactionDock.hidden, true);
+  assert.equal(messages.children.length, 1);
   assert.deepEqual([...result.referenceIds].sort(), ['middle-1']);
   assert.equal(result.changeIds.length, 0);
 
@@ -66,7 +72,7 @@ test('scope approval shows summary first, details are read-only, and approval gr
     candidates: [{ id: 'middle-1' }], allowReference: true, allowChange: false,
     purpose: '参照範囲を追加します。', processSummary: '配置を確認します。'
   });
-  messages.children[1].children[3].children[1].click();
+  interactionDock.children[0].children[3].children[0].click();
   const denied = await deniedPromise;
   assert.equal(denied.choice, 'original_scope');
   assert.equal(denied.referenceIds.length, 0);

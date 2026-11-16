@@ -9,7 +9,7 @@
     <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
     <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1" />
     <link rel="stylesheet" href="web/css/tree-structure.css?v=20261112-tree-action-buttons-v2" />
-    <link rel="stylesheet" href="web/css/editor-panels.css?v=20261113-independent-plan-confirm-v1" />
+    <link rel="stylesheet" href="web/css/editor-panels.css?v=20261116-agent-interaction-dock-v2" />
     <link rel="stylesheet" href="web/css/test-preferences.css?v=20261111-test-settings-layout-v1" />
     <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261113-target-connectors-v1" />
     <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261112-ai-consult-tab-v2" />
@@ -196,6 +196,7 @@
             <section id="ai-assistant-panel" class="ai-assistant-panel" aria-label="AIチャット" hidden>
               <header class="ai-chat-header"></header>
               <div id="ai-chat-messages" class="ai-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+              <div id="assistant-interaction-dock" class="assistant-interaction-dock" aria-label="確認事項・範囲追加の操作" hidden></div>
               <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
               <button type="button" id="assistant-resume" class="search-button secondary-search-button" hidden>保存した処理を再開</button>
               <div id="assistant-results" class="assistant-results" aria-live="polite"></div>
@@ -326,7 +327,10 @@
       <p class="edit-settings-note">変更はすぐに反映され、自動保存されます。「保存して閉じる」からも保存できます。</p>
       <section class="edit-settings-section" aria-labelledby="test-ai-chat-title">
         <h3 id="test-ai-chat-title">AIチャット</h3>
+        <div data-chat-mode-settings="agent">
         <div id="assistant-developer-settings" class="assistant-developer-settings" aria-label="新AI処理の調整"></div>
+        </div>
+        <div data-chat-mode-settings="legacy">
         <div class="test-settings-group" role="group" aria-labelledby="test-ai-tuning-title">
           <h4 id="test-ai-tuning-title">送信入力上限</h4>
           <label for="test-ai-input-limit">1回の送信で扱う最大文字数</label>
@@ -409,6 +413,7 @@
           <label for="test-ai-concurrency">AIリクエストの同時処理数</label>
           <div class="test-range-row"><input id="test-ai-concurrency" type="range" min="1" max="4" step="1" data-preference="aiConcurrency" /><output for="test-ai-concurrency"></output></div>
           <p class="edit-settings-note">分割分析と全範囲の横断確認で、同時に処理するリクエスト数です。初期値は2件です。</p>
+        </div>
         </div>
       </section>
       <section class="edit-settings-section" aria-labelledby="test-tree-display-title">
@@ -670,6 +675,6 @@
     <!-- ダイアログDOMの後に、データ読み込みとAIチャットを初期化する。 -->
     <script data-app-script="web/js/shared/data-upload.js?v=20261112-shared-validation-v2"></script>
     <script data-app-script="web/js/editor/ai/main.js?v=20261113-chat-compact-chunk-memos-v1" data-app-type="module"></script>
-    <script data-app-script="web/js/editor/assistant/entry.js?v=20261116-settings-root-guard-v1" data-app-type="module"></script>
+    <script data-app-script="web/js/editor/assistant/entry.js?v=20261116-selection-12k-v1" data-app-type="module"></script>
   </body>
 </html>

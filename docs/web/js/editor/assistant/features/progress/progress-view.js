@@ -28,15 +28,13 @@ export function createProgressView(statusElement, messages = document.getElement
 
   const formatElapsed = (milliseconds) => {
     const seconds = Math.max(0, Math.floor(milliseconds / 1000));
-    const minutes = Math.floor(seconds / 60);
-    const remainder = seconds % 60;
-    return minutes ? `${minutes}分${remainder}秒` : `${remainder}秒`;
+    return `${seconds}s`;
   };
 
   const ensureIndicator = () => {
     if (indicator || !messages) return;
     indicator = document.createElement('div');
-    indicator.className = 'ai-thinking-indicator';
+    indicator.className = 'ai-thinking-indicator is-agent-progress';
     indicator.setAttribute('role', 'status');
     indicator.setAttribute('aria-live', 'polite');
     messages.append(indicator);
@@ -50,12 +48,15 @@ export function createProgressView(statusElement, messages = document.getElement
 
   const updateIndicator = () => {
     if (!indicator) return;
-    const elapsed = formatElapsed(Date.now() - startedAt);
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
     const label = indicator.dataset.progressLabel || '';
     const note = indicator.dataset.progressNote || '';
-    const text = [label, note, `（${elapsed}）`].filter(Boolean).join('：');
+    const stage = indicator.dataset.progressStage || '';
+    const isActive = !waiting && !['budget_exhausted', 'completed', 'failed', 'scope_denied'].includes(stage);
+    indicator.hidden = !isActive;
+    const text = isActive ? `${elapsedSeconds}s作業中` : '';
     indicator.textContent = text;
-    indicator.setAttribute('aria-label', text);
+    indicator.setAttribute('aria-label', [label, note, formatElapsed(Date.now() - startedAt)].filter(Boolean).join('。'));
   };
 
   function render(event) {
@@ -81,15 +82,19 @@ export function createProgressView(statusElement, messages = document.getElement
     if (indicator) {
       indicator.dataset.progressLabel = label;
       indicator.dataset.progressNote = [scope, note].filter(Boolean).join('。');
+      indicator.dataset.progressStage = detail.stage;
       updateIndicator();
+      messages.append(indicator);
       messages.scrollTop = messages.scrollHeight;
     }
-    statusElement.textContent = [label, scope, note].filter(Boolean).join('。');
+    // Agent progress is shown in the chat log itself; keep the legacy status slot empty.
+    statusElement.textContent = '';
     statusElement.dataset.workflowStage = detail.stage;
   }
 
   window.addEventListener('assistant:progress', render);
   return Object.freeze({
+    getElapsed: () => startedAt ? formatElapsed(Date.now() - startedAt) : '',
     dispose() {
       window.removeEventListener('assistant:progress', render);
       stopTimer();

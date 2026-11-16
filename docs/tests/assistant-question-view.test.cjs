@@ -25,6 +25,8 @@ class Element {
   replaceChildren(...items) { items.forEach((item) => { if (item instanceof Element) item.parentElement = this; }); this.children = items; }
   setAttribute(name, value) { this.attributes[name] = String(value); }
   getAttribute(name) { return this.attributes[name] ?? null; }
+  get textContent() { return this._textContent ?? this.children.map((child) => child.textContent || '').join(''); }
+  set textContent(value) { this._textContent = String(value); }
   focus() {}
   click() { this.listeners.click?.({ target: this }); }
   querySelector(selector) {
@@ -86,4 +88,23 @@ test('confirmation questions show selectable buttons with selected styling or di
     { questionId: 'q1', optionId: 'c', text: '案C' },
     { questionId: 'q2', optionId: null, text: '独自の回答' }
   ]);
+});
+
+test('agent confirmation stays in the bottom dock and sends the answer into chat history', async () => {
+  const sandbox = { module: { exports: {} }, document: { createElement: (tag) => new Element(tag) } };
+  vm.runInNewContext(source, sandbox);
+  const dock = new Element('section');
+  const messages = new Element('div');
+  const view = sandbox.module.exports.createQuestionView(null, { dock, messages });
+  const pending = view.ask([{ id: 'q1', text: '優先する案', options: [{ id: 'a', label: '案A' }, { id: 'b', label: '案B' }] }]);
+  assert.equal(dock.hidden, false);
+  const option = dock.querySelectorAll('button[data-question-option="0"]')[1];
+  option.click();
+  const submit = dock.children[0].children[1].children[1];
+  assert.equal(submit.disabled, false);
+  submit.click();
+  assert.deepEqual(JSON.parse(JSON.stringify(await pending)), [{ questionId: 'q1', optionId: 'b', text: '案B' }]);
+  assert.equal(dock.hidden, true);
+  assert.equal(messages.children.length, 1);
+  assert.match(messages.children[0].textContent, /案B/);
 });
