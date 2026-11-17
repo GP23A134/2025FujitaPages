@@ -23,6 +23,8 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
   const canPreview = (state, item) => !item.proposal.questions.length
     && (!state.groupByProposal.get(item.proposal.id)
       || state.selectedAlternatives.get(state.groupByProposal.get(item.proposal.id).id) === item.proposal.id);
+  const navigableItems = (state) => state.result.proposals.filter((candidate) => canPreview(state, candidate)
+    && !['applied', 'dismissed'].includes(statusOf(state, candidate)));
 
   root.addEventListener('click', async (event) => {
     const message = event.target.closest('[data-assistant-proposal-result]');
@@ -38,21 +40,23 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
         const item = state.result.proposals.find((candidate) => candidate.proposal.id === input.value);
         const row = itemRows.get(item);
         const preview = row?.querySelector('[data-preview-proposal]');
-        if (preview) preview.disabled = !canPreview(state, item);
+        if (preview) preview.disabled = !navigableItems(state).includes(item);
       });
       const firstPreview = message.querySelector('[data-preview-first]');
-      if (firstPreview) firstPreview.disabled = !state.result.proposals.some((item) => canPreview(state, item));
+      if (firstPreview) firstPreview.disabled = !navigableItems(state).length;
       return;
     }
     const preview = event.target.closest('[data-preview-proposal]');
     if (preview) {
       const item = state.result.proposals.find((candidate) => candidate.proposal.id === preview.dataset.previewProposal);
-      if (item && canPreview(state, item)) onPreview(item);
+      if (item && navigableItems(state).includes(item)) {
+        onPreview(item, navigableItems(state));
+      }
       return;
     }
     if (event.target.closest('[data-preview-first]')) {
-      const item = state.result.proposals.find((candidate) => canPreview(state, candidate));
-      if (item) onPreview(item);
+      const item = navigableItems(state)[0];
+      if (item) onPreview(item, navigableItems(state));
       return;
     }
     const answer = event.target.closest('[data-answer-proposal]');
@@ -127,11 +131,12 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
     previewAll.className = 'ai-proposal-preview ai-proposal-queue-preview';
     previewAll.dataset.previewFirst = 'true';
     previewAll.textContent = 'プレビュー';
-    previewAll.disabled = !result.proposals.some((item) => canPreview(state, item));
+    previewAll.disabled = !navigableItems(state).length;
 
     (result.alternativeGroups || []).forEach((group) => {
       group.proposalIds.forEach((id) => state.groupByProposal.set(id, group));
     });
+    previewAll.disabled = !navigableItems(state).length;
     result.proposals.forEach((item) => {
       const status = statusOf(state, item);
       const row = document.createElement('article');
@@ -171,7 +176,7 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
       preview.className = 'ai-proposal-preview';
       preview.dataset.previewProposal = item.proposal.id;
       preview.textContent = item.proposal.questions.length ? '回答が必要' : 'プレビュー';
-      preview.disabled = !canPreview(state, item);
+      preview.disabled = !navigableItems(state).includes(item);
       actions.append(preview);
       row.append(main, actions);
       if (item.proposal.questions.length) {

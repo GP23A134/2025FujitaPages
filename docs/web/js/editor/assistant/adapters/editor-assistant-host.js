@@ -14,52 +14,57 @@ export function createEditorAssistantHost({
   reportPreviewError,
   setStatus
 }) {
-  let agentPreviewProxy = null;
+  let agentPreviewProxies = [];
   let agentPreviewOwner = null;
 
   const clearAgentPreviewProxy = () => {
-    if (agentPreviewProxy && agentPreviewOwner) {
-      const index = agentPreviewOwner.items.indexOf(agentPreviewProxy);
-      if (index >= 0) agentPreviewOwner.items.splice(index, 1);
+    if (agentPreviewProxies.length && agentPreviewOwner) {
+      const proxies = new Set(agentPreviewProxies);
+      const remaining = agentPreviewOwner.items.filter((item) => !proxies.has(item));
+      agentPreviewOwner.items.splice(0, agentPreviewOwner.items.length, ...remaining);
     }
-    agentPreviewProxy = null;
+    agentPreviewProxies = [];
     agentPreviewOwner = null;
   };
 
   return Object.freeze({
-    async previewProposal({ item, onApply, onDismiss }) {
+    async previewProposal({ item, proposals = [item], onApply, onDismiss }) {
       if (!item?.proposal || typeof onApply !== 'function') throw new TypeError('提案のプレビュー情報が不足しています。');
       const proposalPreview = getPreview();
       if (!proposalPreview) throw new Error('提案プレビューを利用できません。');
-      if (agentPreviewProxy) closePreview();
-      const proxy = {
+      if (agentPreviewProxies.length) closePreview();
+      agentPreviewOwner = getCurrentConversation();
+      if (!agentPreviewOwner?.items) throw new Error('提案の相談を開けません。');
+      const responseGroupId = `agent_preview_${Date.now()}`;
+      const sourceItems = [...new Set([item, ...proposals])].filter((candidate) => candidate?.proposal && Array.isArray(candidate.operations));
+      agentPreviewProxies = sourceItems.map((sourceItem, index) => ({
         type: 'proposal',
-        id: `agent_preview_${Date.now()}`,
-        responseGroupId: `agent_preview_${Date.now()}`,
+        id: `${responseGroupId}_${index + 1}`,
+        responseGroupId,
         proposal: {
-          id: item.proposal.id,
-          title: item.proposal.title,
-          summary: item.proposal.summary,
-          reason: item.proposal.reason,
-          uncertainties: item.proposal.uncertainties || [],
+          id: sourceItem.proposal.id,
+          title: sourceItem.proposal.title,
+          summary: sourceItem.proposal.summary,
+          reason: sourceItem.proposal.reason,
+          uncertainties: sourceItem.proposal.uncertainties || [],
           questions: [],
           conflictGroups: [],
-          operations: item.operations
+          operations: sourceItem.operations
         },
         selectedConflictChoices: {},
         excludedOperationIndexes: new Set(),
-        editableIds: item.editableIds,
-        availableIds: item.availableIds,
-        operationPolicy: item.operationPolicy,
+        editableIds: sourceItem.editableIds,
+        availableIds: sourceItem.availableIds,
+        operationPolicy: sourceItem.operationPolicy,
         status: 'pending',
-        agentApply: onApply,
-        agentDismiss: onDismiss
-      };
-      agentPreviewProxy = proxy;
-      agentPreviewOwner = getCurrentConversation();
-      agentPreviewOwner?.items.push(proxy);
+        agentApply: (operationIndexes) => onApply(sourceItem, operationIndexes),
+        agentDismiss: () => onDismiss?.(sourceItem)
+      }));
+      const proxy = agentPreviewProxies[sourceItems.indexOf(item)] || agentPreviewProxies[0];
+      agentPreviewOwner.items.push(...agentPreviewProxies);
       try {
-        proxy.baseDataHash = await currentDataHash();
+        const baseDataHash = await currentDataHash();
+        agentPreviewProxies.forEach((candidate) => { candidate.baseDataHash = baseDataHash; });
         await proposalPreview.showPreview(proxy);
       } catch (error) {
         closePreview();

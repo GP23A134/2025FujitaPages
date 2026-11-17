@@ -374,13 +374,13 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .assistant-interaction-dock .ai-scope-request-actions button { min-height: 2rem; padding: 0.3rem 0.65rem; }
 .assistant-interaction-dock .ai-scope-request-actions button:last-child { margin-left: auto; }
 .ai-thinking-indicator { display: flex; flex: 0 0 auto; align-self: flex-start; align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem; border: 1px solid #dbeafe; border-radius: 10px; color: #475569; background: #f8fbff; font-size: 0.8rem; }
-.ai-thinking-indicator.is-agent-progress { position: relative; width: fit-content; max-width: 88%; min-height: 0; align-self: flex-start; margin: 0 0 0.25rem 0.15rem; padding: 0.35rem 0.65rem; border: 1px solid #cfe0f5; border-radius: 0.85rem 0.85rem 0.85rem 0.3rem; color: #2563eb; background: #f1f7ff; font-size: 0.9rem; line-height: 1.35; box-sizing: border-box; }
+.ai-thinking-indicator.is-agent-progress { position: relative; width: fit-content; max-width: 88%; min-height: 0; align-self: flex-start; margin: 0 0 0.25rem 0.15rem; padding: 0.35rem 0.65rem; border: 1px solid #cfe0f5; border-radius: 0.85rem 0.85rem 0.85rem 0.3rem; color: #2563eb; background: #fff; font-size: 0.9rem; line-height: 1.35; box-sizing: border-box; }
 .ai-thinking-indicator.is-agent-progress::before { display: none; }
-.ai-thinking-indicator.is-agent-progress::after { position: absolute; bottom: -0.26rem; left: 0.65rem; width: 0.55rem; height: 0.35rem; background: #f1f7ff; clip-path: polygon(0 0, 100% 0, 0 100%); content: ""; }
+.ai-thinking-indicator.is-agent-progress::after { position: absolute; bottom: -0.26rem; left: 0.65rem; width: 0.55rem; height: 0.35rem; background: #fff; clip-path: polygon(0 0, 100% 0, 0 100%); content: ""; }
 .ai-thinking-indicator::before { width: 0.85rem; height: 0.85rem; flex: 0 0 auto; border: 2px solid #bae6fd; border-top-color: #0284c7; border-radius: 50%; content: ""; animation: search-loading-spin 0.8s linear infinite; }
 .ai-thinking-indicator.is-complete { border-color: #e2e8f0; color: #64748b; background: #f8fafc; }
-.ai-thinking-indicator.is-agent-progress.is-complete { border-color: #dbeafe; color: #475569; background: #f8fafc; }
-.ai-thinking-indicator.is-agent-progress.is-complete::after { background: #f8fafc; }
+.ai-thinking-indicator.is-agent-progress.is-complete { border-color: #dbeafe; color: #475569; background: #fff; }
+.ai-thinking-indicator.is-agent-progress.is-complete::after { background: #fff; }
 .ai-thinking-indicator.is-complete::before { display: none; }
 .assistant-progress-activity { align-self: flex-start; max-width: 100%; margin: -0.35rem 0 0.25rem; color: #475569; font-size: 0.9rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .assistant-progress-milestone { align-self: flex-start; max-width: 100%; margin: 0; color: #475569; font-size: 0.9rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }

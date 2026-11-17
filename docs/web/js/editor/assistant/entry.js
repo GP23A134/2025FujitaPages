@@ -5,10 +5,10 @@ import { createOpenAIClient } from './adapters/openai-client.js';
 import { createPlanningService } from './features/planning/planning-service.js?v=20261117-request-aware-prompts-v1';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261116-stop-processing-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261117-overlap-safe-decisions-v1';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261117-target-aware-destination-selection-v1';
 import { createQuestionView } from './features/planning/question-view.js?v=20261116-agent-interaction-dock-v2';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261116-no-result-elapsed-v2';
-import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261116-hide-completed-v1';
+import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261117-agent-proposal-navigation-v1';
 import { createSettingsView } from './settings/settings-view.js?v=20261116-setting-errors-v1';
 import { createHistoryService } from './conversations/history-service.js';
 
@@ -94,16 +94,17 @@ if (window.classEditorAI && statusElement) {
   let proposalResultView;
   proposalResultView = createProposalResultView(messages, {
     onSelectAlternative: (groupId, proposalId) => workflow.selectAlternative(groupId, proposalId),
-    onPreview: async (item) => {
+    onPreview: async (item, proposals) => {
       try {
         workflow.preparePreview(item);
         if (!window.editorAssistantHost?.previewProposal) throw new Error('提案プレビューを利用できません。');
         await window.editorAssistantHost.previewProposal({
           item,
-          onDismiss: () => proposalResultView.markDismissed(item),
-          onApply: (operationIndexes) => {
-            workflow.applyProposal(item, operationIndexes);
-            proposalResultView.markApplied(item);
+          proposals,
+          onDismiss: (sourceItem) => proposalResultView.markDismissed(sourceItem),
+          onApply: (sourceItem, operationIndexes) => {
+            workflow.applyProposal(sourceItem, operationIndexes);
+            proposalResultView.markApplied(sourceItem);
           }
         });
       } catch (error) {

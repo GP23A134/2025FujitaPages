@@ -212,7 +212,24 @@ export function createTargetMoveBatchProcessor({
     return records;
   }
 
-  async function selectDestinations(index) {
+  async function readAllSelectedTargets() {
+    const records = [];
+    let cursor = null;
+    do {
+      budgetGuard.countRetrieval();
+      onProgress({
+        stage: 'retrieving',
+        tool: 'read_selected_class_details',
+        note: '移動先候補を選べるよう、選択対象のクラス名と現在の親を確認しています'
+      });
+      const page = reader.readSelectedClassDetails({ cursor });
+      records.push(...page.items.filter((item) => item.type === 'class'));
+      cursor = page.nextCursor;
+    } while (cursor);
+    return records;
+  }
+
+  async function selectDestinations(index, selectedTargets) {
     onProgress({
       stage: 'analyzing',
       note: '依頼の目的と除外条件を階層索引に照らし、移動先の候補を選んでいます'
@@ -224,10 +241,15 @@ export function createTargetMoveBatchProcessor({
         '依頼文で「以外」「除く」「なくす」などの対象になっているクラスは移動先に選ばないでください。名前が依頼文に出たというだけで選ばず、文全体の意味を判断してください。',
         '「未分類をなくす／解消する」依頼では、未分類の配下を分類するための移動先を選び、未分類自体は移動先にしないでください。',
         '「上位クラス」と指定された場合はtype=topだけ、「中間クラス」と指定された場合はtype=middleだけを選んでください。',
+        'selectedTargetsには実際に選択された対象クラス名と現在の親が含まれます。依頼文だけで候補を選ばず、各対象の名称と親も照らし合わせ、少なくとも一つの対象に意味・階層上の可能性がある既存クラスを候補に含めてください。',
         'この段階では個々の対象クラスを分類せず、次段階で比較する移動先候補を広めに選びます。依頼の目的に完全一致するクラスがなくても、意味や役割が近く、対象クラスごとに妥当性を検討できる既存クラスは候補に含めてください。名称だけで確定できないことや不確かさは、候補を除外する理由にせず、次段階で推定案として説明します。',
         '候補を空にするのは、依頼で明示的に除外されたクラス以外に、意味・階層のどちらから見ても移動先として検討できる既存クラスがない場合だけです。'
       ].join('\n') },
-      { role: 'user', content: JSON.stringify({ request, objective: plan.executionBrief, parents: packed.parents, destinations: packed.destinations }) }
+      { role: 'user', content: JSON.stringify({
+        request, objective: plan.executionBrief,
+        selectedTargets: selectedTargets.map(({ label, parentLabel }) => ({ label, currentParent: parentLabel || '（親なし）' })),
+        parents: packed.parents, destinations: packed.destinations
+      }) }
     ];
     const schema = {
       type: 'object', additionalProperties: false,
@@ -250,7 +272,14 @@ export function createTargetMoveBatchProcessor({
     let hierarchy;
     try { hierarchy = await readAllHierarchy(); }
     catch (error) { if (error.scopeRequest) return { status: 'needs_scope_approval', scopeRequest: error.scopeRequest }; throw error; }
-    const destinationSelection = await selectDestinations(hierarchy);
+    let targetClasses;
+    try { targetClasses = await readAllSelectedTargets(); }
+    catch (error) { if (error.scopeRequest) return { status: 'needs_scope_approval', scopeRequest: error.scopeRequest }; throw error; }
+    if (!targetClasses.length) return {
+      text: JSON.stringify({ message: '選択範囲に移動案を検討できる対象クラスがありませんでした。', proposals: [], alternativeGroups: [] }),
+      messages: [], counters: budgetGuard.getCounters()
+    };
+    const destinationSelection = await selectDestinations(hierarchy, targetClasses);
     const destinations = destinationSelection.destinations;
     if (!destinations.length) return {
       text: JSON.stringify({
@@ -298,34 +327,10 @@ export function createTargetMoveBatchProcessor({
       if (note?.reason) group.reasons.push(note.reason);
       group.uncertainties.push(...(note?.uncertainties || []));
     });
-    let cursor = null;
-    let pageBuffer = [];
-    let morePages = true;
     let processed = 0;
     let batchNumber = 0;
-    do {
-      const items = [];
-      const batchLimit = MAX_BATCH_SIZE;
-      while (items.length < batchLimit && (pageBuffer.length || morePages)) {
-        if (!pageBuffer.length && morePages) {
-          budgetGuard.countRetrieval();
-          onProgress({
-            stage: 'retrieving',
-            tool: 'read_selected_class_details',
-            note: '選択対象のクラス名と現在の親を読み取っています'
-          });
-          let page;
-          try { page = reader.readSelectedClassDetails({ cursor }); }
-          catch (error) { if (error.scopeRequest) return { status: 'needs_scope_approval', scopeRequest: error.scopeRequest }; throw error; }
-          pageBuffer = [...page.items];
-          cursor = page.nextCursor;
-          morePages = Boolean(cursor);
-        }
-        const remaining = batchLimit - items.length;
-        items.push(...pageBuffer.splice(0, remaining));
-      }
-      const targetItems = items.filter((item) => item.type === 'class');
-      if (!targetItems.length) continue;
+    for (let offset = 0; offset < targetClasses.length; offset += MAX_BATCH_SIZE) {
+      const targetItems = targetClasses.slice(offset, offset + MAX_BATCH_SIZE);
       batchNumber += 1;
       const rows = targetItems.map((item, index) => ({
         itemNumber: index + 1,
@@ -382,11 +387,11 @@ export function createTargetMoveBatchProcessor({
       processed += targetItems.length;
       const moveCount = [...groupedMoves.values()].reduce((sum, group) => sum + group.operations.length, 0);
       onProgress({
-        stage: morePages || pageBuffer.length ? 'retrieving' : 'analyzing',
+        stage: 'analyzing',
         milestone: true,
         note: `第${batchNumber}バッチを確認しました。累計${processed.toLocaleString('ja-JP')}件、移動候補${moveCount.toLocaleString('ja-JP')}件、判断保留${uncertainItems.size.toLocaleString('ja-JP')}件です。`
       });
-    } while (morePages || pageBuffer.length);
+    }
 
     for (let retryRound = 1; retryRound <= MAX_UNCERTAIN_RETRY_ROUNDS && uncertainItems.size; retryRound += 1) {
       const pending = [...uncertainItems.values()];

@@ -3,13 +3,13 @@
 import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261113-chat-optional-coverage-v1';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261113-chat-clarification-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261113-split-cache-restore-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261116-agent-preview-bridge-v2';
+import { createProposalPreview } from './proposal-preview.js?v=20261117-agent-proposal-navigation-v1';
 import { createAIClient } from './ai-client.js?v=20261113-chat-compact-chunk-memos-v1';
 import { createRequestProgress } from './request-progress.js?v=20261112-zero-second-display-v1';
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261113-target-unit-cap-v1';
 import { createProposalView } from './proposal-view.js?v=20261112-conflict-alternatives-v1';
 import { createConversationRenderer } from './conversation-renderer.js?v=20261111-ai-chat-renderer-v1';
-import { createEditorAssistantHost } from '../assistant/adapters/editor-assistant-host.js?v=20261117-editor-host-v1';
+import { createEditorAssistantHost } from '../assistant/adapters/editor-assistant-host.js?v=20261117-agent-proposal-navigation-v1';
 
 (() => {
   const editor = window.classEditorAI;
@@ -2664,7 +2664,14 @@ import { createEditorAssistantHost } from '../assistant/adapters/editor-assistan
     if (!dismissed) return;
     if (typeof dismissed.currentProposal?.agentDismiss === 'function') {
       dismissed.currentProposal.agentDismiss();
-      closePreview();
+      if (dismissed.nextProposal) {
+        setStatus('変更案を見送りました。次の案を確認しています。編集データは変更していません。');
+        try { await proposalPreview.transitionPreview(() => proposalPreview.showPreview(dismissed.nextProposal)); }
+        catch (error) { reportPreviewError(error); }
+      } else {
+        closePreview();
+        setStatus('変更案を見送りました。編集データは変更していません。');
+      }
       return;
     }
     renderConversation();
@@ -2795,7 +2802,15 @@ import { createEditorAssistantHost } from '../assistant/adapters/editor-assistan
       applyButton.disabled = true;
       try {
         const result = await proposalPreview.applyCurrentProposal();
-        if (result?.external) closePreview();
+        if (result?.external) {
+          if (result.nextProposal) {
+            setStatus('提案を適用しました。次の未判断案を確認しています。');
+            await proposalPreview.transitionPreview(() => proposalPreview.showPreview(result.nextProposal));
+          } else {
+            closePreview();
+            setStatus('提案を適用しました。必要なら最新状態について改めて依頼してください。');
+          }
+        }
       } catch (error) {
         reportPreviewError(error);
         if (previewDialog.open) applyButton.disabled = false;

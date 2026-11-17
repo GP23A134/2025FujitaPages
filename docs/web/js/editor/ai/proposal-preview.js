@@ -822,7 +822,7 @@ export const createProposalPreview = ({
   const previewableProposals = () => {
     const items = getCurrentConversation().items;
     const agentItems = items.filter((item) => item.type === 'proposal' && typeof item.agentApply === 'function');
-    if (agentItems.length) return agentItems;
+    if (agentItems.length) return agentItems.filter((item) => ['pending', 'previewed', 'stale'].includes(item.status));
     return items.filter((item) => item.type === 'proposal'
       && hasProposalOperations(item)
       && !['awaiting-answers', 'superseded', 'alternative-rejected', 'invalid'].includes(item.status));
@@ -1279,7 +1279,14 @@ export const createProposalPreview = ({
         .filter((index) => !currentProposal.excludedOperationIndexes.has(index));
       await currentProposal.agentApply(operationIndexes);
       currentProposal.status = 'applied';
-      return { currentProposal, nextProposal: null, external: true };
+      const nextProposal = nextUnjudgedProposal(currentProposal);
+      if (nextProposal) {
+        const nextBaseDataHash = await currentDataHash();
+        previewNavigationProposals().filter((item) => typeof item.agentApply === 'function'
+          && ['pending', 'previewed', 'stale'].includes(item.status))
+          .forEach((item) => { item.baseDataHash = nextBaseDataHash; });
+      }
+      return { currentProposal, nextProposal, external: true };
     }
     const conversationItems = getCurrentConversation().items;
     const proposalStatusesBefore = conversationItems.filter((item) => item.type === 'proposal')
