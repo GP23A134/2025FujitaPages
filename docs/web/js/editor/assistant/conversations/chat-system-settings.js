@@ -4,7 +4,7 @@ export const CHAT_SYSTEM_SETTINGS = Object.freeze([
     type: 'boolean',
     defaultValue: true,
     label: 'エージェント形式を使う',
-    description: 'オンでエージェント形式、オフで従来のAIチャットを使います。',
-    developerVisible: false
+    description: 'オフにすると従来のAIチャット形式に切り替わります。',
+    developerVisible: true
   }
 ]);

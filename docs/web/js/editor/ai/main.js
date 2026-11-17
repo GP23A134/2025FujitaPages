@@ -383,6 +383,7 @@ import { createEditorAssistantHost } from '../assistant/adapters/editor-assistan
   resizeChatInput();
   const previewDialog = document.getElementById('ai-preview-dialog');
   const confirmBeforeSendToggle = document.getElementById('ai-confirm-before-send');
+  let confirmBeforeSendEnabled = true;
   const sendConfirmDialog = document.getElementById('ai-send-confirm-dialog');
   const sendConfirmSkipToggle = document.getElementById('ai-send-confirm-skip');
   const planConfirmSkipLabel = document.getElementById('ai-plan-confirm-skip-label');
@@ -393,7 +394,8 @@ import { createEditorAssistantHost } from '../assistant/adapters/editor-assistan
   try {
     const savedPreference = localStorage.getItem(confirmPreferenceKey);
     if (savedPreference === 'true' || savedPreference === 'false') {
-      confirmBeforeSendToggle.checked = savedPreference === 'true';
+      confirmBeforeSendEnabled = savedPreference === 'true';
+      if (confirmBeforeSendToggle) confirmBeforeSendToggle.checked = confirmBeforeSendEnabled;
     }
   } catch { /* Storage may be unavailable in restricted browsing contexts. */ }
   try {
@@ -407,10 +409,11 @@ import { createEditorAssistantHost } from '../assistant/adapters/editor-assistan
     catch { /* Keep the current-page preference even when persistent storage is unavailable. */ }
   };
   const saveConfirmPreference = () => {
-    try { localStorage.setItem(confirmPreferenceKey, String(confirmBeforeSendToggle.checked)); }
+    confirmBeforeSendEnabled = confirmBeforeSendToggle ? confirmBeforeSendToggle.checked : confirmBeforeSendEnabled;
+    try { localStorage.setItem(confirmPreferenceKey, String(confirmBeforeSendEnabled)); }
     catch { /* Keep the current-page preference even when persistent storage is unavailable. */ }
   };
-  confirmBeforeSendToggle.addEventListener('change', saveConfirmPreference);
+  confirmBeforeSendToggle?.addEventListener('change', saveConfirmPreference);
   const historyButton = document.getElementById('ai-show-history');
   const historyPopover = document.getElementById('ai-history-popover');
   const historyList = document.getElementById('ai-history-list');
@@ -566,7 +569,7 @@ import { createEditorAssistantHost } from '../assistant/adapters/editor-assistan
   };
   const confirmSendBeforeRequest = (userText, scope, summary, conversation, reusingAnalysisMemory = false, forceConfirm = false,
     displayScope = scope, sendingDelta = false, sendingSplit = false, planOnly = false) => {
-    if (planOnly ? !planConfirmationEnabled : (!confirmBeforeSendToggle.checked && !forceConfirm)) return Promise.resolve(true);
+    if (planOnly ? !planConfirmationEnabled : (!confirmBeforeSendEnabled && !forceConfirm)) return Promise.resolve(true);
     if (pendingSendConfirmation) return Promise.resolve(false);
     const sendingAllClasses = !reusingAnalysisMemory && (scope.includeAllClasses || scope.scopeCoverage === 'all_classes');
     const summaryNode = document.getElementById('ai-send-confirm-summary');
@@ -676,7 +679,8 @@ import { createEditorAssistantHost } from '../assistant/adapters/editor-assistan
     pendingSendConfirmation = null;
     isConfirmingSend = false;
     if (approved && sendConfirmSkipToggle.checked) {
-      confirmBeforeSendToggle.checked = false;
+      confirmBeforeSendEnabled = false;
+      if (confirmBeforeSendToggle) confirmBeforeSendToggle.checked = false;
       saveConfirmPreference();
     }
     if (approved && planConfirmSkipToggle.checked) {

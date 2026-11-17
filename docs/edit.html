@@ -268,7 +268,7 @@
       </section>
     </dialog>
 
-    <!-- APIキー、モデル、送信確認を設定するAIチャット設定。 -->
+    <!-- APIキーとモデルを設定するAIチャット設定。 -->
     <dialog id="ai-chat-settings-dialog" class="edit-settings-dialog" aria-labelledby="ai-chat-settings-title">
       <div class="ai-preview-header">
         <h2 id="ai-chat-settings-title">AIチャット設定</h2>
@@ -287,33 +287,6 @@
         <p id="ai-model-description" class="edit-settings-note">モデル候補は設定ファイルで管理します。</p>
         <p id="ai-settings-status" class="ai-status" role="status" aria-live="polite"></p>
       </section>
-      <section class="edit-settings-section" aria-labelledby="edit-ai-behavior-settings-title">
-        <h3 id="edit-ai-behavior-settings-title">AIチャットの動作</h3>
-        <fieldset class="ai-chat-format-choice">
-          <legend>AIチャット形式</legend>
-          <label><input type="radio" name="ai-chat-system-mode" value="agent" /> エージェント形式</label>
-          <label><input type="radio" name="ai-chat-system-mode" value="legacy" /> 従来のAIチャット形式</label>
-        </fieldset>
-        <p class="edit-settings-note">初期設定はエージェント形式です。</p>
-        <label class="edit-settings-toggle"><input type="checkbox" id="ai-confirm-before-send" checked /> 送信前に内容を確認する</label>
-        <p class="edit-settings-note">ONにすると送信前に内容を確認します。確認画面で「これ以降表示しない」を選ぶと、次回以降はOFFになります。</p>
-        <div class="edit-ai-behavior-grid">
-          <div class="edit-ai-setting-card">
-            <h4>回答</h4>
-            <label for="test-ai-response-mode">AIの回答モード</label>
-            <select id="test-ai-response-mode" class="edit-settings-select" data-preference="responseMode">
-              <option value="proposal">改善提案モード</option>
-              <option value="evaluation">評価モード</option>
-            </select>
-            <p class="edit-settings-note">次の依頼から適用します。確認事項への回答中は、その相談で使っているモードを引き継ぎます。</p>
-            <label for="test-ai-prompt-flexibility">AI提案の自由度</label>
-            <div class="test-range-row"><input id="test-ai-prompt-flexibility" type="range" min="1" max="5" step="1" data-preference="promptFlexibility" /><output for="test-ai-prompt-flexibility"></output></div>
-            <p class="edit-settings-note">1: 大幅な再編・複数案・価値のないクラスの削除 / 2: 関連する再編・統合 / 3: 一通りの編集操作 / 4: 必要な補助操作 / 5: 明示された変更のみ</p>
-            <p class="edit-settings-note">数値が小さいほど自由度が高くなります。入力範囲や安全性などの必須ルールは変わりません。</p>
-          </div>
-        </div>
-        <p id="test-preferences-settings-status" class="ai-status" role="status" aria-live="polite"></p>
-      </section>
     </dialog>
 
     <!-- 開発者向け調整UI。専用CSS・JSと合わせて撤去できるよう分離している。 -->
@@ -326,9 +299,28 @@
       <p class="edit-settings-note">変更はすぐに反映され、自動保存されます。「保存して閉じる」からも保存できます。</p>
       <section class="edit-settings-section" aria-labelledby="test-ai-chat-title">
         <h3 id="test-ai-chat-title">AIチャット</h3>
-        <div data-chat-mode-settings="agent">
+        <section class="edit-settings-section" aria-labelledby="edit-ai-behavior-settings-title">
+          <h4 id="edit-ai-behavior-settings-title">AIチャットの動作</h4>
+          <label class="edit-settings-toggle"><input type="checkbox" id="ai-confirm-before-send" checked /> 送信前に内容を確認する</label>
+          <p class="edit-settings-note">ONにすると送信前に内容を確認します。確認画面で「これ以降表示しない」を選ぶと、次回以降はOFFになります。</p>
+          <div class="edit-ai-behavior-grid">
+            <div class="edit-ai-setting-card">
+              <h4>回答</h4>
+              <label for="test-ai-response-mode">AIの回答モード</label>
+              <select id="test-ai-response-mode" class="edit-settings-select" data-preference="responseMode">
+                <option value="proposal">改善提案モード</option>
+                <option value="evaluation">評価モード</option>
+              </select>
+              <p class="edit-settings-note">次の依頼から適用します。確認事項への回答中は、その相談で使っているモードを引き継ぎます。</p>
+              <label for="test-ai-prompt-flexibility">AI提案の自由度</label>
+              <div class="test-range-row"><input id="test-ai-prompt-flexibility" type="range" min="1" max="5" step="1" data-preference="promptFlexibility" /><output for="test-ai-prompt-flexibility"></output></div>
+              <p class="edit-settings-note">1: 大幅な再編・複数案・価値のないクラスの削除 / 2: 関連する再編・統合 / 3: 一通りの編集操作 / 4: 必要な補助操作 / 5: 明示された変更のみ</p>
+              <p class="edit-settings-note">数値が小さいほど自由度が高くなります。入力範囲や安全性などの必須ルールは変わりません。</p>
+            </div>
+          </div>
+          <p id="test-preferences-settings-status" class="ai-status" role="status" aria-live="polite"></p>
+        </section>
         <div id="assistant-developer-settings" class="assistant-developer-settings" aria-label="新AI処理の調整"></div>
-        </div>
         <div data-chat-mode-settings="legacy">
         <div class="test-settings-group" role="group" aria-labelledby="test-ai-tuning-title">
           <h4 id="test-ai-tuning-title">送信入力上限</h4>

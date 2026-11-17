@@ -38,9 +38,6 @@ if (window.classEditorAI && statusElement) {
   } catch { /* Use feature defaults when saved settings are unavailable or invalid. */ }
   const syncChatSystemChoice = () => {
     const activeMode = settings['chat.useNewSystem'] ? 'agent' : 'legacy';
-    document.querySelectorAll('[name="ai-chat-system-mode"]').forEach((radio) => {
-      radio.checked = radio.value === activeMode;
-    });
     document.querySelectorAll('[data-chat-mode-settings]').forEach((section) => {
       section.hidden = section.dataset.chatModeSettings !== activeMode;
     });
@@ -69,11 +66,6 @@ if (window.classEditorAI && statusElement) {
     onChange: updateSetting
     })
     : Object.freeze({ refresh() {} });
-  document.querySelectorAll('[name="ai-chat-system-mode"]').forEach((radio) => {
-    radio.addEventListener('change', () => {
-      if (radio.checked) updateSetting('chat.useNewSystem', radio.value === 'agent');
-    });
-  });
   const client = createOpenAIClient();
   const planningService = createPlanningService({
     client,

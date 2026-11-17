@@ -379,7 +379,12 @@ export function createAssistantWorkflow({
         }) }];
         continue;
       }
-      lastAgentContext = chunkedReview || targetMoveProcessor ? null : { loop, messages: result.messages, allowedTools: uniqueTools };
+      lastAgentContext = chunkedReview || targetMoveProcessor ? null : {
+        loop,
+        messages: result.messages,
+        allowedTools: uniqueTools,
+        getScopeCandidates: reader.getScopeCandidates
+      };
       return {
         ...validation,
         ...(result.budgetLimited ? { proposals: [], alternativeGroups: [] } : {}),
@@ -616,6 +621,41 @@ export function createAssistantWorkflow({
         targetRenameEnabled: state.settingsSnapshot['proposals.targetClassRenameEnabled'],
         dataVersion: window.classEditorAssistant?.getDataVersion?.() || null
       });
+      if (checked.scopeRequests.length) {
+        const candidates = lastAgentContext.getScopeCandidates(checked.scopeRequests.map((item) => item.classId))
+          .map((candidate) => {
+            const request = checked.scopeRequests.find((item) => item.classId === candidate.id);
+            return { ...candidate, needsReference: request.needsReference, needsChange: request.needsChange };
+          });
+        const needsReference = candidates.some((item) => item.needsReference);
+        const needsChange = candidates.some((item) => item.needsChange);
+        const decision = await askForScope({
+          candidates,
+          allowReference: needsReference,
+          allowChange: needsChange,
+          purpose: '回答後の変更案に、選択範囲外のクラスを参照または変更対象に含める必要があります。'
+        });
+        if (!await applyScopeDecision(decision)) {
+          const outcome = { status: state.status === 'cancelled' ? 'cancelled' : 'scope_blocked', scopeRequest: { candidates } };
+          if (outcome.status === 'scope_blocked') onEvent({ type: 'scope_blocked', scopeRequest: outcome.scopeRequest });
+          return outcome;
+        }
+        const permissionsGranted = checked.scopeRequests.every((item) =>
+          (!item.needsReference || grants.reference.has(item.classId))
+          && (!item.needsChange || grants.change.has(item.classId)));
+        if (!permissionsGranted) {
+          const scopeRequest = { candidates };
+          onEvent({ type: 'scope_blocked', scopeRequest });
+          return { status: 'scope_blocked', scopeRequest };
+        }
+        state = {
+          ...state,
+          request: `${state.request}\n\n提案「${prior.proposal.title}」への回答:\n${formattedAnswers}`,
+          updatedAt: now()
+        };
+        budgetGuard.countReplan();
+        return await runPlan({ signal: activeSignal });
+      }
       const replacement = checked.proposals.find((item) => item.proposal.id === proposalId);
       const preserved = lastResult.proposals.filter((item) => item.proposal.id !== proposalId);
       lastResult = {
