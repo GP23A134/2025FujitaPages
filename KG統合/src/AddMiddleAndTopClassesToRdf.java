@@ -24,7 +24,7 @@ import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.sparql.core.DatasetGraphFactory;
 import org.apache.jena.sparql.core.Quad;
 
-/** N-Quadsの主語・目的語に中間／上位クラスのrdf:typeだけを加えます。 */
+/** N-Quadsに中間／上位クラスのrdf:type、クラス種別、ラベルを加えます。 */
 public final class AddMiddleAndTopClassesToRdf {
     private static final Path DEFAULT_INPUT_RDF = Paths.get(
             "input/base-rdf/REV-KG-DEV_kg-data_2026-08-13_13-18-16.nq");
@@ -36,10 +36,14 @@ public final class AddMiddleAndTopClassesToRdf {
     private static final String NS = "https://kozaki-lab.jp/REFV-KG/class/";
     private static final String RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
     private static final String RDFS_SUBCLASS = "http://www.w3.org/2000/01/rdf-schema#subClassOf";
+    private static final String RDFS_LABEL = "http://www.w3.org/2000/01/rdf-schema#label";
     private static final Node HIERARCHY_GRAPH = NodeFactory.createURI(
             "https://kozaki-lab.jp/REFV-KG/graph/definitions");
     private static final Node TYPE = NodeFactory.createURI(RDF_TYPE);
     private static final Node SUBCLASS = NodeFactory.createURI(RDFS_SUBCLASS);
+    private static final Node LABEL = NodeFactory.createURI(RDFS_LABEL);
+    private static final Node MIDDLE_CLASS = NodeFactory.createURI(NS + "MiddleClass");
+    private static final Node TOP_CLASS = NodeFactory.createURI(NS + "TopClass");
 
     private AddMiddleAndTopClassesToRdf() {}
 
@@ -91,6 +95,31 @@ public final class AddMiddleAndTopClassesToRdf {
         }
 
         Map<String, String> parents = new HashMap<>();
+        Map<String, Node> classKinds = new HashMap<>();
+        Map<String, String> classLabels = new HashMap<>();
+        JsonArray classes = root.getAsJsonArray("classes");
+        if (classes == null || classes.isEmpty()) {
+            throw new IOException("階層JSONにclassesがないか、空です: " + path);
+        }
+        for (JsonElement element : classes) {
+            JsonObject clazz = element.getAsJsonObject();
+            String id = clazz.get("id").getAsString();
+            String type = clazz.get("type").getAsString();
+            if ("middle".equals(type)) {
+                classKinds.put(id, MIDDLE_CLASS);
+                if (clazz.has("label") && !clazz.get("label").isJsonNull()) {
+                    classLabels.put(id, clazz.get("label").getAsString());
+                }
+            } else if ("top".equals(type)) {
+                classKinds.put(id, TOP_CLASS);
+                if (clazz.has("label") && !clazz.get("label").isJsonNull()) {
+                    classLabels.put(id, clazz.get("label").getAsString());
+                }
+            } else if (!"class".equals(type)) {
+                throw new IOException("対象クラスのtypeがmiddle/topではありません: " + id + " (" + type + ")");
+            }
+        }
+
         JsonArray relations = root.getAsJsonArray("relations");
         if (relations == null || relations.isEmpty()) {
             throw new IOException("階層JSONにrelationsがないか、空です: " + path);
@@ -105,7 +134,7 @@ public final class AddMiddleAndTopClassesToRdf {
             }
         }
         validateAcyclic(parents);
-        return new Hierarchy(parents);
+        return new Hierarchy(parents, classKinds, classLabels);
     }
 
     static long applyToDataset(DatasetGraph dataset, Path hierarchyPath, Set<String> unmapped)
@@ -132,6 +161,15 @@ public final class AddMiddleAndTopClassesToRdf {
         for (Map.Entry<String, String> entry : hierarchy.parents.entrySet()) {
             output.add(Quad.create(HIERARCHY_GRAPH, NodeFactory.createURI(entry.getKey()), SUBCLASS,
                     NodeFactory.createURI(entry.getValue())));
+        }
+        for (Map.Entry<String, Node> entry : hierarchy.classKinds.entrySet()) {
+            Node classNode = NodeFactory.createURI(entry.getKey());
+            output.add(Quad.create(HIERARCHY_GRAPH, classNode, TYPE, entry.getValue()));
+            String label = hierarchy.classLabels.get(entry.getKey());
+            if (label != null && !label.isBlank()) {
+                output.add(Quad.create(HIERARCHY_GRAPH, classNode, LABEL,
+                        NodeFactory.createLiteralLang(label, "ja")));
+            }
         }
     }
 
@@ -195,5 +233,6 @@ public final class AddMiddleAndTopClassesToRdf {
         }
     }
 
-    private record Hierarchy(Map<String, String> parents) {}
+    private record Hierarchy(Map<String, String> parents, Map<String, Node> classKinds,
+            Map<String, String> classLabels) {}
 }

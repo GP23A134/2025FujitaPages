@@ -206,31 +206,37 @@ export function createTargetMoveBatchProcessor({
         '依頼文で「以外」「除く」「なくす」などの対象になっているクラスは移動先に選ばないでください。名前が依頼文に出たというだけで選ばず、文全体の意味を判断してください。',
         '「未分類をなくす／解消する」依頼では、未分類の配下を分類するための移動先を選び、未分類自体は移動先にしないでください。',
         '「上位クラス」と指定された場合はtype=topだけ、「中間クラス」と指定された場合はtype=middleだけを選んでください。',
-        'この段階では対象クラスを分類しません。依頼を満たすために必要な移動先をすべて選び、妥当な既存候補がなければ空配列を返してください。'
+        'この段階では個々の対象クラスを分類せず、次段階で比較する移動先候補を広めに選びます。依頼の目的に完全一致するクラスがなくても、意味や役割が近く、対象クラスごとに妥当性を検討できる既存クラスは候補に含めてください。名称だけで確定できないことや不確かさは、候補を除外する理由にせず、次段階で推定案として説明します。',
+        '候補を空にするのは、依頼で明示的に除外されたクラス以外に、意味・階層のどちらから見ても移動先として検討できる既存クラスがない場合だけです。'
       ].join('\n') },
       { role: 'user', content: JSON.stringify({ request, objective: plan.executionBrief, parents: packed.parents, destinations: packed.destinations }) }
     ];
     const schema = {
       type: 'object', additionalProperties: false,
-      properties: { destinationKeys: { type: 'array', maxItems: 100, items: { type: 'string' } } },
-      required: ['destinationKeys']
+      properties: {
+        destinationKeys: { type: 'array', maxItems: 100, items: { type: 'string' } },
+        noCandidateReason: { type: 'string', maxLength: 500, description: '候補を空にする場合、比較した既存クラスの種類や親子関係に触れ、各候補が依頼条件に合わない具体的理由を利用者向けに簡潔に記載する。内部思考は書かない。候補がある場合は空文字。' }
+      },
+      required: ['destinationKeys', 'noCandidateReason']
     };
     const response = await requestAI(input, 'target_move_destinations', schema);
     let value;
     try { value = JSON.parse(responseText(response)); }
     catch { throw Object.assign(new Error('移動先候補の応答が有効なJSONではありません。'), { code: 'INVALID_MOVE_DESTINATIONS' }); }
     const keyToItem = new Map(index.map((item, position) => [`d${position + 1}`, item]));
-    return [...new Set(value.destinationKeys || [])].map((key) => keyToItem.get(key)).filter(Boolean);
+    const selected = [...new Set(value.destinationKeys || [])].map((key) => keyToItem.get(key)).filter(Boolean);
+    return { destinations: selected, noCandidateReason: value.noCandidateReason || '' };
   }
 
   async function run() {
     let hierarchy;
     try { hierarchy = await readAllHierarchy(); }
     catch (error) { if (error.scopeRequest) return { status: 'needs_scope_approval', scopeRequest: error.scopeRequest }; throw error; }
-    const destinations = await selectDestinations(hierarchy);
+    const destinationSelection = await selectDestinations(hierarchy);
+    const destinations = destinationSelection.destinations;
     if (!destinations.length) return {
       text: JSON.stringify({
-        message: '依頼条件に合う既存の移動先を許可範囲から特定できなかったため、移動案は作成していません。現在の親子関係を維持しています。候補に含めたい上位クラスや、参照範囲を広げる条件があれば指定してください。',
+        message: `許可された階層の既存クラスを比較しましたが、依頼条件に合う移動先候補を確認できませんでした。${destinationSelection.noCandidateReason || '比較したクラス名と親子関係から、移動先として妥当な既存クラスを判断できませんでした。'}移動案は作成していません。候補に含めたい上位クラスや、参照範囲を広げる条件があれば指定してください。`,
         proposals: [], alternativeGroups: []
       }),
       messages: [], counters: budgetGuard.getCounters()

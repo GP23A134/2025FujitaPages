@@ -124,35 +124,43 @@ java -cp "build/classes;../docs/lib/*" MergeRdfUpdateOutputs
 
 ```sparql
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX cls: <https://kozaki-lab.jp/REFV-KG/class/>
 
-SELECT ?class (COUNT(DISTINCT ?resource) AS ?count)
+SELECT ?class ?classLabel (COUNT(DISTINCT ?resource) AS ?count)
 WHERE {
   GRAPH ?graph {
     ?resource rdf:type ?class .
   }
-  FILTER(
-    STRSTARTS(STR(?class), "https://kozaki-lab.jp/REFV-KG/class/m_") ||
-    STRSTARTS(STR(?class), "https://kozaki-lab.jp/REFV-KG/class/t_")
-  )
+  GRAPH <https://kozaki-lab.jp/REFV-KG/graph/definitions> {
+    ?class rdf:type ?classKind .
+    VALUES ?classKind { cls:MiddleClass cls:TopClass }
+    OPTIONAL { ?class rdfs:label ?classLabel . }
+  }
 }
-GROUP BY ?class
-ORDER BY ?class
+GROUP BY ?class ?classLabel
+ORDER BY ?classLabel
 ```
 
 ### ステークホルダーの上位クラスごとのリソース数
 
 ```sparql
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX cls: <https://kozaki-lab.jp/REFV-KG/class/>
 
-SELECT ?topClass (COUNT(DISTINCT ?resource) AS ?count)
+SELECT ?topClass ?topClassLabel (COUNT(DISTINCT ?resource) AS ?count)
 WHERE {
   GRAPH ?graph {
     ?resource rdf:type ?topClass .
   }
-  FILTER(STRSTARTS(STR(?topClass), "https://kozaki-lab.jp/REFV-KG/class/st_t_"))
+  GRAPH ?hierarchyGraph {
+    ?topClass rdf:type cls:StakeholderTopClass ;
+              rdfs:label ?topClassLabel .
+  }
 }
-GROUP BY ?topClass
-ORDER BY ?topClass
+GROUP BY ?topClass ?topClassLabel
+ORDER BY ?topClassLabel
 ```
 
 ### 資料一覧と資料種別
@@ -175,21 +183,70 @@ WHERE {
 ORDER BY ?document
 ```
 
+### 原因・影響・対策の主語と中間／上位クラス
+
+```sparql
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX cls:  <https://kozaki-lab.jp/REFV-KG/class/>
+PREFIX prop: <https://kozaki-lab.jp/REFV-KG/prop/>
+
+SELECT DISTINCT ?sClass ?sClassLabel ?middleClass ?middleClassLabel
+                ?topClass ?topClassLabel ?s ?sLabel ?p
+WHERE {
+  GRAPH ?g {
+    ?s ?p ?o .
+    VALUES ?p { prop:cause prop:effect prop:countermeasure }
+    OPTIONAL { ?s rdfs:label ?sLabel . }
+
+    OPTIONAL {
+      ?s rdf:type ?sClass .
+      OPTIONAL { ?sClass rdfs:label ?sClassLabel . }
+
+      OPTIONAL {
+        GRAPH ?hierarchyGraph {
+          ?sClass rdfs:label ?sClassLabel .
+        }
+      }
+
+      OPTIONAL {
+        GRAPH ?hierarchyGraph {
+          ?sClass rdfs:subClassOf+ ?middleClass .
+          ?middleClass rdf:type cls:MiddleClass .
+          OPTIONAL { ?middleClass rdfs:label ?middleClassLabel . }
+        }
+      }
+
+      OPTIONAL {
+        GRAPH ?hierarchyGraph {
+          ?sClass rdfs:subClassOf+ ?topClass .
+          ?topClass rdf:type cls:TopClass .
+          OPTIONAL { ?topClass rdfs:label ?topClassLabel . }
+        }
+      }
+    }
+  }
+}
+ORDER BY ?sClass ?middleClass ?topClass ?s ?p
+```
+
 ### 階層トリプル
 
 ```sparql
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-SELECT ?child ?parent
+SELECT ?child ?childLabel ?parent ?parentLabel
 WHERE {
   GRAPH <https://kozaki-lab.jp/REFV-KG/graph/definitions> {
     ?child rdfs:subClassOf ?parent .
+    OPTIONAL { ?child rdfs:label ?childLabel . }
+    OPTIONAL { ?parent rdfs:label ?parentLabel . }
   }
 }
-ORDER BY ?child ?parent
+ORDER BY ?childLabel ?parentLabel
 ```
 
-ステークホルダー階層を調べる場合は、グラフ名を`https://kozaki-lab.jp/REFV-KG/graph/stakeholder-hierarchy`に置き換えます。`sourceFolderPath`は現在の出力には含まれません。
+`graph/definitions`には、中間クラスを`class:MiddleClass`、上位クラスを`class:TopClass`とする`rdf:type`と、階層JSONにある`rdfs:label`を格納します。`graph/stakeholder-hierarchy`には、ステークホルダー上位クラスを`class:StakeholderTopClass`とする`rdf:type`と、JSONにある`rdfs:label`を格納します。`sourceFolderPath`は現在の出力には含まれません。
 
 ## RDF更新結果の一覧・件数TSV
 

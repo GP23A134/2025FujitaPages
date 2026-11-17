@@ -9,6 +9,7 @@
 | `QueryRun` | SPARQLクエリを実行し、JSONを`data/query-results/`へ保存します。 |
 | `DataIntegrate` | クエリ結果を統合し、`data/integrated/`と確認用TSVを生成します。 |
 | `ClassDataUpdate` | `data/input/`にある日時付き分類更新JSONのうち最新の1件を検証・適用し、古い入力を削除して、更新前データと処理済み入力を履歴へ保存します。 |
+| `DefinitionIntegrate` | 作業フォルダー直下のベースN-Quadsからクラス・プロパティの定義を集約し、`data/output/merged-definitions.nq`へ出力します。同じ定義トリプルは重複せず、出力では専用の名前付きグラフにまとめます。 |
 | `ClassDataVersion` | 内部のSHA-256版情報を更新し、差分入力が最新データを基に作られたか検証します。 |
 | `WebDataBuild` | 統合データから`web/data/generated/`のJavaScriptを生成します。 |
 
@@ -44,6 +45,13 @@ Windowsではクラスパスの区切りにセミコロンを使います。
 java -cp "bin;lib/*" QueryRun all
 java -cp "bin;lib/*" DataIntegrate
 java -cp "bin;lib/*" WebDataBuild
+java -cp "bin;lib/*" DefinitionIntegrate
+```
+
+`DefinitionIntegrate`は入力・出力パスを引数で指定できます。省略時は隣接する`KG統合`フォルダーのベースN-Quadsを読み、`data/output/merged-definitions.nq`へ出力します。`data/input/`には既存の分類更新用ファイルがあるため、ベースRDFは移動せず元の場所から読み込みます。
+
+```powershell
+java -cp "bin;lib/*" DefinitionIntegrate "../KG統合/REV-KG-DEV_kg-data_2026-08-13_13-18-16.nq" "data/output/merged-definitions.nq"
 ```
 
 クラス分類の更新では、編集画面が出力した日時付きJSONまたはAI差分JSONを`data/input/`へ置いて次を実行します。複数ある場合は、ファイル名の日時が最も新しい1件だけを適用し、検証成功後に他の分類更新JSONを削除します。従来名の`class-update.json`も読み込み対象で、日時付き入力と同時にある場合はファイル更新日時で比較します。

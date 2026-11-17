@@ -36,8 +36,11 @@ public final class AddStakeholderTopClassesToRdf {
     private static final String CLASS_NS = "https://kozaki-lab.jp/REFV-KG/class/";
     private static final String RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
     private static final String RDFS_SUBCLASS = "http://www.w3.org/2000/01/rdf-schema#subClassOf";
+    private static final String RDFS_LABEL = "http://www.w3.org/2000/01/rdf-schema#label";
     private static final Node TYPE = NodeFactory.createURI(RDF_TYPE);
     private static final Node SUBCLASS = NodeFactory.createURI(RDFS_SUBCLASS);
+    private static final Node LABEL = NodeFactory.createURI(RDFS_LABEL);
+    private static final Node TOP_CLASS = NodeFactory.createURI(CLASS_NS + "StakeholderTopClass");
     private static final Node STAKEHOLDER_GRAPH = NodeFactory.createURI(
             "https://kozaki-lab.jp/REFV-KG/graph/stakeholder-hierarchy");
 
@@ -55,7 +58,7 @@ public final class AddStakeholderTopClassesToRdf {
         if (!Files.isRegularFile(inputRdf)) throw new IOException("入力N-Quadsがありません: " + inputRdf);
         if (!Files.isRegularFile(inputJson)) throw new IOException("ステークホルダーJSONがありません: " + inputJson);
 
-        Map<String, String> parents = readParents(inputJson);
+        StakeholderHierarchy hierarchy = readParents(inputJson);
         DatasetGraph source = DatasetGraphFactory.createTxnMem();
         DatasetGraph output = DatasetGraphFactory.createTxnMem();
         try {
@@ -63,14 +66,14 @@ public final class AddStakeholderTopClassesToRdf {
             Iterator<Quad> sourceQuads = source.find();
             while (sourceQuads.hasNext()) output.add(sourceQuads.next());
 
-            addSubclassRelations(output, parents);
+            addSubclassRelations(output, hierarchy);
             Set<String> unmapped = new TreeSet<>();
-            long addedTypes = addTopTypes(source, output, parents, unmapped);
+            long addedTypes = addTopTypes(source, output, hierarchy.parents, unmapped);
             writeAtomically(outputRdf, output);
             writeReport(report, unmapped);
 
             System.out.println("加工済みN-Quads: " + outputRdf.toAbsolutePath());
-            System.out.println("ステークホルダー親子関係数: " + parents.size());
+            System.out.println("ステークホルダー親子関係数: " + hierarchy.parents.size());
             System.out.println("追加したst_t_ rdf:type数: " + addedTypes);
             System.out.println("親情報がないst_クラス数: " + unmapped.size());
             if (!unmapped.isEmpty()) System.out.println("未対応一覧: " + report);
@@ -80,12 +83,13 @@ public final class AddStakeholderTopClassesToRdf {
         }
     }
 
-    private static Map<String, String> readParents(Path jsonPath) throws IOException {
+    private static StakeholderHierarchy readParents(Path jsonPath) throws IOException {
         JsonObject root;
         try (var reader = Files.newBufferedReader(jsonPath, StandardCharsets.UTF_8)) {
             root = JsonParser.parseReader(reader).getAsJsonObject();
         }
         Map<String, String> topIds = new HashMap<>();
+        Map<String, String> topLabels = new LinkedHashMap<>();
         if (root.getAsJsonArray("classes") == null || root.getAsJsonArray("relations") == null) {
             throw new IOException("ステークホルダーJSONにclassesまたはrelationsがありません: " + jsonPath);
         }
@@ -105,6 +109,9 @@ public final class AddStakeholderTopClassesToRdf {
                 throw new IOException("上位クラスIDの形式が不正です: " + id);
             }
             topIds.put(id, canonicalId);
+            if (clazz.has("label") && !clazz.get("label").isJsonNull()) {
+                topLabels.put(canonicalId, clazz.get("label").getAsString());
+            }
         }
 
         Map<String, String> parents = new LinkedHashMap<>();
@@ -122,19 +129,27 @@ public final class AddStakeholderTopClassesToRdf {
                 throw new IOException("複数の上位クラスが設定されています: " + child);
             }
         }
-        return parents;
+        return new StakeholderHierarchy(parents, topLabels);
     }
 
     static long applyToDataset(DatasetGraph dataset, Path jsonPath, Set<String> unmapped) throws IOException {
-        Map<String, String> parents = readParents(jsonPath);
-        addSubclassRelations(dataset, parents);
-        return addTopTypes(dataset, dataset, parents, unmapped);
+        StakeholderHierarchy hierarchy = readParents(jsonPath);
+        addSubclassRelations(dataset, hierarchy);
+        return addTopTypes(dataset, dataset, hierarchy.parents, unmapped);
     }
 
-    private static void addSubclassRelations(DatasetGraph output, Map<String, String> parents) {
-        for (Map.Entry<String, String> entry : parents.entrySet()) {
+    private static void addSubclassRelations(DatasetGraph output, StakeholderHierarchy hierarchy) {
+        for (Map.Entry<String, String> entry : hierarchy.parents.entrySet()) {
             output.add(Quad.create(STAKEHOLDER_GRAPH, NodeFactory.createURI(entry.getKey()), SUBCLASS,
                     NodeFactory.createURI(entry.getValue())));
+        }
+        for (Map.Entry<String, String> entry : hierarchy.topLabels.entrySet()) {
+            Node topClass = NodeFactory.createURI(entry.getKey());
+            output.add(Quad.create(STAKEHOLDER_GRAPH, topClass, TYPE, TOP_CLASS));
+            if (!entry.getValue().isBlank()) {
+                output.add(Quad.create(STAKEHOLDER_GRAPH, topClass, LABEL,
+                        NodeFactory.createLiteralLang(entry.getValue(), "ja")));
+            }
         }
     }
 
@@ -189,4 +204,6 @@ public final class AddStakeholderTopClassesToRdf {
             Files.deleteIfExists(temporary);
         }
     }
+
+    private record StakeholderHierarchy(Map<String, String> parents, Map<String, String> topLabels) {}
 }
