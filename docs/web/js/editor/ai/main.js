@@ -267,7 +267,7 @@ import { createEditorAssistantHost } from '../assistant/adapters/editor-assistan
   };
   const isFullGraphScopeEnabled = () => fullGraphScopeToggle.getAttribute('aria-checked') === 'true';
   const defaultPromptExamples = [
-    { id: 'target-membership', category: '基本', title: '所属を見直す', prompt: '選択範囲の対象クラスが、現在の親子関係の中で適切な場所にあるか見直してください。', showWhen: { always: true } },
+    { id: 'target-membership', category: '基本', title: '選択クラスの移動先を確認', prompt: '選択範囲の対象クラスについて、クラス名と現在の親子関係を使って分類先を見直してください。移動先が今より適切だと判断できるものは、移動先と理由を示した案を出してください。名称からの推定で確信が持てない場合は、その不確かさも書き、妥当な移動先がなければ無理に案を作らず理由を説明してください。', showWhen: { always: true } },
     { id: 'common-summary', category: '基本', title: '選択範囲を要約', prompt: 'この範囲のクラス構成を要約してください。', showWhen: { always: true } }
   ];
   let availablePromptExamples = defaultPromptExamples;
