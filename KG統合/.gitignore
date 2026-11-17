@@ -1,0 +1,14 @@
+# 元データはGit対象外。input/integration/の受け渡しデータは追跡可能。
+/input/base-rdf/**
+/input/target-classes/**
+/input/stakeholders/**
+/input/document-list/**
+
+# コンパイル生成物
+/build/
+
+# OS / editor files
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/

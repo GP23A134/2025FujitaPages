@@ -1,0 +1,3246 @@
+PREFIX cls:  <https://kozaki-lab.jp/REFV-KG/class/>
+PREFIX kg:   <https://kozaki-lab.jp/REFV-KG/data/>
+PREFIX prop: <https://kozaki-lab.jp/REFV-KG/prop/>
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+<https://kozaki-lab.jp/REFV-KG/docs/20041>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）八峰町及び能代市沖における洋上風力発電事業＿配慮書.pdf";
+        prop:inputFileName  "（仮称）八峰町及び能代市沖における洋上風力発電事業＿配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10529>
+        rdf:type            cls:Document;
+        rdfs:label          "第6回、第7回、第8回、第9回、第10回、風力発電の学習会を開催します.pdf";
+        prop:inputFileName  "第6回、第7回、第8回、第9回、第10回、風力発電の学習会を開催します.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10149>
+        rdf:type            cls:Document;
+        rdfs:label          "第５４9回遊佐町議会定例会（令和３年9月7日開会）議事日程第１号.pdf";
+        prop:inputFileName  "第５４9回遊佐町議会定例会（令和３年9月7日開会）議事日程第１号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10511>
+        rdf:type            cls:Document;
+        rdfs:label          "JR東日本エネルギー開発社長と米沢市長との面談が行われました.pdf";
+        prop:inputFileName  "JR東日本エネルギー開発社長と米沢市長との面談が行われました.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30146>
+        rdf:type            cls:Document;
+        rdfs:label          "釧路市ホームページ：20250910 釧路市自然と太陽光発電施設の調和に関する条例（案）についての意見募集結果について.pdf";
+        prop:inputFileName  "釧路市ホームページ：20250910 釧路市自然と太陽光発電施設の調和に関する条例（案）についての意見募集結果について.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10131>
+        rdf:type            cls:Document;
+        rdfs:label          "平成３０年６月定例会（第３回）06月07日－02号.pdf";
+        prop:inputFileName  "平成３０年６月定例会（第３回）06月07日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40028>
+        rdf:type            cls:Document;
+        rdfs:label          "20230519_JREへ再度公開質問状提出.pdf";
+        prop:inputFileName  "20230519_JREへ再度公開質問状提出.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30018>
+        rdf:type            cls:Document;
+        rdfs:label          "20230418 北海道松前町における地域活性化プロジェクト 学生による「松前町ブランドロゴ」「~人北海道まつまえ観光物産協会」の協会ロゴマークに採用決定（東急不動産ウェブサイト）.pdf";
+        prop:inputFileName  "20230418 北海道松前町における地域活性化プロジェクト 学生による「松前町ブランドロゴ」「~人北海道まつまえ観光物産協会」の協会ロゴマークに採用決定（東急不動産ウェブサイト）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20008>
+        rdf:type            cls:Document;
+        rdfs:label          "八峰能代沖洋上風力発電事業_配慮書.pdf";
+        prop:inputFileName  "八峰能代沖洋上風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10003>
+        rdf:type            cls:Document;
+        rdfs:label          "220616_49kai_shidai_meibo.pdf";
+        prop:inputFileName  "220616_49kai_shidai_meibo.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10190>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　４年　　９月　定例会（第６回）  09月12日－01号.pdf";
+        prop:inputFileName  "酒田市  令和　４年　　９月　定例会（第６回）  09月12日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40010>
+        rdf:type            cls:Document;
+        rdfs:label          "20230330_日向山環境影響評価方法書の縦覧開始.pdf";
+        prop:inputFileName  "20230330_日向山環境影響評価方法書の縦覧開始.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30077>
+        rdf:type            cls:Document;
+        rdfs:label          "20250930 北海道新聞デジタル（【独自】釧路市の天然記念物キタサンショウウオ調査「不十分」　市教委、湿原メガソーラーに再調査要請へ）.pdf";
+        prop:inputFileName  "20250930 北海道新聞デジタル（【独自】釧路市の天然記念物キタサンショウウオ調査「不十分」　市教委、湿原メガソーラーに再調査要請へ）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10062>
+        rdf:type            cls:Document;
+        rdfs:label          "令和３年３月定例会（第２回）03月17日－06号.pdf";
+        prop:inputFileName  "令和３年３月定例会（第２回）03月17日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10537>
+        rdf:type            cls:Document;
+        rdfs:label          "＜栗子山風力発電＞‟ようやく”市民への説明会が開催されることになりました.pdf";
+        prop:inputFileName  "＜栗子山風力発電＞‟ようやく”市民への説明会が開催されることになりました.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10157>
+        rdf:type            cls:Document;
+        rdfs:label          "第５５４回遊佐町議会定例会（令和４年３月３日開会）議事日程第３号.pdf";
+        prop:inputFileName  "第５５４回遊佐町議会定例会（令和４年３月３日開会）議事日程第３号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30154>
+        rdf:type            cls:Document;
+        rdfs:label          "（道環境影響評価対象案件）案件個票_法_松前北部風力発電事業.pdf";
+        prop:inputFileName  "（道環境影響評価対象案件）案件個票_法_松前北部風力発電事業.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10029>
+        rdf:type            cls:Document;
+        rdfs:label          "jre-tijiiken.pdf";
+        prop:inputFileName  "jre-tijiiken.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40036>
+        rdf:type            cls:Document;
+        rdfs:label          "反対派_チラシ.pdf";
+        prop:inputFileName  "反対派_チラシ.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30026>
+        rdf:type            cls:Document;
+        rdfs:label          "20240229 北海道新聞デジタル（松前のマイクログリッド運用始まる　災害時に避難場所などに電力供給）.pdf";
+        prop:inputFileName  "20240229 北海道新聞デジタル（松前のマイクログリッド運用始まる　災害時に避難場所などに電力供給）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20016>
+        rdf:type            cls:Document;
+        rdfs:label          "田子小国風力発電事業_配慮書.pdf";
+        prop:inputFileName  "田子小国風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10011>
+        rdf:type            cls:Document;
+        rdfs:label          "31th_siryou2-2.pdf";
+        prop:inputFileName  "31th_siryou2-2.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10088>
+        rdf:type            cls:Document;
+        rdfs:label          "平成１８年９月定例会（第４回）09月06日－02号.pdf";
+        prop:inputFileName  "平成１８年９月定例会（第４回）09月06日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30085>
+        rdf:type            cls:Document;
+        rdfs:label          "20251024 北海道新聞デジタル（メガソーラー乱立阻止へ土地購入　釧路自然保護協会などが寄付金募集）.pdf";
+        prop:inputFileName  "20251024 北海道新聞デジタル（メガソーラー乱立阻止へ土地購入　釧路自然保護協会などが寄付金募集）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10106>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２５年３月定例会（第１回）03月11日－04号.pdf";
+        prop:inputFileName  "平成２５年３月定例会（第１回）03月11日－04号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10070>
+        rdf:type            cls:Document;
+        rdfs:label          "令和４年３月定例会（第１回）02月28日－02号.pdf";
+        prop:inputFileName  "令和４年３月定例会（第１回）02月28日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30103>
+        rdf:type            cls:Document;
+        rdfs:label          "20260319 北海道新聞デジタル（釧路のメガソーラー予定地　北海道が調査命令　基準超の有害物質、7月までに詳細調査求める）.pdf";
+        prop:inputFileName  "20260319 北海道新聞デジタル（釧路のメガソーラー予定地　北海道が調査命令　基準超の有害物質、7月までに詳細調査求める）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10545>
+        rdf:type            cls:Document;
+        rdfs:label          "＜栗子山風力発電＞米沢の子供の未来と豊かな自然を考える会です.pdf";
+        prop:inputFileName  "＜栗子山風力発電＞米沢の子供の未来と豊かな自然を考える会です.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10165>
+        rdf:type            cls:Document;
+        rdfs:label          "第５６４回遊佐町議会定例会（令和５年３月６日開会）議事日程第６号（１）.pdf";
+        prop:inputFileName  "第５６４回遊佐町議会定例会（令和５年３月６日開会）議事日程第６号（１）.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10037>
+        rdf:type            cls:Document;
+        rdfs:label          "miyagi_gaiyou_1.pdf";
+        prop:inputFileName  "miyagi_gaiyou_1.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30034>
+        rdf:type            cls:Document;
+        rdfs:label          "20240920 “再生可能エネルギー×地域共生”の_br_フラッグシップ拠点「TENOHA松前」オープン｜GREEN MAGAZINE（東急不動産ウェブサイト）.pdf";
+        prop:inputFileName  "20240920 “再生可能エネルギー×地域共生”の_br_フラッグシップ拠点「TENOHA松前」オープン｜GREEN MAGAZINE（東急不動産ウェブサイト）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20024>
+        rdf:type            cls:Document;
+        rdfs:label          "秋田港洋上風力発電事業＿準備書.pdf";
+        prop:inputFileName  "秋田港洋上風力発電事業＿準備書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10096>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２３年６月定例会（第４回）06月22日－06号.pdf";
+        prop:inputFileName  "平成２３年６月定例会（第４回）06月22日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30129>
+        rdf:type            cls:Document;
+        rdfs:label          "令和6年9月　第3回定例会.pdf";
+        prop:inputFileName  "令和6年9月　第3回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30093>
+        rdf:type            cls:Document;
+        rdfs:label          "20251205 北海道新聞デジタル（釧路・昭和メガソーラー　事業者、地元町内会に「協力金」支払い提示　「建設反対」受領拒否方針）.pdf";
+        prop:inputFileName  "20251205 北海道新聞デジタル（釧路・昭和メガソーラー　事業者、地元町内会に「協力金」支払い提示　「建設反対」受領拒否方針）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10114>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２６年６月定例会（第３回）06月19日－06号.pdf";
+        prop:inputFileName  "平成２６年６月定例会（第３回）06月19日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30111>
+        rdf:type            cls:Document;
+        rdfs:label          "リエネ松前風力発電所 - ReENE - 東急不動産の再生可能エネルギー事業[リエネ].pdf";
+        prop:inputFileName  "リエネ松前風力発電所 - ReENE - 東急不動産の再生可能エネルギー事業[リエネ].pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10209>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　２年　　９月　定例会  09月07日－04号.txt";
+        prop:inputFileName  "鶴岡市  令和　　２年　　９月　定例会  09月07日－04号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10173>
+        rdf:type            cls:Document;
+        rdfs:label          "第５６９回遊佐町議会定例会（令和５年１２月５日開会）議事日程第２号.pdf";
+        prop:inputFileName  "第５６９回遊佐町議会定例会（令和５年１２月５日開会）議事日程第２号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10045>
+        rdf:type            cls:Document;
+        rdfs:label          "令和　１年　１２月　定例会（第７回）  12月18日－03号.pdf";
+        prop:inputFileName  "令和　１年　１２月　定例会（第７回）  12月18日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30042>
+        rdf:type            cls:Document;
+        rdfs:label          "20250418 北海道新聞デジタル（【独自】釧路・メガソーラー建設　別の予定地も立ち入り禁止通告　市教委）.pdf";
+        prop:inputFileName  "20250418 北海道新聞デジタル（【独自】釧路・メガソーラー建設　別の予定地も立ち入り禁止通告　市教委）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20032>
+        rdf:type            cls:Document;
+        rdfs:label          "能代港洋上風力発電事業_準備書.pdf";
+        prop:inputFileName  "能代港洋上風力発電事業_準備書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30137>
+        rdf:type            cls:Document;
+        rdfs:label          "広報まつまえ2020年11月号_8.pdf";
+        prop:inputFileName  "広報まつまえ2020年11月号_8.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10502>
+        rdf:type            cls:Document;
+        rdfs:label          "(仮称)栗子山風力発電事業に対する山形県知事の意見が公表されました.pdf";
+        prop:inputFileName  "(仮称)栗子山風力発電事業に対する山形県知事の意見が公表されました.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10122>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２９年９月定例会（第３回）09月20日－04号.pdf";
+        prop:inputFileName  "平成２９年９月定例会（第３回）09月20日－04号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10199>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　６年　　３月　定例会（第２回）  02月27日－02号.pdf";
+        prop:inputFileName  "酒田市  令和　６年　　３月　定例会（第２回）  02月27日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40019>
+        rdf:type            cls:Document;
+        rdfs:label          "20230416_事業者説明会で不満爆発.pdf";
+        prop:inputFileName  "20230416_事業者説明会で不満爆発.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30009>
+        rdf:type            cls:Document;
+        rdfs:label          "20220630 （日本自然保護協会）（仮称）古平・仁木・余市ウィンドファーム事業計画段階環境配慮書に関する意見書.pdf";
+        prop:inputFileName  "20220630 （日本自然保護協会）（仮称）古平・仁木・余市ウィンドファーム事業計画段階環境配慮書に関する意見書.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10217>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　５年　　６月　定例会  06月16日－03号.txt";
+        prop:inputFileName  "鶴岡市  令和　　５年　　６月　定例会  06月16日－03号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+cls:DocumentType  rdf:type  rdfs:Class;
+        rdfs:label  "資料種別"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10181>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　３年　　６月　定例会（第４回）  06月24日－06号.pdf";
+        prop:inputFileName  "酒田市  令和　３年　　６月　定例会（第４回）  06月24日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40001>
+        rdf:type            cls:Document;
+        rdfs:label          "01反対派公開質問状.pdf";
+        prop:inputFileName  "01反対派公開質問状.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30068>
+        rdf:type            cls:Document;
+        rdfs:label          "20250911 北海道新聞デジタル（【独自】鶴居村、タンチョウ景観保護へ民有地購入　釧路でメガソーラー建設、大阪の業者が一時計画）.pdf";
+        prop:inputFileName  "20250911 北海道新聞デジタル（【独自】鶴居村、タンチョウ景観保護へ民有地購入　釧路でメガソーラー建設、大阪の業者が一時計画）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20058>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）能代・三種・男鹿沖洋上風力発電事業_方法書.pdf";
+        prop:inputFileName  "（仮称）能代・三種・男鹿沖洋上風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10053>
+        rdf:type            cls:Document;
+        rdfs:label          "令和２年３月定例会（第１回）02月28日－02号.pdf";
+        prop:inputFileName  "令和２年３月定例会（第１回）02月28日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30050>
+        rdf:type            cls:Document;
+        rdfs:label          "20250804 北海道新聞デジタル（太陽光発電　釧路市が指導を　管内市民団体が要望書）.pdf";
+        prop:inputFileName  "20250804 北海道新聞デジタル（太陽光発電　釧路市が指導を　管内市民団体が要望書）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20040>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）八峰町及び能代市沖における洋上風力発電事業_方法書.pdf";
+        prop:inputFileName  "（仮称）八峰町及び能代市沖における洋上風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10528>
+        rdf:type            cls:Document;
+        rdfs:label          "毎日新聞に取り上げて頂きました.pdf";
+        prop:inputFileName  "毎日新聞に取り上げて頂きました.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10148>
+        rdf:type            cls:Document;
+        rdfs:label          "第５３９回遊佐町議会定例会（令和２年９月８日開会）議事日程第５号（１）.pdf";
+        prop:inputFileName  "第５３９回遊佐町議会定例会（令和２年９月８日開会）議事日程第５号（１）.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30145>
+        rdf:type            cls:Document;
+        rdfs:label          "釧路市ホームページ：20250723 釧路市自然と太陽光発電施設の調和に関する条例（案）についてのご意見を募集します。～意見募集は終了いたしました～.pdf";
+        prop:inputFileName  "釧路市ホームページ：20250723 釧路市自然と太陽光発電施設の調和に関する条例（案）についてのご意見を募集します。～意見募集は終了いたしました～.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10510>
+        rdf:type            cls:Document;
+        rdfs:label          "JR東日本エネルギー開発へ、米沢市長から全面白紙撤回の申し入れが出されました.pdf";
+        prop:inputFileName  "JR東日本エネルギー開発へ、米沢市長から全面白紙撤回の申し入れが出されました.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10130>
+        rdf:type            cls:Document;
+        rdfs:label          "平成３０年６月定例会（第３回）06月05日－01号.pdf";
+        prop:inputFileName  "平成３０年６月定例会（第３回）06月05日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40027>
+        rdf:type            cls:Document;
+        rdfs:label          "20230518_意見書〆切と意見書を届けた.pdf";
+        prop:inputFileName  "20230518_意見書〆切と意見書を届けた.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30017>
+        rdf:type            cls:Document;
+        rdfs:label          "20230418 ニュースリリース：北海道松前町における地域活性化プロジェクト 学生による「松前~提案 新設された「一般社団法人北海道まつまえ観光物産協会」の協会ロゴマークに採用決定.pdf";
+        prop:inputFileName  "20230418 ニュースリリース：北海道松前町における地域活性化プロジェクト 学生による「松前~提案 新設された「一般社団法人北海道まつまえ観光物産協会」の協会ロゴマークに採用決定.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20007>
+        rdf:type            cls:Document;
+        rdfs:label          "八峰能代沖洋上風力発電事業_方法書２.pdf";
+        prop:inputFileName  "八峰能代沖洋上風力発電事業_方法書２.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10002>
+        rdf:type            cls:Document;
+        rdfs:label          "220616_49kai_gijiroku.pdf";
+        prop:inputFileName  "220616_49kai_gijiroku.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10079>
+        rdf:type            cls:Document;
+        rdfs:label          "令和５年３月定例会（第２回）02月27日－02号.pdf";
+        prop:inputFileName  "令和５年３月定例会（第２回）02月27日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30076>
+        rdf:type            cls:Document;
+        rdfs:label          "20250926 北海道新聞デジタル（メガソーラー予定地視察　立憲衆院議員ら「自然破壊されショック」）.pdf";
+        prop:inputFileName  "20250926 北海道新聞デジタル（メガソーラー予定地視察　立憲衆院議員ら「自然破壊されショック」）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20066>
+        rdf:type            cls:Document;
+        rdfs:label          "（別紙）知事意見（八竜風力更新計画_準備書）.pdf";
+        prop:inputFileName  "（別紙）知事意見（八竜風力更新計画_準備書）.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10061>
+        rdf:type            cls:Document;
+        rdfs:label          "令和３年３月定例会（第２回）03月15日－05号.pdf";
+        prop:inputFileName  "令和３年３月定例会（第２回）03月15日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10536>
+        rdf:type            cls:Document;
+        rdfs:label          "＜栗子山風力発電＞4月26日に、第2回風力発電学習会を開催しました。アンケートの集計結果です.pdf";
+        prop:inputFileName  "＜栗子山風力発電＞4月26日に、第2回風力発電学習会を開催しました。アンケートの集計結果です.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10156>
+        rdf:type            cls:Document;
+        rdfs:label          "第５４７回遊佐町議会定例会（令和３年６月８日開会）議事日程第２号.pdf";
+        prop:inputFileName  "第５４７回遊佐町議会定例会（令和３年６月８日開会）議事日程第２号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30153>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴居村ホームページ：鶴居村美しい景観等と太陽光発電事業との共生に関する条例の制定について.pdf";
+        prop:inputFileName  "鶴居村ホームページ：鶴居村美しい景観等と太陽光発電事業との共生に関する条例の制定について.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10028>
+        rdf:type            cls:Document;
+        rdfs:label          "hohosyo_daijinkankoku.pdf";
+        prop:inputFileName  "hohosyo_daijinkankoku.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40035>
+        rdf:type            cls:Document;
+        rdfs:label          "20250507環境システム7.pdf";
+        prop:inputFileName  "20250507環境システム7.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30025>
+        rdf:type            cls:Document;
+        rdfs:label          "20231216 朝日新聞（風力発電に「逆風」　計画縮小の関西電力が説明会、住民から厳しい声 [北海道]）.pdf";
+        prop:inputFileName  "20231216 朝日新聞（風力発電に「逆風」　計画縮小の関西電力が説明会、住民から厳しい声 [北海道]）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20015>
+        rdf:type            cls:Document;
+        rdfs:label          "田子小国風力発電事業_方法書.pdf";
+        prop:inputFileName  "田子小国風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10010>
+        rdf:type            cls:Document;
+        rdfs:label          "31th_siryou2-1.pdf";
+        prop:inputFileName  "31th_siryou2-1.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10087>
+        rdf:type            cls:Document;
+        rdfs:label          "平成１７年　１２月　定例会（第２回）  12月09日－02号.pdf";
+        prop:inputFileName  "平成１７年　１２月　定例会（第２回）  12月09日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30084>
+        rdf:type            cls:Document;
+        rdfs:label          "20251023 北海道新聞デジタル（釧路湿原メガソーラー「なぜ中止命令出さない」　登山家・野口さん講演）.pdf";
+        prop:inputFileName  "20251023 北海道新聞デジタル（釧路湿原メガソーラー「なぜ中止命令出さない」　登山家・野口さん講演）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10105>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２５年３月定例会（第１回）02月28日－03号.pdf";
+        prop:inputFileName  "平成２５年３月定例会（第１回）02月28日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30102>
+        rdf:type            cls:Document;
+        rdfs:label          "20260310 北海道新聞デジタル（釧路市、太陽光発電規制条例を改正へ　パネル廃棄の保証金と質権設定を義務化）.pdf";
+        prop:inputFileName  "20260310 北海道新聞デジタル（釧路市、太陽光発電規制条例を改正へ　パネル廃棄の保証金と質権設定を義務化）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10544>
+        rdf:type            cls:Document;
+        rdfs:label          "＜栗子山風力発電＞第１回風力発電勉強会を終了しました。アンケートの集計結果です.pdf";
+        prop:inputFileName  "＜栗子山風力発電＞第１回風力発電勉強会を終了しました。アンケートの集計結果です.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10164>
+        rdf:type            cls:Document;
+        rdfs:label          "第５６４回遊佐町議会定例会（令和５年３月６日開会）議事日程第４号.pdf";
+        prop:inputFileName  "第５６４回遊佐町議会定例会（令和５年３月６日開会）議事日程第４号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10036>
+        rdf:type            cls:Document;
+        rdfs:label          "kuriko_nagare_1.pdf";
+        prop:inputFileName  "kuriko_nagare_1.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30033>
+        rdf:type            cls:Document;
+        rdfs:label          "20240724 北海道新聞デジタル（風力発電を見学　松前・松城小5年生）.pdf";
+        prop:inputFileName  "20240724 北海道新聞デジタル（風力発電を見学　松前・松城小5年生）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20023>
+        rdf:type            cls:Document;
+        rdfs:label          "秋田港洋上風力発電事業＿方法書.pdf";
+        prop:inputFileName  "秋田港洋上風力発電事業＿方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10095>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２３年６月定例会（第４回）06月13日－02号.pdf";
+        prop:inputFileName  "平成２３年６月定例会（第４回）06月13日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30128>
+        rdf:type            cls:Document;
+        rdfs:label          "令和6年6月　第2回定例会.pdf";
+        prop:inputFileName  "令和6年6月　第2回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30092>
+        rdf:type            cls:Document;
+        rdfs:label          "20251120 北海道新聞デジタル（釧路湿原メガソーラー　北海道、土壌汚染調査計画を受理せず　事業者に再提出求める）.pdf";
+        prop:inputFileName  "20251120 北海道新聞デジタル（釧路湿原メガソーラー　北海道、土壌汚染調査計画を受理せず　事業者に再提出求める）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10113>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２６年３月定例会（第１回）03月11日－04号.pdf";
+        prop:inputFileName  "平成２６年３月定例会（第１回）03月11日－04号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30110>
+        rdf:type            cls:Document;
+        rdfs:label          "ピーク・エイド：20251023　釧路にてトークイベント開催.pdf";
+        prop:inputFileName  "ピーク・エイド：20251023　釧路にてトークイベント開催.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10208>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　２年　　９月　定例会  09月04日－03号.txt";
+        prop:inputFileName  "鶴岡市  令和　　２年　　９月　定例会  09月04日－03号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10172>
+        rdf:type            cls:Document;
+        rdfs:label          "第５６９回遊佐町議会定例会（令和５年１２月５日開会）議事日程第１号.pdf";
+        prop:inputFileName  "第５６９回遊佐町議会定例会（令和５年１２月５日開会）議事日程第１号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30059>
+        rdf:type            cls:Document;
+        rdfs:label          "20250828 北海道新聞デジタル（太陽光発電規制、事業中止でも要届け出　釧路市、パブコメ公表）.pdf";
+        prop:inputFileName  "20250828 北海道新聞デジタル（太陽光発電規制、事業中止でも要届け出　釧路市、パブコメ公表）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20049>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）男鹿市、潟上市及び秋田市沖洋上風力発電事業_方法書.pdf";
+        prop:inputFileName  "（仮称）男鹿市、潟上市及び秋田市沖洋上風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10044>
+        rdf:type            cls:Document;
+        rdfs:label          "令和6年9月定例会議事日程第6号.pdf";
+        prop:inputFileName  "令和6年9月定例会議事日程第6号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30041>
+        rdf:type            cls:Document;
+        rdfs:label          "20250415 北海道新聞デジタル（環境省から釧路市に出向の篠崎さん　パイプ生かし環境保全・条例化へ協力）.pdf";
+        prop:inputFileName  "20250415 北海道新聞デジタル（環境省から釧路市に出向の篠崎さん　パイプ生かし環境保全・条例化へ協力）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20031>
+        rdf:type            cls:Document;
+        rdfs:label          "能代港洋上風力発電事業_方法書.pdf";
+        prop:inputFileName  "能代港洋上風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10519>
+        rdf:type            cls:Document;
+        rdfs:label          "かわら版No.64　令和6年9月定例会・佐野洋平・一般質問「栗子山風力発電事業について」（全文版）｜さのようへい／佐野洋平　「かわら版」.pdf";
+        prop:inputFileName  "かわら版No.64　令和6年9月定例会・佐野洋平・一般質問「栗子山風力発電事業について」（全文版）｜さのようへい／佐野洋平　「かわら版」.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10139>
+        rdf:type            cls:Document;
+        rdfs:label          "第４９７回遊佐町議会定例会（平成２６年６月１７日開会）議事日程第2号.pdf";
+        prop:inputFileName  "第４９７回遊佐町議会定例会（平成２６年６月１７日開会）議事日程第2号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+prop:documentType  rdf:type  rdf:Property;
+        rdfs:domain  cls:Document;
+        rdfs:label   "資料種別"@ja;
+        rdfs:range   cls:DocumentType .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10501>
+        rdf:type            cls:Document;
+        rdfs:label          "(仮称)栗子山風力発電事業について、知事がコメントされました。.pdf";
+        prop:inputFileName  "(仮称)栗子山風力発電事業について、知事がコメントされました。.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30136>
+        rdf:type            cls:Document;
+        rdfs:label          "平成29年6月　第2回定例会.pdf";
+        prop:inputFileName  "平成29年6月　第2回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10121>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２９年３月定例会（第１回）03月02日－02号.pdf";
+        prop:inputFileName  "平成２９年３月定例会（第１回）03月02日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10198>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　５年　１２月　定例会（第９回）  12月19日－05号.pdf";
+        prop:inputFileName  "酒田市  令和　５年　１２月　定例会（第９回）  12月19日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40018>
+        rdf:type            cls:Document;
+        rdfs:label          "20230414_比田交流センターでの勉強会.pdf";
+        prop:inputFileName  "20230414_比田交流センターでの勉強会.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30008>
+        rdf:type            cls:Document;
+        rdfs:label          "20220630 （日本自然保護協会HP）関西電力が公表した５件の風力発電所開発の計画段階環境配慮書に対して意見書を提出しました.pdf";
+        prop:inputFileName  "20220630 （日本自然保護協会HP）関西電力が公表した５件の風力発電所開発の計画段階環境配慮書に対して意見書を提出しました.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10216>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　５年　　３月　定例会  03月03日－03号.txt";
+        prop:inputFileName  "鶴岡市  令和　　５年　　３月　定例会  03月03日－03号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10180>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　３年　　６月　定例会（第４回）  06月23日－05号.pdf";
+        prop:inputFileName  "酒田市  令和　３年　　６月　定例会（第４回）  06月23日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30067>
+        rdf:type            cls:Document;
+        rdfs:label          "20250910 朝日新聞（現場へ！逆風 風力発電（３）脱炭素が「自然破壊」のジレンマ　環境NGOが問題視する計画）.pdf";
+        prop:inputFileName  "20250910 朝日新聞（現場へ！逆風 風力発電（３）脱炭素が「自然破壊」のジレンマ　環境NGOが問題視する計画）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20057>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）秋田県能代市・三種町・男鹿市沖における洋上風力発電事業_配慮書.pdf";
+        prop:inputFileName  "（仮称）秋田県能代市・三種町・男鹿市沖における洋上風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+kg:documentType_EnvironmentalAssessmentMaterial
+        rdf:type    cls:DocumentType;
+        rdfs:label  "環境アセス資料"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10052>
+        rdf:type            cls:Document;
+        rdfs:label          "令和１年９月定例会（第５回）09月30日－01号.pdf";
+        prop:inputFileName  "令和１年９月定例会（第５回）09月30日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10527>
+        rdf:type            cls:Document;
+        rdfs:label          "市長の申し入れを受けてのメディア記事.pdf";
+        prop:inputFileName  "市長の申し入れを受けてのメディア記事.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10147>
+        rdf:type            cls:Document;
+        rdfs:label          "第５３９回遊佐町議会定例会（令和２年９月８日開会）議事日程第１号.pdf";
+        prop:inputFileName  "第５３９回遊佐町議会定例会（令和２年９月８日開会）議事日程第１号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30144>
+        rdf:type            cls:Document;
+        rdfs:label          "釧路市ホームページ：20250601 釧路市は「ノーモア メガソーラー宣言」をしました.pdf";
+        prop:inputFileName  "釧路市ホームページ：20250601 釧路市は「ノーモア メガソーラー宣言」をしました.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10019>
+        rdf:type            cls:Document;
+        rdfs:label          "40gijiroku_1.pdf";
+        prop:inputFileName  "40gijiroku_1.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40026>
+        rdf:type            cls:Document;
+        rdfs:label          "20230503_大出日山・モンタージュを作成.pdf";
+        prop:inputFileName  "20230503_大出日山・モンタージュを作成.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30016>
+        rdf:type            cls:Document;
+        rdfs:label          "20230405 松前町と企業連携まちづくり計画等の推進業務に係る協定書を締結（東急不動産ウェブサイト）.pdf";
+        prop:inputFileName  "20230405 松前町と企業連携まちづくり計画等の推進業務に係る協定書を締結（東急不動産ウェブサイト）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20006>
+        rdf:type            cls:Document;
+        rdfs:label          "八峰能代沖洋上風力発電事業_方法書１.pdf";
+        prop:inputFileName  "八峰能代沖洋上風力発電事業_方法書１.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10001>
+        rdf:type            cls:Document;
+        rdfs:label          "000064724.pdf";
+        prop:inputFileName  "000064724.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10224>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  平成　３１年　　３月　定例会  03月04日－03号.txt";
+        prop:inputFileName  "鶴岡市  平成　３１年　　３月　定例会  03月04日－03号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10078>
+        rdf:type            cls:Document;
+        rdfs:label          "令和５年１２月定例会（第９回）12月19日－05号.pdf";
+        prop:inputFileName  "令和５年１２月定例会（第９回）12月19日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30075>
+        rdf:type            cls:Document;
+        rdfs:label          "20250917 北海道新聞デジタル（釧路湿原周辺メガソーラー　事業者、届け出せずに盛り土工事　北海道も4カ月把握できず）.pdf";
+        prop:inputFileName  "20250917 北海道新聞デジタル（釧路湿原周辺メガソーラー　事業者、届け出せずに盛り土工事　北海道も4カ月把握できず）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20065>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）鹿角東部市民ウィンドファーム事業_配慮書.pdf";
+        prop:inputFileName  "（仮称）鹿角東部市民ウィンドファーム事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10060>
+        rdf:type            cls:Document;
+        rdfs:label          "令和３年３月定例会（第２回）03月11日－04号.pdf";
+        prop:inputFileName  "令和３年３月定例会（第２回）03月11日－04号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10535>
+        rdf:type            cls:Document;
+        rdfs:label          "風車で苦しむ秋田から、悲痛な訴え。情報の拡散をお願いします.pdf";
+        prop:inputFileName  "風車で苦しむ秋田から、悲痛な訴え。情報の拡散をお願いします.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+kg:documentType_CitizenGroupMaterial
+        rdf:type    cls:DocumentType;
+        rdfs:label  "市民・住民団体資料"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10155>
+        rdf:type            cls:Document;
+        rdfs:label          "第５４７回遊佐町議会定例会（令和３年６月８日開会）議事日程第１号.pdf";
+        prop:inputFileName  "第５４７回遊佐町議会定例会（令和３年６月８日開会）議事日程第１号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30152>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴居村ホームページ：タンチョウの聖地「音羽橋」景観保全へのご寄付御礼と寄付受領証明書発送時期に関するお知らせ.pdf";
+        prop:inputFileName  "鶴居村ホームページ：タンチョウの聖地「音羽橋」景観保全へのご寄付御礼と寄付受領証明書発送時期に関するお知らせ.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10027>
+        rdf:type            cls:Document;
+        rdfs:label          "daijin-iken.pdf";
+        prop:inputFileName  "daijin-iken.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40034>
+        rdf:type            cls:Document;
+        rdfs:label          "20240318_鳥取西部風力発電に関する勉強会.pdf";
+        prop:inputFileName  "20240318_鳥取西部風力発電に関する勉強会.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30024>
+        rdf:type            cls:Document;
+        rdfs:label          "20231122 （仮称）古平・余市ウィンドファーム事業　環境影響評価方法書のあらまし（関西電力株式会社）.pdf";
+        prop:inputFileName  "20231122 （仮称）古平・余市ウィンドファーム事業　環境影響評価方法書のあらまし（関西電力株式会社）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20014>
+        rdf:type            cls:Document;
+        rdfs:label          "潟上海岸における風力発電事業＿準備書.pdf";
+        prop:inputFileName  "潟上海岸における風力発電事業＿準備書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10086>
+        rdf:type            cls:Document;
+        rdfs:label          "令和６年３月定例会（第２回）03月12日－05号.pdf";
+        prop:inputFileName  "令和６年３月定例会（第２回）03月12日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30119>
+        rdf:type            cls:Document;
+        rdfs:label          "令和3年3月　第1回定例会.pdf";
+        prop:inputFileName  "令和3年3月　第1回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30083>
+        rdf:type            cls:Document;
+        rdfs:label          "20251020 北海道新聞デジタル（釧路の市街化調整区域ほぼ全域でタンチョウなど生息確認　猛禽類医学研究所が市長に報告）.pdf";
+        prop:inputFileName  "20251020 北海道新聞デジタル（釧路の市街化調整区域ほぼ全域でタンチョウなど生息確認　猛禽類医学研究所が市長に報告）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10104>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２５年３月定例会（第１回）02月26日－02号.pdf";
+        prop:inputFileName  "平成２５年３月定例会（第１回）02月26日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30101>
+        rdf:type            cls:Document;
+        rdfs:label          "20260305 北海道新聞デジタル（釧路のメガソーラー、隣接国有地に無断侵入　除雪車両通行へ板設置）.pdf";
+        prop:inputFileName  "20260305 北海道新聞デジタル（釧路のメガソーラー、隣接国有地に無断侵入　除雪車両通行へ板設置）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10543>
+        rdf:type            cls:Document;
+        rdfs:label          "＜栗子山風力発電＞第3回、第4回、第5回、風力発電の学習会を開催します.pdf";
+        prop:inputFileName  "＜栗子山風力発電＞第3回、第4回、第5回、風力発電の学習会を開催します.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10163>
+        rdf:type            cls:Document;
+        rdfs:label          "第５６４回遊佐町議会定例会（令和５年３月６日開会）議事日程第３号.pdf";
+        prop:inputFileName  "第５６４回遊佐町議会定例会（令和５年３月６日開会）議事日程第３号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+kg:documentType_NewsReport
+        rdf:type    cls:DocumentType;
+        rdfs:label  "報道"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10035>
+        rdf:type            cls:Document;
+        rdfs:label          "kuriko_gaiyou_1.pdf";
+        prop:inputFileName  "kuriko_gaiyou_1.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30032>
+        rdf:type            cls:Document;
+        rdfs:label          "20240626 北海道新聞デジタル（風車下のソバ、特産に　松前高生ら種まき）.pdf";
+        prop:inputFileName  "20240626 北海道新聞デジタル（風車下のソバ、特産に　松前高生ら種まき）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20022>
+        rdf:type            cls:Document;
+        rdfs:label          "秋田港洋上風力発電事業_配慮書.pdf";
+        prop:inputFileName  "秋田港洋上風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10094>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２３年３月定例会（第２回）03月03日－03号.pdf";
+        prop:inputFileName  "平成２３年３月定例会（第２回）03月03日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30127>
+        rdf:type            cls:Document;
+        rdfs:label          "令和6年3月　第1回定例会.pdf";
+        prop:inputFileName  "令和6年3月　第1回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30091>
+        rdf:type            cls:Document;
+        rdfs:label          "20251031 北海道新聞デジタル（釧路市政運営　賛否相半ば　市議会5会派代表に聞く＜鶴間市長就任1年＞）.pdf";
+        prop:inputFileName  "20251031 北海道新聞デジタル（釧路市政運営　賛否相半ば　市議会5会派代表に聞く＜鶴間市長就任1年＞）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10112>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２６年３月定例会（第１回）02月28日－03号.pdf";
+        prop:inputFileName  "平成２６年３月定例会（第１回）02月28日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10189>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　４年　　３月　定例会（第１回）  03月17日－08号.pdf";
+        prop:inputFileName  "酒田市  令和　４年　　３月　定例会（第１回）  03月17日－08号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40009>
+        rdf:type            cls:Document;
+        rdfs:label          "20230330_3_やすぎ生物多様性保存会が設立.pdf";
+        prop:inputFileName  "20230330_3_やすぎ生物多様性保存会が設立.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10207>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　２年　　９月　定例会  09月03日－02号.txt";
+        prop:inputFileName  "鶴岡市  令和　　２年　　９月　定例会  09月03日－02号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10171>
+        rdf:type            cls:Document;
+        rdfs:label          "第５６８回遊佐町議会定例会（令和５年９月５日開会）議事日程第３号（１）.pdf";
+        prop:inputFileName  "第５６８回遊佐町議会定例会（令和５年９月５日開会）議事日程第３号（１）.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30058>
+        rdf:type            cls:Document;
+        rdfs:label          "20250827 北海道新聞デジタル（釧路湿原メガソーラー計画　文化庁見解に歓迎と困惑　環境団体「保護につながる」／工事業者「きちんと手続き」）.pdf";
+        prop:inputFileName  "20250827 北海道新聞デジタル（釧路湿原メガソーラー計画　文化庁見解に歓迎と困惑　環境団体「保護につながる」／工事業者「きちんと手続き」）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20048>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）由利本荘洋上風力発電事業＿配慮書.pdf";
+        prop:inputFileName  "（仮称）由利本荘洋上風力発電事業＿配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10043>
+        rdf:type            cls:Document;
+        rdfs:label          "令和6年9月定例会議事日程第4号.pdf";
+        prop:inputFileName  "令和6年9月定例会議事日程第4号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30040>
+        rdf:type            cls:Document;
+        rdfs:label          "20250410 北海道新聞デジタル（釧路市議らオジロワシの巣確認　メガソーラー建設予定地　抱卵中の希少種に驚き）.pdf";
+        prop:inputFileName  "20250410 北海道新聞デジタル（釧路市議らオジロワシの巣確認　メガソーラー建設予定地　抱卵中の希少種に驚き）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20030>
+        rdf:type            cls:Document;
+        rdfs:label          "能代地区における風力発電事業_準備書.pdf";
+        prop:inputFileName  "能代地区における風力発電事業_準備書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10518>
+        rdf:type            cls:Document;
+        rdfs:label          "かわら版No.63　「栗子山風力発電事業」から、見えてきたもの｜さのようへい／佐野洋平　「かわら版」.pdf";
+        prop:inputFileName  "かわら版No.63　「栗子山風力発電事業」から、見えてきたもの｜さのようへい／佐野洋平　「かわら版」.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10138>
+        rdf:type            cls:Document;
+        rdfs:label          "第４９３回遊佐町議会定例会（平成２５年１２月３日開会）議事日程第１号.pdf";
+        prop:inputFileName  "第４９３回遊佐町議会定例会（平成２５年１２月３日開会）議事日程第１号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30135>
+        rdf:type            cls:Document;
+        rdfs:label          "太陽光発電事業の更なる地域共生・規律強化に向けた関係省庁連絡会議（第一回）【議事要旨】20250924.pdf";
+        prop:inputFileName  "太陽光発電事業の更なる地域共生・規律強化に向けた関係省庁連絡会議（第一回）【議事要旨】20250924.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10120>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２８年３月定例会（第１回）02月29日－02号.pdf";
+        prop:inputFileName  "平成２８年３月定例会（第１回）02月29日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10197>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　５年　１２月　定例会（第９回）  12月18日－04号.pdf";
+        prop:inputFileName  "酒田市  令和　５年　１２月　定例会（第９回）  12月18日－04号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40017>
+        rdf:type            cls:Document;
+        rdfs:label          "20230414_2鳥取西部風力発電勉強会.pdf";
+        prop:inputFileName  "20230414_2鳥取西部風力発電勉強会.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30007>
+        rdf:type            cls:Document;
+        rdfs:label          "20220530 配慮書提出：北海道および宮城県における陸上風力発電所開発の検討開始（関西電力）.pdf";
+        prop:inputFileName  "20220530 配慮書提出：北海道および宮城県における陸上風力発電所開発の検討開始（関西電力）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10215>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　５年　　３月　定例会  03月02日－02号.txt";
+        prop:inputFileName  "鶴岡市  令和　　５年　　３月　定例会  03月02日－02号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10069>
+        rdf:type            cls:Document;
+        rdfs:label          "令和３年９月定例会（第６回）09月16日－05号.pdf";
+        prop:inputFileName  "令和３年９月定例会（第６回）09月16日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30066>
+        rdf:type            cls:Document;
+        rdfs:label          "20250909 朝日新聞（現場へ！逆風 風力発電（２）ブナの楽園脅かす風力発電開発　国策でも「賛成できない」理由）.pdf";
+        prop:inputFileName  "20250909 朝日新聞（現場へ！逆風 風力発電（２）ブナの楽園脅かす風力発電開発　国策でも「賛成できない」理由）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20056>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）秋田県能代市・三種町・男鹿市沖における洋上風力発電事業_方法書.pdf";
+        prop:inputFileName  "（仮称）秋田県能代市・三種町・男鹿市沖における洋上風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10051>
+        rdf:type            cls:Document;
+        rdfs:label          "令和１年１２月定例会（第７回）12月20日－05号.pdf";
+        prop:inputFileName  "令和１年１２月定例会（第７回）12月20日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10526>
+        rdf:type            cls:Document;
+        rdfs:label          "山形県知事の意見を踏まえて、２社の新聞報道.pdf";
+        prop:inputFileName  "山形県知事の意見を踏まえて、２社の新聞報道.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+prop:prefecture  rdf:type  rdf:Property;
+        rdfs:domain  cls:Document;
+        rdfs:label   "都道府県"@ja;
+        rdfs:range   cls:Prefecture .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10146>
+        rdf:type            cls:Document;
+        rdfs:label          "第５３７回遊佐町議会定例会（令和２年６月９日開会）議事日程第１号.pdf";
+        prop:inputFileName  "第５３７回遊佐町議会定例会（令和２年６月９日開会）議事日程第１号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30143>
+        rdf:type            cls:Document;
+        rdfs:label          "釧路市ホームページ：20230701 釧路市自然と共生する太陽光発電施設の設置に関するガイドラインを策定しました.pdf";
+        prop:inputFileName  "釧路市ホームページ：20230701 釧路市自然と共生する太陽光発電施設の設置に関するガイドラインを策定しました.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10018>
+        rdf:type            cls:Document;
+        rdfs:label          "37_shidai_1.pdf";
+        prop:inputFileName  "37_shidai_1.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40025>
+        rdf:type            cls:Document;
+        rdfs:label          "20230501_武田先生勉強会動画公開.pdf";
+        prop:inputFileName  "20230501_武田先生勉強会動画公開.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30015>
+        rdf:type            cls:Document;
+        rdfs:label          "20230405 ニュースリリース：松前町と企業連携まちづくり計画等の推進業務に係る協定書を締結.pdf";
+        prop:inputFileName  "20230405 ニュースリリース：松前町と企業連携まちづくり計画等の推進業務に係る協定書を締結.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20005>
+        rdf:type            cls:Document;
+        rdfs:label          "三種五城目風力発電事業_配慮書.pdf";
+        prop:inputFileName  "三種五城目風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+prop:inputFileName  rdf:type  rdf:Property;
+        rdfs:domain  cls:Document;
+        rdfs:label   "入力ファイル名"@ja;
+        rdfs:range   rdfs:Literal .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10223>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  平成　２８年　１２月　定例会  12月05日－04号.txt";
+        prop:inputFileName  "鶴岡市  平成　２８年　１２月　定例会  12月05日－04号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10077>
+        rdf:type            cls:Document;
+        rdfs:label          "令和５年１２月定例会（第９回）12月18日－04号.pdf";
+        prop:inputFileName  "令和５年１２月定例会（第９回）12月18日－04号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30074>
+        rdf:type            cls:Document;
+        rdfs:label          "20250917 北海道新聞デジタル（釧路のメガソーラー事業者、工事を一時中断　申請より多く伐採した0.5ヘクタールに植林、11月にも再開）.pdf";
+        prop:inputFileName  "20250917 北海道新聞デジタル（釧路のメガソーラー事業者、工事を一時中断　申請より多く伐採した0.5ヘクタールに植林、11月にも再開）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20064>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）鹿角上沼風力発電事業_配慮書.pdf";
+        prop:inputFileName  "（仮称）鹿角上沼風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10534>
+        rdf:type            cls:Document;
+        rdfs:label          "茂木誠先生が、栗子山風力発電の事業撤退についての動画を配信してくださいました.pdf";
+        prop:inputFileName  "茂木誠先生が、栗子山風力発電の事業撤退についての動画を配信してくださいました.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10154>
+        rdf:type            cls:Document;
+        rdfs:label          "第５４４回遊佐町議会定例会（令和３年２月１５日開会）議事日程第４号.pdf";
+        prop:inputFileName  "第５４４回遊佐町議会定例会（令和３年２月１５日開会）議事日程第４号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30151>
+        rdf:type            cls:Document;
+        rdfs:label          "釧路自然保護協会ほか：「世界に誇る釧路湿原を、太陽光開発から守りたい」多様な命が息づく、湿原を未来へ - CAMPFIRE (キャンプファイヤー).pdf";
+        prop:inputFileName  "釧路自然保護協会ほか：「世界に誇る釧路湿原を、太陽光開発から守りたい」多様な命が息づく、湿原を未来へ - CAMPFIRE (キャンプファイヤー).pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+cls:Prefecture  rdf:type  rdfs:Class;
+        rdfs:label  "都道府県"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10026>
+        rdf:type            cls:Document;
+        rdfs:label          "dai20kai_sidai_meibo.pdf";
+        prop:inputFileName  "dai20kai_sidai_meibo.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40033>
+        rdf:type            cls:Document;
+        rdfs:label          "20240301_日向山・大出日山風力事業計画中止.pdf";
+        prop:inputFileName  "20240301_日向山・大出日山風力事業計画中止.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30023>
+        rdf:type            cls:Document;
+        rdfs:label          "20231121 朝日新聞（関電、北海道での風力発電計画を大幅縮小　自然保護団体や地元が反対 [北海道]）.pdf";
+        prop:inputFileName  "20231121 朝日新聞（関電、北海道での風力発電計画を大幅縮小　自然保護団体や地元が反対 [北海道]）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20013>
+        rdf:type            cls:Document;
+        rdfs:label          "潟上海岸における風力発電事業_配慮書.pdf";
+        prop:inputFileName  "潟上海岸における風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10085>
+        rdf:type            cls:Document;
+        rdfs:label          "令和６年３月定例会（第２回）02月29日－03号.pdf";
+        prop:inputFileName  "令和６年３月定例会（第２回）02月29日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30118>
+        rdf:type            cls:Document;
+        rdfs:label          "令和2年9月　第3回定例会.pdf";
+        prop:inputFileName  "令和2年9月　第3回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30082>
+        rdf:type            cls:Document;
+        rdfs:label          "20251015 北海道新聞デジタル（釧路湿原メガソーラー「速やかに工事進めたい」　大阪の事業者、市と協議）.pdf";
+        prop:inputFileName  "20251015 北海道新聞デジタル（釧路湿原メガソーラー「速やかに工事進めたい」　大阪の事業者、市と協議）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10103>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２４年９月定例会（第４回）08月30日－02号.pdf";
+        prop:inputFileName  "平成２４年９月定例会（第４回）08月30日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30100>
+        rdf:type            cls:Document;
+        rdfs:label          "20260220 北海道新聞デジタル（釧路市、環境保全推進へ6地域選定　生物多様性戦略の素案公表）.pdf";
+        prop:inputFileName  "20260220 北海道新聞デジタル（釧路市、環境保全推進へ6地域選定　生物多様性戦略の素案公表）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10542>
+        rdf:type            cls:Document;
+        rdfs:label          "＜栗子山風力発電＞第2回風力発電の勉強会を4月26日金曜日、松川コミュニティセンターで開催します.pdf";
+        prop:inputFileName  "＜栗子山風力発電＞第2回風力発電の勉強会を4月26日金曜日、松川コミュニティセンターで開催します.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10162>
+        rdf:type            cls:Document;
+        rdfs:label          "第５６０回遊佐町議会定例会（令和４年９月６日開会）議事日程第４号.pdf";
+        prop:inputFileName  "第５６０回遊佐町議会定例会（令和４年９月６日開会）議事日程第４号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+kg:prefecture_Shimane
+        rdf:type    cls:Prefecture;
+        rdfs:label  "島根"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30049>
+        rdf:type            cls:Document;
+        rdfs:label          "20250625 北海道新聞デジタル（松前・檜山沖「促進区域」8月指定へ　洋上風力、26年春にも事業者公募）.pdf";
+        prop:inputFileName  "20250625 北海道新聞デジタル（松前・檜山沖「促進区域」8月指定へ　洋上風力、26年春にも事業者公募）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20039>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）上沼風力発電事業_配慮書.pdf";
+        prop:inputFileName  "（仮称）上沼風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10034>
+        rdf:type            cls:Document;
+        rdfs:label          "ken_chijiiken.pdf";
+        prop:inputFileName  "ken_chijiiken.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30031>
+        rdf:type            cls:Document;
+        rdfs:label          "20240624 東洋経済オンライン（釧路湿原の大量メガソーラーに土地買取で対抗 原野商法で取得した土地｢手放したい｣人々も ）.pdf";
+        prop:inputFileName  "20240624 東洋経済オンライン（釧路湿原の大量メガソーラーに土地買取で対抗 原野商法で取得した土地｢手放したい｣人々も ）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20021>
+        rdf:type            cls:Document;
+        rdfs:label          "男鹿中いりあい風力発電事業に係る環境影響評価の概要_配慮書.pdf";
+        prop:inputFileName  "男鹿中いりあい風力発電事業に係る環境影響評価の概要_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10509>
+        rdf:type            cls:Document;
+        rdfs:label          "JR東日本エネルギー開発は撤退を決意しました。これまでのご支援、ありがとうございました.pdf";
+        prop:inputFileName  "JR東日本エネルギー開発は撤退を決意しました。これまでのご支援、ありがとうございました.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10129>
+        rdf:type            cls:Document;
+        rdfs:label          "平成３０年３月定例会（第１回）03月20日－07号.pdf";
+        prop:inputFileName  "平成３０年３月定例会（第１回）03月20日－07号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10093>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２２年９月定例会（第４回）09月17日－06号.pdf";
+        prop:inputFileName  "平成２２年９月定例会（第４回）09月17日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30126>
+        rdf:type            cls:Document;
+        rdfs:label          "令和5年9月　第3回定例会.pdf";
+        prop:inputFileName  "令和5年9月　第3回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30090>
+        rdf:type            cls:Document;
+        rdfs:label          "20251031 北海道新聞デジタル（釧路の自然環境保全　ふるさと納税で支援）.pdf";
+        prop:inputFileName  "20251031 北海道新聞デジタル（釧路の自然環境保全　ふるさと納税で支援）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10111>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２６年３月定例会（第１回）02月26日－02号.pdf";
+        prop:inputFileName  "平成２６年３月定例会（第１回）02月26日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10188>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　４年　　３月　定例会（第１回）  03月15日－07号.pdf";
+        prop:inputFileName  "酒田市  令和　４年　　３月　定例会（第１回）  03月15日－07号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40008>
+        rdf:type            cls:Document;
+        rdfs:label          "20230330_2_大出日山環境影響評価方法書の縦覧開始.pdf";
+        prop:inputFileName  "20230330_2_大出日山環境影響評価方法書の縦覧開始.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10206>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　元年　　６月　定例会  06月10日－04号.txt";
+        prop:inputFileName  "鶴岡市  令和　　元年　　６月　定例会  06月10日－04号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10170>
+        rdf:type            cls:Document;
+        rdfs:label          "第５６８回遊佐町議会定例会（令和５年９月５日開会）議事日程第２号.pdf";
+        prop:inputFileName  "第５６８回遊佐町議会定例会（令和５年９月５日開会）議事日程第２号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+kg:documentType_BusinessMaterial
+        rdf:type    cls:DocumentType;
+        rdfs:label  "事業者資料"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20047>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）由利本荘洋上風力発電事業_方法書.pdf";
+        prop:inputFileName  "（仮称）由利本荘洋上風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30057>
+        rdf:type            cls:Document;
+        rdfs:label          "20250826 北海道新聞デジタル（釧路湿原メガソーラー「天然記念物への影響確認が適当」　文科相、釧路市教委に回答）.pdf";
+        prop:inputFileName  "20250826 北海道新聞デジタル（釧路湿原メガソーラー「天然記念物への影響確認が適当」　文科相、釧路市教委に回答）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10042>
+        rdf:type            cls:Document;
+        rdfs:label          "令和6年9月定例会議事日程第3号.pdf";
+        prop:inputFileName  "令和6年9月定例会議事日程第3号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10517>
+        rdf:type            cls:Document;
+        rdfs:label          "かわら版No.54　令和6年米沢市政・前半期と後半期のチェックポイント｜さのようへい／佐野洋平　「かわら版」.pdf";
+        prop:inputFileName  "かわら版No.54　令和6年米沢市政・前半期と後半期のチェックポイント｜さのようへい／佐野洋平　「かわら版」.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10137>
+        rdf:type            cls:Document;
+        rdfs:label          "第４９２回遊佐町議会定例会（平成２５年９月１０日開会）議事日程第１号.pdf";
+        prop:inputFileName  "第４９２回遊佐町議会定例会（平成２５年９月１０日開会）議事日程第１号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30134>
+        rdf:type            cls:Document;
+        rdfs:label          "太陽光発電事業の更なる地域共生・規律強化に向けた関係省庁連絡会議の設置について.pdf";
+        prop:inputFileName  "太陽光発電事業の更なる地域共生・規律強化に向けた関係省庁連絡会議の設置について.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10009>
+        rdf:type            cls:Document;
+        rdfs:label          "31th_siryou1-2.pdf";
+        prop:inputFileName  "31th_siryou1-2.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+kg:documentType_WebArticle
+        rdf:type    cls:DocumentType;
+        rdfs:label  "Web記事"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40016>
+        rdf:type            cls:Document;
+        rdfs:label          "20230414_2安来市が風力発電設置ガイドライン策定.pdf";
+        prop:inputFileName  "20230414_2安来市が風力発電設置ガイドライン策定.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30006>
+        rdf:type            cls:Document;
+        rdfs:label          "20220301 北海道松前町と東急不動産　まちづくり計画策定に関する協定書を締結（東急不動産ウェブサイト）.pdf";
+        prop:inputFileName  "20220301 北海道松前町と東急不動産　まちづくり計画策定に関する協定書を締結（東急不動産ウェブサイト）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10196>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　５年　　９月　定例会（第７回）  10月23日－06号.pdf";
+        prop:inputFileName  "酒田市  令和　５年　　９月　定例会（第７回）  10月23日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10214>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　４年　１２月　定例会  12月02日－03号.txt";
+        prop:inputFileName  "鶴岡市  令和　　４年　１２月　定例会  12月02日－03号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10068>
+        rdf:type            cls:Document;
+        rdfs:label          "令和３年９月定例会（第６回）09月15日－04号.pdf";
+        prop:inputFileName  "令和３年９月定例会（第６回）09月15日－04号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30065>
+        rdf:type            cls:Document;
+        rdfs:label          "20250909 北海道新聞デジタル（釧路湿原周辺メガソーラー、自民議連が視察　事業者、専門家と面会　設置規制強化へ）.pdf";
+        prop:inputFileName  "20250909 北海道新聞デジタル（釧路湿原周辺メガソーラー、自民議連が視察　事業者、専門家と面会　設置規制強化へ）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20055>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）秋田県男鹿市、潟上市及び秋田市沖着床式洋上風力発電事業＿配慮書.pdf";
+        prop:inputFileName  "（仮称）秋田県男鹿市、潟上市及び秋田市沖着床式洋上風力発電事業＿配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+prop:sourceFolderPath
+        rdf:type     rdf:Property;
+        rdfs:domain  cls:Document;
+        rdfs:label   "保存されていたフォルダ名"@ja;
+        rdfs:range   rdfs:Literal .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10050>
+        rdf:type            cls:Document;
+        rdfs:label          "令和１年１２月定例会（第７回）12月18日－03号.pdf";
+        prop:inputFileName  "令和１年１２月定例会（第７回）12月18日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10525>
+        rdf:type            cls:Document;
+        rdfs:label          "山形県に追加署名を提出してきました.pdf";
+        prop:inputFileName  "山形県に追加署名を提出してきました.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10145>
+        rdf:type            cls:Document;
+        rdfs:label          "第５３４回遊佐町議会定例会（令和２年３月３日開会）議事日程第５号.pdf";
+        prop:inputFileName  "第５３４回遊佐町議会定例会（令和２年３月３日開会）議事日程第５号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10017>
+        rdf:type            cls:Document;
+        rdfs:label          "37gijiroku_1.pdf";
+        prop:inputFileName  "37gijiroku_1.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40024>
+        rdf:type            cls:Document;
+        rdfs:label          "20230501_2建設予定地の土砂災害マップを公開.pdf";
+        prop:inputFileName  "20230501_2建設予定地の土砂災害マップを公開.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30014>
+        rdf:type            cls:Document;
+        rdfs:label          "20230216 北海道新聞デジタル（＜デジタル発＞風力発電、各地で住民「待った」　適地減り土砂崩れなど懸念　計画撤回も）.pdf";
+        prop:inputFileName  "20230216 北海道新聞デジタル（＜デジタル発＞風力発電、各地で住民「待った」　適地減り土砂崩れなど懸念　計画撤回も）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20004>
+        rdf:type            cls:Document;
+        rdfs:label          "三種五城目風力発電事業_方法書.pdf";
+        prop:inputFileName  "三種五城目風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10222>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  平成　２６年　１２月　定例会  12月08日－04号.txt";
+        prop:inputFileName  "鶴岡市  平成　２６年　１２月　定例会  12月08日－04号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10076>
+        rdf:type            cls:Document;
+        rdfs:label          "令和４年９月定例会（第６回）09月28日－03号.pdf";
+        prop:inputFileName  "令和４年９月定例会（第６回）09月28日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30109>
+        rdf:type            cls:Document;
+        rdfs:label          "ピーク・エイド：20251023　釧路にてトークイベント開催 (1).pdf";
+        prop:inputFileName  "ピーク・エイド：20251023　釧路にてトークイベント開催 (1).pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30073>
+        rdf:type            cls:Document;
+        rdfs:label          "20250917 北海道新聞デジタル（原野は急に姿を変えた―。どうなる釧路湿原周辺メガソーラー建設　国会議員や官庁巻き込む騒動に　自然との共存課題）.pdf";
+        prop:inputFileName  "20250917 北海道新聞デジタル（原野は急に姿を変えた―。どうなる釧路湿原周辺メガソーラー建設　国会議員や官庁巻き込む騒動に　自然との共存課題）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20063>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）鹿角上沼風力発電事業_方法書.pdf";
+        prop:inputFileName  "（仮称）鹿角上沼風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10533>
+        rdf:type            cls:Document;
+        rdfs:label          "署名の原本を国に届けて参りました.pdf";
+        prop:inputFileName  "署名の原本を国に届けて参りました.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10153>
+        rdf:type            cls:Document;
+        rdfs:label          "第５４２回遊佐町議会定例会（令和２年１２月８日開会）議事日程第３号（２）.pdf";
+        prop:inputFileName  "第５４２回遊佐町議会定例会（令和２年１２月８日開会）議事日程第３号（２）.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30150>
+        rdf:type            cls:Document;
+        rdfs:label          "釧路湿原自然再生協議会ホームページ：230418 釧路湿原周辺における再生可能エネルギー事業に関する提言.pdf";
+        prop:inputFileName  "釧路湿原自然再生協議会ホームページ：230418 釧路湿原周辺における再生可能エネルギー事業に関する提言.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10025>
+        rdf:type            cls:Document;
+        rdfs:label          "dai20kai_kenei_sakatasi_jigyougaiyou.pdf";
+        prop:inputFileName  "dai20kai_kenei_sakatasi_jigyougaiyou.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40032>
+        rdf:type            cls:Document;
+        rdfs:label          "20230828_鳥取県西部風力発電計画を江府町で住民説明会.pdf";
+        prop:inputFileName  "20230828_鳥取県西部風力発電計画を江府町で住民説明会.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30022>
+        rdf:type            cls:Document;
+        rdfs:label          "20231121 「（仮称）古平・余市ウィンドファーム事業 環境影響評価方法書」の提出.pdf";
+        prop:inputFileName  "20231121 「（仮称）古平・余市ウィンドファーム事業 環境影響評価方法書」の提出.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20012>
+        rdf:type            cls:Document;
+        rdfs:label          "潟上海岸における風力発電事業_方法書.pdf";
+        prop:inputFileName  "潟上海岸における風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30099>
+        rdf:type            cls:Document;
+        rdfs:label          "20260209 北海道新聞デジタル（東京の太陽光発電事業者、釧路市に建設前の協議申請　条例施行後初）.pdf";
+        prop:inputFileName  "20260209 北海道新聞デジタル（東京の太陽光発電事業者、釧路市に建設前の協議申請　条例施行後初）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10084>
+        rdf:type            cls:Document;
+        rdfs:label          "令和６年３月定例会（第２回）02月27日－02号.pdf";
+        prop:inputFileName  "令和６年３月定例会（第２回）02月27日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30117>
+        rdf:type            cls:Document;
+        rdfs:label          "令和2年6月　第2回定例会.pdf";
+        prop:inputFileName  "令和2年6月　第2回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30081>
+        rdf:type            cls:Document;
+        rdfs:label          "20251015 北海道新聞デジタル（太陽光の2割、外資参入　釧路湿原予定地、シンガポール系に売却）.pdf";
+        prop:inputFileName  "20251015 北海道新聞デジタル（太陽光の2割、外資参入　釧路湿原予定地、シンガポール系に売却）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10102>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２４年９月定例会（第４回）08月28日－01号.pdf";
+        prop:inputFileName  "平成２４年９月定例会（第４回）08月28日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10179>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　３年　　３月　定例会（第２回）  03月19日－07号.pdf";
+        prop:inputFileName  "酒田市  令和　３年　　３月　定例会（第２回）  03月19日－07号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+cls:Document  rdf:type  rdfs:Class;
+        rdfs:label  "文書"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10541>
+        rdf:type            cls:Document;
+        rdfs:label          "＜栗子山風力発電＞栗子山は、ハリーポッターの魔女の帽子の形に少し似てませんか？.pdf";
+        prop:inputFileName  "＜栗子山風力発電＞栗子山は、ハリーポッターの魔女の帽子の形に少し似てませんか？.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10161>
+        rdf:type            cls:Document;
+        rdfs:label          "第５６０回遊佐町議会定例会（令和４年９月６日開会）議事日程第２号（１）.pdf";
+        prop:inputFileName  "第５６０回遊佐町議会定例会（令和４年９月６日開会）議事日程第２号（１）.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30048>
+        rdf:type            cls:Document;
+        rdfs:label          "20250625 北海道新聞デジタル（大型洋上風力に現実味　松前・檜山沖再エネ促進区域指定へ　沿岸自治体歓迎の声）.pdf";
+        prop:inputFileName  "20250625 北海道新聞デジタル（大型洋上風力に現実味　松前・檜山沖再エネ促進区域指定へ　沿岸自治体歓迎の声）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20038>
+        rdf:type            cls:Document;
+        rdfs:label          "若美風力発電事業＿準備書.pdf";
+        prop:inputFileName  "若美風力発電事業＿準備書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10033>
+        rdf:type            cls:Document;
+        rdfs:label          "keneifuryokuhouhouiken.pdf";
+        prop:inputFileName  "keneifuryokuhouhouiken.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30030>
+        rdf:type            cls:Document;
+        rdfs:label          "20240516 北海道新聞デジタル（東急不動産の松前事務所「テノハ」開所　町民、観光客、交流の場に）.pdf";
+        prop:inputFileName  "20240516 北海道新聞デジタル（東急不動産の松前事務所「テノハ」開所　町民、観光客、交流の場に）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20020>
+        rdf:type            cls:Document;
+        rdfs:label          "由利本荘海岸風力発電事業_準備書.pdf";
+        prop:inputFileName  "由利本荘海岸風力発電事業_準備書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10508>
+        rdf:type            cls:Document;
+        rdfs:label          "JR東日本エネルギー開発は、（仮称）栗子山風力発電事業の継続を発表.pdf";
+        prop:inputFileName  "JR東日本エネルギー開発は、（仮称）栗子山風力発電事業の継続を発表.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10128>
+        rdf:type            cls:Document;
+        rdfs:label          "平成３０年３月定例会（第１回）03月05日－03号.pdf";
+        prop:inputFileName  "平成３０年３月定例会（第１回）03月05日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10092>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２２年６月定例会（第３回）06月24日－06号.pdf";
+        prop:inputFileName  "平成２２年６月定例会（第３回）06月24日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30125>
+        rdf:type            cls:Document;
+        rdfs:label          "令和5年6月　第2回定例会.pdf";
+        prop:inputFileName  "令和5年6月　第2回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10110>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２５年９月定例会（第５回）09月17日－04号.pdf";
+        prop:inputFileName  "平成２５年９月定例会（第５回）09月17日－04号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10187>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　４年　　３月　定例会（第１回）  03月02日－03号.pdf";
+        prop:inputFileName  "酒田市  令和　４年　　３月　定例会（第１回）  03月02日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40007>
+        rdf:type            cls:Document;
+        rdfs:label          "20230314＿比婆山から日向山の眺望（景観）.pdf";
+        prop:inputFileName  "20230314＿比婆山から日向山の眺望（景観）.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10205>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　６年　　９月　定例議会（第６回）  10月18日－06号.pdf";
+        prop:inputFileName  "酒田市  令和　６年　　９月　定例議会（第６回）  10月18日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+kg:prefecture_Akita  rdf:type  cls:Prefecture;
+        rdfs:label  "秋田"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10059>
+        rdf:type            cls:Document;
+        rdfs:label          "令和３年３月定例会（第２回）03月02日－03号.pdf";
+        prop:inputFileName  "令和３年３月定例会（第２回）03月02日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30056>
+        rdf:type            cls:Document;
+        rdfs:label          "20250825 北海道新聞デジタル（【独自】釧路湿原メガソーラー工事「タンチョウ滅失を危惧」　市教委が国に意見書　文化庁、26日にも見解）.pdf";
+        prop:inputFileName  "20250825 北海道新聞デジタル（【独自】釧路湿原メガソーラー工事「タンチョウ滅失を危惧」　市教委が国に意見書　文化庁、26日にも見解）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20046>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）由利本荘岩城風力発電事業_配慮書.pdf";
+        prop:inputFileName  "（仮称）由利本荘岩城風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10041>
+        rdf:type            cls:Document;
+        rdfs:label          "yamagata-files.tsv";
+        prop:inputFileName  "yamagata-files.tsv";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10516>
+        rdf:type            cls:Document;
+        rdfs:label          "かわら版No.47　栗子山風力発電事業について｜さのようへい／佐野洋平　「かわら版」.pdf";
+        prop:inputFileName  "かわら版No.47　栗子山風力発電事業について｜さのようへい／佐野洋平　「かわら版」.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10136>
+        rdf:type            cls:Document;
+        rdfs:label          "第４８６回遊佐町議会定例会（平成２５年２月１５日開会）議事日程第２号（１）.pdf";
+        prop:inputFileName  "第４８６回遊佐町議会定例会（平成２５年２月１５日開会）議事日程第２号（１）.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30133>
+        rdf:type            cls:Document;
+        rdfs:label          "参考資料６．釧路地域における太陽光発電施設の開発について（令和7年10月　環境省自然環境局野生生物課）.pdf";
+        prop:inputFileName  "参考資料６．釧路地域における太陽光発電施設の開発について（令和7年10月　環境省自然環境局野生生物課）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10008>
+        rdf:type            cls:Document;
+        rdfs:label          "31th_siryou1-1.pdf";
+        prop:inputFileName  "31th_siryou1-1.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10195>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　５年　　９月　定例会（第７回）  10月03日－02号.pdf";
+        prop:inputFileName  "酒田市  令和　５年　　９月　定例会（第７回）  10月03日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40015>
+        rdf:type            cls:Document;
+        rdfs:label          "20230413_赤屋交流センターでの事業者説明会.pdf";
+        prop:inputFileName  "20230413_赤屋交流センターでの事業者説明会.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30005>
+        rdf:type            cls:Document;
+        rdfs:label          "20220301 ニュースリリース：北海道松前町と東急不動産　まちづくり計画策定に関する協定書を締結.pdf";
+        prop:inputFileName  "20220301 ニュースリリース：北海道松前町と東急不動産　まちづくり計画策定に関する協定書を締結.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10213>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　４年　　９月　定例会  09月12日－04号.txt";
+        prop:inputFileName  "鶴岡市  令和　　４年　　９月　定例会  09月12日－04号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10067>
+        rdf:type            cls:Document;
+        rdfs:label          "令和３年９月定例会（第６回）08月27日－01号.pdf";
+        prop:inputFileName  "令和３年９月定例会（第６回）08月27日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+kg:prefecture_Yamagata
+        rdf:type    cls:Prefecture;
+        rdfs:label  "山形"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30064>
+        rdf:type            cls:Document;
+        rdfs:label          "20250909 北海道新聞デジタル（釧路湿原周辺メガソーラー　市、事業者提出書類の偽装黙認　提出日と日付相違）.pdf";
+        prop:inputFileName  "20250909 北海道新聞デジタル（釧路湿原周辺メガソーラー　市、事業者提出書類の偽装黙認　提出日と日付相違）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20054>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）秋田県由利本荘市沖における洋上風力発電事業_配慮書.pdf";
+        prop:inputFileName  "（仮称）秋田県由利本荘市沖における洋上風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10524>
+        rdf:type            cls:Document;
+        rdfs:label          "宮城県七ヶ浜の火力発電所を見学してきました.pdf";
+        prop:inputFileName  "宮城県七ヶ浜の火力発電所を見学してきました.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10144>
+        rdf:type            cls:Document;
+        rdfs:label          "第５３４回遊佐町議会定例会（令和２年３月３日開会）議事日程第４号.pdf";
+        prop:inputFileName  "第５３４回遊佐町議会定例会（令和２年３月３日開会）議事日程第４号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30141>
+        rdf:type            cls:Document;
+        rdfs:label          "次世代が担う街づくり 若手活躍現場Report Vol.1 リエネ松前風力発電所 ｜ 東急不動産 ｜ 日本経済新聞 電子版特集.pdf";
+        prop:inputFileName  "次世代が担う街づくり 若手活躍現場Report Vol.1 リエネ松前風力発電所 ｜ 東急不動産 ｜ 日本経済新聞 電子版特集.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10016>
+        rdf:type            cls:Document;
+        rdfs:label          "36th_siryou3.pdf";
+        prop:inputFileName  "36th_siryou3.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40023>
+        rdf:type            cls:Document;
+        rdfs:label          "20230429_方法書説明会全日程終了.pdf";
+        prop:inputFileName  "20230429_方法書説明会全日程終了.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30013>
+        rdf:type            cls:Document;
+        rdfs:label          "20220912 令和4年9月12日知事意見　法84_01配慮書_01知事_(仮称)古平・仁木・余市ウィンドファーム事業.pdf";
+        prop:inputFileName  "20220912 令和4年9月12日知事意見　法84_01配慮書_01知事_(仮称)古平・仁木・余市ウィンドファーム事業.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20003>
+        rdf:type            cls:Document;
+        rdfs:label          "ユーラス由利高原ウインドファーム_準備書.pdf";
+        prop:inputFileName  "ユーラス由利高原ウインドファーム_準備書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10221>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　６年　　９月　定例会  09月06日－03号.txt";
+        prop:inputFileName  "鶴岡市  令和　　６年　　９月　定例会  09月06日－03号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10075>
+        rdf:type            cls:Document;
+        rdfs:label          "令和４年９月定例会（第６回）09月14日－02号.pdf";
+        prop:inputFileName  "令和４年９月定例会（第６回）09月14日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30108>
+        rdf:type            cls:Document;
+        rdfs:label          "ふるさとチョイス：あなたの寄附が自然を守る、未来へつなぐ　釧路湿原等自然環境保全支援 【返礼品なし】1000円～ shizen01var - 北海道釧路市.pdf";
+        prop:inputFileName  "ふるさとチョイス：あなたの寄附が自然を守る、未来へつなぐ　釧路湿原等自然環境保全支援 【返礼品なし】1000円～ shizen01var - 北海道釧路市.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30072>
+        rdf:type            cls:Document;
+        rdfs:label          "20250912 朝日新聞（現場へ！逆風 風力発電（５）「お飾り」「情報提供」ゾーニングの行方　何を残すか次代への選択）.pdf";
+        prop:inputFileName  "20250912 朝日新聞（現場へ！逆風 風力発電（５）「お飾り」「情報提供」ゾーニングの行方　何を残すか次代への選択）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20062>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）能代山本広域風力発電事業_配慮書.pdf";
+        prop:inputFileName  "（仮称）能代山本広域風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10532>
+        rdf:type            cls:Document;
+        rdfs:label          "米沢市長に追加分の署名を提出してきました.pdf";
+        prop:inputFileName  "米沢市長に追加分の署名を提出してきました.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10152>
+        rdf:type            cls:Document;
+        rdfs:label          "第５４２回遊佐町議会定例会（令和２年１２月８日開会）議事日程第２号.pdf";
+        prop:inputFileName  "第５４２回遊佐町議会定例会（令和２年１２月８日開会）議事日程第２号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30039>
+        rdf:type            cls:Document;
+        rdfs:label          "20250409 北海道新聞デジタル（太陽光発電工事規制、環境省事務所に要望　釧路の共産市議団）.pdf";
+        prop:inputFileName  "20250409 北海道新聞デジタル（太陽光発電工事規制、環境省事務所に要望　釧路の共産市議団）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20029>
+        rdf:type            cls:Document;
+        rdfs:label          "笹森山風力発電事業_配慮書.pdf";
+        prop:inputFileName  "笹森山風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10024>
+        rdf:type            cls:Document;
+        rdfs:label          "dai20kai_gijiroku.pdf";
+        prop:inputFileName  "dai20kai_gijiroku.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40031>
+        rdf:type            cls:Document;
+        rdfs:label          "20230710_安来議会で陳情書が全会一致で採択.pdf";
+        prop:inputFileName  "20230710_安来議会で陳情書が全会一致で採択.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30021>
+        rdf:type            cls:Document;
+        rdfs:label          "20230921 ニュースリリース：まちの特性を活かした風力発電事業によって地域活性化を促進す~松前」が開園 ～地域参加型で企画・開発を行う「みんなでつくるプロジェクト」等を実施～.pdf";
+        prop:inputFileName  "20230921 ニュースリリース：まちの特性を活かした風力発電事業によって地域活性化を促進す~松前」が開園 ～地域参加型で企画・開発を行う「みんなでつくるプロジェクト」等を実施～.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20011>
+        rdf:type            cls:Document;
+        rdfs:label          "新郷村風力発電所_準備書.pdf";
+        prop:inputFileName  "新郷村風力発電所_準備書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30098>
+        rdf:type            cls:Document;
+        rdfs:label          "20260204 北海道新聞デジタル（再生可能エネルギー　地域とどう調和＜水曜討論＞）.pdf";
+        prop:inputFileName  "20260204 北海道新聞デジタル（再生可能エネルギー　地域とどう調和＜水曜討論＞）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10119>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２８年３月定例会（第１回）02月25日－01号.pdf";
+        prop:inputFileName  "平成２８年３月定例会（第１回）02月25日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10083>
+        rdf:type            cls:Document;
+        rdfs:label          "令和５年９月定例会（第７回）10月23日－06号.pdf";
+        prop:inputFileName  "令和５年９月定例会（第７回）10月23日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30116>
+        rdf:type            cls:Document;
+        rdfs:label          "令和2年12月　第4回定例会.pdf";
+        prop:inputFileName  "令和2年12月　第4回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30080>
+        rdf:type            cls:Document;
+        rdfs:label          "20251014 北海道新聞デジタル（希少種保護、違反行為に罰則案　環境省が法改正巡り初の検討会　釧路湿原メガソーラー問題受け）.pdf";
+        prop:inputFileName  "20251014 北海道新聞デジタル（希少種保護、違反行為に罰則案　環境省が法改正巡り初の検討会　釧路湿原メガソーラー問題受け）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10101>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２４年３月定例会（第１回）03月15日－07号.pdf";
+        prop:inputFileName  "平成２４年３月定例会（第１回）03月15日－07号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10178>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　３年　　３月　定例会（第２回）  03月17日－06号.pdf";
+        prop:inputFileName  "酒田市  令和　３年　　３月　定例会（第２回）  03月17日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10540>
+        rdf:type            cls:Document;
+        rdfs:label          "＜栗子山風力発電＞令和６年３月２９日（金）米沢市万世コミュニティセンターで勉強会を開催します.pdf";
+        prop:inputFileName  "＜栗子山風力発電＞令和６年３月２９日（金）米沢市万世コミュニティセンターで勉強会を開催します.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10160>
+        rdf:type            cls:Document;
+        rdfs:label          "第５５７回遊佐町議会定例会（令和４年６月７日開会）議事日程第２号.pdf";
+        prop:inputFileName  "第５５７回遊佐町議会定例会（令和４年６月７日開会）議事日程第２号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+kg:documentType_AdministrativeMaterial
+        rdf:type    cls:DocumentType;
+        rdfs:label  "行政資料"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30047>
+        rdf:type            cls:Document;
+        rdfs:label          "20250623 北海道新聞デジタル（風力発電固定資産税　17年間で9.7億円試算　余市町長が答弁）.pdf";
+        prop:inputFileName  "20250623 北海道新聞デジタル（風力発電固定資産税　17年間で9.7億円試算　余市町長が答弁）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20037>
+        rdf:type            cls:Document;
+        rdfs:label          "若美風力発電事業_方法書.pdf";
+        prop:inputFileName  "若美風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10032>
+        rdf:type            cls:Document;
+        rdfs:label          "junbisyo_daijinkankoku.pdf";
+        prop:inputFileName  "junbisyo_daijinkankoku.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10507>
+        rdf:type            cls:Document;
+        rdfs:label          "JR東日本エネルギー開発の申請と実際の工事に差異。米沢市議会の一般質問で明らかに.pdf";
+        prop:inputFileName  "JR東日本エネルギー開発の申請と実際の工事に差異。米沢市議会の一般質問で明らかに.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10127>
+        rdf:type            cls:Document;
+        rdfs:label          "平成３０年３月定例会（第１回）03月01日－02号.pdf";
+        prop:inputFileName  "平成３０年３月定例会（第１回）03月01日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10091>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２１年１２月定例会（第８回）12月18日－06号.pdf";
+        prop:inputFileName  "平成２１年１２月定例会（第８回）12月18日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30124>
+        rdf:type            cls:Document;
+        rdfs:label          "令和5年3月　第1回定例会.pdf";
+        prop:inputFileName  "令和5年3月　第1回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10186>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　４年　　３月　定例会（第１回）  02月28日－02号.pdf";
+        prop:inputFileName  "酒田市  令和　４年　　３月　定例会（第１回）  02月28日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40006>
+        rdf:type            cls:Document;
+        rdfs:label          "20230311_風力発電の勉強会を案内.pdf";
+        prop:inputFileName  "20230311_風力発電の勉強会を案内.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10204>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　６年　　９月　定例議会（第６回）  09月30日－02号.pdf";
+        prop:inputFileName  "酒田市  令和　６年　　９月　定例議会（第６回）  09月30日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+kg:documentType_ReviewBoardMaterial
+        rdf:type    cls:DocumentType;
+        rdfs:label  "審査会資料"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10058>
+        rdf:type            cls:Document;
+        rdfs:label          "令和３年３月定例会（第２回）02月26日－02号.pdf";
+        prop:inputFileName  "令和３年３月定例会（第２回）02月26日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30055>
+        rdf:type            cls:Document;
+        rdfs:label          "20250822 北海道新聞デジタル（太陽光発電所建設　事業者「中止応じられない」　釧路市議の要請文に回答）.pdf";
+        prop:inputFileName  "20250822 北海道新聞デジタル（太陽光発電所建設　事業者「中止応じられない」　釧路市議の要請文に回答）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20045>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）大潟村風力発電所新設事業_方法書.pdf";
+        prop:inputFileName  "（仮称）大潟村風力発電所新設事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10040>
+        rdf:type            cls:Document;
+        rdfs:label          "sakata_chijiiken.pdf";
+        prop:inputFileName  "sakata_chijiiken.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10515>
+        rdf:type            cls:Document;
+        rdfs:label          "「米沢市の再エネのゾーニングマップ説明会があります。説明会にみんなで行きましょう！」.pdf";
+        prop:inputFileName  "「米沢市の再エネのゾーニングマップ説明会があります。説明会にみんなで行きましょう！」.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10135>
+        rdf:type            cls:Document;
+        rdfs:label          "平成３１年３月定例会（第１回）03月04日－03号.pdf";
+        prop:inputFileName  "平成３１年３月定例会（第１回）03月04日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30132>
+        rdf:type            cls:Document;
+        rdfs:label          "北海道環境影響評価条例に基づく公聴会の開催中止について（（仮称）北海道小樽余市風力発電所） - 環境生活部環境保全局環境政策課.pdf";
+        prop:inputFileName  "北海道環境影響評価条例に基づく公聴会の開催中止について（（仮称）北海道小樽余市風力発電所） - 環境生活部環境保全局環境政策課.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10007>
+        rdf:type            cls:Document;
+        rdfs:label          "31th_sidai.pdf";
+        prop:inputFileName  "31th_sidai.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10194>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　５年　　９月　定例会（第７回）  09月29日－01号.pdf";
+        prop:inputFileName  "酒田市  令和　５年　　９月　定例会（第７回）  09月29日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+kg:prefecture_Hokkaido
+        rdf:type    cls:Prefecture;
+        rdfs:label  "北海道"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30004>
+        rdf:type            cls:Document;
+        rdfs:label          "20191219 北海道松前町と東急不動産 風力発電事業と地域活性化に関する協定書を締結（東急不動産ウェブサイト）.pdf";
+        prop:inputFileName  "20191219 北海道松前町と東急不動産 風力発電事業と地域活性化に関する協定書を締結（東急不動産ウェブサイト）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40014>
+        rdf:type            cls:Document;
+        rdfs:label          "20230408_広瀬町の比田地区交流センターでの勉強会.pdf";
+        prop:inputFileName  "20230408_広瀬町の比田地区交流センターでの勉強会.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10212>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　４年　　３月　定例会  03月03日－02号.txt";
+        prop:inputFileName  "鶴岡市  令和　　４年　　３月　定例会  03月03日－02号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10066>
+        rdf:type            cls:Document;
+        rdfs:label          "令和３年６月定例会（第４回）06月24日－06号.pdf";
+        prop:inputFileName  "令和３年６月定例会（第４回）06月24日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30063>
+        rdf:type            cls:Document;
+        rdfs:label          "20250909 北海道新聞デジタル（釧路メガソーラー、事業継続強調　大阪の事業者　植林、タンチョウ保護柵設置へ）.pdf";
+        prop:inputFileName  "20250909 北海道新聞デジタル（釧路メガソーラー、事業継続強調　大阪の事業者　植林、タンチョウ保護柵設置へ）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20053>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）秋田県由利本荘市沖における洋上風力発電事業_方法書.pdf";
+        prop:inputFileName  "（仮称）秋田県由利本荘市沖における洋上風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10523>
+        rdf:type            cls:Document;
+        rdfs:label          "南原の土地と景観を守りたい！米沢市笹野太陽光発電事業中止への署名ご協力お願いします.pdf";
+        prop:inputFileName  "南原の土地と景観を守りたい！米沢市笹野太陽光発電事業中止への署名ご協力お願いします.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10143>
+        rdf:type            cls:Document;
+        rdfs:label          "第５２９回遊佐町議会定例会（平成３１年３月５日開会）議事日程第４号.pdf";
+        prop:inputFileName  "第５２９回遊佐町議会定例会（平成３１年３月５日開会）議事日程第４号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30140>
+        rdf:type            cls:Document;
+        rdfs:label          "松前町スマート・シュリンクＳＸビジョンを策定しました。（松前町ウェブサイト）.pdf";
+        prop:inputFileName  "松前町スマート・シュリンクＳＸビジョンを策定しました。（松前町ウェブサイト）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10015>
+        rdf:type            cls:Document;
+        rdfs:label          "36th_siryou2.pdf";
+        prop:inputFileName  "36th_siryou2.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40022>
+        rdf:type            cls:Document;
+        rdfs:label          "20230424_公開質問状に対する返事.pdf";
+        prop:inputFileName  "20230424_公開質問状に対する返事.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30012>
+        rdf:type            cls:Document;
+        rdfs:label          "20220824 日経BizGate（北海道最南端の町、「風車と牛」で再生　東急不と連携）.pdf";
+        prop:inputFileName  "20220824 日経BizGate（北海道最南端の町、「風車と牛」で再生　東急不と連携）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20002>
+        rdf:type            cls:Document;
+        rdfs:label          "【セット】知事意見（別紙）（西目風力更新計画_準備書）.pdf";
+        prop:inputFileName  "【セット】知事意見（別紙）（西目風力更新計画_準備書）.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10220>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　６年　　６月　定例会  06月07日－03号.txt";
+        prop:inputFileName  "鶴岡市  令和　　６年　　６月　定例会  06月07日－03号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30089>
+        rdf:type            cls:Document;
+        rdfs:label          "20251030 東洋経済オンライン（著名人のSNS発信で批判広がった北海道･釧路のメガソーラー､｢新たな規制条例施行｣も問題が解決しない複雑な事情）.pdf";
+        prop:inputFileName  "20251030 東洋経済オンライン（著名人のSNS発信で批判広がった北海道･釧路のメガソーラー､｢新たな規制条例施行｣も問題が解決しない複雑な事情）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10074>
+        rdf:type            cls:Document;
+        rdfs:label          "令和４年９月定例会（第６回）09月12日－01号.pdf";
+        prop:inputFileName  "令和４年９月定例会（第６回）09月12日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30107>
+        rdf:type            cls:Document;
+        rdfs:label          "ReENE ウィンドファーム松前 ウェブサイト.pdf";
+        prop:inputFileName  "ReENE ウィンドファーム松前 ウェブサイト.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30071>
+        rdf:type            cls:Document;
+        rdfs:label          "20250911 朝日新聞（現場へ！逆風 風力発電（４）事前に警告もバードストライク止まらず　「野放図な開発」歯止めは）.pdf";
+        prop:inputFileName  "20250911 朝日新聞（現場へ！逆風 風力発電（４）事前に警告もバードストライク止まらず　「野放図な開発」歯止めは）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20061>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）能代山本広域風力発電事業_準備書.pdf";
+        prop:inputFileName  "（仮称）能代山本広域風力発電事業_準備書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10169>
+        rdf:type            cls:Document;
+        rdfs:label          "第５６８回遊佐町議会定例会（令和５年９月５日開会）議事日程第１号.pdf";
+        prop:inputFileName  "第５６８回遊佐町議会定例会（令和５年９月５日開会）議事日程第１号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10531>
+        rdf:type            cls:Document;
+        rdfs:label          "米沢市の再エネゾーニングマップを作る、というが、？？？.pdf";
+        prop:inputFileName  "米沢市の再エネゾーニングマップを作る、というが、？？？.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10151>
+        rdf:type            cls:Document;
+        rdfs:label          "第５４２回遊佐町議会定例会（令和２年１２月８日開会）議事日程第１号.pdf";
+        prop:inputFileName  "第５４２回遊佐町議会定例会（令和２年１２月８日開会）議事日程第１号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30038>
+        rdf:type            cls:Document;
+        rdfs:label          "20250402 北海道新聞デジタル（釧路メガソーラー予定地、一部建設断念へ　オジロワシ営巣地付近）.pdf";
+        prop:inputFileName  "20250402 北海道新聞デジタル（釧路メガソーラー予定地、一部建設断念へ　オジロワシ営巣地付近）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20028>
+        rdf:type            cls:Document;
+        rdfs:label          "笹森山風力発電事業_方法書.pdf";
+        prop:inputFileName  "笹森山風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10023>
+        rdf:type            cls:Document;
+        rdfs:label          "900512753.pdf";
+        prop:inputFileName  "900512753.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40030>
+        rdf:type            cls:Document;
+        rdfs:label          "20230707_JREより再公開質問状から回答.pdf";
+        prop:inputFileName  "20230707_JREより再公開質問状から回答.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30020>
+        rdf:type            cls:Document;
+        rdfs:label          "20230921 まちの特性を活かした風力発電事業によって地域活性化を促進する北海道松前町の新~企画・開発を行う「みんなでつくるプロジェクト」等を実施～（東急不動産ウェブサイト）.pdf";
+        prop:inputFileName  "20230921 まちの特性を活かした風力発電事業によって地域活性化を促進する北海道松前町の新~企画・開発を行う「みんなでつくるプロジェクト」等を実施～（東急不動産ウェブサイト）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20010>
+        rdf:type            cls:Document;
+        rdfs:label          "新仁賀保風力発電事業（仮称）_準備書.pdf";
+        prop:inputFileName  "新仁賀保風力発電事業（仮称）_準備書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30097>
+        rdf:type            cls:Document;
+        rdfs:label          "20251222 北海道新聞デジタル（釧路・昭和のメガソーラー着工　日本エコロジー、市の再調査要請に応じず）.pdf";
+        prop:inputFileName  "20251222 北海道新聞デジタル（釧路・昭和のメガソーラー着工　日本エコロジー、市の再調査要請に応じず）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10118>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２７年９月定例会（第６回）10月23日－06号.pdf";
+        prop:inputFileName  "平成２７年９月定例会（第６回）10月23日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10082>
+        rdf:type            cls:Document;
+        rdfs:label          "令和５年９月定例会（第７回）10月03日－02号.pdf";
+        prop:inputFileName  "令和５年９月定例会（第７回）10月03日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30115>
+        rdf:type            cls:Document;
+        rdfs:label          "仁木町議会だより　令和5年8月発行.pdf";
+        prop:inputFileName  "仁木町議会だより　令和5年8月発行.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10100>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２４年３月定例会（第１回）03月13日－05号.pdf";
+        prop:inputFileName  "平成２４年３月定例会（第１回）03月13日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10177>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　３年　　３月　定例会（第２回）  03月15日－05号.pdf";
+        prop:inputFileName  "酒田市  令和　３年　　３月　定例会（第２回）  03月15日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10049>
+        rdf:type            cls:Document;
+        rdfs:label          "令和　６年　　３月　定例会（第２回）  02月27日－02号.pdf";
+        prop:inputFileName  "令和　６年　　３月　定例会（第２回）  02月27日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30046>
+        rdf:type            cls:Document;
+        rdfs:label          "20250529 北海道新聞デジタル（松前の10公共施設、再エネ電力に　6月から　町内からも一部供給）.pdf";
+        prop:inputFileName  "20250529 北海道新聞デジタル（松前の10公共施設、再エネ電力に　6月から　町内からも一部供給）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20036>
+        rdf:type            cls:Document;
+        rdfs:label          "能代風力発電所リプレース計画＿配慮書.pdf";
+        prop:inputFileName  "能代風力発電所リプレース計画＿配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10031>
+        rdf:type            cls:Document;
+        rdfs:label          "jre_j_chijiiken.pdf";
+        prop:inputFileName  "jre_j_chijiiken.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10506>
+        rdf:type            cls:Document;
+        rdfs:label          "JR東日本エネルギー開発による説明会に行きましょう！.pdf";
+        prop:inputFileName  "JR東日本エネルギー開発による説明会に行きましょう！.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10126>
+        rdf:type            cls:Document;
+        rdfs:label          "平成３０年１２月定例会（第５回）12月19日－05号.pdf";
+        prop:inputFileName  "平成３０年１２月定例会（第５回）12月19日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10090>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２１年１２月定例会（第８回）12月17日－05号.pdf";
+        prop:inputFileName  "平成２１年１２月定例会（第８回）12月17日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30123>
+        rdf:type            cls:Document;
+        rdfs:label          "令和4年9月　第3回定例会.pdf";
+        prop:inputFileName  "令和4年9月　第3回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10185>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　３年　１２月　定例会（第８回）  12月22日－05号.pdf";
+        prop:inputFileName  "酒田市  令和　３年　１２月　定例会（第８回）  12月22日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40005>
+        rdf:type            cls:Document;
+        rdfs:label          "20230311_2事業者説明会に参加して参りました.pdf";
+        prop:inputFileName  "20230311_2事業者説明会に参加して参りました.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10203>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　６年　　９月　定例議会（第６回）  09月25日－01号.pdf";
+        prop:inputFileName  "酒田市  令和　６年　　９月　定例議会（第６回）  09月25日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10057>
+        rdf:type            cls:Document;
+        rdfs:label          "令和３年１２月定例会（第８回）12月21日－04号.pdf";
+        prop:inputFileName  "令和３年１２月定例会（第８回）12月21日－04号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30054>
+        rdf:type            cls:Document;
+        rdfs:label          "20250820 北海道新聞デジタル（再エネ「自然と共生を」　北大教授と釧路市職員がトーク）.pdf";
+        prop:inputFileName  "20250820 北海道新聞デジタル（再エネ「自然と共生を」　北大教授と釧路市職員がトーク）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20044>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）北能代風力発電事業_準備書.pdf";
+        prop:inputFileName  "（仮称）北能代風力発電事業_準備書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10514>
+        rdf:type            cls:Document;
+        rdfs:label          "「米沢の子どもたちに負の影響と遺産を残してはいけない。大人の責任」.pdf";
+        prop:inputFileName  "「米沢の子どもたちに負の影響と遺産を残してはいけない。大人の責任」.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30149>
+        rdf:type            cls:Document;
+        rdfs:label          "釧路市議会議員　大越拓也のブログ：250430 釧路湿原と未来のために：大規模太陽光発電計画に対する要望書を提出.pdf";
+        prop:inputFileName  "釧路市議会議員　大越拓也のブログ：250430 釧路湿原と未来のために：大規模太陽光発電計画に対する要望書を提出.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10134>
+        rdf:type            cls:Document;
+        rdfs:label          "平成３１年３月定例会（第１回）02月28日－02号.pdf";
+        prop:inputFileName  "平成３１年３月定例会（第１回）02月28日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10006>
+        rdf:type            cls:Document;
+        rdfs:label          "31th_gijiroku.pdf";
+        prop:inputFileName  "31th_gijiroku.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10193>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　５年　　３月　定例会（第２回）  03月01日－03号.pdf";
+        prop:inputFileName  "酒田市  令和　５年　　３月　定例会（第２回）  03月01日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40013>
+        rdf:type            cls:Document;
+        rdfs:label          "20230403_事業者説明会・勉強会の予定表公開.pdf";
+        prop:inputFileName  "20230403_事業者説明会・勉強会の予定表公開.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30003>
+        rdf:type            cls:Document;
+        rdfs:label          "20191219 ニュースリリース：北海道松前町と東急不動産 風力発電事業と地域活性化に関する協定書を締結.pdf";
+        prop:inputFileName  "20191219 ニュースリリース：北海道松前町と東急不動産 風力発電事業と地域活性化に関する協定書を締結.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10211>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　３年　　９月　定例会  09月02日－02号.txt";
+        prop:inputFileName  "鶴岡市  令和　　３年　　９月　定例会  09月02日－02号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10065>
+        rdf:type            cls:Document;
+        rdfs:label          "令和３年６月定例会（第４回）06月23日－05号.pdf";
+        prop:inputFileName  "令和３年６月定例会（第４回）06月23日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30062>
+        rdf:type            cls:Document;
+        rdfs:label          "20250908 朝日新聞（現場へ！逆風 風力発電（１）再エネと地域共生どうなる　「そんなに必要なら東京に風車つくれば」）.pdf";
+        prop:inputFileName  "20250908 朝日新聞（現場へ！逆風 風力発電（１）再エネと地域共生どうなる　「そんなに必要なら東京に風車つくれば」）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20052>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）秋田洋上風力発電事業_配慮書.pdf";
+        prop:inputFileName  "（仮称）秋田洋上風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10522>
+        rdf:type            cls:Document;
+        rdfs:label          "今回のJR東日本エネルギー開発の巨大風車建設の取りやめが歌になっていました.pdf";
+        prop:inputFileName  "今回のJR東日本エネルギー開発の巨大風車建設の取りやめが歌になっていました.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10142>
+        rdf:type            cls:Document;
+        rdfs:label          "第５２９回遊佐町議会定例会（平成３１年３月５日開会）議事日程第３号.pdf";
+        prop:inputFileName  "第５２９回遊佐町議会定例会（平成３１年３月５日開会）議事日程第３号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30029>
+        rdf:type            cls:Document;
+        rdfs:label          "20240422 令和6年4月22日知事意見　法84_方法書_知事_(仮称)古平・余市ウィンドファーム事業.pdf";
+        prop:inputFileName  "20240422 令和6年4月22日知事意見　法84_方法書_知事_(仮称)古平・余市ウィンドファーム事業.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20019>
+        rdf:type            cls:Document;
+        rdfs:label          "由利大内ウィンドファーム風力発電事業_配慮書知事意見.pdf";
+        prop:inputFileName  "由利大内ウィンドファーム風力発電事業_配慮書知事意見.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10014>
+        rdf:type            cls:Document;
+        rdfs:label          "36th_siryou1.pdf";
+        prop:inputFileName  "36th_siryou1.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40021>
+        rdf:type            cls:Document;
+        rdfs:label          "20230423_武田恵世先生勉強会.pdf";
+        prop:inputFileName  "20230423_武田恵世先生勉強会.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30011>
+        rdf:type            cls:Document;
+        rdfs:label          "20220704 北海道松前町教育委員会との協定書の締結について ～再生可能エネルギーと共に歩む街づくりに向けて～（東急不動産ウェブサイト）.pdf";
+        prop:inputFileName  "20220704 北海道松前町教育委員会との協定書の締結について ～再生可能エネルギーと共に歩む街づくりに向けて～（東急不動産ウェブサイト）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20001>
+        rdf:type            cls:Document;
+        rdfs:label          "H300712_（仮称）西目風力発電事業更新計画（配慮書）.pdf";
+        prop:inputFileName  "H300712_（仮称）西目風力発電事業更新計画（配慮書）.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30088>
+        rdf:type            cls:Document;
+        rdfs:label          "20251030 北海道新聞デジタル（釧路湿原国立公園を拡張へ　環境省が検討　メガソーラー建設抑止で）.pdf";
+        prop:inputFileName  "20251030 北海道新聞デジタル（釧路湿原国立公園を拡張へ　環境省が検討　メガソーラー建設抑止で）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10109>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２５年６月定例会（第２回）06月18日－05号.pdf";
+        prop:inputFileName  "平成２５年６月定例会（第２回）06月18日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10073>
+        rdf:type            cls:Document;
+        rdfs:label          "令和４年３月定例会（第１回）03月17日－08号.pdf";
+        prop:inputFileName  "令和４年３月定例会（第１回）03月17日－08号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30106>
+        rdf:type            cls:Document;
+        rdfs:label          "matsumae_iken.pdf";
+        prop:inputFileName  "matsumae_iken.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30070>
+        rdf:type            cls:Document;
+        rdfs:label          "20250911 北海道新聞デジタル（国立公園隣接地のメガソーラーに規制を　標茶町、環境省へ法整備要請）.pdf";
+        prop:inputFileName  "20250911 北海道新聞デジタル（国立公園隣接地のメガソーラーに規制を　標茶町、環境省へ法整備要請）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20060>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）能代山本広域風力発電事業_方法書.pdf";
+        prop:inputFileName  "（仮称）能代山本広域風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10548>
+        rdf:type            cls:Document;
+        rdfs:label          "＜栗子山風力発電＞７月２８日、３０日、８月３日、風力発電学習会を開催します.pdf";
+        prop:inputFileName  "＜栗子山風力発電＞７月２８日、３０日、８月３日、風力発電学習会を開催します.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10168>
+        rdf:type            cls:Document;
+        rdfs:label          "第５６８回遊佐町議会定例会（令和５年９月５日開会）議事日程第5号（1）.pdf";
+        prop:inputFileName  "第５６８回遊佐町議会定例会（令和５年９月５日開会）議事日程第5号（1）.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10530>
+        rdf:type            cls:Document;
+        rdfs:label          "第３回風力発電学習会を西部コミセンで行いました。そのアンケート結果です.pdf";
+        prop:inputFileName  "第３回風力発電学習会を西部コミセンで行いました。そのアンケート結果です.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10150>
+        rdf:type            cls:Document;
+        rdfs:label          "第５４9回遊佐町議会定例会（令和３年9月7日開会）議事日程第２号.pdf";
+        prop:inputFileName  "第５４9回遊佐町議会定例会（令和３年9月7日開会）議事日程第２号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30037>
+        rdf:type            cls:Document;
+        rdfs:label          "20250211 北海道新聞 道南版（「松前再エネ電力」4月設立　町と東急不動産　32年売電開始　町内に安く提供目指す）.pdf";
+        prop:inputFileName  "20250211 北海道新聞 道南版（「松前再エネ電力」4月設立　町と東急不動産　32年売電開始　町内に安く提供目指す）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20027>
+        rdf:type            cls:Document;
+        rdfs:label          "秋田潟上ウインドファーム風力発電事業＿準備書.pdf";
+        prop:inputFileName  "秋田潟上ウインドファーム風力発電事業＿準備書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10022>
+        rdf:type            cls:Document;
+        rdfs:label          "40siryou2huro_1.pdf";
+        prop:inputFileName  "40siryou2huro_1.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10099>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２４年３月定例会（第１回）03月01日－03号.pdf";
+        prop:inputFileName  "平成２４年３月定例会（第１回）03月01日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30096>
+        rdf:type            cls:Document;
+        rdfs:label          "20251220 北海道新聞デジタル（釧路・大楽毛太陽光、事業者「月内にも着工」　タンチョウ懸念し住民反対）.pdf";
+        prop:inputFileName  "20251220 北海道新聞デジタル（釧路・大楽毛太陽光、事業者「月内にも着工」　タンチョウ懸念し住民反対）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10117>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２７年９月定例会（第６回）09月30日－01号.pdf";
+        prop:inputFileName  "平成２７年９月定例会（第６回）09月30日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10081>
+        rdf:type            cls:Document;
+        rdfs:label          "令和５年９月定例会（第７回）09月29日－01号.pdf";
+        prop:inputFileName  "令和５年９月定例会（第７回）09月29日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30114>
+        rdf:type            cls:Document;
+        rdfs:label          "仁木町議会　令和5年9月　第3回定例会.pdf";
+        prop:inputFileName  "仁木町議会　令和5年9月　第3回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10176>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　３年　　３月　定例会（第２回）  03月02日－03号.pdf";
+        prop:inputFileName  "酒田市  令和　３年　　３月　定例会（第２回）  03月02日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10048>
+        rdf:type            cls:Document;
+        rdfs:label          "令和　４年　　３月　定例会（第１回）  02月28日－02号.pdf";
+        prop:inputFileName  "令和　４年　　３月　定例会（第１回）  02月28日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30045>
+        rdf:type            cls:Document;
+        rdfs:label          "20250528 北海道新聞デジタル（松前沖風力　町民が質疑　町、各地で住民説明会）.pdf";
+        prop:inputFileName  "20250528 北海道新聞デジタル（松前沖風力　町民が質疑　町、各地で住民説明会）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20035>
+        rdf:type            cls:Document;
+        rdfs:label          "能代風力発電所リプレース計画＿準備書.pdf";
+        prop:inputFileName  "能代風力発電所リプレース計画＿準備書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10030>
+        rdf:type            cls:Document;
+        rdfs:label          "jre_h_chijiiken.pdf";
+        prop:inputFileName  "jre_h_chijiiken.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10505>
+        rdf:type            cls:Document;
+        rdfs:label          "JR東日本エネルギー開発、栗子山風力発電計画断念.pdf";
+        prop:inputFileName  "JR東日本エネルギー開発、栗子山風力発電計画断念.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10125>
+        rdf:type            cls:Document;
+        rdfs:label          "平成３０年　１２月　定例会（第５回）  12月17日－03号.pdf";
+        prop:inputFileName  "平成３０年　１２月　定例会（第５回）  12月17日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30122>
+        rdf:type            cls:Document;
+        rdfs:label          "令和4年6月　第2回定例会.pdf";
+        prop:inputFileName  "令和4年6月　第2回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10184>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　３年　１２月　定例会（第８回）  12月21日－04号.pdf";
+        prop:inputFileName  "酒田市  令和　３年　１２月　定例会（第８回）  12月21日－04号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40004>
+        rdf:type            cls:Document;
+        rdfs:label          "04追加質問への回答.pdf";
+        prop:inputFileName  "04追加質問への回答.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10202>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　６年　　６月　定例議会（第２回）  06月18日－06号.pdf";
+        prop:inputFileName  "酒田市  令和　６年　　６月　定例議会（第２回）  06月18日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10056>
+        rdf:type            cls:Document;
+        rdfs:label          "令和２年９月定例会（第５回）09月17日－05号.pdf";
+        prop:inputFileName  "令和２年９月定例会（第５回）09月17日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30053>
+        rdf:type            cls:Document;
+        rdfs:label          "20250818 北海道新聞デジタル（再エネ電力、松前町民と共に　会社創立記念しイベント）.pdf";
+        prop:inputFileName  "20250818 北海道新聞デジタル（再エネ電力、松前町民と共に　会社創立記念しイベント）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20043>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）八竜風力発電所更新計画に係る計画段階環境配慮書に対する知事意見.pdf";
+        prop:inputFileName  "（仮称）八竜風力発電所更新計画に係る計画段階環境配慮書に対する知事意見.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10513>
+        rdf:type            cls:Document;
+        rdfs:label          "「皆さん、JRグループに抗議の声を上げてください！」.pdf";
+        prop:inputFileName  "「皆さん、JRグループに抗議の声を上げてください！」.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10133>
+        rdf:type            cls:Document;
+        rdfs:label          "平成３０年９月定例会（第４回）08月30日－01号.pdf";
+        prop:inputFileName  "平成３０年９月定例会（第４回）08月30日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30130>
+        rdf:type            cls:Document;
+        rdfs:label          "令和元年12月　第4回定例会.pdf";
+        prop:inputFileName  "令和元年12月　第4回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10005>
+        rdf:type            cls:Document;
+        rdfs:label          "220616_jresakata_gaiyo.pdf";
+        prop:inputFileName  "220616_jresakata_gaiyo.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10192>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　５年　　３月　定例会（第２回）  02月27日－02号.pdf";
+        prop:inputFileName  "酒田市  令和　５年　　３月　定例会（第２回）  02月27日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40012>
+        rdf:type            cls:Document;
+        rdfs:label          "20230402_赤尾交流センターで勉強会開催.pdf";
+        prop:inputFileName  "20230402_赤尾交流センターで勉強会開催.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30002>
+        rdf:type            cls:Document;
+        rdfs:label          "20190716 メガソーラービジネス（北海道初の「蓄電池併設型」、松前で国内最大風車が稼働）.pdf";
+        prop:inputFileName  "20190716 メガソーラービジネス（北海道初の「蓄電池併設型」、松前で国内最大風車が稼働）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10210>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　２年　１２月　定例会  12月03日－02号.txt";
+        prop:inputFileName  "鶴岡市  令和　　２年　１２月　定例会  12月03日－02号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30079>
+        rdf:type            cls:Document;
+        rdfs:label          "20251010 北海道新聞デジタル（釧路湿原メガソーラー事業者、土壌汚染対策法にも違反か　届け出、半年以上提出せず）.pdf";
+        prop:inputFileName  "20251010 北海道新聞デジタル（釧路湿原メガソーラー事業者、土壌汚染対策法にも違反か　届け出、半年以上提出せず）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10064>
+        rdf:type            cls:Document;
+        rdfs:label          "令和３年６月定例会（第４回）06月22日－04号.pdf";
+        prop:inputFileName  "令和３年６月定例会（第４回）06月22日－04号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30061>
+        rdf:type            cls:Document;
+        rdfs:label          "20250901 北海道新聞デジタル（釧路市長、環境省職員と意見交換　湿原周辺にメガソーラー計画　法改正求める）.pdf";
+        prop:inputFileName  "20250901 北海道新聞デジタル（釧路市長、環境省職員と意見交換　湿原周辺にメガソーラー計画　法改正求める）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20051>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）秋田洋上風力発電事業_方法書.pdf";
+        prop:inputFileName  "（仮称）秋田洋上風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10539>
+        rdf:type            cls:Document;
+        rdfs:label          "＜栗子山風力発電＞どのくらいの規模が対象事業実施区域か、面積は約２６０ヘクタール。一目でわかる、米沢市との比較.pdf";
+        prop:inputFileName  "＜栗子山風力発電＞どのくらいの規模が対象事業実施区域か、面積は約２６０ヘクタール。一目でわかる、米沢市との比較.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10159>
+        rdf:type            cls:Document;
+        rdfs:label          "第５５７回遊佐町議会定例会（令和４年６月７日開会）議事日程第１号.pdf";
+        prop:inputFileName  "第５５７回遊佐町議会定例会（令和４年６月７日開会）議事日程第１号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10521>
+        rdf:type            cls:Document;
+        rdfs:label          "事業計画地の美しい自然と無届けの破壊.pdf";
+        prop:inputFileName  "事業計画地の美しい自然と無届けの破壊.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30156>
+        rdf:type            cls:Document;
+        rdfs:label          "（道環境影響評価対象案件）法84_（仮称）古平・余市ウィンドファーム事業.pdf";
+        prop:inputFileName  "（道環境影響評価対象案件）法84_（仮称）古平・余市ウィンドファーム事業.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10141>
+        rdf:type            cls:Document;
+        rdfs:label          "第５5２回遊佐町議会定例会（令和３年１２月７日開会）議事日程第２号.pdf";
+        prop:inputFileName  "第５5２回遊佐町議会定例会（令和３年１２月７日開会）議事日程第２号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30028>
+        rdf:type            cls:Document;
+        rdfs:label          "20240407 毎日新聞（市民団体　釧路市長へ回答求め　太陽光事業で質問書）.pdf";
+        prop:inputFileName  "20240407 毎日新聞（市民団体　釧路市長へ回答求め　太陽光事業で質問書）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20018>
+        rdf:type            cls:Document;
+        rdfs:label          "由利大内ウィンドファーム風力発電事業_準備書知事意見.pdf";
+        prop:inputFileName  "由利大内ウィンドファーム風力発電事業_準備書知事意見.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10013>
+        rdf:type            cls:Document;
+        rdfs:label          "36th_sidai.pdf";
+        prop:inputFileName  "36th_sidai.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40020>
+        rdf:type            cls:Document;
+        rdfs:label          "20230423_2勉強会資料の資料配布.pdf";
+        prop:inputFileName  "20230423_2勉強会資料の資料配布.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30010>
+        rdf:type            cls:Document;
+        rdfs:label          "20220704 ニュースリリース：北海道松前町教育委員会との協定書の締結について ～再生可能エネルギーと共に歩む街づくりに向けて～.pdf";
+        prop:inputFileName  "20220704 ニュースリリース：北海道松前町教育委員会との協定書の締結について ～再生可能エネルギーと共に歩む街づくりに向けて～.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30087>
+        rdf:type            cls:Document;
+        rdfs:label          "20251028 北海道新聞デジタル（釧路湿原太陽光の盛り土工事、北海道に再調査要請を　市長に市議）.pdf";
+        prop:inputFileName  "20251028 北海道新聞デジタル（釧路湿原太陽光の盛り土工事、北海道に再調査要請を　市長に市議）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10108>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２５年３月定例会（第１回）03月14日－07号.pdf";
+        prop:inputFileName  "平成２５年３月定例会（第１回）03月14日－07号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10072>
+        rdf:type            cls:Document;
+        rdfs:label          "令和４年３月定例会（第１回）03月15日－07号.pdf";
+        prop:inputFileName  "令和４年３月定例会（第１回）03月15日－07号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10547>
+        rdf:type            cls:Document;
+        rdfs:label          "＜栗子山風力発電＞７月１５日（月）、≪風力発電≫学習会を開催します.pdf";
+        prop:inputFileName  "＜栗子山風力発電＞７月１５日（月）、≪風力発電≫学習会を開催します.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10167>
+        rdf:type            cls:Document;
+        rdfs:label          "第５６６回遊佐町議会定例会（令和５年５月２９日開会）議事日程第３号（２）.pdf";
+        prop:inputFileName  "第５６６回遊佐町議会定例会（令和５年５月２９日開会）議事日程第３号（２）.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10039>
+        rdf:type            cls:Document;
+        rdfs:label          "sakatashifuryokuhouhouiken.pdf";
+        prop:inputFileName  "sakatashifuryokuhouhouiken.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30036>
+        rdf:type            cls:Document;
+        rdfs:label          "20250120 北海道新聞デジタル（松前沖の風車　VRで景観紹介　町、建設前に専用サイト開設）.pdf";
+        prop:inputFileName  "20250120 北海道新聞デジタル（松前沖の風車　VRで景観紹介　町、建設前に専用サイト開設）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20026>
+        rdf:type            cls:Document;
+        rdfs:label          "秋田潟上ウインドファーム風力発電事業_配慮書.pdf";
+        prop:inputFileName  "秋田潟上ウインドファーム風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10021>
+        rdf:type            cls:Document;
+        rdfs:label          "40siryou1gaiyou_1.pdf";
+        prop:inputFileName  "40siryou1gaiyou_1.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10098>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２４年１２月定例会（第７回）12月13日－06号.pdf";
+        prop:inputFileName  "平成２４年１２月定例会（第７回）12月13日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30095>
+        rdf:type            cls:Document;
+        rdfs:label          "20251218 北海道新聞デジタル（釧路出資の再エネ会社を　市の協議会初会合　太陽光促進候補地も示す）.pdf";
+        prop:inputFileName  "20251218 北海道新聞デジタル（釧路出資の再エネ会社を　市の協議会初会合　太陽光促進候補地も示す）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10116>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２７年３月定例会（第１回）02月24日－02号.pdf";
+        prop:inputFileName  "平成２７年３月定例会（第１回）02月24日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10080>
+        rdf:type            cls:Document;
+        rdfs:label          "令和５年３月定例会（第２回）03月01日－03号.pdf";
+        prop:inputFileName  "令和５年３月定例会（第２回）03月01日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30113>
+        rdf:type            cls:Document;
+        rdfs:label          "仁木町議会　令和5年3月　第1回定例会（3日目）.pdf";
+        prop:inputFileName  "仁木町議会　令和5年3月　第1回定例会（3日目）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10175>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　２年　　９月　定例会（第５回）  09月17日－05号.pdf";
+        prop:inputFileName  "酒田市  令和　２年　　９月　定例会（第５回）  09月17日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10047>
+        rdf:type            cls:Document;
+        rdfs:label          "令和　３年　　３月　定例会（第２回）  03月19日－07号.pdf";
+        prop:inputFileName  "令和　３年　　３月　定例会（第２回）  03月19日－07号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30044>
+        rdf:type            cls:Document;
+        rdfs:label          "20250525 朝日新聞デジタル（釧路湿原の太陽光発電　事業者が中止意向　オジロワシ営巣影響回避）.pdf";
+        prop:inputFileName  "20250525 朝日新聞デジタル（釧路湿原の太陽光発電　事業者が中止意向　オジロワシ営巣影響回避）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20034>
+        rdf:type            cls:Document;
+        rdfs:label          "能代風力発電所リプレース計画＿方法書.pdf";
+        prop:inputFileName  "能代風力発電所リプレース計画＿方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+kg:documentType_Other
+        rdf:type    cls:DocumentType;
+        rdfs:label  "その他"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10504>
+        rdf:type            cls:Document;
+        rdfs:label          "2日間のJR東日本エネルギー開発の説明会が終わりました.pdf";
+        prop:inputFileName  "2日間のJR東日本エネルギー開発の説明会が終わりました.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30139>
+        rdf:type            cls:Document;
+        rdfs:label          "松前町スマート・シュリンクＳＸビジョン.pdf";
+        prop:inputFileName  "松前町スマート・シュリンクＳＸビジョン.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10124>
+        rdf:type            cls:Document;
+        rdfs:label          "平成３０年　１２月　定例会（第５回）  12月11日－02号.pdf";
+        prop:inputFileName  "平成３０年　１２月　定例会（第５回）  12月11日－02号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30121>
+        rdf:type            cls:Document;
+        rdfs:label          "令和4年3月　第1回定例会.pdf";
+        prop:inputFileName  "令和4年3月　第1回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10219>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　５年　　９月　定例会  09月11日－04号.txt";
+        prop:inputFileName  "鶴岡市  令和　　５年　　９月　定例会  09月11日－04号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10183>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　３年　　９月　定例会（第６回）  09月16日－05号.pdf";
+        prop:inputFileName  "酒田市  令和　３年　　９月　定例会（第６回）  09月16日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40003>
+        rdf:type            cls:Document;
+        rdfs:label          "03追加質問.pdf";
+        prop:inputFileName  "03追加質問.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10201>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　６年　　６月　定例議会（第２回）  06月17日－05号.pdf";
+        prop:inputFileName  "酒田市  令和　６年　　６月　定例議会（第２回）  06月17日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10055>
+        rdf:type            cls:Document;
+        rdfs:label          "令和２年６月定例会（第３回）06月05日－01号.pdf";
+        prop:inputFileName  "令和２年６月定例会（第３回）06月05日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30052>
+        rdf:type            cls:Document;
+        rdfs:label          "20250815 北海道新聞デジタル（太陽光発電所による住宅の浸水懸念　予定地隣接の住民、釧路市長に要望）.pdf";
+        prop:inputFileName  "20250815 北海道新聞デジタル（太陽光発電所による住宅の浸水懸念　予定地隣接の住民、釧路市長に要望）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20042>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）八竜風力発電所更新計画に係る環境影響評価方法書に対する知事意見.pdf";
+        prop:inputFileName  "（仮称）八竜風力発電所更新計画に係る環境影響評価方法書に対する知事意見.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10512>
+        rdf:type            cls:Document;
+        rdfs:label          "yamagataWeb-files.tsv";
+        prop:inputFileName  "yamagataWeb-files.tsv";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30147>
+        rdf:type            cls:Document;
+        rdfs:label          "釧路市ホームページ：20251001 釧路市自然と太陽光発電施設の調和に関する条例.pdf";
+        prop:inputFileName  "釧路市ホームページ：20251001 釧路市自然と太陽光発電施設の調和に関する条例.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10132>
+        rdf:type            cls:Document;
+        rdfs:label          "平成３０年６月定例会（第３回）06月13日－03号.pdf";
+        prop:inputFileName  "平成３０年６月定例会（第３回）06月13日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40029>
+        rdf:type            cls:Document;
+        rdfs:label          "20230606_安来市議会へ反対陳情提出.pdf";
+        prop:inputFileName  "20230606_安来市議会へ反対陳情提出.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30019>
+        rdf:type            cls:Document;
+        rdfs:label          "20230602 東洋経済オンライン（北海道｢釧路湿原｣侵食するソーラーパネルの深刻 天然記念物も生息する日本最大の湿原に異変）.pdf";
+        prop:inputFileName  "20230602 東洋経済オンライン（北海道｢釧路湿原｣侵食するソーラーパネルの深刻 天然記念物も生息する日本最大の湿原に異変）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20009>
+        rdf:type            cls:Document;
+        rdfs:label          "八峰風力発電所_準備書.pdf";
+        prop:inputFileName  "八峰風力発電所_準備書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10004>
+        rdf:type            cls:Document;
+        rdfs:label          "220616_jresakata_furo.pdf";
+        prop:inputFileName  "220616_jresakata_furo.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10191>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　４年　１２月　定例会（第７回）  12月14日－05号.pdf";
+        prop:inputFileName  "酒田市  令和　４年　１２月　定例会（第７回）  12月14日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40011>
+        rdf:type            cls:Document;
+        rdfs:label          "20230401_公開質問状を提出.pdf";
+        prop:inputFileName  "20230401_公開質問状を提出.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30001>
+        rdf:type            cls:Document;
+        rdfs:label          "200703 （仮称）北海道小樽余市風力発電所計画段階環境配慮書に係る知事意見.pdf";
+        prop:inputFileName  "200703 （仮称）北海道小樽余市風力発電所計画段階環境配慮書に係る知事意見.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30078>
+        rdf:type            cls:Document;
+        rdfs:label          "20251001 北海道新聞デジタル（釧路市、メガソーラー許可制に　規制条例が施行　市長「建設の歯止めに」）.pdf";
+        prop:inputFileName  "20251001 北海道新聞デジタル（釧路市、メガソーラー許可制に　規制条例が施行　市長「建設の歯止めに」）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10063>
+        rdf:type            cls:Document;
+        rdfs:label          "令和３年３月定例会（第２回）03月19日－07号.pdf";
+        prop:inputFileName  "令和３年３月定例会（第２回）03月19日－07号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30060>
+        rdf:type            cls:Document;
+        rdfs:label          "20250829 北海道新聞デジタル（釧路湿原周辺のメガソーラー計画　環境省が職員派遣　対応策を検討）.pdf";
+        prop:inputFileName  "20250829 北海道新聞デジタル（釧路湿原周辺のメガソーラー計画　環境省が職員派遣　対応策を検討）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20050>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）男鹿市、潟上市及び秋田市沖洋上風力発電事業_配慮書.pdf";
+        prop:inputFileName  "（仮称）男鹿市、潟上市及び秋田市沖洋上風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10538>
+        rdf:type            cls:Document;
+        rdfs:label          "＜栗子山風力発電＞これまでの報道と配布したチラシなど.pdf";
+        prop:inputFileName  "＜栗子山風力発電＞これまでの報道と配布したチラシなど.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10158>
+        rdf:type            cls:Document;
+        rdfs:label          "第５５４回遊佐町議会定例会（令和４年３月３日開会）議事日程第４号.pdf";
+        prop:inputFileName  "第５５４回遊佐町議会定例会（令和４年３月３日開会）議事日程第４号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10520>
+        rdf:type            cls:Document;
+        rdfs:label          "かわら版No.67　（仮称）栗子山風力発電事業が、白紙撤回に至るまで【記録・保存版】｜さのようへい／佐野洋平　「かわら版」.pdf";
+        prop:inputFileName  "かわら版No.67　（仮称）栗子山風力発電事業が、白紙撤回に至るまで【記録・保存版】｜さのようへい／佐野洋平　「かわら版」.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+kg:documentType_CouncilMinutes
+        rdf:type    cls:DocumentType;
+        rdfs:label  "議会会議録"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30155>
+        rdf:type            cls:Document;
+        rdfs:label          "（道環境影響評価対象案件）法62_（仮称）松前２期風力発電事業.pdf";
+        prop:inputFileName  "（道環境影響評価対象案件）法62_（仮称）松前２期風力発電事業.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+kg:documentType_Publication
+        rdf:type    cls:DocumentType;
+        rdfs:label  "広報・刊行物"@ja .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10140>
+        rdf:type            cls:Document;
+        rdfs:label          "第５5２回遊佐町議会定例会（令和３年１２月７日開会）議事日程第１号.pdf";
+        prop:inputFileName  "第５5２回遊佐町議会定例会（令和３年１２月７日開会）議事日程第１号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30027>
+        rdf:type            cls:Document;
+        rdfs:label          "20240402 北海道新聞（太陽光発電の建設規制へ　釧路市、年度内にも条例制定）.pdf";
+        prop:inputFileName  "20240402 北海道新聞（太陽光発電の建設規制へ　釧路市、年度内にも条例制定）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20017>
+        rdf:type            cls:Document;
+        rdfs:label          "由利大内ウィンドファーム風力発電事業_方法書知事意見.pdf";
+        prop:inputFileName  "由利大内ウィンドファーム風力発電事業_方法書知事意見.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10012>
+        rdf:type            cls:Document;
+        rdfs:label          "36th_gijiroku.pdf";
+        prop:inputFileName  "36th_gijiroku.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10089>
+        rdf:type            cls:Document;
+        rdfs:label          "平成１８年９月定例会（第４回）09月21日－06号.pdf";
+        prop:inputFileName  "平成１８年９月定例会（第４回）09月21日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30086>
+        rdf:type            cls:Document;
+        rdfs:label          "20251028 北海道新聞デジタル（釧路湿原メガソーラー　北海道、事業者に工事中断継続を指導　土壌調査終了まで）.pdf";
+        prop:inputFileName  "20251028 北海道新聞デジタル（釧路湿原メガソーラー　北海道、事業者に工事中断継続を指導　土壌調査終了まで）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10107>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２５年３月定例会（第１回）03月12日－05号.pdf";
+        prop:inputFileName  "平成２５年３月定例会（第１回）03月12日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10071>
+        rdf:type            cls:Document;
+        rdfs:label          "令和４年３月定例会（第１回）03月02日－03号.pdf";
+        prop:inputFileName  "令和４年３月定例会（第１回）03月02日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30104>
+        rdf:type            cls:Document;
+        rdfs:label          "210318 （仮称）北海道小樽余市風力発電所環境影響評価方法書に係る知事意見.pdf";
+        prop:inputFileName  "210318 （仮称）北海道小樽余市風力発電所環境影響評価方法書に係る知事意見.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10546>
+        rdf:type            cls:Document;
+        rdfs:label          "＜栗子山風力発電＞超低周波音とは？人体における影響とは？本当に体調不良は気のせい？.pdf";
+        prop:inputFileName  "＜栗子山風力発電＞超低周波音とは？人体における影響とは？本当に体調不良は気のせい？.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10166>
+        rdf:type            cls:Document;
+        rdfs:label          "第５６６回遊佐町議会定例会（令和５年５月２９日開会）議事日程第２号.pdf";
+        prop:inputFileName  "第５６６回遊佐町議会定例会（令和５年５月２９日開会）議事日程第２号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10038>
+        rdf:type            cls:Document;
+        rdfs:label          "miyagi_nagare_1.pdf";
+        prop:inputFileName  "miyagi_nagare_1.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30035>
+        rdf:type            cls:Document;
+        rdfs:label          "20240925 北海道新聞デジタル（松前観光　デジタル地図で　松前高生、札幌大生が制作　飲食店取材　お薦めポイント記す）.pdf";
+        prop:inputFileName  "20240925 北海道新聞デジタル（松前観光　デジタル地図で　松前高生、札幌大生が制作　飲食店取材　お薦めポイント記す）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20025>
+        rdf:type            cls:Document;
+        rdfs:label          "秋田潟上ウインドファーム風力発電事業_方法書.pdf";
+        prop:inputFileName  "秋田潟上ウインドファーム風力発電事業_方法書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10020>
+        rdf:type            cls:Document;
+        rdfs:label          "40sidasyussekisya_1.pdf";
+        prop:inputFileName  "40sidasyussekisya_1.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10097>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２４年１２月定例会（第７回）11月30日－01号.pdf";
+        prop:inputFileName  "平成２４年１２月定例会（第７回）11月30日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30094>
+        rdf:type            cls:Document;
+        rdfs:label          "20251211 北海道新聞デジタル（釧路湿原メガソーラー　中止求め署名17万人分　自然保護協会など北海道に提出）.pdf";
+        prop:inputFileName  "20251211 北海道新聞デジタル（釧路湿原メガソーラー　中止求め署名17万人分　自然保護協会など北海道に提出）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10115>
+        rdf:type            cls:Document;
+        rdfs:label          "平成２７年３月定例会（第１回）02月20日－01号.pdf";
+        prop:inputFileName  "平成２７年３月定例会（第１回）02月20日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30112>
+        rdf:type            cls:Document;
+        rdfs:label          "仁木町議会　令和5年12月　第4回定例会.pdf";
+        prop:inputFileName  "仁木町議会　令和5年12月　第4回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10174>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　１年　１２月　定例会（第７回）  12月18日－03号.pdf";
+        prop:inputFileName  "酒田市  令和　１年　１２月　定例会（第７回）  12月18日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10046>
+        rdf:type            cls:Document;
+        rdfs:label          "令和　２年　　３月　定例会（第１回）  03月17日－06号.pdf";
+        prop:inputFileName  "令和　２年　　３月　定例会（第１回）  03月17日－06号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30043>
+        rdf:type            cls:Document;
+        rdfs:label          "20250428 北海道新聞デジタル（釧路湿原周辺メガソーラー　市民団体など見直し要望）.pdf";
+        prop:inputFileName  "20250428 北海道新聞デジタル（釧路湿原周辺メガソーラー　市民団体など見直し要望）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20033>
+        rdf:type            cls:Document;
+        rdfs:label          "能代港洋上風力発電事業_配慮書.pdf";
+        prop:inputFileName  "能代港洋上風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/YamagataWeb/10503>
+        rdf:type            cls:Document;
+        rdfs:label          "(仮称）栗子山風力発電事業の山形県環境影響評価審査会（環境影響評価準備書）を傍聴してきました.pdf";
+        prop:inputFileName  "(仮称）栗子山風力発電事業の山形県環境影響評価審査会（環境影響評価準備書）を傍聴してきました.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30138>
+        rdf:type            cls:Document;
+        rdfs:label          "広報まつまえ2021年11月号_10.pdf";
+        prop:inputFileName  "広報まつまえ2021年11月号_10.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10123>
+        rdf:type            cls:Document;
+        rdfs:label          "平成３０年　１２月　定例会（第５回）  12月07日－01号.pdf";
+        prop:inputFileName  "平成３０年　１２月　定例会（第５回）  12月07日－01号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30120>
+        rdf:type            cls:Document;
+        rdfs:label          "令和3年6月　第2回定例会.pdf";
+        prop:inputFileName  "令和3年6月　第2回定例会.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10218>
+        rdf:type            cls:Document;
+        rdfs:label          "鶴岡市  令和　　５年　　６月　定例会  06月30日－06号.txt";
+        prop:inputFileName  "鶴岡市  令和　　５年　　６月　定例会  06月30日－06号.txt";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10182>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　３年　　９月　定例会（第６回）  09月15日－04号.pdf";
+        prop:inputFileName  "酒田市  令和　３年　　９月　定例会（第６回）  09月15日－04号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/40002>
+        rdf:type            cls:Document;
+        rdfs:label          "02公開質問状への回答.pdf";
+        prop:inputFileName  "02公開質問状への回答.pdf";
+        prop:prefecture     kg:prefecture_Shimane .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10200>
+        rdf:type            cls:Document;
+        rdfs:label          "酒田市  令和　６年　　３月　定例会（第２回）  02月29日－03号.pdf";
+        prop:inputFileName  "酒田市  令和　６年　　３月　定例会（第２回）  02月29日－03号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30069>
+        rdf:type            cls:Document;
+        rdfs:label          "20250911 北海道新聞デジタル（タンチョウ舞う景観守れ　鶴居村が寄付金受け付け開始　太陽光発電所計画浮上の民有地購入に活用）.pdf";
+        prop:inputFileName  "20250911 北海道新聞デジタル（タンチョウ舞う景観守れ　鶴居村が寄付金受け付け開始　太陽光発電所計画浮上の民有地購入に活用）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
+
+<https://kozaki-lab.jp/REFV-KG/docs/20059>
+        rdf:type            cls:Document;
+        rdfs:label          "（仮称）能代・三種・男鹿沖洋上風力発電事業_配慮書.pdf";
+        prop:inputFileName  "（仮称）能代・三種・男鹿沖洋上風力発電事業_配慮書.pdf";
+        prop:prefecture     kg:prefecture_Akita .
+
+<https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10054>
+        rdf:type            cls:Document;
+        rdfs:label          "令和２年３月定例会（第１回）03月13日－05号.pdf";
+        prop:inputFileName  "令和２年３月定例会（第１回）03月13日－05号.pdf";
+        prop:prefecture     kg:prefecture_Yamagata .
+
+<https://kozaki-lab.jp/REFV-KG/docs/30051>
+        rdf:type            cls:Document;
+        rdfs:label          "20250807 北海道新聞デジタル（松前町の最新求人情報、LINEやHPで　テノハに「JOBステーション」開設）.pdf";
+        prop:inputFileName  "20250807 北海道新聞デジタル（松前町の最新求人情報、LINEやHPで　テノハに「JOBステーション」開設）.pdf";
+        prop:prefecture     kg:prefecture_Hokkaido .
