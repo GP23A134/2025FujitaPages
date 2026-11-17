@@ -61,8 +61,8 @@ public final class ClassDataUpdate {
         Map<String, String> classes = new LinkedHashMap<>();
         Map<String, String> temporaryIds = new LinkedHashMap<>();
         addInputClasses(classes, temporaryIds, input.classes(), existingTargetLabels);
+        validateExistingHierarchyClassesPreserved(classes, existingTargetLabels);
         List<String[]> relations = readRelations(classes, temporaryIds, input.relations());
-        renumberHierarchyIds(classes, relations);
         validateRelationStructure(relations);
         normalizeDirectTargetRelations(classes, relations);
         validateHierarchyAssignments(classes, relations);
@@ -232,6 +232,9 @@ public final class ClassDataUpdate {
         JsonArray addedRelations = requireArray(patch, "addRelations");
         JsonArray movedChildren = requireArray(patch, "moveChildren");
         JsonArray removedClasses = requireArray(patch, "removeClasses");
+        if (!removedClasses.isEmpty()) {
+            throw new IOException("既存の上位・中間クラスは削除できません。removeClassesは空配列にしてください。");
+        }
 
         Set<String> upperLabels = new HashSet<>();
         Set<String> addedOrRenamedMiddleLabels = new HashSet<>();
@@ -450,6 +453,20 @@ public final class ClassDataUpdate {
         }
     }
 
+    /** 全件入力でも既存の上位・中間クラスIDを欠落させないようにします。 */
+    private static void validateExistingHierarchyClassesPreserved(Map<String, String> classes,
+            Map<String, String> targetLabels) throws IOException {
+        List<String[]> existingClasses = new ArrayList<>();
+        List<String[]> ignoredRelations = new ArrayList<>();
+        readCurrentClassData(existingClasses, ignoredRelations, targetLabels);
+        for (String[] row : existingClasses) {
+            if (!"class".equals(row[0]) && !classes.containsKey(normalizeId(row[1]))) {
+                throw new IOException("既存の上位・中間クラスを削除できません: " + row[1]
+                        + " 「" + row[2] + "」。入力にクラスを残してください。");
+            }
+        }
+    }
+
     private static JsonArray requireArray(JsonObject root, String name) throws IOException {
         if (!root.has(name) || !root.get(name).isJsonArray()) {
             throw new IOException("入力JSONに配列 '" + name + "' が必要です。");
@@ -571,40 +588,6 @@ public final class ClassDataUpdate {
             if (!child.startsWith(URI_PREFIX + "c_")) return false;
             return !assignedTargets.add(child);
         });
-    }
-
-    /** 上位・中間クラスのIDを連番に揃え、親子関係の参照も同時に更新します。 */
-    private static void renumberHierarchyIds(Map<String, String> classes, List<String[]> relations) {
-        Map<String, String> replacements = new LinkedHashMap<>();
-        for (String prefix : List.of("t_", "m_")) {
-            List<String> ids = classes.keySet().stream()
-                    .filter(id -> id.startsWith(URI_PREFIX + prefix))
-                    .sorted((left, right) -> Integer.compare(
-                            numericSuffix(left, prefix), numericSuffix(right, prefix)))
-                    .toList();
-            int next = 1;
-            for (String id : ids) {
-                if ("t_".equals(prefix) && numericSuffix(id, prefix) == 0) {
-                    replacements.put(id, id);
-                } else {
-                    replacements.put(id, URI_PREFIX + prefix + next++);
-                }
-            }
-        }
-
-        Map<String, String> renumberedClasses = new LinkedHashMap<>();
-        classes.forEach((id, label) -> renumberedClasses.put(replacements.getOrDefault(id, id), label));
-        classes.clear();
-        classes.putAll(renumberedClasses);
-
-        for (String[] relation : relations) {
-            relation[0] = replacements.getOrDefault(relation[0], relation[0]);
-            relation[1] = replacements.getOrDefault(relation[1], relation[1]);
-        }
-    }
-
-    private static int numericSuffix(String id, String prefix) {
-        return Integer.parseInt(id.substring((URI_PREFIX + prefix).length()));
     }
 
     /**
