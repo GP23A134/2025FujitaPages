@@ -22,6 +22,7 @@ import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.ResourceFactory;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.vocabulary.RDF;
@@ -69,37 +70,43 @@ public final class ConvertClassifiedDocumentsToTurtle {
         if (!Files.isRegularFile(classifiedTsv)) throw new IOException("分類済みTSVがありません: " + classifiedTsv);
 
         Model model = createModel();
-        Set<String> documentIris = new HashSet<>();
-        int count = 0;
-        try (var reader = readerWithoutBom(classifiedTsv);
-                CSVParser parser = CSVParser.parse(reader, TSV)) {
-            requireHeaders(classifiedTsv, parser,
-                    "source_tsv", "graph", "documentIRI", "input_file", "output_file", "prefecture", "資料種別");
-            for (CSVRecord row : parser) {
-                String sourceTsv = required(row, "source_tsv", classifiedTsv);
-                String graph = required(row, "graph", classifiedTsv);
-                String documentIri = required(row, "documentIRI", classifiedTsv);
-                String inputFile = required(row, "input_file", classifiedTsv);
-                String outputFile = required(row, "output_file", classifiedTsv);
-                String prefectureName = required(row, "prefecture", classifiedTsv);
-                String documentTypeName = required(row, "資料種別", classifiedTsv);
+        try {
+            Set<String> documentIris = new HashSet<>();
+            int count = 0;
+            try (var reader = readerWithoutBom(classifiedTsv);
+                    CSVParser parser = CSVParser.parse(reader, TSV)) {
+                requireHeaders(classifiedTsv, parser,
+                        "source_tsv", "graph", "documentIRI", "input_file", "output_file", "prefecture", "資料種別");
+                for (CSVRecord row : parser) {
+                    String sourceTsv = required(row, "source_tsv", classifiedTsv);
+                    String graph = required(row, "graph", classifiedTsv);
+                    String documentIri = required(row, "documentIRI", classifiedTsv);
+                    String inputFile = required(row, "input_file", classifiedTsv);
+                    String outputFile = required(row, "output_file", classifiedTsv);
+                    String prefectureName = required(row, "prefecture", classifiedTsv);
+                    String documentTypeName = required(row, "資料種別", classifiedTsv);
 
-                String prefectureCode = PREFECTURES.get(prefectureName);
-                if (prefectureCode == null) throw rowError(classifiedTsv, row, "未知の都道府県: " + prefectureName);
-                String documentTypeCode = DOCUMENT_TYPES.get(documentTypeName);
-                if (documentTypeCode == null) throw rowError(classifiedTsv, row, "未知の資料種別: " + documentTypeName);
-                validateDocumentIri(sourceTsv, graph, documentIri, outputFile, classifiedTsv, row);
-                if (!documentIris.add(documentIri)) throw rowError(classifiedTsv, row, "文書IRIが重複しています: " + documentIri);
+                    String prefectureCode = PREFECTURES.get(prefectureName);
+                    if (prefectureCode == null) throw rowError(classifiedTsv, row, "未知の都道府県: " + prefectureName);
+                    String documentTypeCode = DOCUMENT_TYPES.get(documentTypeName);
+                    if (documentTypeCode == null) throw rowError(classifiedTsv, row, "未知の資料種別: " + documentTypeName);
+                    validateDocumentIri(sourceTsv, graph, documentIri, outputFile, classifiedTsv, row);
+                    if (!documentIris.add(documentIri)) {
+                        throw rowError(classifiedTsv, row, "文書IRIが重複しています: " + documentIri);
+                    }
 
-                addDocument(model, documentIri, inputFile, prefectureCode, documentTypeCode);
-                count++;
+                    addDocument(model, documentIri, inputFile, prefectureCode, documentTypeCode);
+                    count++;
+                }
             }
+            if (count == 0) throw new IOException("分類済みTSVにデータ行がありません: " + classifiedTsv);
+            writeTurtle(outputTtl, model);
+            System.out.println("最終Turtle: " + outputTtl.toAbsolutePath());
+            System.out.println("文書件数: " + count);
+            System.out.println("資料種別を含めて出力しました。");
+        } finally {
+            model.close();
         }
-        if (count == 0) throw new IOException("分類済みTSVにデータ行がありません: " + classifiedTsv);
-        writeTurtle(outputTtl, model);
-        System.out.println("最終Turtle: " + outputTtl.toAbsolutePath());
-        System.out.println("文書件数: " + count);
-        System.out.println("資料種別を含めて出力しました。");
     }
 
     private static String sourceKey(String sourceTsv) {
@@ -164,15 +171,6 @@ public final class ConvertClassifiedDocumentsToTurtle {
                 .add(document, INPUT_FILE_PROPERTY, inputFile);
     }
 
-    private static String findHeader(CSVParser parser, String... candidates) {
-        for (String candidate : candidates) {
-            for (String header : parser.getHeaderMap().keySet()) {
-                if (header.trim().replace("\uFEFF", "").equalsIgnoreCase(candidate)) return header;
-            }
-        }
-        return null;
-    }
-
     private static void requireHeaders(Path path, CSVParser parser, String... headers) throws IOException {
         for (String header : headers) {
             if (!parser.getHeaderMap().containsKey(header)) throw new IOException("必要な列がありません: " + path + " / " + header);
@@ -219,11 +217,11 @@ public final class ConvertClassifiedDocumentsToTurtle {
     }
 
     private static Resource resource(String uri) {
-        return ModelFactory.createDefaultModel().createResource(uri);
+        return ResourceFactory.createResource(uri);
     }
 
     private static Property property(String uri) {
-        return ModelFactory.createDefaultModel().createProperty(uri);
+        return ResourceFactory.createProperty(uri);
     }
 
 }

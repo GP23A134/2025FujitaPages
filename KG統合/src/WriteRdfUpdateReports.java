@@ -188,7 +188,7 @@ public final class WriteRdfUpdateReports {
         try {
             try (Writer writer = Files.newBufferedWriter(temporary, StandardCharsets.UTF_8);
                     CSVPrinter printer = new CSVPrinter(writer,
-                            TSV.builder().setHeader(headers).build())) {
+                            TSV.builder().setHeader(headers).get())) {
                 for (String[] row : rows) printer.printRecord((Object[]) row);
             }
             try {

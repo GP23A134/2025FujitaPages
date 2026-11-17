@@ -29,7 +29,7 @@ public final class AddStakeholderTopClassesToRdf {
     private static final Path DEFAULT_INPUT_RDF = Paths.get(
             "input/base-rdf/REV-KG-DEV_kg-data_2026-08-13_13-18-16.nq");
     private static final Path DEFAULT_INPUT_JSON = Paths.get(
-            "input/stakeholders/class-update-20261117-104033-219.json");
+            "input/stakeholders/class-update-20261117-124748-923.json");
     private static final Path DEFAULT_OUTPUT_RDF = Paths.get(
             "input/integration/stakeholders-with-top.nq");
 
@@ -57,22 +57,27 @@ public final class AddStakeholderTopClassesToRdf {
 
         Map<String, String> parents = readParents(inputJson);
         DatasetGraph source = DatasetGraphFactory.createTxnMem();
-        RDFDataMgr.read(source, inputRdf.toUri().toString(), Lang.NQUADS);
         DatasetGraph output = DatasetGraphFactory.createTxnMem();
-        Iterator<Quad> sourceQuads = source.find();
-        while (sourceQuads.hasNext()) output.add(sourceQuads.next());
+        try {
+            RDFDataMgr.read(source, inputRdf.toUri().toString(), Lang.NQUADS);
+            Iterator<Quad> sourceQuads = source.find();
+            while (sourceQuads.hasNext()) output.add(sourceQuads.next());
 
-        addSubclassRelations(output, parents);
-        Set<String> unmapped = new TreeSet<>();
-        long addedTypes = addTopTypes(source, output, parents, unmapped);
-        writeAtomically(outputRdf, output);
-        writeReport(report, unmapped);
+            addSubclassRelations(output, parents);
+            Set<String> unmapped = new TreeSet<>();
+            long addedTypes = addTopTypes(source, output, parents, unmapped);
+            writeAtomically(outputRdf, output);
+            writeReport(report, unmapped);
 
-        System.out.println("加工済みN-Quads: " + outputRdf.toAbsolutePath());
-        System.out.println("ステークホルダー親子関係数: " + parents.size());
-        System.out.println("追加したst_t_ rdf:type数: " + addedTypes);
-        System.out.println("親情報がないst_クラス数: " + unmapped.size());
-        if (!unmapped.isEmpty()) System.out.println("未対応一覧: " + report);
+            System.out.println("加工済みN-Quads: " + outputRdf.toAbsolutePath());
+            System.out.println("ステークホルダー親子関係数: " + parents.size());
+            System.out.println("追加したst_t_ rdf:type数: " + addedTypes);
+            System.out.println("親情報がないst_クラス数: " + unmapped.size());
+            if (!unmapped.isEmpty()) System.out.println("未対応一覧: " + report);
+        } finally {
+            output.close();
+            source.close();
+        }
     }
 
     private static Map<String, String> readParents(Path jsonPath) throws IOException {
@@ -118,6 +123,12 @@ public final class AddStakeholderTopClassesToRdf {
             }
         }
         return parents;
+    }
+
+    static long applyToDataset(DatasetGraph dataset, Path jsonPath, Set<String> unmapped) throws IOException {
+        Map<String, String> parents = readParents(jsonPath);
+        addSubclassRelations(dataset, parents);
+        return addTopTypes(dataset, dataset, parents, unmapped);
     }
 
     private static void addSubclassRelations(DatasetGraph output, Map<String, String> parents) {

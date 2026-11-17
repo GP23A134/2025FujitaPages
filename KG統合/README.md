@@ -27,7 +27,7 @@ KG統合/
 │     ├─ documents-classified.tsv（分類後に保存）
 │     └─ documents.ttl（最終RDF）
 ├─ output/classes/        対象クラス階層の処理結果
-├─ output/REV-KG-DEV_kg-data_2026-08-13_13-18-16_integrated.nq
+├─ output/REV-KG-DEV_kg-data_2026-11-17_12-55-01_integrated.nq
 │                         3処理結果を統合したN-Quads
 ├─ output/reports/        クラス・資料種別ごとの件数TSV
 └─ build/classes/         コンパイル済みクラス（再生成可能）
@@ -102,7 +102,7 @@ java -cp "build/classes;../docs/lib/*" ConvertClassifiedDocumentsToTurtle "input
 
 ## 3処理を一括実行
 
-対象クラス、ステークホルダー、分類済み資料の処理をステージング先で実行し、3つが成功した場合に成果物を反映します。最後に3つのRDF出力を統合し、`output/REV-KG-DEV_kg-data_2026-08-13_13-18-16_integrated.nq`へN-Quadsを作成します。既存の出力先は新しい処理がすべて成功するまで更新しません。
+対象クラス、ステークホルダー、分類済み資料の処理をステージング先で実行し、3つが成功した場合に成果物を反映します。統合N-Quadsは、ベースRDFを一度だけ読み込み、対象クラスとステークホルダーの更新、および資料RDFを同じデータセットに適用して`output/REV-KG-DEV_kg-data_2026-11-17_12-55-01_integrated.nq`へ作成します。既存の出力先は新しい処理がすべて成功するまで更新しません。
 
 入力として、ベースRDF、2つの更新JSON、分類済みTSVが必要です。保存元フォルダー情報は現時点では扱いません。
 
@@ -110,11 +110,86 @@ java -cp "build/classes;../docs/lib/*" ConvertClassifiedDocumentsToTurtle "input
 java -cp "build/classes;../docs/lib/*" RunAllRdfUpdates
 ```
 
-単独で出力を統合する場合は、次のプログラムを使えます。
+統合N-Quadsだけを単独で作成する場合は、次のプログラムを使えます。既定の入力としてベースRDF、2つの更新JSON、`input/integration/documents.ttl`を読み込みます。
 
 ```powershell
 java -cp "build/classes;../docs/lib/*" MergeRdfUpdateOutputs
 ```
+
+## 統合RDFのSPARQLクエリ例
+
+対象ファイルは`output/REV-KG-DEV_kg-data_2026-11-17_12-55-01_integrated.nq`です。元データと追加した型は名前付きグラフにあり、資料一覧のトリプルはデフォルトグラフにあります。したがって、元データを検索するときは`GRAPH`を使い、資料一覧を検索するときはデフォルトグラフのパターンを使います。
+
+### 対象クラス（中間・上位クラス）ごとのリソース数
+
+```sparql
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT ?class (COUNT(DISTINCT ?resource) AS ?count)
+WHERE {
+  GRAPH ?graph {
+    ?resource rdf:type ?class .
+  }
+  FILTER(
+    STRSTARTS(STR(?class), "https://kozaki-lab.jp/REFV-KG/class/m_") ||
+    STRSTARTS(STR(?class), "https://kozaki-lab.jp/REFV-KG/class/t_")
+  )
+}
+GROUP BY ?class
+ORDER BY ?class
+```
+
+### ステークホルダーの上位クラスごとのリソース数
+
+```sparql
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT ?topClass (COUNT(DISTINCT ?resource) AS ?count)
+WHERE {
+  GRAPH ?graph {
+    ?resource rdf:type ?topClass .
+  }
+  FILTER(STRSTARTS(STR(?topClass), "https://kozaki-lab.jp/REFV-KG/class/st_t_"))
+}
+GROUP BY ?topClass
+ORDER BY ?topClass
+```
+
+### 資料一覧と資料種別
+
+資料トリプルはデフォルトグラフにあります。
+
+```sparql
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX cls:  <https://kozaki-lab.jp/REFV-KG/class/>
+PREFIX prop: <https://kozaki-lab.jp/REFV-KG/prop/>
+
+SELECT ?document ?name ?prefecture ?documentType
+WHERE {
+  ?document rdf:type cls:Document ;
+            rdfs:label ?name ;
+            prop:prefecture ?prefecture ;
+            prop:documentType ?documentType .
+}
+ORDER BY ?document
+```
+
+### 階層トリプル
+
+```sparql
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?child ?parent
+WHERE {
+  GRAPH <https://kozaki-lab.jp/REFV-KG/graph/definitions> {
+    ?child rdfs:subClassOf ?parent .
+  }
+}
+ORDER BY ?child ?parent
+```
+
+ステークホルダー階層を調べる場合は、グラフ名を`https://kozaki-lab.jp/REFV-KG/graph/stakeholder-hierarchy`に置き換えます。`sourceFolderPath`は現在の出力には含まれません。
 
 ## RDF更新結果の一覧・件数TSV
 

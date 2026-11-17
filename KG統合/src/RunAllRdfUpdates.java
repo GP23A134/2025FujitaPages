@@ -13,7 +13,7 @@ public final class RunAllRdfUpdates {
     private static final Path TARGET_CLASSES = Paths.get(
             "input/target-classes/class-update-20261117-094934-210.json");
     private static final Path STAKEHOLDERS = Paths.get(
-            "input/stakeholders/class-update-20261117-104033-219.json");
+            "input/stakeholders/class-update-20261117-124748-923.json");
     private static final Path CLASSIFIED_DOCUMENTS = Paths.get(
             "input/integration/documents-classified.tsv");
     private static final Path TARGET_OUTPUT = Paths.get(
@@ -23,7 +23,7 @@ public final class RunAllRdfUpdates {
     private static final Path STAKEHOLDER_UNMAPPED = Paths.get("input/integration/unmapped-stakeholder-classes.txt");
     private static final Path DOCUMENT_OUTPUT = Paths.get("input/integration/documents.ttl");
     private static final Path INTEGRATED_OUTPUT = Paths.get(
-            "output/REV-KG-DEV_kg-data_2026-08-13_13-18-16_integrated.nq");
+            "output/REV-KG-DEV_kg-data_2026-11-17_12-55-01_integrated.nq");
 
     private RunAllRdfUpdates() {}
 
@@ -58,7 +58,7 @@ public final class RunAllRdfUpdates {
                     CLASSIFIED_DOCUMENTS.toString(), documentTtl.toString() });
 
             System.out.println("[4/4] 3つの処理結果をN-Quadsへ統合します。");
-            MergeRdfUpdateOutputs.merge(targetRdf, stakeholderRdf, documentTtl, integratedRdf);
+            MergeRdfUpdateOutputs.merge(BASE_RDF, TARGET_CLASSES, STAKEHOLDERS, documentTtl, integratedRdf);
 
             publish(staging, List.of(
                     new OutputFile(targetRdf, TARGET_OUTPUT),

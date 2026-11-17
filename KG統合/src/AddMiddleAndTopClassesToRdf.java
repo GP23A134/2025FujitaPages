@@ -61,22 +61,27 @@ public final class AddMiddleAndTopClassesToRdf {
 
         Hierarchy hierarchy = readHierarchy(inputHierarchy);
         DatasetGraph source = DatasetGraphFactory.createTxnMem();
-        RDFDataMgr.read(source, inputRdf.toUri().toString(), Lang.NQUADS);
         DatasetGraph result = DatasetGraphFactory.createTxnMem();
-        Iterator<Quad> inputQuads = source.find();
-        while (inputQuads.hasNext()) result.add(inputQuads.next());
+        try {
+            RDFDataMgr.read(source, inputRdf.toUri().toString(), Lang.NQUADS);
+            Iterator<Quad> inputQuads = source.find();
+            while (inputQuads.hasNext()) result.add(inputQuads.next());
 
-        addHierarchyTriples(result, hierarchy);
-        Set<String> unmapped = new java.util.TreeSet<>();
-        long addedTypes = addAncestorTypes(source, result, hierarchy.parents, unmapped);
-        writeAtomically(outputRdf, result);
-        writeUnmappedReport(unmapped, unmappedReport);
+            addHierarchyTriples(result, hierarchy);
+            Set<String> unmapped = new java.util.TreeSet<>();
+            long addedTypes = addAncestorTypes(source, result, hierarchy.parents, unmapped);
+            writeAtomically(outputRdf, result);
+            writeUnmappedReport(unmapped, unmappedReport);
 
-        System.out.println("加工済みN-Quads: " + outputRdf.toAbsolutePath());
-        System.out.println("階層JSONの親子関係数: " + hierarchy.parents.size());
-        System.out.println("追加した中間・上位rdf:type数: " + addedTypes);
-        System.out.println("親情報がないクラス数: " + unmapped.size());
-        if (!unmapped.isEmpty()) System.out.println("未対応一覧: " + unmappedReport);
+            System.out.println("加工済みN-Quads: " + outputRdf.toAbsolutePath());
+            System.out.println("階層JSONの親子関係数: " + hierarchy.parents.size());
+            System.out.println("追加した中間・上位rdf:type数: " + addedTypes);
+            System.out.println("親情報がないクラス数: " + unmapped.size());
+            if (!unmapped.isEmpty()) System.out.println("未対応一覧: " + unmappedReport);
+        } finally {
+            result.close();
+            source.close();
+        }
     }
 
     private static Hierarchy readHierarchy(Path path) throws IOException {
@@ -101,6 +106,13 @@ public final class AddMiddleAndTopClassesToRdf {
         }
         validateAcyclic(parents);
         return new Hierarchy(parents);
+    }
+
+    static long applyToDataset(DatasetGraph dataset, Path hierarchyPath, Set<String> unmapped)
+            throws IOException {
+        Hierarchy hierarchy = readHierarchy(hierarchyPath);
+        addHierarchyTriples(dataset, hierarchy);
+        return addAncestorTypes(dataset, dataset, hierarchy.parents, unmapped);
     }
 
     private static void validateAcyclic(Map<String, String> parents) throws IOException {

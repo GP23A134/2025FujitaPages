@@ -20,6 +20,7 @@ import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.ResourceFactory;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.vocabulary.RDF;
@@ -61,48 +62,52 @@ public final class ConvertDocumentRelationsToTurtle {
         if (!Files.isDirectory(inputDirectory)) throw new IOException("入力フォルダーがありません: " + inputDirectory);
 
         Model model = ModelFactory.createDefaultModel();
-        model.setNsPrefix("rdf", RDF.getURI());
-        model.setNsPrefix("rdfs", RDFS.getURI());
-        model.setNsPrefix("cls", CLS_NS);
-        model.setNsPrefix("prop", PROP_NS);
-        model.setNsPrefix("kg", KG_NS);
-        addVocabulary(model);
+        try {
+            model.setNsPrefix("rdf", RDF.getURI());
+            model.setNsPrefix("rdfs", RDFS.getURI());
+            model.setNsPrefix("cls", CLS_NS);
+            model.setNsPrefix("prop", PROP_NS);
+            model.setNsPrefix("kg", KG_NS);
+            addVocabulary(model);
 
-        Set<String> subjectIris = new HashSet<>();
-        int rowCount = 0;
-        Files.createDirectories(reviewTsv.toAbsolutePath().getParent());
-        try (Writer reviewWriter = Files.newBufferedWriter(reviewTsv, StandardCharsets.UTF_8);
-                CSVPrinter review = new CSVPrinter(reviewWriter, OUTPUT_TSV);
-                var files = Files.list(inputDirectory)) {
-            for (Path tsv : files.filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().endsWith("_relation.tsv"))
-                    .sorted().toList()) {
-                Prefecture prefecture = prefectureFor(tsv.getFileName().toString());
-                try (var reader = Files.newBufferedReader(tsv, StandardCharsets.UTF_8);
-                        CSVParser parser = CSVParser.parse(reader, INPUT_TSV)) {
-                    requireHeaders(tsv, parser);
-                    for (CSVRecord record : parser) {
-                        String inputFile = required(record, "input_file", tsv);
-                        String graph = required(record, "graph", tsv);
-                        String outputFile = required(record, "output_file", tsv);
-                        String documentIri = documentIri(tsv.getFileName().toString(), graph, outputFile);
-                        if (!subjectIris.add(documentIri)) {
-                            throw new IOException("文書IRIが重複しています: " + documentIri);
+            Set<String> subjectIris = new HashSet<>();
+            int rowCount = 0;
+            Files.createDirectories(reviewTsv.toAbsolutePath().getParent());
+            try (Writer reviewWriter = Files.newBufferedWriter(reviewTsv, StandardCharsets.UTF_8);
+                    CSVPrinter review = new CSVPrinter(reviewWriter, OUTPUT_TSV);
+                    var files = Files.list(inputDirectory)) {
+                for (Path tsv : files.filter(Files::isRegularFile)
+                        .filter(path -> path.getFileName().toString().endsWith("_relation.tsv"))
+                        .sorted().toList()) {
+                    Prefecture prefecture = prefectureFor(tsv.getFileName().toString());
+                    try (var reader = Files.newBufferedReader(tsv, StandardCharsets.UTF_8);
+                            CSVParser parser = CSVParser.parse(reader, INPUT_TSV)) {
+                        requireHeaders(tsv, parser);
+                        for (CSVRecord record : parser) {
+                            String inputFile = required(record, "input_file", tsv);
+                            String graph = required(record, "graph", tsv);
+                            String outputFile = required(record, "output_file", tsv);
+                            String documentIri = documentIri(tsv.getFileName().toString(), graph, outputFile);
+                            if (!subjectIris.add(documentIri)) {
+                                throw new IOException("文書IRIが重複しています: " + documentIri);
+                            }
+                            addDocument(model, documentIri, inputFile, prefecture);
+                            review.printRecord(tsv.getFileName(), graph, documentIri, inputFile,
+                                    outputFile, prefecture.japaneseName, "", "", "");
+                            rowCount++;
                         }
-                        addDocument(model, documentIri, inputFile, prefecture);
-                        review.printRecord(tsv.getFileName(), graph, documentIri, inputFile,
-                                outputFile, prefecture.japaneseName, "", "", "");
-                        rowCount++;
                     }
                 }
             }
+            if (rowCount == 0) throw new IOException("*_relation.tsv がありません: " + inputDirectory);
+            writeTurtle(outputTtl, model);
+            System.out.println("部分Turtle: " + outputTtl.toAbsolutePath());
+            System.out.println("分類レビュー用TSV: " + reviewTsv.toAbsolutePath());
+            System.out.println("文書件数: " + rowCount);
+            System.out.println("資料種別はレビューTSVで分類します。");
+        } finally {
+            model.close();
         }
-        if (rowCount == 0) throw new IOException("*_relation.tsv がありません: " + inputDirectory);
-        writeTurtle(outputTtl, model);
-        System.out.println("部分Turtle: " + outputTtl.toAbsolutePath());
-        System.out.println("分類レビュー用TSV: " + reviewTsv.toAbsolutePath());
-        System.out.println("文書件数: " + rowCount);
-        System.out.println("資料種別はレビューTSVで分類します。");
     }
 
     private static void addVocabulary(Model model) {
@@ -212,11 +217,11 @@ public final class ConvertDocumentRelationsToTurtle {
     }
 
     private static Resource resource(String uri) {
-        return ModelFactory.createDefaultModel().createResource(uri);
+        return ResourceFactory.createResource(uri);
     }
 
     private static Property property(String uri) {
-        return ModelFactory.createDefaultModel().createProperty(uri);
+        return ResourceFactory.createProperty(uri);
     }
 
     private record Prefecture(String code, String japaneseName) {}
