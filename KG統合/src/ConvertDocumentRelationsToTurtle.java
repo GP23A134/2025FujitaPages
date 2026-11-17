@@ -41,12 +41,11 @@ public final class ConvertDocumentRelationsToTurtle {
     private static final Property PREFECTURE_PROPERTY = property(PROP_NS + "prefecture");
     private static final Property DOCUMENT_TYPE_PROPERTY = property(PROP_NS + "documentType");
     private static final Property INPUT_FILE_PROPERTY = property(PROP_NS + "inputFileName");
-    private static final Property SOURCE_FOLDER_PROPERTY = property(PROP_NS + "sourceFolderPath");
     private static final CSVFormat INPUT_TSV = CSVFormat.TDF.builder()
             .setHeader().setSkipHeaderRecord(true).setIgnoreEmptyLines(true).get();
     private static final CSVFormat OUTPUT_TSV = CSVFormat.TDF.builder()
             .setHeader("source_tsv", "graph", "documentIRI", "input_file", "output_file",
-                    "prefecture", "資料種別", "判定根拠", "確信度", "保存されていたフォルダ名")
+                    "prefecture", "資料種別", "判定根拠", "確信度")
             .get();
 
     private ConvertDocumentRelationsToTurtle() {}
@@ -92,7 +91,7 @@ public final class ConvertDocumentRelationsToTurtle {
                         }
                         addDocument(model, documentIri, inputFile, prefecture);
                         review.printRecord(tsv.getFileName(), graph, documentIri, inputFile,
-                                outputFile, prefecture.japaneseName, "", "", "", "");
+                                outputFile, prefecture.japaneseName, "", "", "");
                         rowCount++;
                     }
                 }
@@ -103,7 +102,7 @@ public final class ConvertDocumentRelationsToTurtle {
         System.out.println("部分Turtle: " + outputTtl.toAbsolutePath());
         System.out.println("分類レビュー用TSV: " + reviewTsv.toAbsolutePath());
         System.out.println("文書件数: " + rowCount);
-        System.out.println("資料種別・保存フォルダ名は未設定のままです。");
+        System.out.println("資料種別はレビューTSVで分類します。");
     }
 
     private static void addVocabulary(Model model) {
@@ -113,7 +112,6 @@ public final class ConvertDocumentRelationsToTurtle {
         addPropertyDefinition(model, PREFECTURE_PROPERTY, "都道府県", DOCUMENT, PREFECTURE);
         addPropertyDefinition(model, DOCUMENT_TYPE_PROPERTY, "資料種別", DOCUMENT, DOCUMENT_TYPE);
         addPropertyDefinition(model, INPUT_FILE_PROPERTY, "入力ファイル名", DOCUMENT, RDFS.Literal);
-        addPropertyDefinition(model, SOURCE_FOLDER_PROPERTY, "保存されていたフォルダ名", DOCUMENT, RDFS.Literal);
         addPrefecture(model, "Yamagata", "山形");
         addPrefecture(model, "Akita", "秋田");
         addPrefecture(model, "Shimane", "島根");

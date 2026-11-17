@@ -87,6 +87,9 @@ public final class AddMiddleAndTopClassesToRdf {
 
         Map<String, String> parents = new HashMap<>();
         JsonArray relations = root.getAsJsonArray("relations");
+        if (relations == null || relations.isEmpty()) {
+            throw new IOException("階層JSONにrelationsがないか、空です: " + path);
+        }
         for (JsonElement element : relations) {
             JsonObject relation = element.getAsJsonObject();
             String child = relation.get("child").getAsString();
@@ -143,8 +146,15 @@ public final class AddMiddleAndTopClassesToRdf {
                         NodeFactory.createURI(current)));
             }
         }
-        for (Quad addition : additions) output.add(addition);
-        return additions.size();
+        long added = 0;
+        for (Quad addition : additions) {
+            if (!output.contains(addition.getGraph(), addition.getSubject(),
+                    addition.getPredicate(), addition.getObject())) {
+                output.add(addition);
+                added++;
+            }
+        }
+        return added;
     }
 
     private static void writeUnmappedReport(Set<String> unmapped, Path report) throws IOException {

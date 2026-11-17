@@ -81,9 +81,13 @@ public final class AddStakeholderTopClassesToRdf {
             root = JsonParser.parseReader(reader).getAsJsonObject();
         }
         Map<String, String> topIds = new HashMap<>();
+        if (root.getAsJsonArray("classes") == null || root.getAsJsonArray("relations") == null) {
+            throw new IOException("ステークホルダーJSONにclassesまたはrelationsがありません: " + jsonPath);
+        }
         for (JsonElement element : root.getAsJsonArray("classes")) {
             JsonObject clazz = element.getAsJsonObject();
-            if (!"top".equals(clazz.get("type").getAsString())) continue;
+            if (!clazz.has("type") || clazz.get("type").isJsonNull()
+                    || !"top".equals(clazz.get("type").getAsString())) continue;
             String id = clazz.get("id").getAsString();
             String canonicalId;
             if (id.equals("t_0")) {
@@ -138,8 +142,15 @@ public final class AddStakeholderTopClassesToRdf {
             }
             additions.add(Quad.create(quad.getGraph(), quad.getSubject(), TYPE, NodeFactory.createURI(topClass)));
         }
-        for (Quad addition : additions) output.add(addition);
-        return additions.size();
+        long added = 0;
+        for (Quad addition : additions) {
+            if (!output.contains(addition.getGraph(), addition.getSubject(),
+                    addition.getPredicate(), addition.getObject())) {
+                output.add(addition);
+                added++;
+            }
+        }
+        return added;
     }
 
     private static void writeReport(Path path, Set<String> unmapped) throws IOException {

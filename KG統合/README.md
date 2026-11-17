@@ -12,6 +12,7 @@ KG統合/
 │  ├─ ConvertDocumentRelationsToTurtle.java
 │  ├─ ConvertClassifiedDocumentsToTurtle.java
 │  ├─ RunAllRdfUpdates.java
+│  ├─ MergeRdfUpdateOutputs.java
 │  └─ WriteRdfUpdateReports.java
 ├─ prompts/               AI分類などの作業用プロンプト
 ├─ input/
@@ -26,6 +27,8 @@ KG統合/
 │     ├─ documents-classified.tsv（分類後に保存）
 │     └─ documents.ttl（最終RDF）
 ├─ output/classes/        対象クラス階層の処理結果
+├─ output/REV-KG-DEV_kg-data_2026-08-13_13-18-16_integrated.nq
+│                         3処理結果を統合したN-Quads
 ├─ output/reports/        クラス・資料種別ごとの件数TSV
 └─ build/classes/         コンパイル済みクラス（再生成可能）
 ```
@@ -38,7 +41,7 @@ KG統合/
 
 ```powershell
 New-Item -ItemType Directory -Force build/classes | Out-Null
-javac -encoding UTF-8 -cp "../docs/lib/*" -d build/classes src/AddMiddleAndTopClassesToRdf.java src/AddStakeholderTopClassesToRdf.java src/ConvertDocumentRelationsToTurtle.java src/ConvertClassifiedDocumentsToTurtle.java src/RunAllRdfUpdates.java src/WriteRdfUpdateReports.java
+javac -encoding UTF-8 -cp "../docs/lib/*" -d build/classes src/AddMiddleAndTopClassesToRdf.java src/AddStakeholderTopClassesToRdf.java src/ConvertDocumentRelationsToTurtle.java src/ConvertClassifiedDocumentsToTurtle.java src/MergeRdfUpdateOutputs.java src/RunAllRdfUpdates.java src/WriteRdfUpdateReports.java
 ```
 
 ## 対象クラスの中間／上位クラス付与
@@ -71,7 +74,7 @@ java -cp "build/classes;../docs/lib/*" AddStakeholderTopClassesToRdf "input/base
 
 ## 資料一覧の前処理
 
-`input/document-list/`内の`*_relation.tsv`を読み、分類レビュー用TSVと分類前の基本Turtleを`input/integration/`に作ります。この基本Turtleは資料種別・保存元フォルダーを含まない下書きです。
+`input/document-list/`内の`*_relation.tsv`を読み、分類レビュー用TSVと分類前の基本Turtleを`input/integration/`に作ります。この基本Turtleは資料種別の付与前の下書きです。
 
 ```powershell
 java -cp "build/classes;../docs/lib/*" ConvertDocumentRelationsToTurtle
@@ -85,24 +88,32 @@ java -cp "build/classes;../docs/lib/*" ConvertDocumentRelationsToTurtle "input/d
 
 資料種別の分類依頼には`prompts/document-type-classification.md`を使い、分類済みTSVを`input/integration/documents-classified.tsv`に保存します。最終RDFでは、この分類済みTSVを使います。
 
-`input/document-list/`には、地域別の元資料一覧`*-files.tsv`も置いてください。各ファイルには「ファイル名」と「保存されていたフォルダ名」の列が必要です。最終変換はファイル名と元一覧の地域を照合し、フォルダパスに都道府県名を付けて区切りを`/`に統一します。保存場所が一意に照合できない場合、TTLを出力せず該当行をエラーにします。現在の入力には`*-files.tsv`がないため、最終変換の実行には追加が必要です。
+最終変換は分類済みTSVの資料種別と都道府県を使って文書RDFを作ります。`sourceFolderPath`は現時点では出力しません。
 
 ```powershell
 java -cp "build/classes;../docs/lib/*" ConvertClassifiedDocumentsToTurtle
 ```
 
-引数には分類済みTSV、`*-files.tsv`のフォルダー、出力TTLを順に指定できます。
+引数には分類済みTSV、出力TTLを順に指定できます。
 
 ```powershell
-java -cp "build/classes;../docs/lib/*" ConvertClassifiedDocumentsToTurtle "input/integration/documents-classified.tsv" "input/document-list" "input/integration/documents.ttl"
+java -cp "build/classes;../docs/lib/*" ConvertClassifiedDocumentsToTurtle "input/integration/documents-classified.tsv" "input/integration/documents.ttl"
 ```
 
 ## 3処理を一括実行
 
-現在の3つのRDF処理プログラムを変更せず、対象クラス、ステークホルダー、分類済み資料の順に実行します。すべての元データ、分類済みTSV、`*-files.tsv`が揃っていることを先に確認し、不足があれば処理を開始しません。
+対象クラス、ステークホルダー、分類済み資料の処理をステージング先で実行し、3つが成功した場合に成果物を反映します。最後に3つのRDF出力を統合し、`output/REV-KG-DEV_kg-data_2026-08-13_13-18-16_integrated.nq`へN-Quadsを作成します。既存の出力先は新しい処理がすべて成功するまで更新しません。
+
+入力として、ベースRDF、2つの更新JSON、分類済みTSVが必要です。保存元フォルダー情報は現時点では扱いません。
 
 ```powershell
 java -cp "build/classes;../docs/lib/*" RunAllRdfUpdates
+```
+
+単独で出力を統合する場合は、次のプログラムを使えます。
+
+```powershell
+java -cp "build/classes;../docs/lib/*" MergeRdfUpdateOutputs
 ```
 
 ## RDF更新結果の一覧・件数TSV

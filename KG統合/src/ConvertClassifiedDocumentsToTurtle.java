@@ -8,10 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -30,10 +27,9 @@ import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
 
-/** 分類済み一覧と元フォルダー一覧から、仕様に沿った文書Turtleを生成します。 */
+/** 分類済み一覧から文書Turtleを生成します。 */
 public final class ConvertClassifiedDocumentsToTurtle {
     private static final Path DEFAULT_CLASSIFIED_TSV = Paths.get("input/integration/documents-classified.tsv");
-    private static final Path DEFAULT_FILE_LIST_DIRECTORY = Paths.get("input/document-list");
     private static final Path DEFAULT_OUTPUT_TTL = Paths.get("input/integration/documents.ttl");
     private static final String PROP_NS = "https://kozaki-lab.jp/REFV-KG/prop/";
     private static final String CLS_NS = "https://kozaki-lab.jp/REFV-KG/class/";
@@ -57,7 +53,6 @@ public final class ConvertClassifiedDocumentsToTurtle {
     private static final Property PREFECTURE_PROPERTY = property(PROP_NS + "prefecture");
     private static final Property DOCUMENT_TYPE_PROPERTY = property(PROP_NS + "documentType");
     private static final Property INPUT_FILE_PROPERTY = property(PROP_NS + "inputFileName");
-    private static final Property SOURCE_FOLDER_PROPERTY = property(PROP_NS + "sourceFolderPath");
 
     private static final CSVFormat TSV = CSVFormat.TDF.builder()
             .setHeader().setSkipHeaderRecord(true).setIgnoreEmptyLines(true).get();
@@ -65,17 +60,14 @@ public final class ConvertClassifiedDocumentsToTurtle {
     private ConvertClassifiedDocumentsToTurtle() {}
 
     public static void main(String[] args) throws IOException {
-        if (args.length > 3) {
+        if (args.length > 2) {
             throw new IllegalArgumentException("使い方: java ConvertClassifiedDocumentsToTurtle "
-                    + "[分類済みTSV] [*-files.tsvフォルダー] [出力TTL]");
+                    + "[分類済みTSV] [出力TTL]");
         }
         Path classifiedTsv = args.length > 0 ? Paths.get(args[0]) : DEFAULT_CLASSIFIED_TSV;
-        Path fileListDirectory = args.length > 1 ? Paths.get(args[1]) : DEFAULT_FILE_LIST_DIRECTORY;
-        Path outputTtl = args.length > 2 ? Paths.get(args[2]) : DEFAULT_OUTPUT_TTL;
+        Path outputTtl = args.length > 1 ? Paths.get(args[1]) : DEFAULT_OUTPUT_TTL;
         if (!Files.isRegularFile(classifiedTsv)) throw new IOException("分類済みTSVがありません: " + classifiedTsv);
-        if (!Files.isDirectory(fileListDirectory)) throw new IOException("*-files.tsvフォルダーがありません: " + fileListDirectory);
 
-        Map<String, List<FolderEntry>> foldersByName = readFolderLists(fileListDirectory);
         Model model = createModel();
         Set<String> documentIris = new HashSet<>();
         int count = 0;
@@ -99,10 +91,7 @@ public final class ConvertClassifiedDocumentsToTurtle {
                 validateDocumentIri(sourceTsv, graph, documentIri, outputFile, classifiedTsv, row);
                 if (!documentIris.add(documentIri)) throw rowError(classifiedTsv, row, "文書IRIが重複しています: " + documentIri);
 
-                String sourceFolder = findSourceFolder(sourceTsv, inputFile, prefectureName,
-                        foldersByName, classifiedTsv, row);
-                addDocument(model, documentIri, inputFile, prefectureCode, prefectureName,
-                        documentTypeCode, documentTypeName, sourceFolder);
+                addDocument(model, documentIri, inputFile, prefectureCode, documentTypeCode);
                 count++;
             }
         }
@@ -110,92 +99,13 @@ public final class ConvertClassifiedDocumentsToTurtle {
         writeTurtle(outputTtl, model);
         System.out.println("最終Turtle: " + outputTtl.toAbsolutePath());
         System.out.println("文書件数: " + count);
-        System.out.println("資料種別・保存元フォルダーを含めて出力しました。");
-    }
-
-    private static Map<String, List<FolderEntry>> readFolderLists(Path directory) throws IOException {
-        Map<String, List<FolderEntry>> byName = new HashMap<>();
-        try (var paths = Files.list(directory)) {
-            for (Path listPath : paths.filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith("-files.tsv"))
-                    .sorted().toList()) {
-                try (var reader = readerWithoutBom(listPath);
-                        CSVParser parser = CSVParser.parse(reader, TSV)) {
-                    String fileHeader = findHeader(parser, "ファイル名", "file_name", "filename", "input_file");
-                    String folderHeader = findHeader(parser, "保存されていたフォルダ名", "sourceFolderPath", "source_folder_path");
-                    if (fileHeader == null || folderHeader == null) {
-                        throw new IOException("*-files.tsvにファイル名・保存されていたフォルダ名の列がありません: " + listPath);
-                    }
-                    for (CSVRecord row : parser) {
-                        String name = cell(row, fileHeader);
-                        String folder = cell(row, folderHeader);
-                        if (name.isEmpty() || folder.isEmpty()) {
-                            throw new IOException("*-files.tsvの必須値が空です: " + listPath + " 行 " + row.getRecordNumber());
-                        }
-                        byName.computeIfAbsent(name, ignored -> new ArrayList<>())
-                                .add(new FolderEntry(listPath.getFileName().toString(), folder));
-                    }
-                }
-            }
-        }
-        if (byName.isEmpty()) throw new IOException("対応する*-files.tsvがありません: " + directory);
-        return byName;
-    }
-
-    private static String findSourceFolder(String sourceTsv, String fileName, String prefecture,
-            Map<String, List<FolderEntry>> foldersByName, Path classifiedTsv, CSVRecord row) throws IOException {
-        List<FolderEntry> candidates = foldersByName.get(fileName);
-        if (candidates == null || candidates.isEmpty()) {
-            candidates = foldersByName.get(normalizeFileNameForMatch(fileName));
-        }
-        if (candidates == null || candidates.isEmpty()) {
-            throw rowError(classifiedTsv, row, "保存元フォルダーを照合できません。*-files.tsvにファイルがありません: " + fileName);
-        }
-        String expectedKey = sourceKey(sourceTsv);
-        List<FolderEntry> matching = candidates.stream()
-                .filter(entry -> fileListKey(entry.listName).equalsIgnoreCase(expectedKey)).toList();
-        if (matching.isEmpty() && expectedKey.equals("shimane")) {
-            matching = candidates.stream()
-                    .filter(entry -> fileListKey(entry.listName).equalsIgnoreCase("akita")).toList();
-        }
-        if (matching.isEmpty() && candidates.size() == 1) matching = candidates;
-        Set<String> distinctFolders = new HashSet<>();
-        for (FolderEntry entry : matching) distinctFolders.add(entry.folder.trim());
-        if (distinctFolders.size() != 1) {
-            throw rowError(classifiedTsv, row,
-                    "保存元フォルダーの候補が一意ではありません: " + fileName + " / " + candidates);
-        }
-        return normalizeFolderPath(prefecture, distinctFolders.iterator().next(), classifiedTsv, row);
+        System.out.println("資料種別を含めて出力しました。");
     }
 
     private static String sourceKey(String sourceTsv) {
         String name = Paths.get(sourceTsv).getFileName().toString().toLowerCase(Locale.ROOT);
         name = name.replaceFirst("^output_", "").replaceFirst("_relation\\.tsv$", "");
         return name;
-    }
-
-    private static String fileListKey(String fileListName) {
-        return Paths.get(fileListName).getFileName().toString().toLowerCase(Locale.ROOT)
-                .replaceFirst("-files\\.tsv$", "");
-    }
-
-    private static String normalizeFileNameForMatch(String fileName) {
-        // One source list used the literal text "$201F" where another recorded U+201F (‟).
-        return fileName.replace("$201F", "\u201F");
-    }
-
-    private static String normalizeFolderPath(String prefecture, String rawPath, Path path, CSVRecord row)
-            throws IOException {
-        String normalized = rawPath.trim().replace('\\', '/').replaceAll("/\\./", "/");
-        while (normalized.startsWith("./")) normalized = normalized.substring(2);
-        normalized = normalized.replaceAll("/+$", "").replaceAll("/{2,}", "/");
-        if (normalized.isEmpty() || normalized.equals(".")) return prefecture;
-        if (normalized.startsWith("/") || normalized.matches("^[A-Za-z]:.*") || normalized.equals("..")
-                || normalized.startsWith("../") || normalized.contains("/../")) {
-            throw rowError(path, row, "保存フォルダー名は相対パスである必要があります: " + rawPath);
-        }
-        if (normalized.equals(prefecture) || normalized.startsWith(prefecture + "/")) return normalized;
-        return prefecture + "/" + normalized;
     }
 
     private static void validateDocumentIri(String sourceTsv, String graph, String documentIri,
@@ -232,7 +142,6 @@ public final class ConvertClassifiedDocumentsToTurtle {
         addProperty(model, PREFECTURE_PROPERTY, "都道府県", DOCUMENT, prefectureType);
         addProperty(model, DOCUMENT_TYPE_PROPERTY, "資料種別", DOCUMENT, documentType);
         addProperty(model, INPUT_FILE_PROPERTY, "入力ファイル名", DOCUMENT, RDFS.Literal);
-        addProperty(model, SOURCE_FOLDER_PROPERTY, "保存されていたフォルダ名", DOCUMENT, RDFS.Literal);
         PREFECTURES.forEach((label, code) -> model.add(resource(KG_NS + "prefecture_" + code), RDF.type, prefectureType)
                 .add(resource(KG_NS + "prefecture_" + code), RDFS.label, label, "ja"));
         DOCUMENT_TYPES.forEach((label, code) -> model.add(resource(KG_NS + "documentType_" + code), RDF.type, documentType)
@@ -246,14 +155,13 @@ public final class ConvertClassifiedDocumentsToTurtle {
     }
 
     private static void addDocument(Model model, String iri, String inputFile, String prefectureCode,
-            String prefectureName, String documentTypeCode, String documentTypeName, String sourceFolder) {
+            String documentTypeCode) {
         Resource document = resource(iri);
         model.add(document, RDF.type, DOCUMENT)
                 .add(document, RDFS.label, inputFile)
                 .add(document, PREFECTURE_PROPERTY, resource(KG_NS + "prefecture_" + prefectureCode))
                 .add(document, DOCUMENT_TYPE_PROPERTY, resource(KG_NS + "documentType_" + documentTypeCode))
-                .add(document, INPUT_FILE_PROPERTY, inputFile)
-                .add(document, SOURCE_FOLDER_PROPERTY, sourceFolder);
+                .add(document, INPUT_FILE_PROPERTY, inputFile);
     }
 
     private static String findHeader(CSVParser parser, String... candidates) {
@@ -318,5 +226,4 @@ public final class ConvertClassifiedDocumentsToTurtle {
         return ModelFactory.createDefaultModel().createProperty(uri);
     }
 
-    private record FolderEntry(String listName, String folder) {}
 }

@@ -1369,12 +1369,6 @@ kg:documentType_WebArticle
         prop:inputFileName  "（仮称）秋田県男鹿市、潟上市及び秋田市沖着床式洋上風力発電事業＿配慮書.pdf";
         prop:prefecture     kg:prefecture_Akita .
 
-prop:sourceFolderPath
-        rdf:type     rdf:Property;
-        rdfs:domain  cls:Document;
-        rdfs:label   "保存されていたフォルダ名"@ja;
-        rdfs:range   rdfs:Literal .
-
 <https://kozaki-lab.jp/REFV-KG/docs/Yamagata/10050>
         rdf:type            cls:Document;
         rdfs:label          "令和１年１２月定例会（第７回）12月18日－03号.pdf";
