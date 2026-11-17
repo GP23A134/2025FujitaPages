@@ -1224,7 +1224,9 @@ export const createProposalPreview = ({
     const index = items.indexOf(previewPlan.proposalItem);
     const next = items[index + direction];
     if (!next) return;
-    void transitionPreview(() => showPreview(next)).then(() => renderConversation()).catch(reportPreviewError);
+    void transitionPreview(() => showPreview(next)).then(() => {
+      if (typeof next.agentApply !== 'function') renderConversation();
+    }).catch(reportPreviewError);
   };
   const transitionPreview = async (renderNext) => {
     const arrowSvg = document.getElementById('ai-preview-direction');
