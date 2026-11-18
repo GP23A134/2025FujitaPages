@@ -6,7 +6,7 @@ function appendText(parent, tag, text, className = '') {
   return element;
 }
 
-export function createWorkflowView(root, questionView, proposalView, { onAnswerQuestions, messages }) {
+export function createWorkflowView(root, questionView, proposalView, { onAnswerQuestions, onError = () => {}, messages }) {
   function renderPlan(plan) {
     root.replaceChildren();
     if (messages) {
@@ -51,7 +51,7 @@ export function createWorkflowView(root, questionView, proposalView, { onAnswerQ
         if (answers) return onAnswerQuestions(answers);
         return null;
       }).catch((error) => {
-        appendText(root, 'p', error.message || '回答を処理できませんでした。', 'assistant-error');
+        onError(error);
       });
     }
     if (event.type === 'unsupported') {
@@ -82,7 +82,7 @@ export function createWorkflowView(root, questionView, proposalView, { onAnswerQ
       }
     }
     if (event.type === 'scope_blocked') appendText(root, 'p', '追加範囲の許可が得られなかったため、依存する処理を保留しました。');
-    if (event.type === 'error') appendText(root, 'p', event.error.message, 'assistant-error');
+    if (event.type === 'error') onError(event.error);
   }
   return Object.freeze({ handle, renderPlan });
 }

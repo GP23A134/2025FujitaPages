@@ -24,7 +24,6 @@
 | `proposal-view.js` | 変更案一覧の描画とプレビュー操作の接続 |
 | `ai-client.js` | クラスID変換、Responses API形式、HTTP通信と応答解析 |
 | `proposal-engine.js` | 応答検証、依頼別の操作ポリシー、提案操作の検査 |
-| `proposal-preview.js` | 変更案のプレビュー、操作選択、ナビゲーション、適用 |
 | `tuning-limits.js` | 自動分割・統合処理の内部安全上限と初期値 |
 | `web/js/editor/events.js` | 利用者が適用した提案を編集データへ反映 |
 

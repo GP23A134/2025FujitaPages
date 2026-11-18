@@ -28,7 +28,7 @@ export function createEditorAssistantHost({
   };
 
   return Object.freeze({
-    async previewProposal({ item, proposals = [item], onApply, onDismiss }) {
+    async previewProposal({ item, proposals = [item], alternativeGroup = null, selectedAlternativeId = null, onSelectAlternative, onApply, onDismiss }) {
       if (!item?.proposal || typeof onApply !== 'function') throw new TypeError('提案のプレビュー情報が不足しています。');
       const proposalPreview = getPreview();
       if (!proposalPreview) throw new Error('提案プレビューを利用できません。');
@@ -37,6 +37,7 @@ export function createEditorAssistantHost({
       if (!agentPreviewOwner?.items) throw new Error('提案の相談を開けません。');
       const responseGroupId = `agent_preview_${Date.now()}`;
       const sourceItems = [...new Set([item, ...proposals])].filter((candidate) => candidate?.proposal && Array.isArray(candidate.operations));
+      let selectedAlternativeSourceItem = sourceItems.find((candidate) => candidate.proposal.id === selectedAlternativeId) || null;
       agentPreviewProxies = sourceItems.map((sourceItem, index) => ({
         type: 'proposal',
         id: `${responseGroupId}_${index + 1}`,
@@ -57,7 +58,20 @@ export function createEditorAssistantHost({
         availableIds: sourceItem.availableIds,
         operationPolicy: sourceItem.operationPolicy,
         status: 'pending',
-        agentApply: (operationIndexes) => onApply(sourceItem, operationIndexes),
+        agentAlternativeGroupId: alternativeGroup?.id || null,
+        agentAlternativeSelected: () => !alternativeGroup || selectedAlternativeSourceItem === sourceItem,
+        agentSelectAlternative: () => {
+          if (!alternativeGroup) return;
+          selectedAlternativeSourceItem = sourceItem;
+          onSelectAlternative?.(alternativeGroup.id, sourceItem.proposal.id);
+        },
+        agentApply: async (operationIndexes) => {
+          const result = await onApply(sourceItem, operationIndexes);
+          agentPreviewProxies.forEach((candidate, candidateIndex) => {
+            candidate.status = sourceItems[candidateIndex]?.status === 'alternative_excluded' ? 'alternative-rejected' : candidate.status;
+          });
+          return result;
+        },
         agentDismiss: () => onDismiss?.(sourceItem)
       }));
       const proxy = agentPreviewProxies[sourceItems.indexOf(item)] || agentPreviewProxies[0];

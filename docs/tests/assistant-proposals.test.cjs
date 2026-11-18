@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const test = require('node:test');
 
-const sourcePath = path.join(__dirname, '../web/js/editor/assistant/features/proposals/proposal-contract.js');
+const sourcePath = path.join(__dirname, '../web/js/editor/chat/agent/features/proposals/proposal-contract.js');
 const source = fs.readFileSync(sourcePath, 'utf8').replace(/^export /gm, '')
   .concat('\nmodule.exports = { validateProposalResponse };');
 const sandboxModule = { exports: {} };

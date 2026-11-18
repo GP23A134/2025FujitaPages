@@ -3,13 +3,15 @@
 import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261113-chat-optional-coverage-v1';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261113-chat-clarification-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261113-split-cache-restore-v1';
-import { createProposalPreview } from './proposal-preview.js?v=20261117-preserve-agent-chat-on-preview-navigation-v1';
+import { createProposalPreview } from '../agent/features/proposals/proposal-preview.js?v=20261118-agent-preview-migration-v1';
 import { createAIClient } from './ai-client.js?v=20261113-chat-compact-chunk-memos-v1';
 import { createRequestProgress } from './request-progress.js?v=20261112-zero-second-display-v1';
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261113-target-unit-cap-v1';
 import { createProposalView } from './proposal-view.js?v=20261112-conflict-alternatives-v1';
 import { createConversationRenderer } from './conversation-renderer.js?v=20261111-ai-chat-renderer-v1';
-import { createEditorAssistantHost } from '../assistant/adapters/editor-assistant-host.js?v=20261117-agent-proposal-navigation-v1';
+import { createEditorAssistantHost } from '../integration/agent-legacy-bridge.js?v=20261118-preview-alternative-selection-v1';
+import { registerAgentLegacyBridge } from '../integration/agent-legacy-bridge-registry.js?v=20261118-chat-bridge-registry-v1';
+import { CHAT_EVENTS } from '../integration/chat-events.js?v=20261118-chat-events-v1';
 
 (() => {
   const editor = window.classEditorAI;
@@ -25,7 +27,7 @@ import { createEditorAssistantHost } from '../assistant/adapters/editor-assistan
     console[level](`[AIチャット] ${stage}`, detail);
   };
   window.addEventListener('error', (event) => {
-    if (!event.filename?.includes('/web/js/editor/ai/')) return;
+    if (!event.filename?.includes('/web/js/editor/chat/legacy/')) return;
     logAiProblem(`未処理の実行時エラー (${event.filename}:${event.lineno || 0}:${event.colno || 0})`, event.error || event.message);
   });
   window.addEventListener('unhandledrejection', (event) => {
@@ -121,7 +123,7 @@ import { createEditorAssistantHost } from '../assistant/adapters/editor-assistan
       if (!trimmedPrompt) throw new Error(`提案自由度${level}のプロンプトが空です。`);
       return trimmedPrompt;
     });
-  const evaluationPromptPromise = fetch('web/js/editor/assistant/prompts/evaluation-prompt.md', { cache: 'no-store' })
+  const evaluationPromptPromise = fetch('web/data/config/ai-evaluation-prompt.md', { cache: 'no-store' })
     .then((response) => { if (!response.ok) throw new Error('評価モード専用プロンプトを読み込めません。'); return response.text(); })
     .then((prompt) => {
       const trimmedPrompt = prompt.trim();
@@ -529,7 +531,7 @@ import { createEditorAssistantHost } from '../assistant/adapters/editor-assistan
     });
     updateUsageSummary();
   };
-  window.addEventListener('assistant-api-usage', (event) => {
+  window.addEventListener(CHAT_EVENTS.agentUsage, (event) => {
     const { model, usage } = event.detail || {};
     void modelConfigPromise.then(() => recordUsage({ usage }, { modelId: model, includeConversation: false }));
   });
@@ -2873,7 +2875,7 @@ import { createEditorAssistantHost } from '../assistant/adapters/editor-assistan
     reportPreviewError,
     setStatus
   });
-  window.editorAssistantHost = editorAssistantHost;
+  registerAgentLegacyBridge(editorAssistantHost);
   editorAssistantHost.onScopeChange();
 
   window.addEventListener('pagehide', () => {

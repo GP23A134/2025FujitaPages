@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { createChunkedReadOnlyReview } = require('../web/js/editor/assistant/features/data-retrieval/chunked-read-only-review.js');
+const { createChunkedReadOnlyReview } = require('../web/js/editor/chat/agent/features/data-retrieval/chunked-read-only-review.js');
 
 test('selected class reviews process 12,000 records in bounded batches and retain only compact findings', async () => {
   const records = Array.from({ length: 12000 }, (_, index) => ({

@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const test = require('node:test');
 
 const loadModule = (relativePath, exports, prelude = '') => {
-  const sourcePath = path.join(__dirname, '../web/js/editor/assistant', relativePath);
+  const sourcePath = path.join(__dirname, '../web/js/editor/chat/agent', relativePath);
   const source = `${prelude}\n${fs.readFileSync(sourcePath, 'utf8')}`
     .replace(/^import .*;\s*$/gm, '')
     .replace(/^export /gm, '')
@@ -85,7 +85,7 @@ test('the new chat system is the default and can be turned off', () => {
 });
 
 test('planning service sends only the prepared request and counts and validates the response', async () => {
-  const serviceSourcePath = path.join(__dirname, '../web/js/editor/assistant/features/planning/planning-service.js');
+  const serviceSourcePath = path.join(__dirname, '../web/js/editor/chat/agent/features/planning/planning-service.js');
   const source = fs.readFileSync(serviceSourcePath, 'utf8')
     .replace(/^import .*;\s*$/gm, '')
     .replace(/^export /gm, '')

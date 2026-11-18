@@ -1,3 +1,5 @@
+import { CHAT_EVENTS } from '../../../integration/chat-events.js?v=20261118-chat-events-v1';
+
 const PROGRESS_STAGES = new Set([
   'planning', 'waiting_for_answer', 'checking_scope', 'waiting_for_scope_approval', 'scope_denied',
   'retrieving', 'analyzing', 'validating', 'waiting_for_review', 'budget_exhausted', 'completed', 'cancelled', 'failed'
@@ -152,13 +154,14 @@ export function createProgressView(statusElement, messages = document.getElement
     statusElement.dataset.workflowStage = detail.stage;
   }
 
-  window.addEventListener('assistant:progress', render);
+  window.addEventListener(CHAT_EVENTS.agentProgress, render);
   return Object.freeze({
     getElapsed: () => startedAt ? formatElapsed(Date.now() - startedAt) : '',
     dispose() {
-      window.removeEventListener('assistant:progress', render);
+      window.removeEventListener(CHAT_EVENTS.agentProgress, render);
       stopTimer();
     },
     render
   });
 }
+

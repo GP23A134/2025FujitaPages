@@ -1,4 +1,4 @@
-import { composeProposalOperations, conflictChoicesComplete } from './proposal-engine.js?v=20261112-review-fixes-v1';
+import { composeProposalOperations, conflictChoicesComplete } from '../../../legacy/proposal-engine.js?v=20261112-review-fixes-v1';
 
 // 提案のプレビュー、操作の選択、対象クラスへの移動・適用を担当します。
 // 呼び出し元が検証した提案を表示し、適用操作は利用者の明示操作後にだけ実行します。
@@ -827,12 +827,62 @@ export const createProposalPreview = ({
       && hasProposalOperations(item)
       && !['awaiting-answers', 'superseded', 'alternative-rejected', 'invalid'].includes(item.status));
   };
-  const previewNavigationProposals = () => [...previewableProposals()].sort((a, b) => {
+  const previewNavigationProposals = (proposalItem = null) => [...previewableProposals()]
+    .filter((item) => !proposalItem?.responseGroupId || item.responseGroupId === proposalItem.responseGroupId)
+    .sort((a, b) => {
     const aUnjudged = ['pending', 'previewed', 'stale'].includes(a.status);
     const bUnjudged = ['pending', 'previewed', 'stale'].includes(b.status);
     return Number(bUnjudged) - Number(aUnjudged);
   });
-  const nextUnjudgedProposal = (currentProposal) => previewNavigationProposals().find((item) => item !== currentProposal
+  const renderProposalChoices = (proposalItem) => {
+    const section = document.getElementById('ai-preview-proposal-choices');
+    const list = document.getElementById('ai-preview-proposal-choices-list');
+    if (!section || !list) return;
+    const items = previewNavigationProposals(proposalItem);
+    section.hidden = items.length < 2;
+    const isDestinationChoice = items.some((item) => item.agentAlternativeGroupId)
+      && items.every((item) => item.proposal.operations?.length
+        && item.proposal.operations.every((operation) => operation.type === 'move_target_class'));
+    document.getElementById('ai-preview-proposal-choices-title').textContent = isDestinationChoice
+      ? '移動先候補を比較' : '変更案を比較';
+    section.querySelector('p').textContent = isDestinationChoice
+      ? '候補を選ぶと下のプレビューが切り替わります。選択だけでは変更されず、適用時に選んだ移動先だけが反映されます。'
+      : '案を選ぶと下のプレビューが切り替わります。選択しただけでは変更されず、各案は個別に適用できます。';
+    document.getElementById('ai-preview-proposal-choices-count').textContent = `${items.length}案`;
+    list.replaceChildren(...items.map((item, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ai-preview-proposal-choice';
+      button.dataset.previewProposalChoice = item.proposal.id;
+      button.setAttribute('aria-pressed', String(item.agentAlternativeGroupId
+        ? item.agentAlternativeSelected?.() === true : item === proposalItem));
+      const title = document.createElement('strong');
+      title.textContent = item.proposal.title || `変更案 ${index + 1}`;
+      const summary = document.createElement('span');
+      summary.textContent = item.proposal.summary || '概要はありません。';
+      button.append(title, summary);
+      return button;
+    }));
+  };
+  document.getElementById('ai-preview-proposal-choices-list')?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-preview-proposal-choice]');
+    if (!button) return;
+    const current = previewPlan?.proposalItem;
+    const next = previewNavigationProposals(current).find((item) => item.proposal.id === button.dataset.previewProposalChoice);
+    if (!next) return;
+    next.agentSelectAlternative?.();
+    if (next === current) {
+      renderProposalChoices(current);
+      const apply = document.getElementById('ai-apply-proposal');
+      if (apply) apply.disabled = !current.agentAlternativeSelected?.()
+        || !conflictChoicesComplete(current.proposal, current.selectedConflictChoices)
+        || !previewPlan?.operations.length
+        || ['applied', 'dismissed', 'alternative-rejected', 'superseded', 'invalid'].includes(current.status);
+      return;
+    }
+    void transitionPreview(() => showPreview(next)).catch(reportPreviewError);
+  });
+  const nextUnjudgedProposal = (currentProposal) => previewNavigationProposals(currentProposal).find((item) => item !== currentProposal
     && ['pending', 'previewed', 'stale'].includes(item.status)) || null;
   const navigateConflictGroup = (direction) => {
     const item = previewPlan?.proposalItem;
@@ -870,7 +920,7 @@ export const createProposalPreview = ({
     const navigation = document.getElementById('ai-preview-navigation');
     const previous = document.getElementById('ai-preview-previous');
     const next = document.getElementById('ai-preview-next');
-    navigation.hidden = items.length < 2;
+    navigation.hidden = items.length < 2 || items.some((item) => typeof item.agentApply === 'function');
     previous.disabled = index <= 0;
     next.disabled = index < 0 || index >= items.length - 1;
     document.getElementById('ai-preview-position').textContent = index < 0 ? '' : `${index + 1} / ${items.length}`;
@@ -920,6 +970,7 @@ export const createProposalPreview = ({
       previewPageIndex = 0;
       previewGroups = buildPreviewGroups(proposalItem);
       updatePreviewNavigation(proposalItem);
+      renderProposalChoices(proposalItem);
       updatePreviewProposalHeading(proposalItem, operations);
       renderPreviewTypeLegend(operations);
       document.getElementById('ai-preview-summary').textContent = proposalItem.proposal.summary || proposalItem.proposal.title || '変更内容の説明はありません。';
@@ -1215,7 +1266,8 @@ export const createProposalPreview = ({
     const currentConflictGroup = conflictGroups[activeConflictGroupIndex];
     const currentChoiceSelected = !currentConflictGroup
       || proposalItem.selectedConflictChoices[currentConflictGroup.id] === activeConflictChoiceIndex;
-    applyButton.disabled = isApplied || activeOperations.length === 0 || !allConflictsSelected || !currentChoiceSelected;
+    applyButton.disabled = isApplied || activeOperations.length === 0 || !allConflictsSelected || !currentChoiceSelected
+      || (typeof proposalItem.agentApply === 'function' && proposalItem.agentAlternativeSelected?.() === false);
     if (applyRequested && activeOperations.length) applyButton.focus();
   };
   const navigatePreview = (direction) => {

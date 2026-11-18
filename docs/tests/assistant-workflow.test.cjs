@@ -9,7 +9,7 @@ const workflowLogs = [];
 const agentRunResponseQueue = [];
 const agentProgressQueue = [];
 
-const base = path.join(__dirname, '../web/js/editor/assistant');
+const base = path.join(__dirname, '../web/js/editor/chat/agent');
 function evaluate(relativePath, exportNames, stubs = {}) {
   const source = fs.readFileSync(path.join(base, relativePath), 'utf8')
     .replace(/^import .*;\s*$/gm, '')

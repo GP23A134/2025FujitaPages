@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const test = require('node:test');
 
-const sourcePath = path.join(__dirname, '../web/js/editor/ai/proposal-engine.js');
+const sourcePath = path.join(__dirname, '../web/js/editor/chat/legacy/proposal-engine.js');
 const source = fs.readFileSync(sourcePath, 'utf8')
   .replace(/^export /gm, '')
   .concat('\nmodule.exports = { reconcileSplitProposals, composeProposalOperations, conflictChoicesComplete, buildQuestionQueue };');

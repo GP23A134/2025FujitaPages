@@ -15,7 +15,7 @@ const memoryStorage = () => {
 };
 
 test('history survives page reload in the same tab and stores transcript messages only', async () => {
-  const { createHistoryService } = await importModule('web/js/editor/assistant/conversations/history-service.js');
+  const { createHistoryService } = await importModule('web/js/editor/chat/agent/conversations/history-service.js');
   const sessionStorage = memoryStorage();
   const localStorage = memoryStorage();
   const service = createHistoryService({ sessionStorage, localStorage, now: () => 1000 });
@@ -38,7 +38,7 @@ test('history survives page reload in the same tab and stores transcript message
 });
 
 test('optional cross-tab history expires 24 hours after its latest update', async () => {
-  const { createHistoryService } = await importModule('web/js/editor/assistant/conversations/history-service.js');
+  const { createHistoryService } = await importModule('web/js/editor/chat/agent/conversations/history-service.js');
   const sessionStorage = memoryStorage();
   const localStorage = memoryStorage();
   let time = 10_000;
@@ -52,7 +52,7 @@ test('optional cross-tab history expires 24 hours after its latest update', asyn
 });
 
 test('turning off cross-tab persistence removes shared history but keeps tab history', async () => {
-  const { createHistoryService } = await importModule('web/js/editor/assistant/conversations/history-service.js');
+  const { createHistoryService } = await importModule('web/js/editor/chat/agent/conversations/history-service.js');
   const sessionStorage = memoryStorage();
   const localStorage = memoryStorage();
   const service = createHistoryService({ sessionStorage, localStorage, now: () => 1000 });

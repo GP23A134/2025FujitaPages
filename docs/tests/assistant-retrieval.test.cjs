@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const test = require('node:test');
 
-const root = path.join(__dirname, '../web/js/editor/assistant');
+const root = path.join(__dirname, '../web/js/editor/chat/agent');
 function load(relativePath, exportNames, stubs = {}) {
   const source = fs.readFileSync(path.join(root, relativePath), 'utf8')
     .replace(/^import .*;\s*$/gm, '')

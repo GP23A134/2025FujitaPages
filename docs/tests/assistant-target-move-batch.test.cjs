@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { createTargetMoveBatchProcessor } = require('../web/js/editor/assistant/features/proposals/target-move-batch.js');
+const { createTargetMoveBatchProcessor } = require('../web/js/editor/chat/agent/features/proposals/target-move-batch.js');
 
 test('target moves are decided in compact batches and assembled locally into operations', async () => {
   const records = Array.from({ length: 501 }, (_, index) => ({

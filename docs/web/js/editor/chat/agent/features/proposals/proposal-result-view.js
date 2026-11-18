@@ -1,17 +1,18 @@
-export function createProposalResultView(root, { onPreview, onAnswerQuestions, onSelectAlternative = () => {} }) {
+export function createProposalResultView(root, { onPreview, onAnswerQuestions }) {
   const resultStates = new WeakMap();
   const itemRows = new WeakMap();
   let nextResultId = 0;
 
-  const statusOf = (state, item) => ['applied', 'dismissed'].includes(state.statuses.get(item))
+  const statusOf = (state, item) => ['applied', 'dismissed', 'alternative_excluded'].includes(state.statuses.get(item))
     ? state.statuses.get(item) : 'unjudged';
   const updateStatusCounts = (message, state) => {
-    const counts = { unjudged: 0, applied: 0, dismissed: 0 };
+    const counts = { unjudged: 0, applied: 0, dismissed: 0, alternative_excluded: 0 };
     state.result.proposals.forEach((item) => { counts[statusOf(state, item)] += 1; });
     message.querySelector('[data-proposal-status-counts]')?.replaceChildren(...[
       ['unjudged', '未判断', counts.unjudged],
       ['applied', '適用済み', counts.applied],
-      ['dismissed', '見送り', counts.dismissed]
+      ['dismissed', '見送り', counts.dismissed],
+      ['alternative_excluded', '別案', counts.alternative_excluded]
     ].map(([key, label, count]) => {
       const badge = document.createElement('span');
       badge.className = `ai-proposal-status-badge is-${key}`;
@@ -20,11 +21,17 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
     }));
   };
 
-  const canPreview = (state, item) => !item.proposal.questions.length
-    && (!state.groupByProposal.get(item.proposal.id)
-      || state.selectedAlternatives.get(state.groupByProposal.get(item.proposal.id).id) === item.proposal.id);
+  const canPreview = (state, item) => !item.proposal.questions.length;
   const navigableItems = (state) => state.result.proposals.filter((candidate) => canPreview(state, candidate)
-    && !['applied', 'dismissed'].includes(statusOf(state, candidate)));
+    && !['applied', 'dismissed', 'alternative_excluded'].includes(statusOf(state, candidate)));
+  const previewItems = (state, item) => {
+    const group = state.groupByProposal.get(item.proposal.id);
+    return group
+      ? group.proposalIds.map((id) => state.result.proposals.find((candidate) => candidate.proposal.id === id))
+        .filter((candidate) => candidate && canPreview(state, candidate)
+          && !['applied', 'dismissed', 'alternative_excluded'].includes(statusOf(state, candidate)))
+      : navigableItems(state).filter((candidate) => !state.groupByProposal.has(candidate.proposal.id));
+  };
 
   root.addEventListener('click', async (event) => {
     const message = event.target.closest('[data-assistant-proposal-result]');
@@ -32,31 +39,21 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
     const state = resultStates.get(message);
     if (!state) return;
 
-    const choice = event.target.closest('[data-alternative-group]');
-    if (choice) {
-      state.selectedAlternatives.set(choice.dataset.alternativeGroup, choice.value);
-      onSelectAlternative(choice.dataset.alternativeGroup, choice.value);
-      message.querySelectorAll(`[data-alternative-choice="${CSS.escape(choice.dataset.alternativeGroup)}"]`).forEach((input) => {
-        const item = state.result.proposals.find((candidate) => candidate.proposal.id === input.value);
-        const row = itemRows.get(item);
-        const preview = row?.querySelector('[data-preview-proposal]');
-        if (preview) preview.disabled = !navigableItems(state).includes(item);
-      });
-      const firstPreview = message.querySelector('[data-preview-first]');
-      if (firstPreview) firstPreview.disabled = !navigableItems(state).length;
-      return;
-    }
     const preview = event.target.closest('[data-preview-proposal]');
     if (preview) {
       const item = state.result.proposals.find((candidate) => candidate.proposal.id === preview.dataset.previewProposal);
       if (item && navigableItems(state).includes(item)) {
-        onPreview(item, navigableItems(state));
+        const group = state.groupByProposal.get(item.proposal.id) || null;
+        onPreview(item, previewItems(state, item), group, group ? state.selectedAlternatives.get(group.id) || null : null);
       }
       return;
     }
     if (event.target.closest('[data-preview-first]')) {
       const item = navigableItems(state)[0];
-      if (item) onPreview(item, navigableItems(state));
+      if (item) {
+        const group = state.groupByProposal.get(item.proposal.id) || null;
+        onPreview(item, previewItems(state, item), group, group ? state.selectedAlternatives.get(group.id) || null : null);
+      }
       return;
     }
     const answer = event.target.closest('[data-answer-proposal]');
@@ -161,16 +158,6 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
       badge.dataset.proposalStatus = 'true';
       badge.textContent = ({ unjudged: '未判断', applied: '適用済み', dismissed: '見送り' })[status] || '未判断';
       actions.append(badge);
-      const group = state.groupByProposal.get(item.proposal.id);
-      if (group) {
-        const radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = `alternative-${message.dataset.proposalResultId}-${group.id}`;
-        radio.value = item.proposal.id;
-        radio.dataset.alternativeGroup = group.id;
-        radio.dataset.alternativeChoice = group.id;
-        actions.append(radio);
-      }
       const preview = document.createElement('button');
       preview.type = 'button';
       preview.className = 'ai-proposal-preview';
@@ -200,6 +187,14 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
     messagesScrollToLatest();
   }
 
+  function selectAlternative(groupId, proposalId) {
+    root.querySelectorAll('[data-assistant-proposal-result]').forEach((message) => {
+      const state = resultStates.get(message);
+      if (!state?.result.alternativeGroups.some((group) => group.id === groupId && group.proposalIds.includes(proposalId))) return;
+      state.selectedAlternatives.set(groupId, proposalId);
+    });
+  }
+
   function messagesScrollToLatest() {
     root.scrollTo?.({ top: root.scrollHeight, behavior: 'smooth' });
     if (!root.scrollTo) root.scrollTop = root.scrollHeight;
@@ -211,6 +206,18 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
 
   function markDismissed(item) {
     setStatus(item, 'dismissed', '見送り');
+  }
+
+  function markAlternativeGroupExcluded(groupId, selectedProposalId) {
+    root.querySelectorAll('[data-assistant-proposal-result]').forEach((message) => {
+      const state = resultStates.get(message);
+      const group = state?.result.alternativeGroups.find((candidate) => candidate.id === groupId);
+      if (!group) return;
+      group.proposalIds.filter((id) => id !== selectedProposalId).forEach((id) => {
+        const item = state.result.proposals.find((candidate) => candidate.proposal.id === id);
+        setStatus(item, 'alternative_excluded', '別案');
+      });
+    });
   }
 
   function setStatus(item, status, label) {
@@ -231,5 +238,5 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions, o
     if (preview) { preview.disabled = true; preview.textContent = label; }
     updateStatusCounts(message, state);
   }
-  return Object.freeze({ render, markApplied, markDismissed });
+  return Object.freeze({ render, markApplied, markDismissed, markAlternativeGroupExcluded, selectAlternative });
 }

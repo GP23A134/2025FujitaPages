@@ -3,7 +3,7 @@ import { buildPlanInput } from '../features/planning/plan-input.js';
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261116-progress-milestones-v1';
-import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261117-target-aware-destination-selection-v1';
+import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261118-multiple-move-destinations-v1';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
 import { createAgentRunLoop } from '../agent-runtime/run-loop.js?v=20261116-progress-milestones-v1';
@@ -44,6 +44,11 @@ const explicitlyRequestsMoveProposal = (request, plannedText = '') => {
   return /移動案|移す案|移動を提案|移動させて(?:ほしい|ください)|移動して(?:ほしい|ください)|移して(?:ほしい|ください)/.test(requestText)
     || /移動案|移す案|移動を提案/.test(planText);
 };
+const usesBatchedTargetMove = (plan) => plan?.changeOperations?.length === 1
+  && plan.changeOperations[0] === 'move_target_class'
+  && plan.dataNeeds?.selectedClassDetails
+  && plan.dataNeeds?.hierarchyIndex
+  && plan.dataNeeds?.instanceContext === 'none';
 const correctMoveProposalPlan = (candidate, request) => {
   const brief = candidate.executionBrief || {};
   const plannedText = [candidate.summary, brief.objective, brief.expectedResult].join('\n');
@@ -71,6 +76,7 @@ const formatAnswers = (questions, answers) => {
 
 export function createAssistantWorkflow({
   editor, client, planningService, scopeApproval, getSettings,
+  requestProcessingPreflight = async () => true,
   reportProgress = () => {}, onEvent = () => {}, reportUsage = () => {}
 }) {
   if (!editor?.getState || !client?.request || !planningService?.createPlan) throw new TypeError('Workflowの依存関係が不足しています。');
@@ -87,6 +93,7 @@ export function createAssistantWorkflow({
   let active = false;
   let activeController = null;
   let settingsInvalidated = false;
+  let movePreflightConfirmed = false;
   const selectedAlternatives = new Map();
   const updateState = (next) => { state = next; onEvent({ type: 'state', state }); };
   const setStatus = (status) => {
@@ -244,11 +251,7 @@ export function createAssistantWorkflow({
       && plan.dataNeeds.parentContext !== 'ancestor_chain'
       && plan.dataNeeds.instanceContext === 'none'
       && plan.changeOperations.length === 0;
-    const batchedTargetMove = plan.changeOperations.length === 1
-      && plan.changeOperations[0] === 'move_target_class'
-      && plan.dataNeeds.selectedClassDetails
-      && plan.dataNeeds.hierarchyIndex
-      && plan.dataNeeds.instanceContext === 'none';
+    const batchedTargetMove = usesBatchedTargetMove(plan);
     let loop = null;
     let uniqueTools = [];
     let targetMoveProcessor = null;
@@ -410,6 +413,31 @@ export function createAssistantWorkflow({
       onEvent({ type: 'questions', questions: currentPlan.questions });
       return { status: state.status, plan: currentPlan };
     }
+    if (usesBatchedTargetMove(currentPlan) && !movePreflightConfirmed) {
+      const classes = editor.getState().classes;
+      const selected = new Set(selectedClassIds);
+      const targetClassCount = classes.filter((item) => item.type === 'class' && selected.has(item.id)).length;
+      const hierarchyClassCount = classes.filter((item) => item.type === 'top' || item.type === 'middle').length;
+      const pageLimit = Math.max(1, Number(getSettings()['dataRetrieval.pageAndIdLimit']) || 100);
+      const retrievalPages = Math.ceil(targetClassCount / pageLimit) + Math.ceil(hierarchyClassCount / pageLimit);
+      const retrievalLimit = Number(getSettings()['runtime.maxRetrievalCalls']) || 0;
+      const retrievalLimitExceeded = retrievalLimit > 0 && retrievalPages > retrievalLimit;
+      const minimumResponses = targetClassCount ? 1 + Math.ceil(targetClassCount / 100) : 0;
+      if (targetClassCount === 0) {
+        movePreflightConfirmed = true;
+      } else {
+        const confirmed = await requestProcessingPreflight({
+          targetClassCount, hierarchyClassCount, retrievalPages, minimumResponses,
+          retrievalLimit, retrievalLimitExceeded
+        }, signal);
+        if (!confirmed) {
+          setStatus('cancelled');
+          emitProgress('cancelled');
+          return { status: 'cancelled' };
+        }
+        movePreflightConfirmed = true;
+      }
+    }
     if (state.status !== 'planning') setStatus('planning');
     if (currentPlan.dataNeeds.hierarchyIndex || currentPlan.dataNeeds.selectedClassDetails
       || currentPlan.dataNeeds.parentContext !== 'none' || currentPlan.dataNeeds.instanceContext !== 'none') setStatus('retrieving');
@@ -453,6 +481,7 @@ export function createAssistantWorkflow({
       lastResult = null;
       lastAgentContext = null;
       selectedAlternatives.clear();
+      movePreflightConfirmed = false;
       const referenceIds = new Set(selectedClassIds);
       if (hierarchyIndexAvailable) {
         editor.getState().classes.filter((item) => item.type === 'top' || item.type === 'middle')
@@ -711,8 +740,6 @@ export function createAssistantWorkflow({
   function preparePreview(item) {
     if (!lastResult?.proposals.includes(item)) throw new Error('この変更案は現在の確認対象ではありません。');
     if (item.proposal.questions.length) throw new Error('確認待ちの質問があるため、先に回答してください。');
-    const choiceGroup = lastResult.alternativeGroups.find((group) => group.proposalIds.includes(item.proposal.id));
-    if (choiceGroup && selectedAlternatives.get(choiceGroup.id) !== item.proposal.id) throw new Error('代替案または競合案を明示的に選択してください。');
     const current = editor.getState();
     const fingerprint = JSON.stringify({ classes: current.classes, relations: current.relations });
     const candidate = editor.applyOperations(item.operations, fingerprint, item.editableIds, item.availableIds, item.operationPolicy);

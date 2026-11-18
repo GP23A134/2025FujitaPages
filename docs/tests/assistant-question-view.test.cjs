@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const test = require('node:test');
 
-const source = fs.readFileSync(path.join(__dirname, '../web/js/editor/assistant/features/planning/question-view.js'), 'utf8')
+const source = fs.readFileSync(path.join(__dirname, '../web/js/editor/chat/agent/features/planning/question-view.js'), 'utf8')
   .replace(/^export /gm, '').concat('\nmodule.exports = { createQuestionView };');
 
 class Element {
