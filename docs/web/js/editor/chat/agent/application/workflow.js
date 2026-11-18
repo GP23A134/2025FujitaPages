@@ -76,7 +76,6 @@ const formatAnswers = (questions, answers) => {
 
 export function createAssistantWorkflow({
   editor, client, planningService, scopeApproval, getSettings,
-  requestProcessingPreflight = async () => true,
   reportProgress = () => {}, onEvent = () => {}, reportUsage = () => {}
 }) {
   if (!editor?.getState || !client?.request || !planningService?.createPlan) throw new TypeError('Workflowの依存関係が不足しています。');
@@ -93,7 +92,6 @@ export function createAssistantWorkflow({
   let active = false;
   let activeController = null;
   let settingsInvalidated = false;
-  let movePreflightConfirmed = false;
   const selectedAlternatives = new Map();
   const updateState = (next) => { state = next; onEvent({ type: 'state', state }); };
   const setStatus = (status) => {
@@ -413,30 +411,22 @@ export function createAssistantWorkflow({
       onEvent({ type: 'questions', questions: currentPlan.questions });
       return { status: state.status, plan: currentPlan };
     }
-    if (usesBatchedTargetMove(currentPlan) && !movePreflightConfirmed) {
+    if (usesBatchedTargetMove(currentPlan)) {
       const classes = editor.getState().classes;
       const selected = new Set(selectedClassIds);
+      const selectedDetailCount = classes.filter((item) => selected.has(item.id)).length;
       const targetClassCount = classes.filter((item) => item.type === 'class' && selected.has(item.id)).length;
       const hierarchyClassCount = classes.filter((item) => item.type === 'top' || item.type === 'middle').length;
       const pageLimit = Math.max(1, Number(getSettings()['dataRetrieval.pageAndIdLimit']) || 100);
-      const retrievalPages = Math.ceil(targetClassCount / pageLimit) + Math.ceil(hierarchyClassCount / pageLimit);
+      const selectedDetailsPages = Math.ceil(selectedDetailCount / pageLimit);
+      const hierarchyPages = targetClassCount ? Math.ceil(hierarchyClassCount / pageLimit) : 0;
+      const retrievalPages = selectedDetailsPages + hierarchyPages;
       const retrievalLimit = Number(getSettings()['runtime.maxRetrievalCalls']) || 0;
       const retrievalLimitExceeded = retrievalLimit > 0 && retrievalPages > retrievalLimit;
-      const minimumResponses = targetClassCount ? 1 + Math.ceil(targetClassCount / 100) : 0;
-      if (targetClassCount === 0) {
-        movePreflightConfirmed = true;
-      } else {
-        const confirmed = await requestProcessingPreflight({
-          targetClassCount, hierarchyClassCount, retrievalPages, minimumResponses,
-          retrievalLimit, retrievalLimitExceeded
-        }, signal);
-        if (!confirmed) {
-          setStatus('cancelled');
-          emitProgress('cancelled');
-          return { status: 'cancelled' };
-        }
-        movePreflightConfirmed = true;
-      }
+      if (retrievalLimitExceeded) throw Object.assign(
+        new Error(`移動案の処理に必要なデータ取得は最低${retrievalPages.toLocaleString('ja-JP')}回ですが、設定上限は${retrievalLimit.toLocaleString('ja-JP')}回です。選択範囲を絞るか、開発者設定の取得呼び出し上限を見直してください。`),
+        { code: 'RETRIEVAL_LIMIT', sourceModule: 'application/workflow.js' }
+      );
     }
     if (state.status !== 'planning') setStatus('planning');
     if (currentPlan.dataNeeds.hierarchyIndex || currentPlan.dataNeeds.selectedClassDetails
@@ -481,7 +471,6 @@ export function createAssistantWorkflow({
       lastResult = null;
       lastAgentContext = null;
       selectedAlternatives.clear();
-      movePreflightConfirmed = false;
       const referenceIds = new Set(selectedClassIds);
       if (hierarchyIndexAvailable) {
         editor.getState().classes.filter((item) => item.type === 'top' || item.type === 'middle')

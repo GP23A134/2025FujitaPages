@@ -838,16 +838,23 @@ export const createProposalPreview = ({
     const section = document.getElementById('ai-preview-proposal-choices');
     const list = document.getElementById('ai-preview-proposal-choices-list');
     if (!section || !list) return;
-    const items = previewNavigationProposals(proposalItem);
+    const alternativeGroupId = proposalItem?.agentAlternativeGroupId;
+    const items = alternativeGroupId
+      ? previewNavigationProposals(proposalItem).filter((item) => item.agentAlternativeGroupId === alternativeGroupId)
+      : [];
     section.hidden = items.length < 2;
+    if (section.hidden) {
+      list.replaceChildren();
+      return;
+    }
     const isDestinationChoice = items.some((item) => item.agentAlternativeGroupId)
       && items.every((item) => item.proposal.operations?.length
         && item.proposal.operations.every((operation) => operation.type === 'move_target_class'));
     document.getElementById('ai-preview-proposal-choices-title').textContent = isDestinationChoice
-      ? '移動先候補を比較' : '変更案を比較';
+      ? '移動先候補を比較' : '競合する案を比較';
     section.querySelector('p').textContent = isDestinationChoice
       ? '候補を選ぶと下のプレビューが切り替わります。選択だけでは変更されず、適用時に選んだ移動先だけが反映されます。'
-      : '案を選ぶと下のプレビューが切り替わります。選択しただけでは変更されず、各案は個別に適用できます。';
+      : '競合する案を選ぶと下のプレビューが切り替わります。選択しただけでは変更されません。';
     document.getElementById('ai-preview-proposal-choices-count').textContent = `${items.length}案`;
     list.replaceChildren(...items.map((item, index) => {
       const button = document.createElement('button');

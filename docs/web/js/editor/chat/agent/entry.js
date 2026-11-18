@@ -5,7 +5,7 @@ import { createOpenAIClient } from './adapters/openai-client.js';
 import { createPlanningService } from './features/planning/planning-service.js?v=20261117-request-aware-prompts-v1';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261116-stop-processing-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261118-move-preflight-v1';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261118-no-preflight-limit-guard-v1';
 import { createQuestionView } from './features/planning/question-view.js?v=20261116-agent-interaction-dock-v2';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261118-agent-error-banner-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261118-preview-alternative-selection-v1';
@@ -36,35 +36,6 @@ if (window.classEditorAI && statusElement) {
   const scopeApproval = createScopeApprovalView(document.getElementById('assistant-scope-dialog'), window.classEditorAI, {
     messages,
     interactionDock
-  });
-  const requestProcessingPreflight = (estimate, signal) => new Promise((resolve) => {
-    const dialog = document.getElementById('assistant-processing-preflight-dialog');
-    const summary = document.getElementById('assistant-processing-preflight-summary');
-    if (!dialog || !summary) { resolve(false); return; }
-    if (signal?.aborted) { resolve(false); return; }
-    const limitNotice = estimate.retrievalLimitExceeded
-      ? ` 推定取得回数が設定上限（${estimate.retrievalLimit.toLocaleString('ja-JP')}回）を超えるため、この範囲では処理を開始できません。対象範囲を絞るか、開発者設定の取得呼び出し上限を見直してください。`
-      : estimate.retrievalLimit
-        ? ` 取得呼び出し上限は${estimate.retrievalLimit.toLocaleString('ja-JP')}回です。`
-        : '';
-    summary.textContent = `選択対象のクラス ${estimate.targetClassCount.toLocaleString('ja-JP')}件、参照する階層候補 ${estimate.hierarchyClassCount.toLocaleString('ja-JP')}件です。この後の移動案判定では、データ取得は最低${estimate.retrievalPages.toLocaleString('ja-JP')}ページ、AI応答は最低${estimate.minimumResponses.toLocaleString('ja-JP')}回を見込みます。${limitNotice}`;
-    const continueButton = document.getElementById('assistant-processing-preflight-continue');
-    if (continueButton) continueButton.disabled = Boolean(estimate.retrievalLimitExceeded);
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      signal?.removeEventListener('abort', onAbort);
-      resolve(dialog.returnValue === 'continue');
-    };
-    const closeWith = (value) => { if (dialog.open) dialog.close(value); };
-    const onAbort = () => closeWith('cancel');
-    dialog.addEventListener('close', finish, { once: true });
-    document.getElementById('assistant-processing-preflight-continue')?.addEventListener('click', () => closeWith('continue'), { once: true });
-    document.getElementById('assistant-processing-preflight-cancel')?.addEventListener('click', () => closeWith('cancel'), { once: true });
-    document.getElementById('assistant-processing-preflight-close')?.addEventListener('click', () => closeWith('cancel'), { once: true });
-    signal?.addEventListener('abort', onAbort, { once: true });
-    dialog.showModal();
   });
   const questionView = createQuestionView(document.getElementById('assistant-question-dialog'), { dock: interactionDock, messages });
   const settingsRegistry = createAssistantSettingsRegistry();
@@ -188,7 +159,6 @@ if (window.classEditorAI && statusElement) {
     client,
     planningService,
     scopeApproval,
-    requestProcessingPreflight,
     getSettings: () => ({ ...settings }),
     reportProgress: (detail) => dispatchChatEvent(CHAT_EVENTS.agentProgress, detail),
     reportUsage: ({ model, usage }) => dispatchChatEvent(CHAT_EVENTS.agentUsage, { model, usage }),

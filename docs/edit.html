@@ -23,7 +23,7 @@
     <script data-app-script="web/js/shared/tree.js?v=20261113-tree-count-labels-v1"></script>
     <script data-app-script="web/js/editor/state.js?v=20261118-chat-integration-v1"></script>
     <script data-app-script="web/js/editor/panels.js?v=20261118-chat-integration-v1"></script>
-    <script data-app-script="web/js/editor/tree.js?v=20261113-tree-selection-v2"></script>
+    <script data-app-script="web/js/editor/tree.js?v=20261118-tree-autoscroll-acceleration-v1"></script>
     <script data-app-script="web/js/editor/events.js?v=20261113-data-only-dirty-v1"></script>
     <script data-app-script="web/js/editor/test-preferences.js?v=20261113-cost-aware-search-default-v1" data-app-type="module"></script>
     <script src="web/js/shared/app-startup.js?v=20261112-review-fixes-v1"></script>
@@ -386,19 +386,6 @@
       <div class="test-settings-actions"><button type="button" data-question-submit class="search-button">回答して再計画</button><button type="button" data-question-cancel class="search-button secondary-search-button">キャンセル</button></div>
     </dialog>
 
-    <dialog id="assistant-processing-preflight-dialog" class="ai-send-confirm-dialog" aria-labelledby="assistant-processing-preflight-title">
-      <div class="ai-preview-header">
-        <h2 id="assistant-processing-preflight-title">移動案の処理範囲を確認</h2>
-        <button type="button" id="assistant-processing-preflight-close" class="target-instance-dialog-close" aria-label="処理を中止して閉じる">×</button>
-      </div>
-      <p id="assistant-processing-preflight-summary" class="ai-send-confirm-summary"></p>
-      <p class="edit-settings-note">表示件数は処理対象の見込みです。AI応答回数は再試行や分割で増える場合があり、費用はモデルの応答量によって変わります。階層の参照範囲を広げる場合は、後続の確認画面で別途許可が必要です。</p>
-      <div class="ai-send-confirm-actions">
-        <button type="button" id="assistant-processing-preflight-cancel">キャンセルして範囲を見直す</button>
-        <button type="button" id="assistant-processing-preflight-continue" class="search-button">この範囲で続ける</button>
-      </div>
-    </dialog>
-
     <!-- AI提案を確認し、適用する変更を選択する三段階プレビュー。 -->
     <dialog id="ai-preview-dialog" class="ai-preview-dialog" aria-labelledby="ai-preview-title">
       <div class="ai-preview-header">
@@ -593,8 +580,8 @@
     </dialog>
     <!-- ダイアログDOMの後に、データ読み込みとAIチャットを初期化する。 -->
     <script data-app-script="web/js/shared/data-upload.js?v=20261112-shared-validation-v2"></script>
-    <script data-app-script="web/js/editor/chat/legacy/main.js?v=20261118-prompt-examples-path-v2" data-app-type="module"></script>
-    <script data-app-script="web/js/editor/chat/agent/entry.js?v=20261118-move-preflight-v1" data-app-type="module"></script>
+    <script data-app-script="web/js/editor/chat/legacy/main.js?v=20261118-conflict-only-preview-v2" data-app-type="module"></script>
+    <script data-app-script="web/js/editor/chat/agent/entry.js?v=20261118-no-preflight-limit-guard-v1" data-app-type="module"></script>
     <div id="assistant-error-notice" class="assistant-error-notice" role="alert" aria-live="assertive" aria-atomic="true" hidden>
       <span id="assistant-error-notice-message" class="assistant-error-notice-message"></span>
       <button id="assistant-error-notice-close" class="assistant-error-notice-close" type="button" aria-label="エラー通知を閉じる" title="閉じる">×</button>

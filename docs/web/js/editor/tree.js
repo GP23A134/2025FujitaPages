@@ -9,6 +9,7 @@ let treeRenderFrame = 0;
 let treeSearchDebounceTimer = 0;
 let treeHierarchyEditModeEnabled = false;
 let activeTreeDragIds = [];
+let activeTreeAutoScroll = { direction: 0, startedAt: 0 };
 let temporaryTreeDragSelection = null;
 let touchTreeDrag = { timer: 0, source: null, startX: 0, startY: 0, active: false, destination: null, ids: [] };
 let touchRangeSelection = null;
@@ -605,6 +606,7 @@ const beginTreeDrag = (id) => {
   const item = classById.get(id);
   const kind = item ? classKind(item) : null;
   if (!item || isUnclassified(item)) return false;
+  activeTreeAutoScroll = { direction: 0, startedAt: 0 };
   const selection = kind === 'top' ? heldTopClasses : kind === 'middle' ? heldMiddleClasses : kind === 'class' ? heldInstances : null;
   if (!selection) return false;
   if (!selection.has(id)) {
@@ -649,6 +651,7 @@ const finishTreeDrag = () => {
   clearTreeDragHoverOpen();
   hideTreeDragSummary();
   clearTreeDragSourceAppearance();
+  activeTreeAutoScroll = { direction: 0, startedAt: 0 };
   if (!temporaryTreeDragSelection) return;
   if (editUndoStack.length > temporaryTreeDragSelection.historyLength) {
     editUndoStack.at(-1).before = temporaryTreeDragSelection.before;
@@ -811,7 +814,8 @@ editTreeSelectionRoot?.addEventListener('pointerdown', (event) => {
     currentY: event.clientY,
     moved: false,
     active: true,
-    timer: 0
+    timer: 0,
+    autoScrollState: { direction: 0, startedAt: 0 }
   };
   touchRangeSelection = selection;
   event.preventDefault();
@@ -850,7 +854,8 @@ editTreeSelectionRoot?.addEventListener('touchstart', (event) => {
     currentY: touch.clientY,
     moved: false,
     active: false,
-    timer: 0
+    timer: 0,
+    autoScrollState: { direction: 0, startedAt: 0 }
   };
   selection.timer = window.setTimeout(() => {
     if (touchRangeSelection === selection) selection.active = true;
@@ -886,15 +891,30 @@ editTreeSelectionRoot?.addEventListener('touchcancel', () => {
   touchRangeSelection = null;
   if (treeSelectionMarquee) treeSelectionMarquee.hidden = true;
 });
-const scrollTreeDuringDrag = (clientY) => {
+const scrollTreeDuringDrag = (clientY, autoScrollState = activeTreeAutoScroll) => {
   const edgeSize = 72;
-  const maxScroll = 24;
-  let delta = 0;
+  let direction = 0;
+  let proximity = 0;
   if (clientY < edgeSize) {
-    delta = -Math.ceil(maxScroll * Math.min(1, (edgeSize - clientY) / edgeSize));
+    direction = -1;
+    proximity = Math.min(1, (edgeSize - clientY) / edgeSize);
   } else if (clientY > window.innerHeight - edgeSize) {
-    delta = Math.ceil(maxScroll * Math.min(1, (clientY - (window.innerHeight - edgeSize)) / edgeSize));
+    direction = 1;
+    proximity = Math.min(1, (clientY - (window.innerHeight - edgeSize)) / edgeSize);
   }
+  if (!direction || !proximity) {
+    autoScrollState.direction = 0;
+    autoScrollState.startedAt = 0;
+    return 0;
+  }
+  const now = performance.now();
+  if (autoScrollState.direction !== direction) {
+    autoScrollState.direction = direction;
+    autoScrollState.startedAt = now;
+  }
+  const elapsed = Math.max(0, now - autoScrollState.startedAt);
+  const speed = Math.min(28, 2 + elapsed * 0.025);
+  const delta = direction * Math.max(1, Math.ceil(speed * proximity));
   if (delta) window.scrollBy({ top: delta, behavior: 'auto' });
   return delta;
 };
@@ -903,7 +923,7 @@ const continueTreeSelectionAutoScroll = (selection) => {
   const scroll = () => {
     selection.autoScrollFrame = 0;
     if (!selection.active || touchRangeSelection !== selection) return;
-    if (!scrollTreeDuringDrag(selection.currentY)) return;
+    if (!scrollTreeDuringDrag(selection.currentY, selection.autoScrollState)) return;
     updateTreeSelectionMarquee(selection, selection.currentX, selection.currentY);
     selection.autoScrollFrame = window.requestAnimationFrame(scroll);
   };
