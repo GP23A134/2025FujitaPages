@@ -486,6 +486,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-question-actions .search-button { border-color: #0369a1; color: #fff; background: #0369a1; }
 .ai-question-complete { margin: 0.5rem 0 0; color: #475569; font-size: 0.78rem; }
 .ai-preview-dialog {
+  position: fixed;
   --ai-preview-node-height: 1.6rem;
   --ai-preview-heading-font-size: 0.9rem;
   --ai-preview-heading-width: 22rem;
@@ -515,7 +516,7 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .ai-preview-header h2 { margin: 0; color: #0f3d63; font-size: 1.2rem; }
 .ai-preview-title-row { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; justify-content: space-between; gap: 0.75rem; }
-.ai-preview-navigation { position: fixed; inset: 50% auto auto 50%; z-index: 2; display: flex; width: min(1380px, 100vw); height: 0; box-sizing: border-box; align-items: center; justify-content: space-between; transform: translate(-50%, -50%); pointer-events: none; }
+.ai-preview-navigation { position: absolute; inset: 50% 1rem auto; z-index: 2; display: flex; width: auto; height: 0; box-sizing: border-box; align-items: center; justify-content: space-between; transform: translateY(-50%); pointer-events: none; }
 .ai-preview-navigation button { display: grid; width: 2.5rem; height: 3.5rem; place-items: center; padding: 0; border: 1px solid #cbd5e1; border-radius: 8px; color: #075985; background: #fff; box-shadow: 0 3px 12px rgba(15, 23, 42, 0.18); cursor: pointer; font: inherit; font-size: 2rem; line-height: 1; pointer-events: auto; }
 .ai-preview-navigation button:hover:not(:disabled), .ai-preview-navigation button:focus-visible { border-color: #7dd3fc; background: #e0f2fe; }
 .ai-preview-navigation button:disabled { color: #94a3b8; background: #f1f5f9; cursor: not-allowed; }

@@ -761,6 +761,20 @@ window.classEditorAI = {
     const editable = new Set(editableIds);
     const available = new Set(availableIds);
     const originalParentByChild = new Map(current.relations.map(({ child, parent }) => [child, parent]));
+    const originalChildrenByParent = new Map();
+    originalParentByChild.forEach((parentId, childId) => {
+      if (!originalChildrenByParent.has(parentId)) originalChildrenByParent.set(parentId, []);
+      originalChildrenByParent.get(parentId).push(childId);
+    });
+    const nextClassSequence = new Map([['top', 0], ['middle', 0]]);
+    candidateClasses.forEach((item) => {
+      const segment = String(item.id).split('/').pop();
+      const match = segment.match(/^(?:new-)?[tm][_-]0*(\d+)$/);
+      if (match && nextClassSequence.has(kind(item.id))) {
+        const type = kind(item.id);
+        nextClassSequence.set(type, Math.max(nextClassSequence.get(type), Number(match[1])));
+      }
+    });
     const policyAllows = (operation) => !operationPolicy
       || (operationPolicy.allowedTypes || []).includes(operation.type);
     const assertPolicyAllows = (operation) => {
@@ -785,19 +799,14 @@ window.classEditorAI = {
         && !operationPolicy.moveSourceTypes.includes('middle')) throw new Error('この依頼範囲では中間クラスを上位化できません。');
     };
     const hasUneditableOriginalDescendant = (id) => {
-      const childrenByParent = new Map();
-      originalParentByChild.forEach((parentId, childId) => {
-        if (!childrenByParent.has(parentId)) childrenByParent.set(parentId, []);
-        childrenByParent.get(parentId).push(childId);
-      });
-      const pending = [...(childrenByParent.get(id) || [])];
+      const pending = [...(originalChildrenByParent.get(id) || [])];
       const seen = new Set();
       while (pending.length) {
         const childId = pending.pop();
         if (seen.has(childId)) continue;
         seen.add(childId);
         if (!editable.has(childId)) return true;
-        pending.push(...(childrenByParent.get(childId) || []));
+        pending.push(...(originalChildrenByParent.get(childId) || []));
       }
       return false;
     };
@@ -811,12 +820,9 @@ window.classEditorAI = {
       || [...convertedIds.values()].includes(id);
     const newClassId = (type) => {
       const prefix = type === 'top' ? 't' : 'm';
-      const max = candidateClasses.reduce((value, item) => {
-        const segment = String(item.id).split('/').pop();
-        const match = segment.match(/^(?:new-)?[tm][_-]0*(\d+)$/);
-        return match && kind(item.id) === type ? Math.max(value, Number(match[1])) : value;
-      }, 0);
-      return `new-${prefix}_${max + 1}`;
+      const next = (nextClassSequence.get(type) || 0) + 1;
+      nextClassSequence.set(type, next);
+      return `new-${prefix}_${next}`;
     };
     const addRelationCandidate = (child, parent) => {
       const existing = relationByChild.get(child);

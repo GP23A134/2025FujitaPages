@@ -3,7 +3,7 @@
 import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261113-chat-optional-coverage-v1';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261113-chat-clarification-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261113-split-cache-restore-v1';
-import { createProposalPreview } from '../agent/features/proposals/proposal-preview.js?v=20261118-conflict-only-choices-v2';
+import { createProposalPreview } from '../agent/features/proposals/proposal-preview.js?v=20261118-alternative-preview-navigation-v1';
 import { createAIClient } from './ai-client.js?v=20261113-chat-compact-chunk-memos-v1';
 import { createRequestProgress } from './request-progress.js?v=20261112-zero-second-display-v1';
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261113-target-unit-cap-v1';
@@ -2706,6 +2706,17 @@ import { CHAT_EVENTS } from '../integration/chat-events.js?v=20261118-chat-event
   });
   document.getElementById('ai-preview-previous').addEventListener('click', () => proposalPreview.navigatePreview(-1));
   document.getElementById('ai-preview-next').addEventListener('click', () => proposalPreview.navigatePreview(1));
+  previewDialog.addEventListener('keydown', (event) => {
+    if (!previewDialog.open || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+    if (event.key === 'ArrowLeft' && !document.getElementById('ai-preview-previous').disabled) {
+      event.preventDefault();
+      proposalPreview.navigatePreview(-1);
+    } else if (event.key === 'ArrowRight' && !document.getElementById('ai-preview-next').disabled) {
+      event.preventDefault();
+      proposalPreview.navigatePreview(1);
+    }
+  });
   document.getElementById('ai-preview-conflict-previous-group').addEventListener('click', () => proposalPreview.navigateConflictGroup(-1));
   document.getElementById('ai-preview-conflict-next-group').addEventListener('click', () => proposalPreview.navigateConflictGroup(1));
   document.getElementById('ai-preview-conflict-previous-choice').addEventListener('click', () => proposalPreview.navigateConflictChoice(-1));

@@ -927,7 +927,7 @@ export const createProposalPreview = ({
     const navigation = document.getElementById('ai-preview-navigation');
     const previous = document.getElementById('ai-preview-previous');
     const next = document.getElementById('ai-preview-next');
-    navigation.hidden = items.length < 2 || items.some((item) => typeof item.agentApply === 'function');
+    navigation.hidden = items.length < 2;
     previous.disabled = index <= 0;
     next.disabled = index < 0 || index >= items.length - 1;
     document.getElementById('ai-preview-position').textContent = index < 0 ? '' : `${index + 1} / ${items.length}`;
@@ -968,6 +968,7 @@ export const createProposalPreview = ({
     const activeConflictGroup = conflictGroups[activeConflictGroupIndex];
     const operations = composeProposalOperations(proposalItem.proposal, proposalItem.selectedConflictChoices,
       activeConflictGroup ? { groupId: activeConflictGroup.id, choiceIndex: activeConflictChoiceIndex } : null);
+    const operationSignature = JSON.stringify(operations);
     proposalItem.previewOperations = operations;
     const isApplied = proposalItem.status === 'applied' && Boolean(proposalItem.appliedPreviewSnapshot);
     let previewBaseHash = fastUpdate ? previewPlan?.expectedBaseHash : '';
@@ -1015,8 +1016,13 @@ export const createProposalPreview = ({
       throw new Error('プレビュー作成後にデータが変更されています。最新データで提案し直してください。');
     }
     const activeOperations = operations.filter((_, index) => !proposalItem.excludedOperationIndexes.has(index));
+    const canReuseProposedCandidate = !isApplied && fastUpdate
+      && previewPlan?.proposalItem === proposalItem
+      && previewPlan.operationSignature === operationSignature
+      && previewPlan.expectedFingerprint === expectedFingerprint;
     const proposedCandidate = isApplied ? proposalItem.appliedPreviewSnapshot.after
-      : editor.applyOperations(operations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds, proposalItem.operationPolicy);
+      : canReuseProposedCandidate ? previewPlan.proposedCandidate
+        : editor.applyOperations(operations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds, proposalItem.operationPolicy);
     const candidate = isApplied || activeOperations.length === operations.length ? proposedCandidate
       : editor.applyOperations(activeOperations, expectedFingerprint, proposalItem.editableIds, proposalItem.availableIds, proposalItem.operationPolicy);
     const expectedBaseHash = isApplied ? '' : previewBaseHash;
@@ -1028,12 +1034,33 @@ export const createProposalPreview = ({
     }
     updatePreviewProposalHeading(proposalItem, operations);
     updateConflictControls(proposalItem);
-    if (!isApplied && stateFingerprint() !== expectedFingerprint) throw new Error('プレビュー作成中にデータが変更されました。最新データで提案し直してください。');
     const beforeState = isApplied ? proposalItem.appliedPreviewSnapshot.before : editor.getState();
     const beforeIds = new Set(beforeState.classes.map((item) => item.id));
+    const beforeClassById = new Map(beforeState.classes.map((item) => [item.id, item]));
+    const proposedClassById = new Map(proposedCandidate.classes.map((item) => [item.id, item]));
+    const beforeRelationByChild = new Map(beforeState.relations.map((relation) => [relation.child, relation]));
     const beforeParents = new Map(beforeState.relations.map(({ child, parent }) => [child, parent]));
     const afterParents = new Map(proposedCandidate.relations.map(({ child, parent }) => [child, parent]));
     const proposedIds = new Set(proposedCandidate.classes.map((item) => item.id));
+    const relationIds = new Set([...beforeParents.keys(), ...afterParents.keys()]);
+    const beforeChildrenByParent = new Map();
+    beforeParents.forEach((parentId, childId) => {
+      if (!beforeChildrenByParent.has(parentId)) beforeChildrenByParent.set(parentId, []);
+      beforeChildrenByParent.get(parentId).push(childId);
+    });
+    const additionByReference = new Map();
+    const addedClassCache = new Map();
+    const addedClassBySignature = new Map();
+    operations.forEach((operation) => {
+      if (operation.type !== 'addClass' || !operation.temporaryId) return;
+      additionByReference.set(operation.temporaryId, operation);
+      additionByReference.set(`${proposalItem.proposal.id}/${operation.temporaryId}`, operation);
+    });
+    proposedCandidate.classes.forEach((item) => {
+      if (beforeIds.has(item.id)) return;
+      const signature = JSON.stringify([item.type, item.label]);
+      if (!addedClassBySignature.has(signature)) addedClassBySignature.set(signature, item);
+    });
     const operationIds = new Set();
     const affectedIds = new Set();
     const operationIndexesByClass = new Map();
@@ -1051,14 +1078,16 @@ export const createProposalPreview = ({
       affectedIds.add(id);
     };
     const addedClassForReference = (reference) => {
-      const addition = operations.find((operation) => operation.type === 'addClass'
-        && (operation.temporaryId === reference || `${proposalItem.proposal.id}/${operation.temporaryId}` === reference));
-      if (!addition) return null;
+      if (addedClassCache.has(reference)) return addedClassCache.get(reference);
+      const addition = additionByReference.get(reference);
+      if (!addition) { addedClassCache.set(reference, null); return null; }
       const convertedId = proposedCandidate.idRemaps?.get(reference)
         || proposedCandidate.idRemaps?.get(addition.temporaryId);
-      if (convertedId) return proposedCandidate.classes.find((item) => item.id === convertedId) || null;
-      return proposedCandidate.classes.find((item) => !beforeIds.has(item.id)
-        && item.type === addition.classType && item.label === String(addition.label || '').trim()) || null;
+      const added = convertedId
+        ? proposedClassById.get(convertedId) || null
+        : addedClassBySignature.get(JSON.stringify([addition.classType, String(addition.label || '').trim()])) || null;
+      addedClassCache.set(reference, added);
+      return added;
     };
     const addedOperationIndexesByClass = new Map();
     operations.forEach((operation, operationIndex) => {
@@ -1096,7 +1125,7 @@ export const createProposalPreview = ({
       }
       if (operation.type === 'moveChildren') {
         const from = resolveProposedId(operation.from); const to = resolveProposedId(operation.to);
-        for (const id of new Set([...beforeParents.keys(), ...afterParents.keys()])) {
+        for (const id of beforeChildrenByParent.get(from) || []) {
           if (beforeParents.get(id) === from && afterParents.get(id) === to) addOperationClass(id, index);
         }
         addOperationClass(from, index);
@@ -1124,7 +1153,7 @@ export const createProposalPreview = ({
         previewArrows.push({ kind, from: operation.classId, to: targetClass, excluded, operationIndex: index });
       } else if (operation.type === 'moveChildren') {
         const source = resolveProposedId(operation.from);
-        for (const id of beforeParents.keys()) {
+        for (const id of beforeChildrenByParent.get(source) || []) {
           if (beforeParents.get(id) === source && afterParents.get(id) === resolveProposedId(operation.to)) {
             const targetClass = resolveProposedId(id);
             previewArrows.push({ kind, from: id, to: targetClass, excluded, operationIndex: index });
@@ -1132,14 +1161,14 @@ export const createProposalPreview = ({
         }
       }
     });
-    for (const id of new Set([...beforeParents.keys(), ...afterParents.keys()])) {
+    for (const id of relationIds) {
       if (beforeParents.get(id) !== afterParents.get(id)) {
         operationIds.add(id);
         affectedIds.add(id);
       }
     }
     for (const item of proposedCandidate.classes) {
-      const original = beforeState.classes.find((candidateItem) => candidateItem.id === item.id);
+      const original = beforeClassById.get(item.id);
       if (!original || original.label !== item.label) {
         operationIds.add(item.id);
         affectedIds.add(item.id);
@@ -1154,6 +1183,7 @@ export const createProposalPreview = ({
       counts: beforeState.counts
     };
     const displayedIds = new Set(proposedDisplayState.classes.map((item) => item.id));
+    const displayedRelationChildren = new Set(proposedDisplayState.relations.map(({ child }) => child));
     const excludedAdditions = proposedCandidate.classes.filter((item) => !beforeIds.has(item.id) && !displayedIds.has(item.id));
     excludedAdditions.forEach((item) => {
       proposedDisplayState.classes.push({ ...item, previewExcluded: true });
@@ -1162,19 +1192,25 @@ export const createProposalPreview = ({
     const excludedAdditionIds = new Set(excludedAdditions.map((item) => item.id));
     proposedCandidate.relations.forEach((relation) => {
       if (excludedAdditionIds.has(relation.child) && displayedIds.has(relation.parent)
-        && !proposedDisplayState.relations.some((existing) => existing.child === relation.child)) {
+        && !displayedRelationChildren.has(relation.child)) {
         proposedDisplayState.relations.push({ ...relation });
+        displayedRelationChildren.add(relation.child);
       }
     });
     deletedIds.forEach((id) => {
-      const removed = beforeState.classes.find((item) => item.id === id);
+      const removed = beforeClassById.get(id);
       if (removed && !displayedIds.has(id)) {
         proposedDisplayState.classes.push({ ...removed, previewDeleted: true });
         displayedIds.add(id);
       }
-      const oldRelation = beforeState.relations.find((relation) => relation.child === id);
-      if (oldRelation && displayedIds.has(oldRelation.parent)
-        && !proposedDisplayState.relations.some((relation) => relation.child === id)) proposedDisplayState.relations.push(oldRelation);
+      const oldParent = beforeParents.get(id);
+      if (oldParent && displayedIds.has(oldParent) && !displayedRelationChildren.has(id)) {
+        const oldRelation = beforeRelationByChild.get(id);
+        if (oldRelation) {
+          proposedDisplayState.relations.push(oldRelation);
+          displayedRelationChildren.add(id);
+        }
+      }
     });
     const displayParents = new Map(proposedDisplayState.relations.map(({ child, parent }) => [child, parent]));
     const displayIds = new Set(proposedDisplayState.classes.map((item) => item.id));
@@ -1193,7 +1229,8 @@ export const createProposalPreview = ({
       relations: state.relations.filter(({ child, parent }) => previewIds.has(child) && previewIds.has(parent)),
       counts: beforeState.counts
     });
-    const beforeHierarchyCounts = countHierarchyTargets(beforeState);
+    const beforeHierarchyCounts = fastUpdate && previewPlan?.proposalItem === proposalItem
+      ? previewPlan.beforeHierarchyCounts : countHierarchyTargets(beforeState);
     const afterHierarchyCounts = countHierarchyTargets(candidate);
     const hierarchyCountLabel = (counts) => (node) => {
       const total = counts.totals.get(node.id) || 0;
@@ -1263,7 +1300,8 @@ export const createProposalPreview = ({
     impact.textContent = '';
     document.getElementById('ai-preview-group-include').hidden = isApplied;
     document.getElementById('ai-preview-group-exclude').hidden = isApplied;
-    previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })), arrows: previewArrows,
+    previewPlan = { proposalItem, operations: activeOperations.map((operation) => ({ ...operation })),
+      operationSignature, proposedCandidate, beforeHierarchyCounts, arrows: previewArrows,
       beforeParents: new Map(beforeParents), afterParents: new Map(displayParents), candidate,
       expectedFingerprint, expectedBaseHash, readOnly: isApplied,
       activeConflictGroupIndex, activeConflictChoiceIndex };
@@ -1283,6 +1321,7 @@ export const createProposalPreview = ({
     const index = items.indexOf(previewPlan.proposalItem);
     const next = items[index + direction];
     if (!next) return;
+    next.agentSelectAlternative?.();
     void transitionPreview(() => showPreview(next)).then(() => {
       if (typeof next.agentApply !== 'function') renderConversation();
     }).catch(reportPreviewError);
