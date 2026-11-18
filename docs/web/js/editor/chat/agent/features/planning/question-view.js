@@ -37,6 +37,30 @@ function createQuestionDockView(dock, messages) {
       const panel = document.createElement('section');
       panel.className = 'assistant-question-panel';
       const answers = currentQuestions.map((question) => ({ questionId: question.id, optionId: null, text: '' }));
+      const skipAnswers = () => finish(currentQuestions.map((question) => ({
+        questionId: question.id,
+        optionId: null,
+        text: '回答はスキップします。追加条件はありません。AIの判断で進めてください。'
+      })), currentQuestions);
+      const header = document.createElement('div');
+      header.className = 'assistant-question-header';
+      const heading = document.createElement('div');
+      heading.className = 'assistant-question-heading';
+      const questionMark = document.createElement('span');
+      questionMark.className = 'assistant-question-mark';
+      questionMark.textContent = '?';
+      questionMark.setAttribute('aria-hidden', 'true');
+      const headingText = document.createElement('span');
+      headingText.textContent = currentQuestions.length > 1 ? `確認事項（${currentQuestions.length}件）` : '質問';
+      heading.append(questionMark, headingText);
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'assistant-question-close';
+      close.textContent = '×';
+      close.setAttribute('aria-label', '質問をスキップ');
+      close.addEventListener('click', skipAnswers);
+      header.append(heading, close);
+      panel.append(header);
 
       const updateSubmit = (submit) => { submit.disabled = answers.some((answer) => !answer.text.trim()); };
       currentQuestions.forEach((question, index) => {
@@ -52,7 +76,13 @@ function createQuestionDockView(dock, messages) {
           const button = document.createElement('button');
           button.type = 'button';
           button.className = 'assistant-question-option';
-          button.textContent = `${optionIndex + 1}. ${option.label}`;
+          const number = document.createElement('span');
+          number.className = 'assistant-question-option-number';
+          number.textContent = String(optionIndex + 1);
+          const label = document.createElement('span');
+          label.className = 'assistant-question-option-label';
+          label.textContent = option.label;
+          button.append(number, label);
           button.dataset.questionOption = String(index);
           button.setAttribute('aria-pressed', 'false');
           button.addEventListener('click', () => {
@@ -77,7 +107,13 @@ function createQuestionDockView(dock, messages) {
         const freeformToggle = document.createElement('button');
         freeformToggle.type = 'button';
         freeformToggle.className = 'assistant-question-freeform-toggle';
-        freeformToggle.textContent = (question.options || []).length ? '自由入力で回答' : '回答を入力';
+        const pencil = document.createElement('span');
+        pencil.className = 'assistant-question-pencil';
+        pencil.textContent = '✎';
+        pencil.setAttribute('aria-hidden', 'true');
+        const freeformLabel = document.createElement('span');
+        freeformLabel.textContent = 'または自分で回答を入力';
+        freeformToggle.append(pencil, freeformLabel);
         freeformToggle.setAttribute('aria-expanded', 'false');
         const answerInput = document.createElement('textarea');
         answerInput.rows = 2;
@@ -114,15 +150,11 @@ function createQuestionDockView(dock, messages) {
       skip.type = 'button';
       skip.className = 'secondary-search-button';
       skip.textContent = 'スキップ';
-      skip.addEventListener('click', () => finish(currentQuestions.map((question) => ({
-        questionId: question.id,
-        optionId: null,
-        text: '回答はスキップします。追加条件はありません。AIの判断で進めてください。'
-      })), currentQuestions));
+      skip.addEventListener('click', skipAnswers);
       const submit = document.createElement('button');
       submit.type = 'button';
       submit.className = 'search-button';
-      submit.textContent = '回答を送信';
+      submit.textContent = '送信';
       submit.disabled = true;
       submit.addEventListener('click', () => {
         if (answers.some((answer) => !answer.text.trim())) return;

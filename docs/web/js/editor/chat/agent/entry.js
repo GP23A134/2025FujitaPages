@@ -6,7 +6,7 @@ import { createPlanningService } from './features/planning/planning-service.js?v
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261116-stop-processing-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
 import { createAssistantWorkflow } from './application/workflow.js?v=20261118-no-preflight-limit-guard-v1';
-import { createQuestionView } from './features/planning/question-view.js?v=20261116-agent-interaction-dock-v2';
+import { createQuestionView } from './features/planning/question-view.js?v=20261118-white-question-card-v1';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261118-agent-error-banner-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261118-preview-alternative-selection-v1';
 import { createSettingsView } from './settings/settings-view.js?v=20261116-setting-errors-v1';
