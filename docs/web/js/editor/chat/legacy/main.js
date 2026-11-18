@@ -343,7 +343,7 @@ import { CHAT_EVENTS } from '../integration/chat-events.js?v=20261118-chat-event
     lastPromptExampleContext = contextKey;
   };
   renderPromptExamples(defaultPromptExamples);
-  fetch(new URL('../../../data/config/ai-prompt-examples.json', import.meta.url), { cache: 'no-store' })
+  fetch(new URL('../../../../data/config/ai-prompt-examples.json', import.meta.url), { cache: 'no-store' })
     .then((response) => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.json();
