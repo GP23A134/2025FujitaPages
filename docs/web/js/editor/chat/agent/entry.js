@@ -1,13 +1,13 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
-import { createProgressView } from './features/progress/progress-view.js?v=20261118-integration-events-v1';
+import { createProgressView } from './features/progress/progress-view.js?v=20261119-scope-flow-v1';
 import { buildPlanInput } from './features/planning/plan-input.js';
 import { createOpenAIClient } from './adapters/openai-client.js';
 import { createPlanningService } from './features/planning/planning-service.js?v=20261117-request-aware-prompts-v1';
-import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261116-stop-processing-v1';
+import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261119-scope-flow-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261118-no-preflight-limit-guard-v1';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261119-scope-flow-v1';
 import { createQuestionView } from './features/planning/question-view.js?v=20261118-white-question-card-v1';
-import { createWorkflowView } from './features/progress/workflow-view.js?v=20261118-agent-error-banner-v1';
+import { createWorkflowView } from './features/progress/workflow-view.js?v=20261119-scope-flow-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261118-preview-alternative-selection-v1';
 import { createSettingsView } from './settings/settings-view.js?v=20261116-setting-errors-v1';
 import { createHistoryService } from './conversations/history-service.js';
@@ -175,7 +175,12 @@ if (window.classEditorAI && statusElement) {
         addHistoryMessage('assistant', event.plan?.unsupportedParts?.map((part) => part.reason).filter(Boolean).join('\n')
           || 'この依頼は現在の機能では対応できません。');
       } else if (event.type === 'scope_blocked') {
-        addHistoryMessage('assistant', '続行に追加の範囲許可が必要です。');
+        const message = event.scopeReason === 'approved_without_scope'
+          ? '許可操作を受け取りましたが、許可対象を特定できず処理を保留しました。'
+          : event.scopeReason === 'approved_scope_incomplete'
+            ? '追加範囲の一部は許可されましたが、必要な範囲が不足しているため処理を保留しました。'
+            : '追加範囲は許可されなかったため、依存する処理を保留しました。';
+        addHistoryMessage('assistant', message);
       } else if (event.type === 'result') {
         const result = event.result;
         const summaries = [result?.message, ...(result?.proposals || []).map((item) => item.proposal?.title || item.proposal?.summary)]

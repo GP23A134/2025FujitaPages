@@ -45,7 +45,10 @@ export function createScopeApprovalView(dialog, editor, { messages, interactionD
     const overview = document.createElement('p');
     overview.textContent = `${purpose || '選択範囲外のクラス情報が必要です。'} 候補: ${countText}。必要な許可: ${permissions || '参照'}。`;
     const continuation = document.createElement('p');
-    continuation.textContent = `続ける処理: ${processSummary || '許可された範囲を使って処理を続けます。'}`;
+    const hasGrantableScope = candidates.some((item) => item.needsReference || item.needsChange);
+    continuation.textContent = hasGrantableScope
+      ? `続ける処理: ${processSummary || '許可された範囲を使って処理を続けます。'}`
+      : '許可対象を特定できないため、依存する処理を続けられません。';
     const actions = document.createElement('div');
     actions.className = 'ai-scope-request-actions';
     const approveButton = document.createElement('button');
@@ -66,6 +69,7 @@ export function createScopeApprovalView(dialog, editor, { messages, interactionD
       if (current && !dialog.open) dialog.showModal();
     });
     actions.append(denyButton, approveButton, detailButton);
+    approveButton.disabled = !hasGrantableScope;
     card.append(heading, overview, continuation, actions);
     host.append(card);
     if (interactionDock) interactionDock.hidden = false;
@@ -137,7 +141,9 @@ export function createScopeApprovalView(dialog, editor, { messages, interactionD
       const body = document.createElement('div');
       body.className = 'ai-message-body';
       const text = document.createElement('p');
-      text.textContent = choice === 'allow' ? '追加する範囲を許可します。' : '追加する範囲を許可しません。';
+      text.textContent = choice === 'allow'
+        ? `追加範囲を許可しました（参照 ${referenceIds.size}件・変更対象 ${changeIds.size}件）。`
+        : choice === 'original_scope' ? '追加範囲を許可しません。' : '追加範囲の許可をキャンセルしました。';
       body.append(text);
       response.append(author, body);
       messages.append(response);
@@ -149,8 +155,8 @@ export function createScopeApprovalView(dialog, editor, { messages, interactionD
   };
   allowButton.addEventListener('click', () => finish('allow'));
   denyButton.addEventListener('click', () => finish('original_scope'));
-  closeButton?.addEventListener('click', () => dialog.close());
-  dialog.addEventListener('cancel', (event) => { event.preventDefault(); dialog.close(); });
+  closeButton?.addEventListener('click', () => finish('cancel'));
+  dialog.addEventListener('cancel', (event) => { event.preventDefault(); finish('cancel'); });
 
   function request({ candidates, allowReference, allowChange, purpose, processSummary }) {
     if (current) throw new Error('別の範囲選択が進行中です。');
@@ -200,6 +206,8 @@ export function createScopeApprovalView(dialog, editor, { messages, interactionD
       resolve: null,
       summaryView: showSummary({ candidates: normalized, allowReference, allowChange, purpose, processSummary })
     };
+    allowButton.disabled = !normalized.some((item) => item.needsReference || item.needsChange);
+    if (current.summaryView) current.summaryView.approveButton.disabled = allowButton.disabled;
     render();
     if (!current.summaryView) dialog.showModal();
     return new Promise((resolve) => { current.resolve = resolve; });

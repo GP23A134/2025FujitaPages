@@ -9,7 +9,7 @@ const DEFAULT_LABELS = Object.freeze({
   planning: '依頼を整理しています',
   waiting_for_answer: '確認への回答をお待ちしています',
   checking_scope: '必要な参照・変更範囲を確認しています',
-  waiting_for_scope_approval: '追加範囲の選択をお待ちしています',
+  waiting_for_scope_approval: '追加範囲の許可をお待ちしています',
   scope_denied: '追加範囲が許可されなかったため処理を停止しました',
   retrieving: '許可された範囲からデータを取得しています',
   analyzing: '取得した情報を確認しています',

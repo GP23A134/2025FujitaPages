@@ -202,6 +202,15 @@ export function createAssistantWorkflow({
     return true;
   }
 
+  function failScopeContinuation(reason) {
+    if (reason === 'denied') return;
+    const note = reason === 'approved_scope_incomplete'
+      ? '許可された範囲だけでは必要な情報が不足しています。'
+      : '許可操作を受け取りましたが、許可対象を特定できませんでした。';
+    setStatus('failed');
+    emitProgress('failed', { note });
+  }
+
   async function createPlan({ replan = false, signal } = {}) {
     if (replan) budgetGuard.countReplan();
     emitProgress('planning');
@@ -325,9 +334,14 @@ export function createAssistantWorkflow({
           allowChange: false,
           purpose: result.scopeRequest.purpose || '取得に追加の参照範囲が必要です。'
         });
-        if (!await applyScopeDecision(decision)) return { status: state.status === 'cancelled' ? 'cancelled' : 'scope_blocked', scopeRequest: result.scopeRequest };
+        if (!await applyScopeDecision(decision)) return {
+          status: state.status === 'cancelled' ? 'cancelled' : 'scope_blocked',
+          scopeRequest: result.scopeRequest,
+          scopeReason: decision.choice === 'allow' ? 'approved_without_scope' : 'denied'
+        };
         if (decision.choice === 'original_scope' || !decision.referenceIds.length) {
-          return { status: 'scope_blocked', scopeRequest: result.scopeRequest };
+          return { status: 'scope_blocked', scopeRequest: result.scopeRequest,
+            scopeReason: decision.choice === 'allow' ? 'approved_without_scope' : 'denied' };
         }
         return { status: 'replan_required' };
       }
@@ -369,9 +383,14 @@ export function createAssistantWorkflow({
           candidates, allowReference: needsReference, allowChange: needsChange,
           purpose: '変更案の検証で、選択範囲外のクラスを参照または変更対象に含める必要があります。'
         });
-        if (!await applyScopeDecision(decision)) return { status: state.status === 'cancelled' ? 'cancelled' : 'scope_blocked', scopeRequest: { candidates } };
+        if (!await applyScopeDecision(decision)) return {
+          status: state.status === 'cancelled' ? 'cancelled' : 'scope_blocked',
+          scopeRequest: { candidates },
+          scopeReason: decision.choice === 'allow' ? 'approved_without_scope' : 'denied'
+        };
         if (decision.choice === 'allow' && (decision.referenceIds.length || decision.changeIds.length)) return { status: 'replan_required' };
-        return { status: 'scope_blocked', scopeRequest: { candidates } };
+        return { status: 'scope_blocked', scopeRequest: { candidates },
+          scopeReason: decision.choice === 'allow' ? 'approved_without_scope' : 'denied' };
       }
       if (validation.blocked.length && attempt < retries) {
         messages = [...result.messages, { role: 'user', content: JSON.stringify({
@@ -436,7 +455,8 @@ export function createAssistantWorkflow({
     if (outcome.status === 'replan_required') return runPlan({ replan: true, signal });
     if (outcome.status === 'cancelled') return outcome;
     if (outcome.status === 'scope_blocked') {
-      onEvent({ type: 'scope_blocked', scopeRequest: outcome.scopeRequest });
+      failScopeContinuation(outcome.scopeReason || 'denied');
+      onEvent({ type: 'scope_blocked', scopeRequest: outcome.scopeRequest, scopeReason: outcome.scopeReason || 'denied' });
       return outcome;
     }
     if (state.status === 'retrieving') setStatus('analyzing');
@@ -654,8 +674,12 @@ export function createAssistantWorkflow({
           purpose: '回答後の変更案に、選択範囲外のクラスを参照または変更対象に含める必要があります。'
         });
         if (!await applyScopeDecision(decision)) {
-          const outcome = { status: state.status === 'cancelled' ? 'cancelled' : 'scope_blocked', scopeRequest: { candidates } };
-          if (outcome.status === 'scope_blocked') onEvent({ type: 'scope_blocked', scopeRequest: outcome.scopeRequest });
+          const outcome = {
+            status: state.status === 'cancelled' ? 'cancelled' : 'scope_blocked',
+            scopeRequest: { candidates },
+            scopeReason: decision.choice === 'allow' ? 'approved_without_scope' : 'denied'
+          };
+          if (outcome.status === 'scope_blocked') onEvent({ type: 'scope_blocked', scopeRequest: outcome.scopeRequest, scopeReason: outcome.scopeReason });
           return outcome;
         }
         const permissionsGranted = checked.scopeRequests.every((item) =>
@@ -663,8 +687,9 @@ export function createAssistantWorkflow({
           && (!item.needsChange || grants.change.has(item.classId)));
         if (!permissionsGranted) {
           const scopeRequest = { candidates };
-          onEvent({ type: 'scope_blocked', scopeRequest });
-          return { status: 'scope_blocked', scopeRequest };
+          failScopeContinuation('approved_scope_incomplete');
+          onEvent({ type: 'scope_blocked', scopeRequest, scopeReason: 'approved_scope_incomplete' });
+          return { status: 'scope_blocked', scopeRequest, scopeReason: 'approved_scope_incomplete' };
         }
         state = {
           ...state,

@@ -81,7 +81,14 @@ export function createWorkflowView(root, questionView, proposalView, { onAnswerQ
         proposalView.render(event.result);
       }
     }
-    if (event.type === 'scope_blocked') appendText(root, 'p', '追加範囲の許可が得られなかったため、依存する処理を保留しました。');
+    if (event.type === 'scope_blocked') {
+      const message = event.scopeReason === 'approved_without_scope'
+        ? '許可操作を受け取りましたが、許可対象を特定できず処理を保留しました。'
+        : event.scopeReason === 'approved_scope_incomplete'
+          ? '追加範囲の一部は許可されましたが、必要な範囲が不足しているため処理を保留しました。'
+          : '追加範囲は許可されなかったため、依存する処理を保留しました。';
+      appendText(root, 'p', message);
+    }
     if (event.type === 'error') onError(event.error);
   }
   return Object.freeze({ handle, renderPlan });

@@ -9,7 +9,7 @@
     <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
     <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1" />
     <link rel="stylesheet" href="web/css/tree-structure.css?v=20261112-tree-action-buttons-v2" />
-    <link rel="stylesheet" href="web/css/editor-panels.css?v=20261118-preview-edge-navigation-v1" />
+    <link rel="stylesheet" href="web/css/editor-panels.css?v=20261119-chat-bottom-error-notice-v1" />
     <link rel="stylesheet" href="web/css/test-preferences.css?v=20261111-test-settings-layout-v1" />
     <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261113-target-connectors-v1" />
     <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261112-ai-consult-tab-v2" />
@@ -201,6 +201,10 @@
               <div id="assistant-results" class="assistant-results" aria-live="polite"></div>
               <p id="ai-key-guidance" class="ai-key-guidance" hidden>AIチャットを使うにはAPIキーが必要です。<button type="button" id="ai-open-settings" class="ai-settings-inline-link">AIチャット設定</button>から入力してください。</p>
               <p id="ai-usage-summary" class="ai-usage-summary" aria-live="polite"><span class="ai-usage-label">合計</span><strong class="ai-usage-cost">$0.000000</strong><span class="ai-usage-detail">入力 0 / 出力 0 tokens</span><span class="ai-usage-requests">送信 0回</span></p>
+              <div id="assistant-error-notice" class="assistant-error-notice" role="alert" aria-live="assertive" aria-atomic="true" hidden>
+                <span id="assistant-error-notice-message" class="assistant-error-notice-message"></span>
+                <button id="assistant-error-notice-close" class="assistant-error-notice-close" type="button" aria-label="エラー通知を閉じる" title="閉じる">×</button>
+              </div>
               <form id="ai-chat-form" class="ai-chat-form">
                 <div class="ai-prompt-examples">
                   <div id="ai-prompt-examples-list" class="ai-prompt-examples-list"></div>
@@ -581,10 +585,6 @@
     <!-- ダイアログDOMの後に、データ読み込みとAIチャットを初期化する。 -->
     <script data-app-script="web/js/shared/data-upload.js?v=20261112-shared-validation-v2"></script>
     <script data-app-script="web/js/editor/chat/legacy/main.js?v=20261118-preview-keyboard-navigation-v1" data-app-type="module"></script>
-    <script data-app-script="web/js/editor/chat/agent/entry.js?v=20261118-white-question-card-v1" data-app-type="module"></script>
-    <div id="assistant-error-notice" class="assistant-error-notice" role="alert" aria-live="assertive" aria-atomic="true" hidden>
-      <span id="assistant-error-notice-message" class="assistant-error-notice-message"></span>
-      <button id="assistant-error-notice-close" class="assistant-error-notice-close" type="button" aria-label="エラー通知を閉じる" title="閉じる">×</button>
-    </div>
+    <script data-app-script="web/js/editor/chat/agent/entry.js?v=20261119-scope-flow-v1" data-app-type="module"></script>
   </body>
 </html>
