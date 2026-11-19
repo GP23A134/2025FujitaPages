@@ -271,13 +271,30 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .assistant-error { color: #b91c1c; }
 .assistant-alternative-choice { display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; }
 .assistant-developer-settings { display: grid; gap: 0.8rem; margin: 0.6rem 0; padding: 0.75rem; border: 1px solid #dbe4ee; border-radius: 9px; background: #f8fafc; }
-.assistant-settings-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
-.assistant-settings-group h4 { grid-column: 1 / -1; margin: 0; }
+.assistant-settings-group { display: block; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; }
+.assistant-settings-group + .assistant-settings-group { margin-top: 0.65rem; }
+.assistant-settings-group-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; min-height: 3rem; padding: 0.7rem 0.9rem; color: #1e3a5f; font-size: 1rem; font-weight: 700; cursor: pointer; list-style-position: inside; }
+.assistant-settings-group-heading::marker { color: #2563eb; }
+.assistant-settings-group[open] .assistant-settings-group-heading { border-bottom: 1px solid #dbe3ec; background: #f1f7fd; }
+.assistant-settings-group-count { color: #64748b; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.assistant-settings-group > .assistant-setting-field { margin: 0.65rem; padding: 0.8rem; font-size: 0.95rem; }
+.assistant-settings-group > .assistant-setting-field + .assistant-setting-field { margin-top: 0; }
+.assistant-settings-group .assistant-setting-field small { font-size: 0.82rem; }
+.assistant-settings-group .assistant-setting-field input[type="number"], .assistant-settings-group .assistant-setting-field select { min-height: 2.6rem; font-size: 0.95rem; }
 .assistant-setting-field { display: grid; align-content: start; gap: 0.25rem; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 7px; background: #fff; font-size: 0.82rem; }
 .assistant-setting-field input[type="number"] { width: 100%; box-sizing: border-box; padding: 0.35rem 0.45rem; border: 1px solid #cbd5e1; border-radius: 5px; font: inherit; }
 .assistant-setting-field small { color: #64748b; font-size: 0.72rem; line-height: 1.4; }
 .assistant-setting-field .assistant-setting-error { color: #b91c1c; }
 .assistant-setting-toggle { display: flex; align-items: center; gap: 0.4rem; }
+#test-settings-dialog { width: min(1080px, calc(100vw - 2rem)); max-height: min(92vh, 960px); padding: 1.5rem; font-size: 1rem; }
+#test-settings-title { font-size: 1.45rem; }
+#test-settings-dialog > .edit-settings-note { font-size: 0.92rem; }
+#test-settings-dialog .edit-settings-section { gap: 0.7rem; padding: 1rem; }
+#test-settings-dialog .edit-settings-section h3 { font-size: 1.08rem; }
+#test-settings-dialog .edit-settings-section h4 { font-size: 1rem; }
+#test-settings-dialog .edit-settings-section .edit-settings-note { font-size: 0.88rem; }
+#test-settings-dialog .edit-ai-setting-card { gap: 0.7rem; padding: 1rem; }
+#test-settings-dialog .edit-ai-setting-card > label, #test-settings-dialog .edit-settings-toggle { font-size: 0.95rem; }
 .ai-chat-format-choice { display: flex; flex-wrap: wrap; gap: 0.85rem; margin: 0; padding: 0.65rem 0.8rem; border: 1px solid #dbe4ee; border-radius: 8px; }
 .ai-chat-format-choice legend { padding-inline: 0.25rem; font-weight: 650; }
 .ai-chat-format-choice label { display: flex; align-items: center; gap: 0.35rem; }

@@ -1,22 +1,31 @@
 const FEATURE_LABELS = Object.freeze({
   dataRetrieval: 'データ取得',
-  validation: '変更案の検証',
-  conversations: '会話の保存',
+  validation: '提案の検証',
+  conversations: '会話履歴',
   chatSystem: 'チャットシステム',
-  agentRuntime: 'AI処理上限',
+  agentRuntime: 'AI処理量・上限',
   instances: 'インスタンス情報',
-  proposals: '変更操作'
+  proposals: '提案内容'
 });
+const FEATURE_ORDER = ['dataRetrieval', 'agentRuntime', 'instances', 'proposals', 'validation', 'conversations', 'chatSystem'];
 
 export function createSettingsView(container, registry, { getValue, onChange }) {
   const groups = new Map();
-  for (const definition of registry.list()) {
-    if (definition.developerVisible === false) continue;
+  const definitions = registry.list().filter((definition) => definition.developerVisible !== false)
+    .sort((a, b) => FEATURE_ORDER.indexOf(a.feature) - FEATURE_ORDER.indexOf(b.feature));
+  for (const definition of definitions) {
     if (!groups.has(definition.feature)) {
-      const section = document.createElement('section');
+      const section = document.createElement('details');
       section.className = 'assistant-settings-group';
-      const heading = document.createElement('h4');
-      heading.textContent = FEATURE_LABELS[definition.feature] || definition.feature;
+      const heading = document.createElement('summary');
+      heading.className = 'assistant-settings-group-heading';
+      const title = document.createElement('span');
+      title.textContent = FEATURE_LABELS[definition.feature] || definition.feature;
+      const count = document.createElement('span');
+      count.className = 'assistant-settings-group-count';
+      const itemCount = definitions.filter((item) => item.feature === definition.feature).length;
+      count.textContent = `${itemCount}項目`;
+      heading.append(title, count);
       section.append(heading);
       container.append(section);
       groups.set(definition.feature, section);
