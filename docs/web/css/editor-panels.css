@@ -104,16 +104,11 @@ body[data-mode="edit"] #edit-tree-panel .edit-tree-layout:has(.instance-selectio
   position: sticky;
   top: 1rem;
   overflow: hidden;
-  transition: height 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-@media (prefers-reduced-motion: reduce) {
-  .edit-tree-layout .instance-selection { transition: none; }
 }
 .held-panel-resize { position: absolute; top: 0; bottom: 0; left: 0; z-index: 5; width: 8px; cursor: col-resize; touch-action: none; }
 .held-panel-resize::after { position: absolute; top: 50%; left: 2px; width: 3px; height: 2.5rem; transform: translateY(-50%); border-radius: 999px; background: #94a3b8; content: ""; opacity: 0.65; }
 .held-panel-resize:hover::after, .held-panel-resize:focus-visible::after { background: #0284c7; opacity: 1; }
 .held-panel-resize:focus-visible { outline: 2px solid #0284c7; outline-offset: -2px; }
-.instance-selection.is-collapsed .held-panel-resize { display: none; }
 body.edit-panes-pinned #edit-tree-panel .edit-tree-layout .tree-filter {
   position: sticky;
   top: var(--edit-pane-position-top, 4.5rem);

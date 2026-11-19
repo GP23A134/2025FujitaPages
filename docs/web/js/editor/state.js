@@ -58,10 +58,8 @@ const updatePinnedHeldPanelBounds = () => {
   if (!panel || !layout) return;
   const toolbar = document.querySelector('.edit-taskbar');
   const toolbarBounds = toolbar?.getBoundingClientRect();
-  const toolbarHeight = toolbarBounds?.height ?? 0;
   const toolbarBottom = toolbarBounds?.bottom ?? 0;
-  // ツールバーが画面上端へ出入りする瞬間も、保持欄がその領域へ重ならないようにする。
-  const top = Math.max(toolbarBottom, toolbarHeight) + (toolbarHeight ? 8 : 0);
+  const top = Math.max(0, toolbarBottom);
   const treeFilter = document.getElementById('tree-filter');
   const filterHeight = treeFilter && !treeFilter.hidden ? treeFilter.getBoundingClientRect().height : 0;
   const layoutStickyGap = filterHeight

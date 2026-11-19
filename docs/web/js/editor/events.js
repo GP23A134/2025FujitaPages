@@ -1095,4 +1095,6 @@ closeAllTreeButton.addEventListener('click', () => {
   });
 });
 const loadingIndicator = document.getElementById('loading-indicator');
+// ローディングを隠す前に固定欄の位置を同期し、初回描画で仮の上端位置が見えないようにする。
+updatePinnedHeldPanelBounds();
 if (loadingIndicator) loadingIndicator.hidden = true;
