@@ -100,6 +100,49 @@ function observeHeldListSize(held) {
     });
   }
 }
+let heldPanelVisibilityTarget = null;
+let heldPanelVisibilityAnimation = null;
+function syncHeldPanelVisibility(panel, shouldHide) {
+  const target = shouldHide ? 'hidden' : 'visible';
+  if (target === heldPanelVisibilityTarget) {
+    if (shouldHide ? panel.hidden : !panel.hidden) return;
+    if (heldPanelVisibilityAnimation?.playState === 'running') return;
+  }
+  const wasClosing = heldPanelVisibilityTarget === 'hidden' && !panel.hidden;
+  heldPanelVisibilityAnimation?.cancel();
+  heldPanelVisibilityAnimation = null;
+  heldPanelVisibilityTarget = target;
+  const reduceMotion = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  if (shouldHide) {
+    if (panel.hidden || reduceMotion || typeof panel.animate !== 'function') {
+      panel.hidden = true;
+      return;
+    }
+    const animation = panel.animate(
+      [{ opacity: 1, transform: 'translateX(0)' }, { opacity: 0, transform: 'translateX(12px)' }],
+      { duration: 160, easing: 'ease-in', fill: 'forwards' }
+    );
+    heldPanelVisibilityAnimation = animation;
+    animation.onfinish = () => {
+      if (heldPanelVisibilityTarget !== 'hidden') return;
+      panel.hidden = true;
+      animation.cancel();
+      heldPanelVisibilityAnimation = null;
+    };
+    return;
+  }
+  const wasHidden = panel.hidden;
+  panel.hidden = false;
+  if ((!wasHidden && !wasClosing) || reduceMotion || typeof panel.animate !== 'function') return;
+  const animation = panel.animate(
+    [{ opacity: 0.55, transform: 'translateX(12px)' }, { opacity: 1, transform: 'translateX(0)' }],
+    { duration: 190, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
+  );
+  heldPanelVisibilityAnimation = animation;
+  animation.onfinish = () => {
+    if (heldPanelVisibilityTarget === 'visible') heldPanelVisibilityAnimation = null;
+  };
+}
 function renderInstances() {
   // 保持中のクラスがある場合だけサイドパネルと移動用ボタンを表示する。
   // 解除操作後もこの関数だけを呼べば、件数と表示状態を同期できる。
@@ -145,7 +188,7 @@ function renderInstances() {
   destinationPicker.hidden = heldPanelCollapsed || heldPanelView !== 'destination';
   aiAssistantPanel.hidden = heldPanelCollapsed || heldPanelView !== 'chat';
   panel.classList.toggle('is-collapsed', heldPanelCollapsed);
-  panel.hidden = heldPanelClosed;
+  syncHeldPanelVisibility(panel, heldPanelClosed);
   document.getElementById('toggle-tree-filter-open').hidden = !treeFilter?.hidden;
   collapseToggle.setAttribute('aria-expanded', heldPanelCollapsed ? 'false' : 'true');
   collapseToggle.title = heldPanelCollapsed ? '保持中欄を展開' : '保持中欄を折りたたむ';

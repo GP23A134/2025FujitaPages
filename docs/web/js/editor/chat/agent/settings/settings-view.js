@@ -25,6 +25,7 @@ export function createSettingsView(container, registry, { getValue, onChange }) 
       count.className = 'assistant-settings-group-count';
       const itemCount = definitions.filter((item) => item.feature === definition.feature).length;
       count.textContent = `${itemCount}項目`;
+      if (itemCount > 1) section.classList.add('has-multiple-settings');
       heading.append(title, count);
       section.append(heading);
       container.append(section);

@@ -9,8 +9,8 @@
     <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
     <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1" />
     <link rel="stylesheet" href="web/css/tree-structure.css?v=20261112-tree-action-buttons-v2" />
-    <link rel="stylesheet" href="web/css/editor-panels.css?v=20261119-chat-bottom-error-notice-v1" />
-    <link rel="stylesheet" href="web/css/test-preferences.css?v=20261111-test-settings-layout-v1" />
+    <link rel="stylesheet" href="web/css/editor-panels.css?v=20261119-held-panel-smoothing-v1" />
+    <link rel="stylesheet" href="web/css/test-preferences.css?v=20261119-developer-settings-layout-v2" />
     <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261113-target-connectors-v1" />
     <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261112-ai-consult-tab-v2" />
     <script data-app-script="web/data/generated/class-data.js"></script>
@@ -21,8 +21,8 @@
 
     <!-- データ → 共通ツリー → 編集状態・パネル・ツリー・イベント → AIの順で実行する。 -->
     <script data-app-script="web/js/shared/tree.js?v=20261113-tree-count-labels-v1"></script>
-    <script data-app-script="web/js/editor/state.js?v=20261118-chat-integration-v1"></script>
-    <script data-app-script="web/js/editor/panels.js?v=20261118-chat-integration-v1"></script>
+    <script data-app-script="web/js/editor/state.js?v=20261119-held-panel-toolbar-clearance-v1"></script>
+    <script data-app-script="web/js/editor/panels.js?v=20261119-held-panel-smoothing-v1"></script>
     <script data-app-script="web/js/editor/tree.js?v=20261118-tree-autoscroll-acceleration-v1"></script>
     <script data-app-script="web/js/editor/events.js?v=20261118-preview-candidate-speed-v1"></script>
     <script data-app-script="web/js/editor/test-preferences.js?v=20261113-cost-aware-search-default-v1" data-app-type="module"></script>
@@ -303,8 +303,7 @@
       <p class="edit-settings-note">変更はすぐに反映され、自動保存されます。「保存して閉じる」からも保存できます。</p>
       <section class="edit-settings-section" aria-labelledby="test-ai-chat-title">
         <h3 id="test-ai-chat-title">AIチャット</h3>
-        <section class="edit-settings-section" aria-labelledby="edit-ai-behavior-settings-title">
-          <h4 id="edit-ai-behavior-settings-title">AIチャットの動作</h4>
+        <section class="edit-settings-section" aria-label="AIチャットの回答・送信設定">
           <label class="edit-settings-toggle"><input type="checkbox" id="ai-confirm-before-send" checked /> 送信前に内容を確認する</label>
           <p class="edit-settings-note">ONにすると送信前に内容を確認します。確認画面で「これ以降表示しない」を選ぶと、次回以降はOFFになります。</p>
           <div class="edit-ai-behavior-grid">
@@ -585,6 +584,6 @@
     <!-- ダイアログDOMの後に、データ読み込みとAIチャットを初期化する。 -->
     <script data-app-script="web/js/shared/data-upload.js?v=20261112-shared-validation-v2"></script>
     <script data-app-script="web/js/editor/chat/legacy/main.js?v=20261118-preview-keyboard-navigation-v1" data-app-type="module"></script>
-    <script data-app-script="web/js/editor/chat/agent/entry.js?v=20261119-scope-flow-v1" data-app-type="module"></script>
+    <script data-app-script="web/js/editor/chat/agent/entry.js?v=20261119-developer-settings-layout-v2" data-app-type="module"></script>
   </body>
 </html>

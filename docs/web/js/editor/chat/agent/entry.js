@@ -9,7 +9,7 @@ import { createAssistantWorkflow } from './application/workflow.js?v=20261119-sc
 import { createQuestionView } from './features/planning/question-view.js?v=20261118-white-question-card-v1';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261119-scope-flow-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261118-preview-alternative-selection-v1';
-import { createSettingsView } from './settings/settings-view.js?v=20261116-setting-errors-v1';
+import { createSettingsView } from './settings/settings-view.js?v=20261119-developer-settings-layout-v2';
 import { createHistoryService } from './conversations/history-service.js';
 import { getAgentLegacyBridge } from '../integration/agent-legacy-bridge-registry.js?v=20261118-chat-bridge-registry-v1';
 import { CHAT_EVENTS, dispatchChatEvent } from '../integration/chat-events.js?v=20261118-chat-events-v1';
