@@ -24,12 +24,15 @@ export function createPlanningService({ client, getDeveloperSettings }) {
     ];
     const textFormat = { type: 'json_schema', name: 'class_edit_plan', strict: true, schema: PLAN_RESPONSE_SCHEMA };
     let reservation = null;
-    if (budgetGuard) {
-      budgetGuard.assertResponseAllowed();
-      reservation = budgetGuard.reserveInput({ model, input, textFormat });
-    }
+    let responseSlot = null;
     let response;
     try {
+      if (budgetGuard) {
+        responseSlot = budgetGuard.reserveResponseSlot
+          ? await budgetGuard.reserveResponseSlot()
+          : (await budgetGuard.assertResponseAllowed(), null);
+        reservation = budgetGuard.reserveInput({ model, input, textFormat });
+      }
       response = await client.request({
       apiKey,
       model,
@@ -39,10 +42,11 @@ export function createPlanningService({ client, getDeveloperSettings }) {
       });
     } catch (error) {
       if (reservation) budgetGuard.reconcileInput(reservation, null);
+      if (responseSlot) budgetGuard.releaseResponse?.(responseSlot);
       throw error;
     }
     if (reservation) {
-      budgetGuard.countResponse();
+      budgetGuard.countResponse(responseSlot);
       const usageResult = budgetGuard.reconcileInput(reservation, response.usage?.input_tokens);
       if (usageResult.overBudget) {
         const error = new Error('API実績が累積入力トークン上限を超えたため、計画を停止しました。');

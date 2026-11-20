@@ -1,11 +1,12 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
 import { createProgressView } from './features/progress/progress-view.js?v=20261119-scope-flow-v1';
 import { buildPlanInput } from './features/planning/plan-input.js';
-import { createOpenAIClient } from './adapters/openai-client.js';
-import { createPlanningService } from './features/planning/planning-service.js?v=20261117-request-aware-prompts-v1';
+import { createOpenAIClient } from './adapters/openai-client.js?v=20261120-api-retries-v1';
+import { createPlanningService } from './features/planning/planning-service.js?v=20261120-budget-limit-approval-v1';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261119-scope-flow-v1';
+import { createBudgetApprovalView } from './features/budget-approval/budget-approval-view.js?v=20261120-budget-limit-approval-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261119-scope-flow-v1';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261120-api-retries-v1';
 import { createQuestionView } from './features/planning/question-view.js?v=20261118-white-question-card-v1';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261119-scope-flow-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261118-preview-alternative-selection-v1';
@@ -37,6 +38,7 @@ if (window.classEditorAI && statusElement) {
     messages,
     interactionDock
   });
+  const budgetApproval = createBudgetApprovalView({ messages, interactionDock });
   const questionView = createQuestionView(document.getElementById('assistant-question-dialog'), { dock: interactionDock, messages });
   const settingsRegistry = createAssistantSettingsRegistry();
   const historyService = createHistoryService();
@@ -159,6 +161,7 @@ if (window.classEditorAI && statusElement) {
     client,
     planningService,
     scopeApproval,
+    budgetApproval,
     getSettings: () => ({ ...settings }),
     reportProgress: (detail) => dispatchChatEvent(CHAT_EVENTS.agentProgress, detail),
     reportUsage: ({ model, usage }) => dispatchChatEvent(CHAT_EVENTS.agentUsage, { model, usage }),

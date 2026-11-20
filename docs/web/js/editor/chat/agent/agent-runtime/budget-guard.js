@@ -6,10 +6,15 @@ export function estimateInputTokens(input) {
   return Math.ceil(utf8Bytes(serialized) * 0.8) + 256;
 }
 
-export function createBudgetGuard({ state, limits, onChange }) {
+export function createBudgetGuard({ state, limits, onChange, onResponseLimit }) {
   const counters = { ...state.counters };
+  const activeLimits = { ...limits };
   const reservations = new Map();
+  const responseReservations = new Set();
   let nextReservationId = 0;
+  let nextResponseReservationId = 0;
+  let responseLimitApproval = null;
+  let responseLimitDenied = false;
   const notify = () => onChange?.({ ...counters });
   const fail = (message, code) => Object.assign(new Error(message), {
     code, status: 'budget_exhausted', sourceModule: 'agent-runtime/budget-guard.js'
@@ -59,20 +64,48 @@ export function createBudgetGuard({ state, limits, onChange }) {
     notify();
   }
 
-  function assertResponseAllowed() {
-    if (counters.responseRounds >= limits.maxResponseRounds) throw fail('AI応答回数の上限に達しました。', 'RESPONSE_LIMIT');
+  async function reserveResponseSlot() {
+    while (counters.responseRounds + responseReservations.size >= activeLimits.maxResponseRounds) {
+      if (responseLimitDenied) throw fail('AI応答回数の上限に達しました。利用者が続行を許可しませんでした。', 'RESPONSE_LIMIT');
+      if (!responseLimitApproval) {
+        responseLimitApproval = Promise.resolve(onResponseLimit?.({
+          used: counters.responseRounds,
+          limit: activeLimits.maxResponseRounds,
+          extension: 20
+        })).then((decision) => {
+          if (decision === 'continue') {
+            activeLimits.maxResponseRounds += 20;
+            notify();
+          } else if (decision !== 'cancel') responseLimitDenied = true;
+          return decision;
+        }).finally(() => { responseLimitApproval = null; });
+      }
+      const extension = await responseLimitApproval;
+      if (extension === 'cancel') throw Object.assign(new Error('処理を中止しました。'), { name: 'AbortError' });
+      if (extension !== 'continue') throw fail('AI応答回数の上限に達しました。利用者が続行を許可しませんでした。', 'RESPONSE_LIMIT');
+    }
+    const id = ++nextResponseReservationId;
+    responseReservations.add(id);
+    return Object.freeze({ id });
   }
-  function countResponse() {
+  function assertResponseAllowed() {
+    if (counters.responseRounds >= activeLimits.maxResponseRounds) throw fail('AI応答回数の上限に達しました。', 'RESPONSE_LIMIT');
+  }
+  function countResponse(reservation = null) {
+    if (reservation?.id && responseReservations.has(reservation.id)) responseReservations.delete(reservation.id);
     counters.responseRounds += 1;
     notify();
   }
+  function releaseResponse(reservation) {
+    if (reservation?.id) responseReservations.delete(reservation.id);
+  }
   function countRetrieval() {
-    if (counters.retrievalCalls >= limits.maxRetrievalCalls) throw fail('データ取得回数の上限に達しました。', 'RETRIEVAL_LIMIT');
+    if (counters.retrievalCalls >= activeLimits.maxRetrievalCalls) throw fail('データ取得回数の上限に達しました。', 'RETRIEVAL_LIMIT');
     counters.retrievalCalls += 1;
     notify();
   }
   function countReplan() {
-    if (counters.replans >= limits.maxReplans) throw fail('再計画回数の上限に達しました。', 'REPLAN_LIMIT');
+    if (counters.replans >= activeLimits.maxReplans) throw fail('再計画回数の上限に達しました。', 'REPLAN_LIMIT');
     counters.replans += 1;
     notify();
   }
@@ -82,7 +115,9 @@ export function createBudgetGuard({ state, limits, onChange }) {
     reconcileInput,
     releaseInput,
     assertResponseAllowed,
+    reserveResponseSlot,
     countResponse,
+    releaseResponse,
     countRetrieval,
     countReplan,
     getCounters: () => ({ ...counters }),

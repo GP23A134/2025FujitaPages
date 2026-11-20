@@ -2,11 +2,11 @@ import { createConversationState, transitionConversation } from './conversation-
 import { buildPlanInput } from '../features/planning/plan-input.js';
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js';
-import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261116-progress-milestones-v1';
-import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261118-multiple-move-destinations-v1';
+import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-budget-limit-approval-v1';
+import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261120-api-retries-v1';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
-import { createAgentRunLoop } from '../agent-runtime/run-loop.js?v=20261116-progress-milestones-v1';
+import { createAgentRunLoop } from '../agent-runtime/run-loop.js?v=20261120-budget-limit-approval-v1';
 import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261117-request-aware-prompts-v1';
 import { PROPOSAL_RESPONSE_SCHEMA } from '../features/proposals/proposal-schema.js';
 import { validateProposalResponse } from '../features/proposals/proposal-contract.js';
@@ -75,7 +75,7 @@ const formatAnswers = (questions, answers) => {
 };
 
 export function createAssistantWorkflow({
-  editor, client, planningService, scopeApproval, getSettings,
+  editor, client, planningService, scopeApproval, budgetApproval, getSettings,
   reportProgress = () => {}, onEvent = () => {}, reportUsage = () => {}
 }) {
   if (!editor?.getState || !client?.request || !planningService?.createPlan) throw new TypeError('Workflowの依存関係が不足しています。');
@@ -125,6 +125,7 @@ export function createAssistantWorkflow({
     const reason = Object.assign(new Error('処理を中止しました。'), { name: 'AbortError' });
     activeController?.abort(reason);
     scopeApproval?.cancel?.();
+    budgetApproval?.cancel?.();
     return true;
   }
   const recoverAfterSettingsChange = async () => {
@@ -515,7 +516,8 @@ export function createAssistantWorkflow({
           maxRetrievalCalls: settings['runtime.maxRetrievalCalls'],
           maxReplans: settings['runtime.maxReplans']
         },
-        onChange: (counters) => { state = { ...state, counters, updatedAt: now() }; onEvent({ type: 'state', state }); }
+        onChange: (counters) => { state = { ...state, counters, updatedAt: now() }; onEvent({ type: 'state', state }); },
+        onResponseLimit: (detail) => budgetApproval?.request?.(detail)
       });
       return await runPlan({ signal: activeSignal });
     } catch (error) {
@@ -587,7 +589,8 @@ export function createAssistantWorkflow({
         maxRetrievalCalls: settings['runtime.maxRetrievalCalls'],
         maxReplans: settings['runtime.maxReplans']
       },
-      onChange: (counters) => { state = { ...state, counters, updatedAt: now() }; onEvent({ type: 'state', state }); }
+      onChange: (counters) => { state = { ...state, counters, updatedAt: now() }; onEvent({ type: 'state', state }); },
+      onResponseLimit: (detail) => budgetApproval?.request?.(detail)
     });
   }
 

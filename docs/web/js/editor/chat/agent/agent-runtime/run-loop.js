@@ -2,6 +2,10 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
   if (!client?.request || !registry || !dispatcher || !budgetGuard) throw new TypeError('Agent runtimeの依存関係が不足しています。');
 
   async function run({ messages, signal, onProgress, allowedTools = registry.names() }) {
+    const reserveResponseSlot = async () => budgetGuard.reserveResponseSlot
+      ? budgetGuard.reserveResponseSlot()
+      : (await budgetGuard.assertResponseAllowed(), null);
+    const releaseResponse = (reservation) => reservation && budgetGuard.releaseResponse?.(reservation);
     const assertNotAborted = () => {
       if (signal?.aborted) throw signal.reason || Object.assign(new Error('処理が中断されました。'), { name: 'AbortError' });
     };
@@ -16,18 +20,21 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
     async function finishWithAvailableData(finalInput = input) {
       const userFinalInput = [...finalInput, { role: 'user', content: finalizationText }];
       const finalRequest = { model, input: userFinalInput, tools: [], max_output_tokens: maxOutputTokens, textFormat };
+      let responseSlot = null;
+      let reservation = null;
       try {
         assertNotAborted();
-        budgetGuard.assertResponseAllowed();
-        const reservation = budgetGuard.reserveInput(finalRequest);
+        responseSlot = await reserveResponseSlot();
+        reservation = budgetGuard.reserveInput(finalRequest);
         let response;
         try {
           response = await client.request({ apiKey, model, input: userFinalInput, maxOutputTokens, textFormat, signal });
         } catch (error) {
+          releaseResponse(responseSlot);
           budgetGuard.reconcileInput(reservation, null);
           throw error;
         }
-        budgetGuard.countResponse();
+        budgetGuard.countResponse(responseSlot);
         const usageResult = budgetGuard.reconcileInput(reservation, response.usage?.input_tokens);
         onUsage({ model, usage: response.usage || null });
         if (usageResult.overBudget) {
@@ -43,6 +50,7 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
           counters: budgetGuard.getCounters()
         };
       } catch (error) {
+        if (responseSlot && !reservation) releaseResponse(responseSlot);
         if (!['INPUT_TOKEN_BUDGET', 'RESPONSE_LIMIT'].includes(error?.code)) throw error;
         return {
           text: JSON.stringify({ message: '処理上限に達したため追加取得を止めました。取得済み範囲の最終回答も上限内に送信できませんでした。', proposals: [], alternativeGroups: [] }),
@@ -67,10 +75,12 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
       const finalizationInput = [...input, { role: 'user', content: finalizationText }];
       const finalizationRequest = { model, input: finalizationInput, tools: [], max_output_tokens: maxOutputTokens, textFormat };
       let reservation;
+      let responseSlot;
       try {
-        budgetGuard.assertResponseAllowed();
+        responseSlot = await reserveResponseSlot();
         reservation = budgetGuard.reserveInput(request, { reserveForInput: finalizationRequest });
       } catch (error) {
+        if (responseSlot) releaseResponse(responseSlot);
         if (error?.code === 'INPUT_TOKEN_FINALIZATION_REQUIRED') return finishWithAvailableData();
         throw error;
       }
@@ -78,10 +88,11 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
       try {
         response = await client.request({ apiKey, model, input, tools: definitions, maxOutputTokens, textFormat, signal });
       } catch (error) {
+        releaseResponse(responseSlot);
         budgetGuard.reconcileInput(reservation, null);
         throw error;
       }
-      budgetGuard.countResponse();
+      budgetGuard.countResponse(responseSlot);
       const usageResult = budgetGuard.reconcileInput(reservation, response.usage?.input_tokens);
       onUsage({ model, usage: response.usage || null });
       if (usageResult.overBudget) {

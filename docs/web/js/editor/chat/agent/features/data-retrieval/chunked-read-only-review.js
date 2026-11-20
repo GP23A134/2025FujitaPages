@@ -75,21 +75,29 @@ export function createChunkedReadOnlyReview({
 
   async function callAI({ input, schemaName, schema, outputLimit, reserveFinal = false }) {
     if (signal?.aborted) throw signal.reason || Object.assign(new Error('処理が中断されました。'), { name: 'AbortError' });
-    budgetGuard.assertResponseAllowed();
+    const responseSlot = budgetGuard.reserveResponseSlot
+      ? await budgetGuard.reserveResponseSlot()
+      : (await budgetGuard.assertResponseAllowed(), null);
     const requestOptions = {
       model,
       input,
       max_output_tokens: outputLimit,
       textFormat: { type: 'json_schema', name: schemaName, strict: true, schema }
     };
-    const reservation = budgetGuard.reserveInput(requestOptions, reserveFinal ? {
-      reserveForInput: {
-        model,
-        input: [{ role: 'system', content: '選択範囲の全バッチ結果を統合してください。' }, { role: 'user', content: FINAL_RESERVE }],
-        max_output_tokens: outputLimit,
-        textFormat: { type: 'json_schema', name: 'selection_review_summary', strict: true, schema: FINAL_SCHEMA }
-      }
-    } : {});
+    let reservation;
+    try {
+      reservation = budgetGuard.reserveInput(requestOptions, reserveFinal ? {
+        reserveForInput: {
+          model,
+          input: [{ role: 'system', content: '選択範囲の全バッチ結果を統合してください。' }, { role: 'user', content: FINAL_RESERVE }],
+          max_output_tokens: outputLimit,
+          textFormat: { type: 'json_schema', name: 'selection_review_summary', strict: true, schema: FINAL_SCHEMA }
+        }
+      } : {});
+    } catch (error) {
+      budgetGuard.releaseResponse?.(responseSlot);
+      throw error;
+    }
     let response;
     try {
       response = await client.request({
@@ -97,10 +105,11 @@ export function createChunkedReadOnlyReview({
         textFormat: requestOptions.textFormat, signal
       });
     } catch (error) {
+      budgetGuard.releaseResponse?.(responseSlot);
       budgetGuard.reconcileInput(reservation, null);
       throw error;
     }
-    budgetGuard.countResponse();
+    budgetGuard.countResponse(responseSlot);
     const usageResult = budgetGuard.reconcileInput(reservation, response.usage?.input_tokens);
     onUsage({ model, usage: response.usage || null });
     if (usageResult.overBudget) {
