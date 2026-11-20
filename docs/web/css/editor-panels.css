@@ -531,8 +531,8 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .ai-preview-header h2 { margin: 0; color: #0f3d63; font-size: 1.2rem; }
 .ai-preview-title-row { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; justify-content: space-between; gap: 0.75rem; }
-.ai-preview-navigation { position: static; display: flex; flex: 0 0 auto; align-items: center; gap: 0.4rem; }
-.ai-preview-navigation button { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; padding: 0; border: 1px solid #cbd5e1; border-radius: 8px; color: #075985; background: #fff; cursor: pointer; font: inherit; font-size: 1.8rem; line-height: 1; }
+.ai-preview-navigation { position: fixed; inset: 50% max(3.5rem, calc((100vw - 1300px) / 2 + 1rem)) auto; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; transform: translateY(-50%); pointer-events: none; }
+.ai-preview-navigation button { display: grid; width: 2.75rem; height: 2.75rem; place-items: center; padding: 0; border: 1px solid #cbd5e1; border-radius: 999px; color: #075985; background: rgba(255, 255, 255, 0.96); box-shadow: 0 2px 10px rgba(15, 23, 42, 0.18); cursor: pointer; font: inherit; font-size: 1.8rem; line-height: 1; pointer-events: auto; }
 .ai-preview-navigation button:hover:not(:disabled), .ai-preview-navigation button:focus-visible { border-color: #7dd3fc; background: #e0f2fe; }
 .ai-preview-navigation button:disabled { color: #94a3b8; background: #f1f5f9; cursor: not-allowed; }
 .ai-preview-navigation[hidden] { display: none; }

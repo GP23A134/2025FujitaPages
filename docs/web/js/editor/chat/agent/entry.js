@@ -132,7 +132,8 @@ if (window.classEditorAI && statusElement) {
           onApply: (sourceItem, operationIndexes) => {
             workflow.applyProposal(sourceItem, operationIndexes);
             proposalResultView.markApplied(sourceItem);
-            if (alternativeGroup) proposalResultView.markAlternativeGroupExcluded(alternativeGroup.id, sourceItem.proposal.id);
+            const group = alternativeGroups.find((candidate) => candidate.proposalIds.includes(sourceItem.proposal.id));
+            if (group) proposalResultView.markAlternativeGroupExcluded(group.id, sourceItem.proposal.id);
           }
         });
       } catch (error) {
