@@ -1,51 +1,6 @@
 const MAX_BATCH_SIZE = 100;
-const BATCH_CONCURRENCY = 4;
 const UNCERTAIN_RETRY_BATCH_SIZE = 100;
 const MAX_UNCERTAIN_RETRY_ROUNDS = 2;
-
-function createAdaptiveRequestGate(initialLimit) {
-  let limit = initialLimit;
-  let active = 0;
-  let successes = 0;
-  const waiters = [];
-  const releaseFactory = () => {
-    let released = false;
-    return () => {
-      if (released) return;
-      released = true;
-      active -= 1;
-      wake();
-    };
-  };
-  const wake = () => {
-    while (active < limit && waiters.length) {
-      active += 1;
-      waiters.shift()(releaseFactory());
-    }
-  };
-  return Object.freeze({
-    acquire() {
-      if (active < limit) {
-        active += 1;
-        return Promise.resolve(releaseFactory());
-      }
-      return new Promise((resolve) => waiters.push(resolve));
-    },
-    reduce() {
-      limit = Math.max(1, Math.floor(limit / 2));
-      successes = 0;
-    },
-    noteSuccess() {
-      if (limit >= initialLimit) return;
-      successes += 1;
-      if (successes >= 8) {
-        limit = Math.min(initialLimit, limit + 1);
-        successes = 0;
-        wake();
-      }
-    }
-  });
-}
 
 function createDecisionSchema(itemCount, destinationKeys) {
   return {
@@ -223,8 +178,6 @@ export function createTargetMoveBatchProcessor({
   if (!reader?.readHierarchyIndex || !reader?.readSelectedClassDetails || !client?.request || !budgetGuard) {
     throw new TypeError('一括移動案作成に必要な依存関係が不足しています。');
   }
-  const requestGate = createAdaptiveRequestGate(BATCH_CONCURRENCY);
-
   async function requestAI(input, schemaName, schema, outputLimit = maxOutputTokens) {
     if (signal?.aborted) throw signal.reason || Object.assign(new Error('処理が中断されました。'), { name: 'AbortError' });
     const responseSlot = budgetGuard.reserveResponseSlot
@@ -238,30 +191,17 @@ export function createTargetMoveBatchProcessor({
     try { reservation = budgetGuard.reserveInput(options); }
     catch (error) { if (responseSlot) budgetGuard.releaseResponse?.(responseSlot); throw error; }
     let response;
-    let releaseGate = null;
     try {
-      releaseGate = await requestGate.acquire();
       response = await client.request({
         apiKey, model, input, maxOutputTokens: outputLimit, textFormat: options.textFormat, signal,
         onRetry: ({ error, waitMs, attempt }) => {
-          if (error.status === 429 || error.status === 503) {
-            requestGate.reduce();
-            releaseGate?.();
-            releaseGate = null;
-          }
           onProgress({ stage: 'analyzing', note: `APIの一時的な混雑のため${(waitMs / 1000).toFixed(1)}秒待って再試行します（${attempt}/3）` });
-        },
-        beforeRetry: async ({ error }) => {
-          if (error.status === 429 || error.status === 503) releaseGate = await requestGate.acquire();
         }
       });
-      requestGate.noteSuccess();
     } catch (error) {
       if (responseSlot) budgetGuard.releaseResponse?.(responseSlot);
       budgetGuard.reconcileInput(reservation, null);
       throw error;
-    } finally {
-      releaseGate?.();
     }
     budgetGuard.countResponse(responseSlot);
     const usage = budgetGuard.reconcileInput(reservation, response.usage?.input_tokens);
@@ -495,27 +435,9 @@ export function createTargetMoveBatchProcessor({
         }
       }
     };
-    const batchResults = new Array(targetBatches.length);
-    let nextBatchIndex = 0;
-    let workerError = null;
-    const processWorker = async () => {
-      while (!workerError && nextBatchIndex < targetBatches.length) {
-        const index = nextBatchIndex++;
-        try {
-          batchResults[index] = await processDecisionBatch(targetBatches[index], String(index + 1));
-        } catch (error) {
-          workerError ||= error;
-          throw error;
-        }
-      }
-    };
-    const workerResults = await Promise.allSettled(
-      Array.from({ length: Math.min(BATCH_CONCURRENCY, targetBatches.length) }, () => processWorker())
-    );
-    const workerFailure = workerResults.find((result) => result.status === 'rejected');
-    if (workerFailure) throw workerFailure.reason;
     let processed = 0;
-    for (const resultGroup of batchResults) {
+    for (let index = 0; index < targetBatches.length; index += 1) {
+      const resultGroup = await processDecisionBatch(targetBatches[index], String(index + 1));
       for (const result of resultGroup) {
         applyDecisions(result.items, result.decisions, result.notes);
         processed += result.items.length;
