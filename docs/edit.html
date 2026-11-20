@@ -9,7 +9,7 @@
     <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
     <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1" />
     <link rel="stylesheet" href="web/css/tree-structure.css?v=20261112-tree-action-buttons-v2" />
-    <link rel="stylesheet" href="web/css/editor-panels.css?v=20261120-proposal-navigation-edge-v5" />
+    <link rel="stylesheet" href="web/css/editor-panels.css?v=20261120-proposal-navigation-edge-v8" />
     <link rel="stylesheet" href="web/css/test-preferences.css?v=20261119-developer-settings-layout-v2" />
     <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261113-target-connectors-v1" />
     <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261119-held-panel-collapse-restored-v1" />
@@ -391,13 +391,10 @@
 
     <!-- AI提案を確認し、適用する変更を選択する三段階プレビュー。 -->
     <dialog id="ai-preview-dialog" class="ai-preview-dialog" aria-labelledby="ai-preview-title">
+      <div class="ai-preview-panel">
       <div class="ai-preview-header">
         <div class="ai-preview-title-row">
           <h2 id="ai-preview-title">変更案のプレビュー</h2>
-          <nav id="ai-preview-navigation" class="ai-preview-navigation" aria-label="提案の切り替え">
-            <button type="button" id="ai-preview-previous" aria-label="前の提案">‹</button>
-            <button type="button" id="ai-preview-next" aria-label="次の提案">›</button>
-          </nav>
           <span id="ai-preview-position" class="ai-preview-position" aria-live="polite"></span>
         </div>
         <button type="button" id="ai-preview-close" class="target-instance-dialog-close" aria-label="閉じる">×</button>
@@ -499,6 +496,11 @@
         <button type="button" id="ai-dismiss-proposal" class="ai-preview-dismiss">今回は見送る</button>
         <button type="button" id="ai-apply-proposal" class="search-button" hidden>この変更を適用</button>
       </div>
+      </div>
+      <nav id="ai-preview-navigation" class="ai-preview-navigation" aria-label="提案の切り替え">
+        <button type="button" id="ai-preview-previous" aria-label="前の提案">‹</button>
+        <button type="button" id="ai-preview-next" aria-label="次の提案">›</button>
+      </nav>
     </dialog>
     <!-- 外部APIへ送る依頼文と参照クラスを送信前に確認する。 -->
     <dialog id="ai-send-confirm-dialog" class="ai-send-confirm-dialog" aria-labelledby="ai-send-confirm-title">

@@ -3,7 +3,7 @@
 import { createRequestPlanner, createChunkSynthesizer, createCrossScopeProposalSynthesizer, createRequestSender, filterPromptExamples } from './request.js?v=20261113-chat-optional-coverage-v1';
 import { createResponseHandler, createOperationPolicy, reconcileSplitProposals, composeProposalOperations, buildQuestionQueue } from './proposal-engine.js?v=20261113-chat-clarification-v1';
 import { createConversationStore, createConversationView } from './chat.js?v=20261113-split-cache-restore-v1';
-import { createProposalPreview } from '../agent/features/proposals/proposal-preview.js?v=20261118-alternative-preview-navigation-v1';
+import { createProposalPreview } from '../agent/features/proposals/proposal-preview.js?v=20261120-proposal-scroll-independent-nav-v1';
 import { createAIClient } from './ai-client.js?v=20261113-chat-compact-chunk-memos-v1';
 import { createRequestProgress } from './request-progress.js?v=20261112-zero-second-display-v1';
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261113-target-unit-cap-v1';

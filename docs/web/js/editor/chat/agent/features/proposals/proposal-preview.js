@@ -1350,7 +1350,7 @@ export const createProposalPreview = ({
     if (nextIndex === previewPageIndex) return;
     previewPageIndex = nextIndex;
     void transitionPreview(() => showPreview(previewPlan.proposalItem, false, true)).then(() => {
-      previewDialog.scrollTop = 0;
+      document.querySelector('.ai-preview-panel').scrollTop = 0;
     }).catch(reportPreviewError);
   };
   const applyCurrentProposal = async () => {
