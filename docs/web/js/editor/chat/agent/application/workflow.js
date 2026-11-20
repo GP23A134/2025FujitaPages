@@ -1,15 +1,16 @@
-import { createConversationState, transitionConversation } from './conversation-state.js';
+import { createConversationState, transitionConversation } from './conversation-state.js?v=20261120-denied-scope-fallback-v1';
 import { buildPlanInput } from '../features/planning/plan-input.js';
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
-import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js';
-import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-budget-limit-approval-v1';
+import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261120-denied-scope-fallback-v1';
+import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-denied-scope-fallback-v1';
 import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261120-sequential-batches-v1';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
-import { createAgentRunLoop } from '../agent-runtime/run-loop.js?v=20261120-budget-limit-approval-v1';
-import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261117-request-aware-prompts-v1';
+import { createAgentRunLoop } from '../agent-runtime/run-loop.js?v=20261120-denied-scope-fallback-v1';
+import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261120-denied-scope-fallback-v1';
 import { PROPOSAL_RESPONSE_SCHEMA } from '../features/proposals/proposal-schema.js';
 import { validateProposalResponse } from '../features/proposals/proposal-contract.js';
+import { createDataIdCodec, createIdMaskedClient } from '../adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
 
 const now = () => new Date().toISOString();
 const withErrorSource = (error, sourceModule) => {
@@ -87,11 +88,15 @@ export function createAssistantWorkflow({
   let hierarchyIndexAvailable = false;
   let currentApiKey = null;
   let currentModel = null;
+  let activeClient = client;
+  let idCodec = createDataIdCodec();
   let lastResult = null;
   let lastAgentContext = null;
   let active = false;
   let activeController = null;
   let settingsInvalidated = false;
+  let deniedReferenceIds = new Set();
+  let deniedChangeIds = new Set();
   const selectedAlternatives = new Map();
   const updateState = (next) => { state = next; onEvent({ type: 'state', state }); };
   const setStatus = (status) => {
@@ -180,27 +185,26 @@ export function createAssistantWorkflow({
     });
   }
 
-  async function applyScopeDecision(decision) {
+  async function applyScopeDecision(decision, { continueInPlace = false } = {}) {
     if (decision.choice === 'cancel') {
       setStatus('cancelled');
       emitProgress('cancelled');
-      return false;
+      return 'cancel';
     }
-    if (decision.choice === 'allow') {
-      decision.referenceIds.forEach((id) => grants.reference.add(id));
-      decision.changeIds.forEach((id) => grants.change.add(id));
-    } else if (decision.choice === 'original_scope') {
-      setStatus('scope_denied');
-      emitProgress('scope_denied');
-      return false;
+    if (decision.choice !== 'allow') {
+      setStatus('analyzing');
+      emitProgress('analyzing', { note: '追加参照は許可されなかったため、許可済みの範囲だけで続けています。' });
+      return 'denied';
     }
+    decision.referenceIds.forEach((id) => grants.reference.add(id));
+    decision.changeIds.forEach((id) => grants.change.add(id));
     updateState({
       ...state,
       scopeGrants: { reference: [...grants.reference], change: [...grants.change] },
       updatedAt: now()
     });
-    setStatus('planning');
-    return true;
+    setStatus(continueInPlace ? 'retrieving' : 'planning');
+    return 'allow';
   }
 
   function failScopeContinuation(reason) {
@@ -220,6 +224,7 @@ export function createAssistantWorkflow({
       result = await planningService.createPlan({
         apiKey: currentApiKey,
         model: currentModel,
+        client: activeClient,
         planInput: buildPlanInput(state.request, currentCounts(), { instanceCount: currentCounts().instanceCount }),
         hierarchyIndexAvailable,
         signal,
@@ -259,13 +264,34 @@ export function createAssistantWorkflow({
       && plan.dataNeeds.parentContext !== 'ancestor_chain'
       && plan.dataNeeds.instanceContext === 'none'
       && plan.changeOperations.length === 0;
+    const chunkedReviewRunner = chunkedReview ? createChunkedReadOnlyReview({
+      reader, client: activeClient, budgetGuard, model: currentModel, apiKey: currentApiKey,
+      request: state.request, plan,
+      pageLimit: settings['dataRetrieval.pageAndIdLimit'],
+      maxOutputTokens: settings['runtime.maxOutputTokens'],
+      signal, onProgress: emitProgress, onUsage: reportUsage
+    }) : null;
     const batchedTargetMove = usesBatchedTargetMove(plan);
     let loop = null;
     let uniqueTools = [];
     let targetMoveProcessor = null;
+    const resolveRuntimeScopeRequest = async (scopeRequest) => {
+      const candidates = (scopeRequest.candidates || []).filter((item) => !deniedReferenceIds.has(typeof item === 'string' ? item : item.id));
+      if (!candidates.length) return 'deny';
+      const decision = await askForScope({
+        candidates,
+        allowReference: scopeRequest.scopeType === 'reference',
+        allowChange: false,
+        purpose: scopeRequest.purpose || '取得に追加の参照範囲が必要です。'
+      });
+      if (decision.choice === 'allow') return await applyScopeDecision(decision, { continueInPlace: true });
+      if (decision.choice === 'cancel') return await applyScopeDecision(decision);
+      candidates.forEach((item) => deniedReferenceIds.add(typeof item === 'string' ? item : item.id));
+      return await applyScopeDecision(decision);
+    };
     if (batchedTargetMove) {
       targetMoveProcessor = createTargetMoveBatchProcessor({
-        reader, client, budgetGuard, model: currentModel, apiKey: currentApiKey,
+        reader, client: activeClient, budgetGuard, model: currentModel, apiKey: currentApiKey,
         request: state.request, plan,
         maxOutputTokens: settings['runtime.maxOutputTokens'],
         maxRetries: settings['proposals.moveDecisionRetries'], signal,
@@ -286,7 +312,7 @@ export function createAssistantWorkflow({
       if (plan.dataNeeds.instanceContext !== 'none') allowedTools.push('read_instance_context');
       uniqueTools = [...new Set(allowedTools)];
       loop = createAgentRunLoop({
-        client,
+        client: activeClient,
         registry: reader.registry,
         dispatcher,
         budgetGuard,
@@ -295,7 +321,8 @@ export function createAssistantWorkflow({
         systemInstruction: buildAgentSystemPrompt(plan),
         maxOutputTokens: settings['runtime.maxOutputTokens'],
         textFormat: { type: 'json_schema', name: 'class_edit_proposals', strict: true, schema: PROPOSAL_RESPONSE_SCHEMA },
-        onUsage: reportUsage
+        onUsage: reportUsage,
+        onScopeRequest: resolveRuntimeScopeRequest
       });
     }
     let messages = [{ role: 'user', content: state.request }];
@@ -305,29 +332,43 @@ export function createAssistantWorkflow({
       let result;
       try {
         result = chunkedReview
-          ? await createChunkedReadOnlyReview({
-            reader,
-            client,
-            budgetGuard,
-            model: currentModel,
-            apiKey: currentApiKey,
-            request: state.request,
-            plan,
-            pageLimit: settings['dataRetrieval.pageAndIdLimit'],
-            maxOutputTokens: settings['runtime.maxOutputTokens'],
-            signal,
-            onProgress: emitProgress,
-            onUsage: reportUsage
-          }).run()
+          ? await chunkedReviewRunner.run()
           : targetMoveProcessor
             ? await targetMoveProcessor.run()
             : await loop.run({ messages, signal, allowedTools: uniqueTools, onProgress: emitProgress });
       } catch (error) {
+        if (targetMoveProcessor && error?.scopeRequest) {
+          const candidates = (error.scopeRequest.candidates || []).filter((item) => !deniedReferenceIds.has(item.id));
+          if (!candidates.length) {
+            return {
+              status: 'scope_limited',
+              result: { message: '追加の階層参照は許可されていないため、安全な移動先を確認できず、移動案は作成しませんでした。', proposals: [], alternativeGroups: [], blocked: [] }
+            };
+          }
+          const decision = await askForScope({
+            candidates,
+            allowReference: true,
+            allowChange: false,
+            purpose: error.scopeRequest.purpose || '移動先を確認するため追加の階層参照が必要です。'
+          });
+          const scopeDecision = await applyScopeDecision(decision);
+          if (scopeDecision === 'cancel') return { status: 'cancelled' };
+          if (scopeDecision === 'allow') return { status: 'replan_required' };
+          candidates.forEach((item) => deniedReferenceIds.add(item.id));
+          return {
+            status: 'scope_limited',
+            result: {
+              message: '追加の階層参照が許可されなかったため、安全な移動先を確認できず、移動案は作成しませんでした。許可済みの範囲で可能な確認を続けてください。',
+              proposals: [], alternativeGroups: [], blocked: []
+            }
+          };
+        }
         throw withErrorSource(error, chunkedReview
           ? 'features/data-retrieval/chunked-read-only-review.js'
           : targetMoveProcessor ? 'features/proposals/target-move-batch.js'
           : 'agent-runtime/run-loop.js');
       }
+      if (result.status === 'cancelled') return { status: 'cancelled' };
       if (result.status === 'needs_scope_approval') {
         const decision = await askForScope({
           candidates: result.scopeRequest.candidates || [],
@@ -335,16 +376,50 @@ export function createAssistantWorkflow({
           allowChange: false,
           purpose: result.scopeRequest.purpose || '取得に追加の参照範囲が必要です。'
         });
-        if (!await applyScopeDecision(decision)) return {
+        const scopeDecision = await applyScopeDecision(decision);
+        if (scopeDecision === 'cancel') return {
           status: state.status === 'cancelled' ? 'cancelled' : 'scope_blocked',
           scopeRequest: result.scopeRequest,
           scopeReason: decision.choice === 'allow' ? 'approved_without_scope' : 'denied'
         };
-        if (decision.choice === 'original_scope' || !decision.referenceIds.length) {
-          return { status: 'scope_blocked', scopeRequest: result.scopeRequest,
-            scopeReason: decision.choice === 'allow' ? 'approved_without_scope' : 'denied' };
+        if (scopeDecision === 'denied') {
+          const deniedIds = (result.scopeRequest.candidates || []).map((item) => typeof item === 'string' ? item : item.id);
+          deniedIds.forEach((id) => deniedReferenceIds.add(id));
+          if (targetMoveProcessor) {
+            return {
+              status: 'scope_limited',
+              result: {
+                message: '追加の階層参照が許可されなかったため、安全な移動先を確認できず、移動案は作成しませんでした。',
+                proposals: [], alternativeGroups: [], blocked: []
+              }
+            };
+          }
+          if (chunkedReview) {
+            result = await chunkedReviewRunner.run({ includeParentContext: false });
+            if (result.status === 'needs_scope_approval') {
+              return {
+                status: 'scope_limited',
+                result: {
+                  message: '許可された範囲の詳細を取得できず、この依頼は続行できませんでした。',
+                  proposals: [], alternativeGroups: [], blocked: []
+                }
+              };
+            }
+          }
         }
-        return { status: 'replan_required' };
+        if (scopeDecision === 'denied' && chunkedReview) {
+          // The selected records can still be reviewed without disclosing parent classes.
+        } else if (decision.choice === 'original_scope' || !decision.referenceIds.length) {
+          if (targetMoveProcessor) return {
+            status: 'scope_limited',
+            result: { message: '追加の階層参照が許可されなかったため、安全な移動先を確認できず、移動案は作成しませんでした。', proposals: [], alternativeGroups: [], blocked: [] }
+          };
+          if (!chunkedReview) {
+            messages = [{ role: 'user', content: `${state.request}\n\n追加参照は許可されていません。許可済みの情報だけを使い、範囲外を推測せずに回答してください。` }];
+            continue;
+          }
+        }
+        if (scopeDecision === 'allow') return { status: 'replan_required' };
       }
       let response;
       try {
@@ -373,22 +448,41 @@ export function createAssistantWorkflow({
         throw withErrorSource(error, 'features/proposals/proposal-contract.js');
       }
       if (validation.scopeRequests?.length) {
-        const candidates = reader.getScopeCandidates(validation.scopeRequests.map((item) => item.classId))
+        const requestedCandidates = reader.getScopeCandidates(validation.scopeRequests.map((item) => item.classId))
           .map((candidate) => {
             const request = validation.scopeRequests.find((item) => item.classId === candidate.id);
             return { ...candidate, needsReference: request.needsReference, needsChange: request.needsChange };
           });
+        const candidates = requestedCandidates.filter((item) =>
+          (!item.needsReference || !deniedReferenceIds.has(item.id))
+          && (!item.needsChange || !deniedChangeIds.has(item.id)));
+        if (!candidates.length) {
+          validation.blocked.push({ proposalId: null, reason: '追加参照が許可されなかったため、範囲外の提案を保留しました。' });
+          validation.scopeRequests = [];
+          break;
+        }
         const needsReference = candidates.some((item) => item.needsReference);
         const needsChange = candidates.some((item) => item.needsChange);
         const decision = await askForScope({
           candidates, allowReference: needsReference, allowChange: needsChange,
           purpose: '変更案の検証で、選択範囲外のクラスを参照または変更対象に含める必要があります。'
         });
-        if (!await applyScopeDecision(decision)) return {
-          status: state.status === 'cancelled' ? 'cancelled' : 'scope_blocked',
-          scopeRequest: { candidates },
-          scopeReason: decision.choice === 'allow' ? 'approved_without_scope' : 'denied'
-        };
+        const scopeDecision = await applyScopeDecision(decision);
+        if (scopeDecision === 'cancel') return { status: 'cancelled' };
+        if (scopeDecision === 'denied') {
+          candidates.filter((item) => item.needsReference).forEach((item) => deniedReferenceIds.add(item.id));
+          candidates.filter((item) => item.needsChange).forEach((item) => deniedChangeIds.add(item.id));
+          if (attempt < retries) {
+            messages = [...(result.messages || messages), { role: 'user', content: JSON.stringify({
+              deniedScope: candidates.map((item) => item.label || item.id),
+              instruction: '利用者は追加参照を許可しませんでした。許可済みの情報だけを使い、追加範囲が必要な操作は提案せず、可能な独立案だけを返してください。範囲外を推測しないでください。'
+            }) }];
+            continue;
+          }
+          validation.blocked.push({ proposalId: null, reason: '追加参照が許可されなかったため、範囲外の提案を保留しました。' });
+          validation.scopeRequests = [];
+          break;
+        }
         if (decision.choice === 'allow' && (decision.referenceIds.length || decision.changeIds.length)) return { status: 'replan_required' };
         return { status: 'scope_blocked', scopeRequest: { candidates },
           scopeReason: decision.choice === 'allow' ? 'approved_without_scope' : 'denied' };
@@ -455,6 +549,15 @@ export function createAssistantWorkflow({
     const outcome = await runAgent({ signal });
     if (outcome.status === 'replan_required') return runPlan({ replan: true, signal });
     if (outcome.status === 'cancelled') return outcome;
+    if (outcome.status === 'scope_limited') {
+      if (state.status === 'retrieving' || state.status === 'planning') setStatus('analyzing');
+      if (state.status !== 'validating') setStatus('validating');
+      setStatus('completed');
+      lastResult = outcome.result;
+      onEvent({ type: 'result', result: outcome.result, plan: currentPlan, state });
+      emitProgress('completed');
+      return { status: 'completed', result: outcome.result, plan: currentPlan };
+    }
     if (outcome.status === 'scope_blocked') {
       failScopeContinuation(outcome.scopeReason || 'denied');
       onEvent({ type: 'scope_blocked', scopeRequest: outcome.scopeRequest, scopeReason: outcome.scopeReason || 'denied' });
@@ -486,7 +589,13 @@ export function createAssistantWorkflow({
     const activeSignal = beginActive(signal);
     try {
       const settings = getSettings();
+      const editorState = editor.getState();
+      const instanceIds = (window.appData?.instanceData?.instances || []).map((item) => item.id);
+      idCodec = createDataIdCodec(editorState.classes, instanceIds);
+      activeClient = createIdMaskedClient(client, idCodec);
       selectedClassIds = [...(editor.selectedIds || [])];
+      deniedReferenceIds = new Set();
+      deniedChangeIds = new Set();
       hierarchyIndexAvailable = referenceAllHierarchy === true;
       plan = null;
       lastResult = null;
@@ -647,11 +756,21 @@ export function createAssistantWorkflow({
           candidates: regenerated.scopeRequest.candidates || [], allowReference: true, allowChange: false,
           purpose: regenerated.scopeRequest.purpose || '回答を反映するため追加の参照範囲が必要です。'
         });
-        if (await applyScopeDecision(decision) && decision.choice === 'allow' && decision.referenceIds.length) {
+        const scopeDecision = await applyScopeDecision(decision);
+        if (scopeDecision === 'cancel') return { status: 'cancelled' };
+        if (scopeDecision === 'allow' && decision.referenceIds.length) {
           budgetGuard.countReplan();
-          await runPlan();
+          return await runPlan({ signal: activeSignal });
         }
-        return { status: state.status };
+        (regenerated.scopeRequest.candidates || []).forEach((item) => deniedReferenceIds.add(typeof item === 'string' ? item : item.id));
+        state = {
+          ...state,
+          request: `${state.request}\n\n提案「${prior.proposal.title}」への回答:\n${formattedAnswers}\n追加参照は許可されていないため、許可済み範囲だけで再検討してください。`,
+          updatedAt: now()
+        };
+        setStatus('planning');
+        budgetGuard.countReplan();
+        return await runPlan({ signal: activeSignal });
       }
       const regeneratedResponse = parseResponse(regenerated.text);
       const checked = validateProposalResponse(regeneratedResponse, {
@@ -663,44 +782,52 @@ export function createAssistantWorkflow({
         dataVersion: window.classEditorAssistant?.getDataVersion?.() || null
       });
       if (checked.scopeRequests.length) {
-        const candidates = lastAgentContext.getScopeCandidates(checked.scopeRequests.map((item) => item.classId))
+        const requestedCandidates = lastAgentContext.getScopeCandidates(checked.scopeRequests.map((item) => item.classId))
           .map((candidate) => {
             const request = checked.scopeRequests.find((item) => item.classId === candidate.id);
             return { ...candidate, needsReference: request.needsReference, needsChange: request.needsChange };
           });
-        const needsReference = candidates.some((item) => item.needsReference);
-        const needsChange = candidates.some((item) => item.needsChange);
-        const decision = await askForScope({
-          candidates,
-          allowReference: needsReference,
-          allowChange: needsChange,
-          purpose: '回答後の変更案に、選択範囲外のクラスを参照または変更対象に含める必要があります。'
-        });
-        if (!await applyScopeDecision(decision)) {
-          const outcome = {
-            status: state.status === 'cancelled' ? 'cancelled' : 'scope_blocked',
-            scopeRequest: { candidates },
-            scopeReason: decision.choice === 'allow' ? 'approved_without_scope' : 'denied'
-          };
-          if (outcome.status === 'scope_blocked') onEvent({ type: 'scope_blocked', scopeRequest: outcome.scopeRequest, scopeReason: outcome.scopeReason });
-          return outcome;
+        const candidates = requestedCandidates.filter((item) =>
+          (!item.needsReference || !deniedReferenceIds.has(item.id))
+          && (!item.needsChange || !deniedChangeIds.has(item.id)));
+        let scopeDecision = 'denied';
+        if (candidates.length) {
+          const needsReference = candidates.some((item) => item.needsReference);
+          const needsChange = candidates.some((item) => item.needsChange);
+          const decision = await askForScope({
+            candidates,
+            allowReference: needsReference,
+            allowChange: needsChange,
+            purpose: '回答後の変更案に、選択範囲外のクラスを参照または変更対象に含める必要があります。'
+          });
+          scopeDecision = await applyScopeDecision(decision);
+          if (scopeDecision === 'cancel') return { status: 'cancelled' };
         }
-        const permissionsGranted = checked.scopeRequests.every((item) =>
-          (!item.needsReference || grants.reference.has(item.classId))
-          && (!item.needsChange || grants.change.has(item.classId)));
-        if (!permissionsGranted) {
-          const scopeRequest = { candidates };
-          failScopeContinuation('approved_scope_incomplete');
-          onEvent({ type: 'scope_blocked', scopeRequest, scopeReason: 'approved_scope_incomplete' });
-          return { status: 'scope_blocked', scopeRequest, scopeReason: 'approved_scope_incomplete' };
+        if (scopeDecision === 'denied') {
+          candidates.filter((item) => item.needsReference).forEach((item) => deniedReferenceIds.add(item.id));
+          candidates.filter((item) => item.needsChange).forEach((item) => deniedChangeIds.add(item.id));
+          checked.blocked.push({ proposalId, reason: '追加参照が許可されなかったため、この提案の範囲外操作を保留しました。' });
+          checked.scopeRequests = [];
+        } else {
+          const permissionsGranted = checked.scopeRequests.every((item) =>
+            (!item.needsReference || grants.reference.has(item.classId))
+            && (!item.needsChange || grants.change.has(item.classId)));
+          if (!permissionsGranted) {
+            const scopeRequest = { candidates };
+            failScopeContinuation('approved_scope_incomplete');
+            onEvent({ type: 'scope_blocked', scopeRequest, scopeReason: 'approved_scope_incomplete' });
+            return { status: 'scope_blocked', scopeRequest, scopeReason: 'approved_scope_incomplete' };
+          }
         }
         state = {
           ...state,
           request: `${state.request}\n\n提案「${prior.proposal.title}」への回答:\n${formattedAnswers}`,
           updatedAt: now()
         };
-        budgetGuard.countReplan();
-        return await runPlan({ signal: activeSignal });
+        if (scopeDecision === 'allow') {
+          budgetGuard.countReplan();
+          return await runPlan({ signal: activeSignal });
+        }
       }
       const replacement = checked.proposals.find((item) => item.proposal.id === proposalId);
       const preserved = lastResult.proposals.filter((item) => item.proposal.id !== proposalId);
@@ -716,6 +843,7 @@ export function createAssistantWorkflow({
         ]
       };
       lastAgentContext = { ...lastAgentContext, messages: regenerated.messages };
+      if (state.status === 'analyzing' || state.status === 'retrieving') setStatus('needs_proposal_review');
       onEvent({ type: 'result', result: lastResult, plan, state });
       return { status: state.status, result: lastResult };
     } catch (error) {

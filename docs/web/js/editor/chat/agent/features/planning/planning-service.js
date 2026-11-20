@@ -12,7 +12,7 @@ function extractJsonText(response) {
 export function createPlanningService({ client, getDeveloperSettings }) {
   if (!client || typeof client.request !== 'function') throw new TypeError('AI通信クライアントが必要です。');
 
-  async function createPlan({ apiKey, model, planInput, signal, budgetGuard, hierarchyIndexAvailable = false, onUsage = () => {} }) {
+  async function createPlan({ apiKey, model, planInput, signal, budgetGuard, hierarchyIndexAvailable = false, onUsage = () => {}, client: requestClient = client }) {
     const settings = getDeveloperSettings?.() || {};
     const input = [
       { role: 'system', content: buildPlanSystemPrompt({
@@ -33,7 +33,7 @@ export function createPlanningService({ client, getDeveloperSettings }) {
           : (await budgetGuard.assertResponseAllowed(), null);
         reservation = budgetGuard.reserveInput({ model, input, textFormat });
       }
-      response = await client.request({
+      response = await requestClient.request({
       apiKey,
       model,
       signal,

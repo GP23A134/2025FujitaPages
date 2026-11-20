@@ -2,14 +2,15 @@ import { createEditorBridge } from './adapters/editor-bridge.js';
 import { createProgressView } from './features/progress/progress-view.js?v=20261119-scope-flow-v1';
 import { buildPlanInput } from './features/planning/plan-input.js';
 import { createOpenAIClient } from './adapters/openai-client.js?v=20261120-api-retries-v1';
-import { createPlanningService } from './features/planning/planning-service.js?v=20261120-budget-limit-approval-v1';
-import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261119-scope-flow-v1';
+import { createDataIdCodec, createIdMaskedClient } from './adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
+import { createPlanningService } from './features/planning/planning-service.js?v=20261120-id-pseudonyms-v2';
+import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261120-denied-scope-fallback-v1';
 import { createBudgetApprovalView } from './features/budget-approval/budget-approval-view.js?v=20261120-budget-limit-approval-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261120-sequential-batches-v1';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261120-id-pseudonyms-v2';
 import { createQuestionView } from './features/planning/question-view.js?v=20261118-white-question-card-v1';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261119-scope-flow-v1';
-import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261118-preview-alternative-selection-v1';
+import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261120-proposal-pagination-v1';
 import { createSettingsView } from './settings/settings-view.js?v=20261119-developer-settings-layout-v2';
 import { createHistoryService } from './conversations/history-service.js';
 import { getAgentLegacyBridge } from '../integration/agent-legacy-bridge-registry.js?v=20261118-chat-bridge-registry-v1';
@@ -113,7 +114,7 @@ if (window.classEditorAI && statusElement) {
   };
   let proposalResultView;
   proposalResultView = createProposalResultView(messages, {
-    onPreview: async (item, proposals, alternativeGroup, selectedAlternativeId) => {
+    onPreview: async (item, proposals, alternativeGroups, selectedAlternatives) => {
       try {
         workflow.preparePreview(item);
         const bridge = getAgentLegacyBridge();
@@ -121,8 +122,8 @@ if (window.classEditorAI && statusElement) {
         await bridge.previewProposal({
           item,
           proposals,
-          alternativeGroup,
-          selectedAlternativeId,
+          alternativeGroups,
+          selectedAlternatives,
           onSelectAlternative: (groupId, proposalId) => {
             workflow.selectAlternative(groupId, proposalId);
             proposalResultView.selectAlternative(groupId, proposalId);
@@ -317,7 +318,10 @@ if (window.classEditorAI && statusElement) {
       const counts = editorBridge.getCounts();
       const instanceCount = settings['instances.enabled'] ? editorBridge.getInstanceCount(window.classEditorAI.selectedIds) : undefined;
       const planInput = buildPlanInput(request, counts, { instanceCount });
-      return planningService.createPlan({ apiKey, model, planInput, signal });
+      const editorState = window.classEditorAI.getState();
+      const instanceIds = (window.appData?.instanceData?.instances || []).map((item) => item.id);
+      const maskedClient = createIdMaskedClient(client, createDataIdCodec(editorState.classes, instanceIds));
+      return planningService.createPlan({ apiKey, model, planInput, signal, client: maskedClient });
     },
     getDataVersion: editorBridge.getDataVersion,
     requestScopeApproval: scopeApproval.request,

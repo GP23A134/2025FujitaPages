@@ -29,10 +29,10 @@ export function createEditorDataReader({
     return { state, classesById, parentByChild, childrenByParent, allowed: new Set(getReferenceScope() || []), version: getDataVersion?.() || null };
   }
 
-  function detailFor(id, data) {
+  function detailFor(id, data, includeParentContext = true) {
     const item = data.classesById.get(id);
     if (!item) return null;
-    const parentId = data.parentByChild.get(id) || null;
+    const parentId = includeParentContext ? data.parentByChild.get(id) || null : null;
     const parent = parentId ? data.classesById.get(parentId) : null;
     const record = {
       id: item.id,
@@ -101,27 +101,27 @@ export function createEditorDataReader({
     return paginate(`children:${parentId}`, records, cursor, data);
   }
 
-  function readClassDetails({ classIds } = {}) {
+  function readClassDetails({ classIds, includeParentContext = true } = {}) {
     const data = snapshot();
     if (!Array.isArray(classIds) || classIds.length > idLimit) throw Object.assign(new Error(`詳細取得は一度に${idLimit}件までです。`), { code: 'ID_LIMIT' });
     const uniqueIds = [...new Set(classIds)];
     scopeError(uniqueIds, 'クラス詳細の取得', data);
     const foundIds = uniqueIds.filter((id) => data.classesById.has(id));
-    includeParents(foundIds, 'クラス詳細', data);
+    if (includeParentContext) includeParents(foundIds, 'クラス詳細', data);
     return {
-      items: foundIds.map((id) => detailFor(id, data)),
+      items: foundIds.map((id) => detailFor(id, data, includeParentContext)),
       notFoundIds: uniqueIds.filter((id) => !data.classesById.has(id))
     };
   }
 
-  function readSelectedClassDetails({ cursor = null } = {}) {
+  function readSelectedClassDetails({ cursor = null, includeParentContext = true } = {}) {
     const data = snapshot();
     const selectedIds = [...new Set(getSelectedIds() || [])];
     scopeError(selectedIds, '選択クラス詳細の取得', data);
     const foundIds = selectedIds.filter((id) => data.classesById.has(id));
-    includeParents(foundIds, '選択クラス詳細', data);
+    if (includeParentContext) includeParents(foundIds, '選択クラス詳細', data);
     const records = foundIds.sort((left, right) => String(left).localeCompare(String(right)))
-      .map((id) => detailFor(id, data));
+      .map((id) => detailFor(id, data, includeParentContext));
     return {
       ...paginate('selected_class_details', records, cursor, data),
       totalCount: records.length,
@@ -250,13 +250,18 @@ export function createEditorDataReader({
       execute: readChildren
     })
     .register({
-      name: 'read_class_details', permission: 'reference', description: '既知のクラスIDをまとめて詳細取得します。',
-      parameters: { type: 'object', additionalProperties: false, properties: { classIds: { type: 'array', items: { type: 'string' }, maxItems: idLimit } }, required: ['classIds'] },
+      name: 'read_class_details', permission: 'reference', description: '既知のクラスIDをまとめて詳細取得します。追加参照が許可されていない場合はincludeParentContext=falseで親情報を省略できます。',
+      parameters: { type: 'object', additionalProperties: false, properties: {
+        classIds: { type: 'array', items: { type: 'string' }, maxItems: idLimit },
+        includeParentContext: { type: 'boolean' }
+      }, required: ['classIds', 'includeParentContext'] },
       execute: readClassDetails
     })
     .register({
-      name: 'read_selected_class_details', permission: 'reference', description: '利用者が選択したクラスの詳細を設定上限まで取得します。続きは返されたカーソルを使います。',
-      parameters: { type: 'object', additionalProperties: false, properties: { cursor: { type: ['string', 'null'] } }, required: ['cursor'] },
+      name: 'read_selected_class_details', permission: 'reference', description: '利用者が選択したクラスの詳細を設定上限まで取得します。追加参照が許可されていない場合はincludeParentContext=falseで親情報を省略できます。続きは返されたカーソルを使います。',
+      parameters: { type: 'object', additionalProperties: false, properties: {
+        cursor: { type: ['string', 'null'] }, includeParentContext: { type: 'boolean' }
+      }, required: ['cursor', 'includeParentContext'] },
       execute: readSelectedClassDetails
     });
 

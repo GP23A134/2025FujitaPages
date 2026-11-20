@@ -1,4 +1,4 @@
-export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, model, apiKey, systemInstruction, maxOutputTokens, textFormat, onUsage = () => {} }) {
+export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, model, apiKey, systemInstruction, maxOutputTokens, textFormat, onUsage = () => {}, onScopeRequest = null }) {
   if (!client?.request || !registry || !dispatcher || !budgetGuard) throw new TypeError('Agent runtimeの依存関係が不足しています。');
 
   async function run({ messages, signal, onProgress, allowedTools = registry.names() }) {
@@ -112,8 +112,25 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
       for (const call of calls) {
         assertNotAborted();
         onProgress?.({ stage: 'retrieving', tool: call.name });
-        const result = await dispatcher.dispatch(call.name, call.arguments);
-        const scopeRequest = dispatcher.takeScopeRequest?.();
+        let result = await dispatcher.dispatch(call.name, call.arguments);
+        let scopeRequest = dispatcher.takeScopeRequest?.();
+        while (scopeRequest && onScopeRequest) {
+          const decision = await onScopeRequest(scopeRequest);
+          if (decision === 'cancel') return { status: 'cancelled', counters: budgetGuard.getCounters() };
+          if (decision !== 'allow') {
+            result = {
+              ok: false,
+              error: {
+                code: 'SCOPE_NOT_GRANTED',
+                message: '利用者は追加参照を許可しませんでした。許可済みの情報だけを使い、範囲外の情報や関係を推測せず、可能な範囲で回答してください。'
+              }
+            };
+            scopeRequest = null;
+            break;
+          }
+          result = await dispatcher.dispatch(call.name, call.arguments);
+          scopeRequest = dispatcher.takeScopeRequest?.();
+        }
         if (scopeRequest) return { status: 'needs_scope_approval', scopeRequest, counters: budgetGuard.getCounters() };
         const data = result?.data;
         const itemCount = Array.isArray(data?.items) ? data.items.length : null;

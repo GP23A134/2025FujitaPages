@@ -17,9 +17,9 @@ export const WORKFLOW_STATUSES = Object.freeze([
 const transitions = Object.freeze({
   planning: ['needs_clarification', 'needs_scope_approval', 'retrieving', 'analyzing', 'budget_exhausted', 'completed', 'cancelled', 'failed', 'scope_denied'],
   needs_clarification: ['planning', 'cancelled', 'failed'],
-  needs_scope_approval: ['planning', 'cancelled', 'failed', 'scope_denied'],
-  retrieving: ['planning', 'analyzing', 'needs_scope_approval', 'budget_exhausted', 'cancelled', 'failed', 'scope_denied'],
-  analyzing: ['planning', 'validating', 'needs_clarification', 'needs_scope_approval', 'budget_exhausted', 'cancelled', 'failed', 'scope_denied'],
+  needs_scope_approval: ['planning', 'retrieving', 'analyzing', 'cancelled', 'failed', 'scope_denied'],
+  retrieving: ['planning', 'analyzing', 'needs_scope_approval', 'needs_proposal_review', 'validating', 'budget_exhausted', 'cancelled', 'failed', 'scope_denied'],
+  analyzing: ['planning', 'validating', 'needs_clarification', 'needs_scope_approval', 'needs_proposal_review', 'budget_exhausted', 'cancelled', 'failed', 'scope_denied'],
   validating: ['planning', 'needs_proposal_review', 'needs_clarification', 'budget_exhausted', 'completed', 'cancelled', 'failed'],
   needs_proposal_review: ['planning', 'needs_scope_approval', 'completed', 'cancelled', 'failed', 'scope_denied'],
   budget_exhausted: ['planning', 'cancelled'],

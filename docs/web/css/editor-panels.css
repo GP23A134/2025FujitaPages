@@ -738,6 +738,9 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-proposal-queue-content { display: grid; gap: 0.4rem; padding: 0 0.5rem 0.5rem; }
 .ai-proposal-queue-compact .ai-proposal-queue-content { padding-top: 0.45rem; }
 .ai-proposal-list { display: grid; gap: 0.3rem; }
+.ai-proposal-alternative-group { display: grid; gap: 0.35rem; padding: 0.45rem; border: 1px solid #cbd5e1; border-radius: 8px; background: #f1f5f9; }
+.ai-proposal-alternative-heading { color: #334155; font-size: 0.75rem; }
+.ai-proposal-alternative-options { padding-left: 0.45rem; border-left: 2px solid #94a3b8; }
 .ai-proposal-list-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 0.45rem; padding: 0.4rem 0.5rem; border: 1px solid; border-radius: 7px; font-size: 0.78rem; }
 .ai-proposal-list-item.is-unjudged { border-color: #cbd5e1; background: #fff; }
 .ai-proposal-list-item.is-applied { border-color: #86efac; background: #dcfce7; }

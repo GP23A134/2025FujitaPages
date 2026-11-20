@@ -28,7 +28,7 @@ export function createEditorAssistantHost({
   };
 
   return Object.freeze({
-    async previewProposal({ item, proposals = [item], alternativeGroup = null, selectedAlternativeId = null, onSelectAlternative, onApply, onDismiss }) {
+    async previewProposal({ item, proposals = [item], alternativeGroups = [], selectedAlternatives = {}, onSelectAlternative, onApply, onDismiss }) {
       if (!item?.proposal || typeof onApply !== 'function') throw new TypeError('提案のプレビュー情報が不足しています。');
       const proposalPreview = getPreview();
       if (!proposalPreview) throw new Error('提案プレビューを利用できません。');
@@ -37,7 +37,10 @@ export function createEditorAssistantHost({
       if (!agentPreviewOwner?.items) throw new Error('提案の相談を開けません。');
       const responseGroupId = `agent_preview_${Date.now()}`;
       const sourceItems = [...new Set([item, ...proposals])].filter((candidate) => candidate?.proposal && Array.isArray(candidate.operations));
-      let selectedAlternativeSourceItem = sourceItems.find((candidate) => candidate.proposal.id === selectedAlternativeId) || null;
+      const groupByProposal = new Map();
+      alternativeGroups.forEach((group) => group.proposalIds.forEach((id) => groupByProposal.set(id, group)));
+      const selectedAlternativeSources = new Map(Object.entries(selectedAlternatives)
+        .map(([groupId, proposalId]) => [groupId, sourceItems.find((candidate) => candidate.proposal.id === proposalId) || null]));
       agentPreviewProxies = sourceItems.map((sourceItem, index) => ({
         type: 'proposal',
         id: `${responseGroupId}_${index + 1}`,
@@ -58,12 +61,16 @@ export function createEditorAssistantHost({
         availableIds: sourceItem.availableIds,
         operationPolicy: sourceItem.operationPolicy,
         status: 'pending',
-        agentAlternativeGroupId: alternativeGroup?.id || null,
-        agentAlternativeSelected: () => !alternativeGroup || selectedAlternativeSourceItem === sourceItem,
+        agentAlternativeGroupId: groupByProposal.get(sourceItem.proposal.id)?.id || null,
+        agentAlternativeSelected: () => {
+          const group = groupByProposal.get(sourceItem.proposal.id);
+          return !group || selectedAlternativeSources.get(group.id) === sourceItem;
+        },
         agentSelectAlternative: () => {
-          if (!alternativeGroup) return;
-          selectedAlternativeSourceItem = sourceItem;
-          onSelectAlternative?.(alternativeGroup.id, sourceItem.proposal.id);
+          const group = groupByProposal.get(sourceItem.proposal.id);
+          if (!group) return;
+          selectedAlternativeSources.set(group.id, sourceItem);
+          onSelectAlternative?.(group.id, sourceItem.proposal.id);
         },
         agentApply: async (operationIndexes) => {
           const result = await onApply(sourceItem, operationIndexes);

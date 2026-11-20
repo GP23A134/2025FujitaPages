@@ -143,7 +143,7 @@ export function createScopeApprovalView(dialog, editor, { messages, interactionD
       const text = document.createElement('p');
       text.textContent = choice === 'allow'
         ? `追加範囲を許可しました（参照 ${referenceIds.size}件・変更対象 ${changeIds.size}件）。`
-        : choice === 'original_scope' ? '追加範囲を許可しません。' : '追加範囲の許可をキャンセルしました。';
+        : choice === 'original_scope' ? '追加範囲は許可せず、許可済みの範囲で続けます。' : '追加範囲の許可をキャンセルしました。';
       body.append(text);
       response.append(author, body);
       messages.append(response);

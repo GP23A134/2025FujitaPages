@@ -9,7 +9,7 @@ import { createRequestProgress } from './request-progress.js?v=20261112-zero-sec
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261113-target-unit-cap-v1';
 import { createProposalView } from './proposal-view.js?v=20261112-conflict-alternatives-v1';
 import { createConversationRenderer } from './conversation-renderer.js?v=20261111-ai-chat-renderer-v1';
-import { createEditorAssistantHost } from '../integration/agent-legacy-bridge.js?v=20261118-preview-alternative-selection-v1';
+import { createEditorAssistantHost } from '../integration/agent-legacy-bridge.js?v=20261120-proposal-pagination-v1';
 import { registerAgentLegacyBridge } from '../integration/agent-legacy-bridge-registry.js?v=20261118-chat-bridge-registry-v1';
 import { CHAT_EVENTS } from '../integration/chat-events.js?v=20261118-chat-events-v1';
 

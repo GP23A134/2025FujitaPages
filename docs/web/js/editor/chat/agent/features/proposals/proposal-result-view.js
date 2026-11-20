@@ -24,15 +24,6 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions })
   const canPreview = (state, item) => !item.proposal.questions.length;
   const navigableItems = (state) => state.result.proposals.filter((candidate) => canPreview(state, candidate)
     && !['applied', 'dismissed', 'alternative_excluded'].includes(statusOf(state, candidate)));
-  const previewItems = (state, item) => {
-    const group = state.groupByProposal.get(item.proposal.id);
-    return group
-      ? group.proposalIds.map((id) => state.result.proposals.find((candidate) => candidate.proposal.id === id))
-        .filter((candidate) => candidate && canPreview(state, candidate)
-          && !['applied', 'dismissed', 'alternative_excluded'].includes(statusOf(state, candidate)))
-      : navigableItems(state).filter((candidate) => !state.groupByProposal.has(candidate.proposal.id));
-  };
-
   root.addEventListener('click', async (event) => {
     const message = event.target.closest('[data-assistant-proposal-result]');
     if (!message || !root.contains(message)) return;
@@ -43,16 +34,14 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions })
     if (preview) {
       const item = state.result.proposals.find((candidate) => candidate.proposal.id === preview.dataset.previewProposal);
       if (item && navigableItems(state).includes(item)) {
-        const group = state.groupByProposal.get(item.proposal.id) || null;
-        onPreview(item, previewItems(state, item), group, group ? state.selectedAlternatives.get(group.id) || null : null);
+        onPreview(item, navigableItems(state), state.result.alternativeGroups || [], Object.fromEntries(state.selectedAlternatives));
       }
       return;
     }
     if (event.target.closest('[data-preview-first]')) {
       const item = navigableItems(state)[0];
       if (item) {
-        const group = state.groupByProposal.get(item.proposal.id) || null;
-        onPreview(item, previewItems(state, item), group, group ? state.selectedAlternatives.get(group.id) || null : null);
+        onPreview(item, navigableItems(state), state.result.alternativeGroups || [], Object.fromEntries(state.selectedAlternatives));
       }
       return;
     }
@@ -134,7 +123,7 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions })
       group.proposalIds.forEach((id) => state.groupByProposal.set(id, group));
     });
     previewAll.disabled = !navigableItems(state).length;
-    result.proposals.forEach((item) => {
+    const createProposalRow = (item) => {
       const status = statusOf(state, item);
       const row = document.createElement('article');
       row.className = `ai-proposal-list-item is-${status}`;
@@ -173,7 +162,35 @@ export function createProposalResultView(root, { onPreview, onAnswerQuestions })
         answer.textContent = '回答して案を再検討';
         row.append(answer);
       }
-      list.append(row);
+      return row;
+    };
+    const renderedGroups = new Set();
+    result.proposals.forEach((item) => {
+      const group = state.groupByProposal.get(item.proposal.id);
+      if (!group) {
+        list.append(createProposalRow(item));
+        return;
+      }
+      if (renderedGroups.has(group.id)) return;
+      renderedGroups.add(group.id);
+      const groupItems = group.proposalIds.map((id) => state.result.proposals.find((candidate) => candidate.proposal.id === id)).filter(Boolean);
+      if (groupItems.length < 2) {
+        groupItems.forEach((candidate) => list.append(createProposalRow(candidate)));
+        return;
+      }
+      const section = document.createElement('section');
+      section.className = 'ai-proposal-alternative-group';
+      const groupHeading = document.createElement('strong');
+      groupHeading.className = 'ai-proposal-alternative-heading';
+      const sourceMatch = groupItems[0].proposal.title.match(/^「(.+?)」を「/);
+      groupHeading.textContent = sourceMatch
+        ? `「${sourceMatch[1]}」の候補（相互に代替・${groupItems.length}件）`
+        : `代替案（${groupItems.length}件）`;
+      const groupRows = document.createElement('div');
+      groupRows.className = 'ai-proposal-list ai-proposal-alternative-options';
+      groupItems.forEach((candidate) => groupRows.append(createProposalRow(candidate)));
+      section.append(groupHeading, groupRows);
+      list.append(section);
     });
     content.append(list);
     disclosure.append(disclosureSummary, content);
