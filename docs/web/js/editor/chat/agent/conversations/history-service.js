@@ -1,14 +1,33 @@
+import { normalizeConversationMemory } from './conversation-memory.js';
+
 const HISTORY_KEY = 'classEditorAssistantHistory-v1';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_ENTRIES = 100;
 const MAX_MESSAGE_LENGTH = 20000;
+const MAX_RECORD_CHARACTERS = 120000;
+const MAX_STORAGE_CHARACTERS = 3500000;
 const browserStorage = (name) => { try { return globalThis[name]; } catch { return null; } };
 
 function cleanRecord(record) {
   if (!record || typeof record !== 'object' || typeof record.id !== 'string' || !record.id) return null;
-  const items = Array.isArray(record.items) ? record.items.filter((item) => item?.type === 'message'
+  const normalizedItems = Array.isArray(record.items) ? record.items.filter((item) => item?.type === 'message'
     && ['user', 'assistant'].includes(item.role) && typeof item.text === 'string')
-    .map((item) => ({ type: 'message', role: item.role, text: item.text.slice(0, MAX_MESSAGE_LENGTH) })) : [];
+    .map((item) => ({ type: 'message', role: item.role, text: item.text.slice(0, MAX_MESSAGE_LENGTH) })).slice(-100) : [];
+  const items = [];
+  let totalCharacters = 0;
+  if (normalizedItems.length) {
+    const first = normalizedItems[0];
+    items.push(first);
+    totalCharacters = first.text.length;
+    const recent = [];
+    for (let index = normalizedItems.length - 1; index > 0; index -= 1) {
+      const item = normalizedItems[index];
+      if (totalCharacters + item.text.length > MAX_RECORD_CHARACTERS) continue;
+      recent.push(item);
+      totalCharacters += item.text.length;
+    }
+    items.push(...recent.reverse());
+  }
   if (!items.some((item) => item.role === 'user')) return null;
   return {
     id: record.id,
@@ -16,6 +35,7 @@ function cleanRecord(record) {
     updatedAt: Number.isFinite(record.updatedAt) ? record.updatedAt : Date.now(),
     selectedIds: Array.isArray(record.selectedIds) ? record.selectedIds.filter((id) => typeof id === 'string') : [],
     assistantMode: 'agent',
+    workflowMemory: normalizeConversationMemory(record.workflowMemory),
     items
   };
 }
@@ -48,7 +68,15 @@ export function createHistoryService({ sessionStorage = browserStorage('sessionS
   const write = (storage, items, expiresAt = null) => {
     try {
       if (!storage) return false;
-      storage.setItem(HISTORY_KEY, JSON.stringify({ version: 1, ...(expiresAt ? { expiresAt } : {}), items }));
+      const retained = [];
+      let size = 100;
+      for (const item of items) {
+        const itemSize = JSON.stringify(item).length + 1;
+        if (retained.length && size + itemSize > MAX_STORAGE_CHARACTERS) continue;
+        retained.push(item);
+        size += itemSize;
+      }
+      storage.setItem(HISTORY_KEY, JSON.stringify({ version: 1, ...(expiresAt ? { expiresAt } : {}), items: retained }));
       return true;
     } catch { return false; }
   };

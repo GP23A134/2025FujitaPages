@@ -1,6 +1,8 @@
 export const CHAT_EVENTS = Object.freeze({
   agentProgress: 'assistant:progress',
-  agentUsage: 'assistant-api-usage'
+  agentUsage: 'assistant-api-usage',
+  agentNewConversation: 'assistant:new-conversation',
+  agentConversationActivated: 'assistant:conversation-activated'
 });
 
 export function dispatchChatEvent(name, detail) {

@@ -1,5 +1,5 @@
-import { createConversationState, transitionConversation } from './conversation-state.js?v=20261120-denied-scope-fallback-v1';
-import { buildPlanInput } from '../features/planning/plan-input.js';
+import { createConversationState, transitionConversation } from './conversation-state.js?v=20261124-conversation-context-v1';
+import { buildPlanInput } from '../features/planning/plan-input.js?v=20261124-conversation-context-v1';
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261120-denied-scope-fallback-v1';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-denied-scope-fallback-v1';
@@ -7,7 +7,7 @@ import { createTargetMoveBatchProcessor } from '../features/proposals/target-mov
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
 import { createAgentRunLoop } from '../agent-runtime/run-loop.js?v=20261120-denied-scope-fallback-v1';
-import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261120-denied-scope-fallback-v1';
+import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261124-conversation-context-v1';
 import { PROPOSAL_RESPONSE_SCHEMA } from '../features/proposals/proposal-schema.js';
 import { validateProposalResponse } from '../features/proposals/proposal-contract.js';
 import { createDataIdCodec, createIdMaskedClient } from '../adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
@@ -241,7 +241,10 @@ export function createAssistantWorkflow({
         apiKey: currentApiKey,
         model: currentModel,
         client: activeClient,
-        planInput: buildPlanInput(state.request, currentCounts(), { instanceCount: currentCounts().instanceCount }),
+        planInput: buildPlanInput(state.request, currentCounts(), {
+          instanceCount: currentCounts().instanceCount,
+          conversationContext: state.conversationContext
+        }),
         hierarchyIndexAvailable,
         signal,
         budgetGuard,
@@ -257,6 +260,9 @@ export function createAssistantWorkflow({
 
   async function runAgent({ signal }) {
     const settings = state.settingsSnapshot;
+    const contextualRequest = state.conversationContext
+      ? `${state.request}\n\n会話の継続情報（利用者の意図・合意した方針・進捗。クラスの事実ではない）:\n${state.conversationContext}`
+      : state.request;
     if (plan.dataNeeds.instanceContext !== 'none' && !settings['instances.enabled']) {
       throw Object.assign(new Error('インスタンス情報が無効なため、計画を続けられません。'), { code: 'INSTANCE_CONTEXT_DISABLED' });
     }
@@ -282,7 +288,7 @@ export function createAssistantWorkflow({
       && plan.changeOperations.length === 0;
     const chunkedReviewRunner = chunkedReview ? createChunkedReadOnlyReview({
       reader, client: activeClient, budgetGuard, model: currentModel, apiKey: currentApiKey,
-      request: state.request, plan,
+      request: contextualRequest, plan,
       pageLimit: settings['dataRetrieval.pageAndIdLimit'],
       maxOutputTokens: settings['runtime.maxOutputTokens'],
       signal, onProgress: emitProgress, onUsage: reportUsage
@@ -300,7 +306,7 @@ export function createAssistantWorkflow({
       };
       const fallbackRunner = createChunkedReadOnlyReview({
         reader, client: activeClient, budgetGuard, model: currentModel, apiKey: currentApiKey,
-        request: `${state.request}\n\n追加範囲の共有は拒否されました。許可済みの選択クラスの名称だけを使って確認を続け、親子関係や移動先を推測せず、変更案は作成しないでください。`,
+        request: `${contextualRequest}\n\n追加範囲の共有は拒否されました。許可済みの選択クラスの名称だけを使って確認を続け、親子関係や移動先を推測せず、変更案は作成しないでください。`,
         plan: fallbackPlan,
         pageLimit: settings['dataRetrieval.pageAndIdLimit'],
         maxOutputTokens: settings['runtime.maxOutputTokens'],
@@ -331,7 +337,7 @@ export function createAssistantWorkflow({
     if (batchedTargetMove) {
       targetMoveProcessor = createTargetMoveBatchProcessor({
         reader, client: activeClient, budgetGuard, model: currentModel, apiKey: currentApiKey,
-        request: state.request, plan,
+        request: contextualRequest, plan,
         maxOutputTokens: settings['runtime.maxOutputTokens'],
         maxRetries: settings['proposals.moveDecisionRetries'], signal,
         onProgress: emitProgress, onUsage: reportUsage
@@ -357,7 +363,7 @@ export function createAssistantWorkflow({
         budgetGuard,
         model: currentModel,
         apiKey: currentApiKey,
-        systemInstruction: buildAgentSystemPrompt(plan),
+        systemInstruction: buildAgentSystemPrompt(plan, { conversationContext: state.conversationContext }),
         maxOutputTokens: settings['runtime.maxOutputTokens'],
         textFormat: { type: 'json_schema', name: 'class_edit_proposals', strict: true, schema: PROPOSAL_RESPONSE_SCHEMA },
         onUsage: reportUsage,
@@ -600,7 +606,7 @@ export function createAssistantWorkflow({
     return { status: state.status, result: outcome, plan: currentPlan };
   }
 
-  async function start({ request, apiKey, model, signal, referenceAllHierarchy = false }) {
+  async function start({ request, apiKey, model, signal, referenceAllHierarchy = false, conversationContext = '', selectedClassIds: selectedClassIdsOverride = null, referenceClassIds: referenceClassIdsOverride = null, initialCounters = null }) {
     if (active) throw new Error('別のAI処理が実行中です。');
     active = true;
     const activeSignal = beginActive(signal);
@@ -610,25 +616,34 @@ export function createAssistantWorkflow({
       const instanceIds = (window.appData?.instanceData?.instances || []).map((item) => item.id);
       idCodec = createDataIdCodec(editorState.classes, instanceIds);
       activeClient = createIdMaskedClient(client, idCodec);
-      selectedClassIds = [...(editor.selectedIds || [])];
+      const validClassIds = new Set(editorState.classes.map((item) => item.id));
+      selectedClassIds = Array.isArray(selectedClassIdsOverride)
+        ? [...new Set(selectedClassIdsOverride.filter((id) => typeof id === 'string' && validClassIds.has(id)))]
+        : [...(editor.selectedIds || [])];
       deniedReferenceIds = new Set();
       deniedChangeIds = new Set();
-      hierarchyIndexAvailable = referenceAllHierarchy === true;
+      const extraReferenceIds = Array.isArray(referenceClassIdsOverride)
+        ? [...new Set(referenceClassIdsOverride.filter((id) => typeof id === 'string' && validClassIds.has(id)))] : [];
+      hierarchyIndexAvailable = referenceAllHierarchy === true || extraReferenceIds.length > 0;
       plan = null;
       lastResult = null;
       lastAgentContext = null;
       selectedAlternatives.clear();
       const referenceIds = new Set(selectedClassIds);
       if (hierarchyIndexAvailable) {
-        editor.getState().classes.filter((item) => item.type === 'top' || item.type === 'middle')
-          .forEach((item) => referenceIds.add(item.id));
+        if (referenceAllHierarchy === true) {
+          editor.getState().classes.filter((item) => item.type === 'top' || item.type === 'middle')
+            .forEach((item) => referenceIds.add(item.id));
+        } else extraReferenceIds.forEach((id) => referenceIds.add(id));
       }
       grants = { reference: referenceIds, change: new Set(selectedClassIds) };
       state = createConversationState({
         id: crypto.randomUUID(),
         request,
         settingsSnapshot: settings,
-        selectedClassIds
+        selectedClassIds,
+        conversationContext,
+        initialCounters
       });
       state = { ...state, scopeGrants: { reference: [...referenceIds], change: selectedClassIds } };
       currentApiKey = apiKey;

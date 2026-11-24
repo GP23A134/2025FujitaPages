@@ -113,13 +113,14 @@ export function createEditorAssistantHost({
       conversation.titleIsCustom = false;
       conversation.updatedAt = Number.isFinite(record.updatedAt) ? record.updatedAt : Date.now();
       conversation.selectedIds = Array.isArray(record.selectedIds) ? [...record.selectedIds] : [];
+      conversation.workflowMemory = record.workflowMemory && typeof record.workflowMemory === 'object'
+        ? record.workflowMemory : null;
       conversation.items = record.items.filter((item) => item?.type === 'message'
         && ['user', 'assistant'].includes(item.role) && typeof item.text === 'string')
         .map(({ type, role, text }) => ({ type, role, text }));
       conversation.status = '';
       conversation.workflowStatus = '';
       conversation.splitMemory = null;
-      if (conversation === getCurrentConversation()) renderConversation();
       updateHistoryList();
       return true;
     },

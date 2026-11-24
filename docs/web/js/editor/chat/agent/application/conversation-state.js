@@ -28,7 +28,7 @@ const transitions = Object.freeze({
   failed: ['planning', 'cancelled']
 });
 
-export function createConversationState({ id, request, settingsSnapshot, selectedClassIds = [], createdAt = new Date().toISOString() }) {
+export function createConversationState({ id, request, settingsSnapshot, selectedClassIds = [], conversationContext = '', initialCounters = null, createdAt = new Date().toISOString() }) {
   if (!id || typeof id !== 'string') throw new TypeError('会話IDが必要です。');
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('依頼文が必要です。');
   if (!settingsSnapshot || typeof settingsSnapshot !== 'object' || Array.isArray(settingsSnapshot)) {
@@ -38,10 +38,17 @@ export function createConversationState({ id, request, settingsSnapshot, selecte
   return {
     id,
     request: request.trim(),
+    conversationContext: typeof conversationContext === 'string' ? conversationContext.trim().slice(-5000) : '',
     status: 'planning',
     settingsSnapshot: structuredClone(settingsSnapshot),
     selectedClassIds: [...new Set(selectedClassIds.filter((id) => typeof id === 'string'))],
-    counters: { responseRounds: 0, retrievalCalls: 0, replans: 0, inputTokensReserved: 0, inputTokensActual: 0 },
+    counters: {
+      responseRounds: Number.isSafeInteger(initialCounters?.responseRounds) && initialCounters.responseRounds >= 0 ? initialCounters.responseRounds : 0,
+      retrievalCalls: 0,
+      replans: 0,
+      inputTokensReserved: 0,
+      inputTokensActual: Number.isSafeInteger(initialCounters?.inputTokensActual) && initialCounters.inputTokensActual >= 0 ? initialCounters.inputTokensActual : 0
+    },
     scopeGrants: { reference: [], change: [] },
     artifacts: [],
     proposals: [],

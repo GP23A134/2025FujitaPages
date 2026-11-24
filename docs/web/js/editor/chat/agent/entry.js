@@ -1,20 +1,21 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
 import { createProgressView } from './features/progress/progress-view.js?v=20261119-scope-flow-v1';
-import { buildPlanInput } from './features/planning/plan-input.js';
+import { buildPlanInput } from './features/planning/plan-input.js?v=20261124-conversation-context-v1';
 import { createOpenAIClient } from './adapters/openai-client.js?v=20261120-api-retries-v1';
 import { createDataIdCodec, createIdMaskedClient } from './adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
-import { createPlanningService } from './features/planning/planning-service.js?v=20261120-id-pseudonyms-v2';
+import { createPlanningService } from './features/planning/planning-service.js?v=20261124-conversation-context-v1';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261120-denied-scope-fallback-v1';
 import { createBudgetApprovalView } from './features/budget-approval/budget-approval-view.js?v=20261120-budget-limit-approval-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261120-id-pseudonyms-v2';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261124-conversation-context-v1';
 import { createQuestionView } from './features/planning/question-view.js?v=20261118-white-question-card-v1';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261119-scope-flow-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261120-proposal-pagination-v1';
 import { createSettingsView } from './settings/settings-view.js?v=20261119-developer-settings-layout-v2';
-import { createHistoryService } from './conversations/history-service.js';
+import { createHistoryService } from './conversations/history-service.js?v=20261124-conversation-context-v1';
+import { beginConversationStage, buildConversationContext, completeConversationMemory, detectReorganizationRequest, finishConversationStage, isReorganizationFinalizationRequest, recordConversationUsage, rememberConversationPolicy } from './conversations/conversation-memory.js?v=20261124-conversation-context-v1';
 import { getAgentLegacyBridge } from '../integration/agent-legacy-bridge-registry.js?v=20261118-chat-bridge-registry-v1';
-import { CHAT_EVENTS, dispatchChatEvent } from '../integration/chat-events.js?v=20261118-chat-events-v1';
+import { CHAT_EVENTS, dispatchChatEvent } from '../integration/chat-events.js?v=20261124-conversation-context-v1';
 
 const statusElement = document.getElementById('ai-status');
 if (window.classEditorAI && statusElement) {
@@ -97,7 +98,15 @@ if (window.classEditorAI && statusElement) {
   });
   let workflow;
   let activeHistory = null;
+  let activeTurnStageIndex = -1;
+  let activeTurnDataVersion = '';
+  let activeTurnFinalizingReorganization = false;
   const historyPersistenceEnabled = () => Boolean(settings['conversations.persistAcrossTabs']);
+  const trimHistoryItems = () => {
+    if (!activeHistory || activeHistory.items.length <= 100) return;
+    const first = activeHistory.items[0];
+    activeHistory.items = [first, ...activeHistory.items.slice(-99)];
+  };
   const publishHistory = () => {
     if (!activeHistory) return;
     activeHistory.updatedAt = Date.now();
@@ -110,6 +119,7 @@ if (window.classEditorAI && statusElement) {
     const normalized = String(text || '').trim();
     if (!activeHistory || !normalized) return;
     activeHistory.items.push({ type: 'message', role, text: normalized });
+    trimHistoryItems();
     publishHistory();
   };
   let proposalResultView;
@@ -169,7 +179,10 @@ if (window.classEditorAI && statusElement) {
     reportUsage: ({ model, usage }) => dispatchChatEvent(CHAT_EVENTS.agentUsage, { model, usage }),
     onEvent: (event) => {
       workflowView.handle(event);
-      if (event.type === 'progress' && event.milestone && event.note) {
+      if (event.type === 'state' && activeHistory && event.state?.counters) {
+        activeHistory.workflowMemory = recordConversationUsage(activeHistory.workflowMemory, event.state.counters);
+        publishHistory();
+      } else if (event.type === 'progress' && event.milestone && event.note) {
         addHistoryMessage('assistant', event.note);
       } else if (event.type === 'plan' && event.plan?.summary) {
         addHistoryMessage('assistant', event.plan.summary);
@@ -188,10 +201,47 @@ if (window.classEditorAI && statusElement) {
         addHistoryMessage('assistant', message);
       } else if (event.type === 'result') {
         const result = event.result;
-        const summaries = [result?.message, ...(result?.proposals || []).map((item) => item.proposal?.title || item.proposal?.summary)]
+        const stateById = new Map((window.classEditorAI?.getState?.().classes || []).map((item) => [item.id, item.label]));
+        const operationNotes = (result?.proposals || []).flatMap((item) => (item.operations || []).map((operation) => {
+          const label = (id) => stateById.get(id) || id || '不明';
+          if (operation.type === 'moveClass') return `${label(operation.classId)} → ${label(operation.destinationId)}`;
+          if (operation.type === 'renameClass') return `${label(operation.classId)} → ${operation.label}`;
+          if (operation.type === 'addClass') return `${operation.label} を追加`;
+          if (operation.type === 'deleteClass') return `${label(operation.classId)} を削除`;
+          if (operation.type === 'promoteClass') return `${label(operation.classId)} を上位化`;
+          return '';
+        }).filter(Boolean));
+        const operationSummary = operationNotes.length
+          ? `変更候補${operationNotes.length}件: ${operationNotes.slice(0, 12).join('、')}${operationNotes.length > 12 ? '、ほか' : ''}` : '';
+        const summaries = [result?.message, ...(result?.proposals || []).map((item) => item.proposal?.title || item.proposal?.summary), operationSummary]
           .filter((text) => typeof text === 'string' && text.trim());
+        if (activeHistory && activeTurnStageIndex >= 0) {
+          const hasPendingReview = (result?.proposals || []).some((item) => item.proposal?.questions?.length)
+            || (result?.questions || []).length > 0;
+          const status = event.state?.status === 'budget_exhausted' ? 'interrupted'
+            : hasPendingReview ? 'awaiting_user' : 'completed';
+          activeHistory.workflowMemory = finishConversationStage(activeHistory.workflowMemory, activeTurnStageIndex, {
+            status,
+            summary: summaries.join('。 ').slice(0, 1600),
+            dataVersion: activeTurnDataVersion
+          });
+          if (activeTurnFinalizingReorganization && status === 'completed') {
+            activeHistory.workflowMemory = completeConversationMemory(activeHistory.workflowMemory);
+          }
+          activeTurnStageIndex = -1;
+          activeTurnFinalizingReorganization = false;
+          publishHistory();
+        }
         if (summaries.length) addHistoryMessage('assistant', [...new Set(summaries)].join('\n'));
       } else if (event.type === 'error') {
+        if (activeHistory && activeTurnStageIndex >= 0) {
+          activeHistory.workflowMemory = finishConversationStage(activeHistory.workflowMemory, activeTurnStageIndex, {
+            status: 'failed', summary: event.error?.message || '', dataVersion: activeTurnDataVersion
+          });
+          activeTurnStageIndex = -1;
+          activeTurnFinalizingReorganization = false;
+          publishHistory();
+        }
         addHistoryMessage('assistant', event.error?.message || '処理中にエラーが発生しました。');
       } else if (event.type === 'proposal_applied') {
         addHistoryMessage('assistant', '変更案を適用しました。');
@@ -235,6 +285,25 @@ if (window.classEditorAI && statusElement) {
     messages.append(message);
     messages.scrollTop = messages.scrollHeight;
   };
+  const expandSelectedHierarchy = (roots) => {
+    const tree = window.classEditorAI?.getState?.();
+    if (!tree || !Array.isArray(tree.classes) || !Array.isArray(tree.relations)) return [...new Set(roots || [])];
+    const children = new Map();
+    tree.relations.forEach(({ child, parent }) => {
+      if (!children.has(parent)) children.set(parent, []);
+      children.get(parent).push(child);
+    });
+    const found = new Set();
+    const pending = [...new Set(roots || [])];
+    while (pending.length) {
+      const id = pending.pop();
+      if (found.has(id)) continue;
+      found.add(id);
+      pending.push(...(children.get(id) || []));
+    }
+    const available = new Set(tree.classes.map((item) => item.id));
+    return [...found].filter((id) => available.has(id));
+  };
   const restoreStoppedRequest = (request) => {
     const draft = requestInput.value.trim();
     requestInput.value = draft ? `${request}\n\n${draft}` : request;
@@ -266,23 +335,67 @@ if (window.classEditorAI && statusElement) {
     setProcessingButton(true);
     try {
       appendUserRequest(request);
-      activeHistory = {
+      if (!activeHistory) activeHistory = {
         id: `agent-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`,
         title: request.replace(/\s+/g, ' ').slice(0, 80),
         updatedAt: Date.now(),
         selectedIds: [...(window.classEditorAI.selectedIds || [])],
         assistantMode: 'agent',
-        items: [{ type: 'message', role: 'user', text: request }]
+        workflowMemory: null,
+        items: []
       };
+      const previousMemory = activeHistory.workflowMemory;
+      const reorganizationTurn = previousMemory?.kind === 'classification_reorganization' || detectReorganizationRequest(request);
+      const finalizingReorganization = previousMemory?.kind === 'classification_reorganization'
+        && isReorganizationFinalizationRequest(request);
+      const visibleSelectedIds = [...(window.classEditorAI.selectedIds || [])];
+      const scopeRoots = finalizingReorganization && previousMemory.rootIds.length
+        ? [...new Set([...previousMemory.rootIds, ...visibleSelectedIds])] : visibleSelectedIds;
+      const selectedIds = reorganizationTurn ? expandSelectedHierarchy(scopeRoots) : visibleSelectedIds;
+      let priorContext = buildConversationContext(activeHistory.items, previousMemory, {
+        currentDataVersion: window.classEditorAssistant?.getDataVersion?.() || ''
+      });
+      if (finalizingReorganization) priorContext = [priorContext,
+        '利用者が再編結果の統合を求めています。作業メモの全完了段階を参照し、保存された分類方針を保って対象ルート全体を現在のクラスデータで再確認し、既存の提案形式で統合案を示してください。過去の会話は方針と進捗の根拠に限り、クラスの事実は必ず今回取得してください。'
+      ].filter(Boolean).join('\n\n');
+      const workflowRequest = finalizingReorganization
+        ? `${request}\n\n再編セッションの最終統合です。処理済み段階の希望と結果を踏まえ、対象ルート全体を現在のクラスデータで再確認して一貫した変更案を作成してください。現在の提案形式で提示し、編集データには適用しないでください。`
+        : request;
+      activeHistory.selectedIds = visibleSelectedIds;
+      activeHistory.items.push({ type: 'message', role: 'user', text: request });
+      trimHistoryItems();
+      activeTurnDataVersion = window.classEditorAssistant?.getDataVersion?.() || '';
+      const turn = beginConversationStage(activeHistory.workflowMemory, {
+        request,
+        selectedIds: scopeRoots,
+        rootIds: scopeRoots,
+        dataVersion: activeTurnDataVersion,
+        kind: detectReorganizationRequest(request) ? 'classification_reorganization' : 'conversation'
+      });
+      activeHistory.workflowMemory = rememberConversationPolicy(turn.memory, request);
+      activeTurnStageIndex = turn.stageIndex;
+      activeTurnFinalizingReorganization = finalizingReorganization;
       publishHistory();
       requestInput.value = '';
       requestInput.dispatchEvent(new Event('input', { bubbles: true }));
       const outcome = await workflow.start({
-        request,
+        request: workflowRequest,
         apiKey: apiKeyInput.value,
         model: modelSelect.value,
+        conversationContext: priorContext,
+        selectedClassIds: selectedIds,
+        referenceClassIds: reorganizationTurn ? selectedIds : null,
+        initialCounters: previousMemory?.kind === 'classification_reorganization' ? previousMemory.usage : null,
         referenceAllHierarchy: document.getElementById('ai-full-graph-scope')?.getAttribute('aria-checked') === 'true'
       });
+      if (outcome?.status === 'cancelled' && activeTurnStageIndex >= 0) {
+        activeHistory.workflowMemory = finishConversationStage(activeHistory.workflowMemory, activeTurnStageIndex, {
+          status: 'interrupted', dataVersion: activeTurnDataVersion
+        });
+        activeTurnStageIndex = -1;
+        activeTurnFinalizingReorganization = false;
+        publishHistory();
+      }
       if (outcome?.status === 'cancelled' && activeRequestText) {
         restoreStoppedRequest(activeRequestText);
         activeRequestText = '';
@@ -304,7 +417,20 @@ if (window.classEditorAI && statusElement) {
       showError(error);
     });
   }, true);
-  historyService.read(historyPersistenceEnabled()).forEach((record) => getAgentLegacyBridge()?.upsertHistory?.(record));
+  const restoredHistories = historyService.read(historyPersistenceEnabled());
+  restoredHistories.forEach((record) => getAgentLegacyBridge()?.upsertHistory?.(record));
+  window.addEventListener(CHAT_EVENTS.agentNewConversation, () => {
+    activeHistory = null;
+    activeTurnStageIndex = -1;
+    activeTurnFinalizingReorganization = false;
+  });
+  window.addEventListener(CHAT_EVENTS.agentConversationActivated, (event) => {
+    const record = historyService.read(historyPersistenceEnabled())
+      .find((item) => item.id === event.detail?.conversationId);
+    activeHistory = record || null;
+    activeTurnStageIndex = -1;
+    activeTurnFinalizingReorganization = false;
+  });
 
   // Only counts and an internal data version cross this public boundary.
   window.classEditorAssistant = Object.freeze({
