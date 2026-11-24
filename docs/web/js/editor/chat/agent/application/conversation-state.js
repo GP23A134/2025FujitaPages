@@ -44,8 +44,8 @@ export function createConversationState({ id, request, settingsSnapshot, selecte
     selectedClassIds: [...new Set(selectedClassIds.filter((id) => typeof id === 'string'))],
     counters: {
       responseRounds: Number.isSafeInteger(initialCounters?.responseRounds) && initialCounters.responseRounds >= 0 ? initialCounters.responseRounds : 0,
-      retrievalCalls: 0,
-      replans: 0,
+      retrievalCalls: Number.isSafeInteger(initialCounters?.retrievalCalls) && initialCounters.retrievalCalls >= 0 ? initialCounters.retrievalCalls : 0,
+      replans: Number.isSafeInteger(initialCounters?.replans) && initialCounters.replans >= 0 ? initialCounters.replans : 0,
       inputTokensReserved: 0,
       inputTokensActual: Number.isSafeInteger(initialCounters?.inputTokensActual) && initialCounters.inputTokensActual >= 0 ? initialCounters.inputTokensActual : 0
     },

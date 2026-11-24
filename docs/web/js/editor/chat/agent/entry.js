@@ -3,17 +3,17 @@ import { createProgressView } from './features/progress/progress-view.js?v=20261
 import { buildPlanInput } from './features/planning/plan-input.js?v=20261124-conversation-context-v1';
 import { createOpenAIClient } from './adapters/openai-client.js?v=20261120-api-retries-v1';
 import { createDataIdCodec, createIdMaskedClient } from './adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
-import { createPlanningService } from './features/planning/planning-service.js?v=20261124-conversation-context-v1';
+import { createPlanningService } from './features/planning/planning-service.js?v=20261124-reorganization-coverage-v1';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261120-denied-scope-fallback-v1';
 import { createBudgetApprovalView } from './features/budget-approval/budget-approval-view.js?v=20261120-budget-limit-approval-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261124-conversation-context-v1';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261125-generic-intent-v1';
 import { createQuestionView } from './features/planning/question-view.js?v=20261118-white-question-card-v1';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261119-scope-flow-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261120-proposal-pagination-v1';
 import { createSettingsView } from './settings/settings-view.js?v=20261119-developer-settings-layout-v2';
 import { createHistoryService } from './conversations/history-service.js?v=20261124-conversation-context-v1';
-import { beginConversationStage, buildConversationContext, completeConversationMemory, detectReorganizationRequest, finishConversationStage, isReorganizationFinalizationRequest, recordConversationUsage, rememberConversationPolicy } from './conversations/conversation-memory.js?v=20261124-conversation-context-v1';
+import { beginConversationStage, buildConversationContext, completeConversationMemory, detectReorganizationRequest, finishConversationStage, getConversationJobAction, isReorganizationFinalizationRequest, recordConversationUsage, recordJobCheckpoint, rememberConversationPolicy } from './conversations/conversation-memory.js?v=20261125-job-resume-v1';
 import { getAgentLegacyBridge } from '../integration/agent-legacy-bridge-registry.js?v=20261118-chat-bridge-registry-v1';
 import { CHAT_EVENTS, dispatchChatEvent } from '../integration/chat-events.js?v=20261124-conversation-context-v1';
 
@@ -182,6 +182,9 @@ if (window.classEditorAI && statusElement) {
       if (event.type === 'state' && activeHistory && event.state?.counters) {
         activeHistory.workflowMemory = recordConversationUsage(activeHistory.workflowMemory, event.state.counters);
         publishHistory();
+      } else if (event.type === 'job_checkpoint' && activeHistory) {
+        activeHistory.workflowMemory = recordJobCheckpoint(activeHistory.workflowMemory, event.checkpoint);
+        publishHistory();
       } else if (event.type === 'progress' && event.milestone && event.note) {
         addHistoryMessage('assistant', event.note);
       } else if (event.type === 'plan' && event.plan?.summary) {
@@ -344,21 +347,50 @@ if (window.classEditorAI && statusElement) {
         workflowMemory: null,
         items: []
       };
-      const previousMemory = activeHistory.workflowMemory;
+      let previousMemory = activeHistory.workflowMemory;
+      const currentDataVersion = window.classEditorAssistant?.getDataVersion?.() || '';
+      const jobAction = getConversationJobAction(previousMemory, request, currentDataVersion);
+      if (jobAction === 'stale' || jobAction === 'stale_stage') {
+        activeHistory.workflowMemory = jobAction === 'stale'
+          ? recordJobCheckpoint(activeHistory.workflowMemory, {
+            ...previousMemory.job, status: 'stale', updatedAt: Date.now()
+          })
+          : finishConversationStage(previousMemory, previousMemory.stages.length - 1, {
+            status: 'stale', dataVersion: currentDataVersion
+          });
+        addHistoryMessage('assistant', '作業データの版が保存時から変わっているため、保存済みジョブは続行できません。現在の対象範囲を確認し、新しい依頼として実行してください。');
+        publishHistory();
+        activeRequestText = '';
+        requestInput.value = '';
+        requestInput.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+      }
+      if (jobAction === 'new_task') {
+        previousMemory = null;
+        activeHistory.workflowMemory = null;
+      }
+      const resumeJob = jobAction === 'resume';
+      const resumeStage = jobAction === 'resume_stage';
+      const previousStage = previousMemory?.stages.at(-1) || null;
       const reorganizationTurn = previousMemory?.kind === 'classification_reorganization' || detectReorganizationRequest(request);
       const finalizingReorganization = previousMemory?.kind === 'classification_reorganization'
         && isReorganizationFinalizationRequest(request);
       const visibleSelectedIds = [...(window.classEditorAI.selectedIds || [])];
       const scopeRoots = finalizingReorganization && previousMemory.rootIds.length
-        ? [...new Set([...previousMemory.rootIds, ...visibleSelectedIds])] : visibleSelectedIds;
-      const selectedIds = reorganizationTurn ? expandSelectedHierarchy(scopeRoots) : visibleSelectedIds;
+        ? [...new Set([...previousMemory.rootIds, ...visibleSelectedIds])]
+        : (resumeJob || resumeStage) && previousMemory.rootIds.length ? previousMemory.rootIds : visibleSelectedIds;
+      const selectedIds = resumeJob
+        ? reorganizationTurn ? expandSelectedHierarchy(scopeRoots)
+          : [...new Set([...(previousMemory.rootIds || []), ...previousMemory.job.scopeIds])]
+        : resumeStage && !reorganizationTurn ? previousStage.selectedIds
+        : reorganizationTurn ? expandSelectedHierarchy(scopeRoots) : visibleSelectedIds;
       let priorContext = buildConversationContext(activeHistory.items, previousMemory, {
         currentDataVersion: window.classEditorAssistant?.getDataVersion?.() || ''
       });
       if (finalizingReorganization) priorContext = [priorContext,
         '利用者が再編結果の統合を求めています。作業メモの全完了段階を参照し、保存された分類方針を保って対象ルート全体を現在のクラスデータで再確認し、既存の提案形式で統合案を示してください。過去の会話は方針と進捗の根拠に限り、クラスの事実は必ず今回取得してください。'
       ].filter(Boolean).join('\n\n');
-      const workflowRequest = finalizingReorganization
+      const workflowRequest = resumeJob ? previousMemory.job.request : resumeStage ? previousStage.request : finalizingReorganization
         ? `${request}\n\n再編セッションの最終統合です。処理済み段階の希望と結果を踏まえ、対象ルート全体を現在のクラスデータで再確認して一貫した変更案を作成してください。現在の提案形式で提示し、編集データには適用しないでください。`
         : request;
       activeHistory.selectedIds = visibleSelectedIds;
@@ -385,7 +417,8 @@ if (window.classEditorAI && statusElement) {
         conversationContext: priorContext,
         selectedClassIds: selectedIds,
         referenceClassIds: reorganizationTurn ? selectedIds : null,
-        initialCounters: previousMemory?.kind === 'classification_reorganization' ? previousMemory.usage : null,
+        initialCounters: resumeJob || resumeStage || previousMemory?.kind === 'classification_reorganization' ? previousMemory.usage : null,
+        jobCheckpoint: resumeJob ? previousMemory.job : null,
         referenceAllHierarchy: document.getElementById('ai-full-graph-scope')?.getAttribute('aria-checked') === 'true'
       });
       if (outcome?.status === 'cancelled' && activeTurnStageIndex >= 0) {

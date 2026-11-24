@@ -3,11 +3,11 @@ import { buildPlanInput } from '../features/planning/plan-input.js?v=20261124-co
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261120-denied-scope-fallback-v1';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-denied-scope-fallback-v1';
-import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261120-sequential-batches-v1';
+import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261125-generic-intent-v1';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
 import { createAgentRunLoop } from '../agent-runtime/run-loop.js?v=20261120-denied-scope-fallback-v1';
-import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261124-conversation-context-v1';
+import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261125-generic-intent-v1';
 import { PROPOSAL_RESPONSE_SCHEMA } from '../features/proposals/proposal-schema.js';
 import { validateProposalResponse } from '../features/proposals/proposal-contract.js';
 import { createDataIdCodec, createIdMaskedClient } from '../adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
@@ -293,7 +293,8 @@ export function createAssistantWorkflow({
       maxOutputTokens: settings['runtime.maxOutputTokens'],
       signal, onProgress: emitProgress, onUsage: reportUsage
     }) : null;
-    const batchedTargetMove = usesBatchedTargetMove(plan);
+    const batchedTargetMove = usesBatchedTargetMove(plan)
+      || (state.jobCheckpoint?.kind === 'target_move' && plan.changeOperations.includes('move_target_class'));
     const continueTargetReviewWithinGrantedScope = async () => {
       const fallbackPlan = {
         ...plan,
@@ -313,6 +314,18 @@ export function createAssistantWorkflow({
         signal, onProgress: emitProgress, onUsage: reportUsage
       });
       const fallback = await fallbackRunner.run({ includeParentContext: false });
+      if (state.jobCheckpoint?.kind === 'target_move') {
+        const endedAt = Date.now();
+        const closedJob = {
+          ...state.jobCheckpoint,
+          status: 'failed',
+          updatedAt: endedAt,
+          completedAt: endedAt,
+          metadata: { ...state.jobCheckpoint.metadata, terminalReason: 'reference_scope_denied' }
+        };
+        state = { ...state, jobCheckpoint: closedJob };
+        onEvent({ type: 'job_checkpoint', checkpoint: closedJob });
+      }
       const parsed = JSON.parse(fallback.text);
       parsed.message += '\n\n追加範囲は拒否されたため、選択済みクラスの名称だけで確認を続けました。親子関係と移動先候補は使わず、移動案は作成していません。';
       return { status: 'scope_limited', result: { ...parsed, blocked: [] } };
@@ -340,6 +353,16 @@ export function createAssistantWorkflow({
         request: contextualRequest, plan,
         maxOutputTokens: settings['runtime.maxOutputTokens'],
         maxRetries: settings['proposals.moveDecisionRetries'], signal,
+        jobCheckpoint: state.jobCheckpoint,
+        dataVersion: window.classEditorAssistant?.getDataVersion?.() || '',
+        jobRequest: state.request,
+        jobScopeIds: editor.getState().classes.filter((item) => item.type === 'class' && selectedClassIds.includes(item.id)).map((item) => item.id),
+        jobSelectedIds: [...selectedClassIds],
+        jobHierarchyIds: editor.getState().classes.filter((item) => ['top', 'middle'].includes(item.type) && grants.reference.has(item.id)).map((item) => item.id),
+        onCheckpoint: (checkpoint) => {
+          state = { ...state, jobCheckpoint: checkpoint };
+          onEvent({ type: 'job_checkpoint', checkpoint });
+        },
         onProgress: emitProgress, onUsage: reportUsage
       });
     } else if (!chunkedReview) {
@@ -404,6 +427,7 @@ export function createAssistantWorkflow({
           : targetMoveProcessor ? 'features/proposals/target-move-batch.js'
           : 'agent-runtime/run-loop.js');
       }
+      if (result.status === 'stale_job') return { status: 'stale_job', message: result.message };
       if (result.status === 'cancelled') return { status: 'cancelled' };
       if (result.status === 'needs_scope_approval') {
         const decision = await askForScope({
@@ -535,7 +559,17 @@ export function createAssistantWorkflow({
 
   async function runPlan({ replan = false, signal } = {}) {
     if (replan) setStatus('planning');
-    const currentPlan = await createPlan({ replan, signal });
+    let currentPlan = await createPlan({ replan, signal });
+    if (state.jobCheckpoint?.kind === 'target_move'
+      && !['unsupported', 'needs_clarification'].includes(currentPlan.status)) {
+      currentPlan = {
+        ...currentPlan,
+        taskType: 'mixed',
+        changeOperations: [...new Set([...(currentPlan.changeOperations || []), 'move_target_class'])],
+        dataNeeds: { ...currentPlan.dataNeeds, hierarchyIndex: true, selectedClassDetails: true }
+      };
+      plan = currentPlan;
+    }
     if (currentPlan.status === 'unsupported') {
       setStatus('completed');
       emitProgress('completed');
@@ -571,6 +605,16 @@ export function createAssistantWorkflow({
     else setStatus('analyzing');
     const outcome = await runAgent({ signal });
     if (outcome.status === 'replan_required') return runPlan({ replan: true, signal });
+    if (outcome.status === 'stale_job') {
+      if (state.status === 'planning' || state.status === 'retrieving') setStatus('analyzing');
+      if (state.status !== 'validating') setStatus('validating');
+      setStatus('completed');
+      const result = { message: outcome.message, proposals: [], alternativeGroups: [] };
+      lastResult = result;
+      onEvent({ type: 'result', result, plan: currentPlan, state });
+      emitProgress('completed');
+      return { status: 'stale', result, plan: currentPlan };
+    }
     if (outcome.status === 'cancelled') return outcome;
     if (outcome.status === 'scope_limited') {
       if (state.status === 'retrieving' || state.status === 'planning') setStatus('analyzing');
@@ -606,7 +650,7 @@ export function createAssistantWorkflow({
     return { status: state.status, result: outcome, plan: currentPlan };
   }
 
-  async function start({ request, apiKey, model, signal, referenceAllHierarchy = false, conversationContext = '', selectedClassIds: selectedClassIdsOverride = null, referenceClassIds: referenceClassIdsOverride = null, initialCounters = null }) {
+  async function start({ request, apiKey, model, signal, referenceAllHierarchy = false, conversationContext = '', selectedClassIds: selectedClassIdsOverride = null, referenceClassIds: referenceClassIdsOverride = null, initialCounters = null, jobCheckpoint = null }) {
     if (active) throw new Error('別のAI処理が実行中です。');
     active = true;
     const activeSignal = beginActive(signal);
@@ -645,7 +689,7 @@ export function createAssistantWorkflow({
         conversationContext,
         initialCounters
       });
-      state = { ...state, scopeGrants: { reference: [...referenceIds], change: selectedClassIds } };
+      state = { ...state, scopeGrants: { reference: [...referenceIds], change: selectedClassIds }, jobCheckpoint };
       currentApiKey = apiKey;
       currentModel = model;
       updateState(state);

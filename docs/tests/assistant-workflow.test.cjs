@@ -33,6 +33,8 @@ const agentRunOptions = [];
 const targetMoveProcessorOptions = [];
 const { createAssistantWorkflow } = evaluate('application/workflow.js', 'createAssistantWorkflow', {
   createConversationState, transitionConversation, buildPlanInput,
+  createDataIdCodec: () => ({}),
+  createIdMaskedClient: (client) => client,
   createTargetMoveBatchProcessor: (options) => {
     targetMoveProcessorOptions.push(options);
     return { run: async () => {
@@ -121,8 +123,9 @@ test('full-hierarchy toggle makes the index available to planning without enabli
   assert.equal(planningOptions[0].hierarchyIndexAvailable, true);
   assert.deepEqual([...readerOptions[0].getReferenceScope()].sort(), ['target-id', 'top-secret-id']);
   assert.equal(agentRunOptions[0].allowedTools.length, 0);
-  assert.equal(events.at(-1).state.scopeGrants.change.includes('top-secret-id'), false);
-  assert.equal(events.at(-1).state.scopeGrants.change.includes('target-id'), true);
+  const finalState = events.filter((event) => event.type === 'state').at(-1).state;
+  assert.equal(finalState.scopeGrants.change.includes('top-secret-id'), false);
+  assert.equal(finalState.scopeGrants.change.includes('target-id'), true);
 });
 
 test('ready read-only workflow completes without exposing IDs or API keys to planning state', async () => {

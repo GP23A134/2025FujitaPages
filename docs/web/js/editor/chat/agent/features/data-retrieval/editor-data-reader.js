@@ -13,8 +13,6 @@ export function createEditorDataReader({
     throw new RangeError('取得上限は1以上の整数が必要です。');
   }
 
-  const cursors = new Map();
-  let cursorSequence = 0;
   let instanceAllocation = null;
 
   function snapshot() {
@@ -62,9 +60,11 @@ export function createEditorDataReader({
   function paginate(name, records, cursor, data, limit = pageLimit) {
     let offset = 0;
     if (cursor !== null && cursor !== undefined) {
-      const saved = cursors.get(cursor);
-      if (!saved || saved.name !== name) throw Object.assign(new Error('続きカーソルが無効です。'), { code: 'INVALID_CURSOR' });
-      cursors.delete(cursor);
+      let saved;
+      try { saved = JSON.parse(decodeURIComponent(cursor)); } catch { saved = null; }
+      if (!saved || saved.name !== name || !Number.isSafeInteger(saved.offset) || saved.offset < 0) {
+        throw Object.assign(new Error('続きカーソルが無効です。'), { code: 'INVALID_CURSOR' });
+      }
       if (saved.version !== data.version) throw Object.assign(new Error('データ更新により続きカーソルが古くなりました。'), { code: 'STALE_DATA' });
       offset = saved.offset;
     }
@@ -72,10 +72,17 @@ export function createEditorDataReader({
     const nextOffset = offset + items.length;
     let nextCursor = null;
     if (nextOffset < records.length) {
-      nextCursor = `cursor_${++cursorSequence}_${Math.random().toString(36).slice(2, 12)}`;
-      cursors.set(nextCursor, { name, offset: nextOffset, version: data.version });
+      nextCursor = encodeURIComponent(JSON.stringify({ name, offset: nextOffset, version: data.version }));
     }
     return { items, nextCursor };
+  }
+
+  function createPageCursor(name, offset) {
+    if (!['hierarchy_index', 'selected_class_details'].includes(name)
+      || !Number.isSafeInteger(offset) || offset < 0) {
+      throw new TypeError('ページカーソルの指定が不正です。');
+    }
+    return offset === 0 ? null : encodeURIComponent(JSON.stringify({ name, offset, version: getDataVersion?.() || null }));
   }
 
   function readHierarchyIndex({ cursor = null } = {}) {
@@ -278,7 +285,8 @@ export function createEditorDataReader({
     execute: readInstanceContext
   });
 
-  return Object.freeze({ registry, readHierarchyIndex, readChildren, readClassDetails, readSelectedClassDetails, readInstanceContext, getScopeCandidates: (ids, permissions = {}) => {
+  return Object.freeze({ registry, readHierarchyIndex, readChildren, readClassDetails, readSelectedClassDetails, readInstanceContext,
+    pageLimit, createPageCursor, getScopeCandidates: (ids, permissions = {}) => {
     const data = snapshot();
     return [...new Set(ids)].map((id) => detailFor(id, data)).filter(Boolean).map((item) => ({
       ...item,

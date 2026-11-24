@@ -1,3 +1,5 @@
+import { normalizeJobCheckpoint } from '../application/job-loop.js';
+
 const MAX_STAGE_COUNT = 40;
 const MAX_STAGE_LABEL = 300;
 const MAX_SELECTED_IDS_PER_STAGE = 500;
@@ -29,15 +31,19 @@ export function normalizeConversationMemory(memory) {
     policy: text(memory.policy, 3000),
     usage: {
       responseRounds: Number.isSafeInteger(memory.usage?.responseRounds) && memory.usage.responseRounds >= 0 ? memory.usage.responseRounds : 0,
-      inputTokensActual: Number.isSafeInteger(memory.usage?.inputTokensActual) && memory.usage.inputTokensActual >= 0 ? memory.usage.inputTokensActual : 0
+      inputTokensActual: Number.isSafeInteger(memory.usage?.inputTokensActual) && memory.usage.inputTokensActual >= 0 ? memory.usage.inputTokensActual : 0,
+      retrievalCalls: Number.isSafeInteger(memory.usage?.retrievalCalls) && memory.usage.retrievalCalls >= 0 ? memory.usage.retrievalCalls : 0,
+      replans: Number.isSafeInteger(memory.usage?.replans) && memory.usage.replans >= 0 ? memory.usage.replans : 0
     },
+    job: normalizeJobCheckpoint(memory.job),
     stages
   };
 }
 
 export function beginConversationStage(memory, { request, selectedIds = [], rootIds = selectedIds, dataVersion = '', kind = 'conversation' }) {
   const current = normalizeConversationMemory(memory) || {
-    version: 1, kind, status: 'active', rootIds: ids(selectedIds), dataVersion: text(dataVersion, 128), policy: '', usage: { responseRounds: 0, inputTokensActual: 0 }, stages: []
+    version: 1, kind, status: 'active', rootIds: ids(selectedIds), dataVersion: text(dataVersion, 128), policy: '',
+    usage: { responseRounds: 0, inputTokensActual: 0, retrievalCalls: 0, replans: 0 }, job: null, stages: []
   };
   const startingReorganization = kind === 'classification_reorganization' && current.kind !== 'classification_reorganization';
   const versionChanged = Boolean(current.dataVersion && dataVersion && current.dataVersion !== dataVersion);
@@ -86,14 +92,36 @@ export function rememberConversationPolicy(memory, request) {
 
 export function recordConversationUsage(memory, counters) {
   const current = normalizeConversationMemory(memory);
-  if (!current || current.kind !== 'classification_reorganization' || !counters || typeof counters !== 'object') return current;
+  if (!current || !counters || typeof counters !== 'object') return current;
   return normalizeConversationMemory({
     ...current,
     usage: {
       responseRounds: Number.isSafeInteger(counters.responseRounds) ? counters.responseRounds : current.usage.responseRounds,
-      inputTokensActual: Number.isSafeInteger(counters.inputTokensActual) ? counters.inputTokensActual : current.usage.inputTokensActual
+      inputTokensActual: Number.isSafeInteger(counters.inputTokensActual) ? counters.inputTokensActual : current.usage.inputTokensActual,
+      retrievalCalls: Number.isSafeInteger(counters.retrievalCalls) ? counters.retrievalCalls : current.usage.retrievalCalls,
+      replans: Number.isSafeInteger(counters.replans) ? counters.replans : current.usage.replans
     }
   });
+}
+
+export function recordJobCheckpoint(memory, checkpoint) {
+  const current = normalizeConversationMemory(memory);
+  if (!current) return current;
+  return normalizeConversationMemory({ ...current, job: normalizeJobCheckpoint(checkpoint) });
+}
+
+export function getConversationJobAction(memory, request, dataVersion = '') {
+  const current = normalizeConversationMemory(memory);
+  const job = current?.job;
+  const startsNewTask = /(?:別件|別の(?:相談|依頼|作業|話題)|新しい(?:相談|依頼|作業)|話題を(?:変え|切り替え)|別件として)/u.test(String(request || ''));
+  if (startsNewTask) return 'new_task';
+  if (['running', 'paused', 'interrupted'].includes(job?.status)) {
+    return dataVersion && job.dataVersion === dataVersion ? 'resume' : 'stale';
+  }
+  if (job) return 'new';
+  const lastStage = current?.stages.at(-1);
+  if (!['interrupted', 'running'].includes(lastStage?.status)) return 'new';
+  return dataVersion && lastStage.dataVersion === dataVersion ? 'resume_stage' : 'stale_stage';
 }
 
 export function completeConversationMemory(memory) {

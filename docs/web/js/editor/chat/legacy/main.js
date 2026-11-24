@@ -103,41 +103,12 @@ import { CHAT_EVENTS } from '../integration/chat-events.js?v=20261124-conversati
       ? [`使用モデル：${selected.label || selected.id}`, selected.description].filter(Boolean).join('\n')
       : 'モデル未選択';
   };
-  const systemPromptPromise = fetch('web/data/config/ai-system-prompt.md', { cache: 'no-store' })
-    .then((response) => { if (!response.ok) throw new Error('AIプロンプトを読み込めません。'); return response.text(); })
-    .then((prompt) => {
-      const trimmedPrompt = prompt.trim();
-      if (!trimmedPrompt) throw new Error('AIプロンプトが空です。');
-      return trimmedPrompt;
-    })
-    .catch((error) => {
-      logAiProblem('AIプロンプトの読み込み', error);
-      settingsStatus.textContent = `${error.message}。AI補助を利用できません。`;
-      settingsStatus.classList.add('is-error');
-      return null;
-    });
-  const proposalFreedomPromptPromise = (level) => fetch(`web/data/config/ai-proposal-freedom-${level}.md`, { cache: 'no-store' })
-    .then((response) => { if (!response.ok) throw new Error(`提案自由度${level}のプロンプトを読み込めません。`); return response.text(); })
-    .then((prompt) => {
-      const trimmedPrompt = prompt.trim();
-      if (!trimmedPrompt) throw new Error(`提案自由度${level}のプロンプトが空です。`);
-      return trimmedPrompt;
-    });
-  const evaluationPromptPromise = fetch('web/data/config/ai-evaluation-prompt.md', { cache: 'no-store' })
-    .then((response) => { if (!response.ok) throw new Error('評価モード専用プロンプトを読み込めません。'); return response.text(); })
-    .then((prompt) => {
-      const trimmedPrompt = prompt.trim();
-      if (!trimmedPrompt) throw new Error('評価モード専用プロンプトが空です。');
-      return trimmedPrompt;
-    })
-    .catch((error) => {
-      logAiProblem('評価モード専用プロンプトの読み込み', error);
-      return null;
-    });
-  const synthesisPromptPromise = fetch('web/data/config/ai-synthesis-prompt.md', { cache: 'no-store' })
-    .then((response) => { if (!response.ok) throw new Error('統合専用プロンプトを読み込めません。'); return response.text(); })
-    .then((prompt) => prompt.trim())
-    .catch((error) => { logAiProblem('統合専用プロンプトの読み込み', error); return ''; });
+  // AI requests use the agent chat. This module remains for conversation,
+  // history and proposal-preview UI integration.
+  const systemPromptPromise = Promise.resolve('');
+  const proposalFreedomPromptPromise = () => Promise.resolve('');
+  const evaluationPromptPromise = Promise.resolve('');
+  const synthesisPromptPromise = Promise.resolve('');
   const modelConfigPromise = fetch('web/data/config/ai-models.json', { cache: 'no-store' })
     .then((response) => { if (!response.ok) throw new Error('モデル設定ファイルを読み込めません。'); return response.json(); })
     .then((config) => {
