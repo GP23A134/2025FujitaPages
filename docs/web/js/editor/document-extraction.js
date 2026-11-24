@@ -580,20 +580,30 @@ if (headerActions && isExtractorEnabled) {
       .sort((a, b) => a.localeCompare(b, 'ja-JP')).forEach((type) => {
       const option = document.createElement('option');
       option.value = type;
-      option.textContent = type;
+      option.dataset.typeName = type;
       typeControl.append(option);
     });
-    updatePrefectureOptionCounts();
+    updateFilterOptionCounts();
   }
 
-  function updatePrefectureOptionCounts() {
+  function updateFilterOptionCounts() {
     const prefectureControl = filterControls.find((control) => control.dataset.filter === 'prefecture');
-    const selectedType = filterControls.find((control) => control.dataset.filter === 'type').value;
+    const typeControl = filterControls.find((control) => control.dataset.filter === 'type');
+    const selectedType = typeControl.value;
     [...prefectureControl.options].forEach((option) => {
       const prefecture = option.value;
       const matchedCount = documents.filter((record) => (!prefecture || record.prefecture === prefecture)
         && (!selectedType || record['資料種別'] === selectedType)).length;
       const label = prefecture ? option.dataset.prefectureName : 'すべて';
+      option.textContent = `${label}（${matchedCount.toLocaleString('ja-JP')}件）`;
+    });
+
+    const selectedPrefecture = prefectureControl.value;
+    [...typeControl.options].forEach((option) => {
+      const type = option.value;
+      const matchedCount = documents.filter((record) => (!selectedPrefecture || record.prefecture === selectedPrefecture)
+        && (!type || record['資料種別'] === type)).length;
+      const label = type ? option.dataset.typeName : 'すべて';
       option.textContent = `${label}（${matchedCount.toLocaleString('ja-JP')}件）`;
     });
   }
@@ -750,7 +760,7 @@ if (headerActions && isExtractorEnabled) {
   dialog.querySelector('.document-extractor-close').addEventListener('click', () => dialog.close());
   dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
   filterControls.forEach((control) => control.addEventListener('change', () => {
-    updatePrefectureOptionCounts();
+    updateFilterOptionCounts();
     page = 0;
     resetPreview();
     renderResults();
