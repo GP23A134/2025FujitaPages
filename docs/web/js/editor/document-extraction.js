@@ -22,15 +22,9 @@ style.textContent = `
 .document-extractor-filters { display:grid; grid-template-columns:1fr 1fr; gap:.45rem; }
 .document-extractor-filter { display:grid; min-width:0; gap:.2rem; color:#334155; font-size:.72rem; font-weight:700; }
 .document-extractor-filter select { box-sizing:border-box; width:100%; min-height:2.25rem; padding:.35rem .45rem; border:1px solid #cbd5e1; border-radius:6px; color:#1e293b; background:#fff; font:inherit; font-weight:400; }
-.document-extractor-search { box-sizing:border-box; width:100%; min-height:2.25rem; margin:.45rem 0 0; padding:.4rem .55rem; border:1px solid #cbd5e1; border-radius:6px; color:#1e293b; background:#fff; font:inherit; font-size:.78rem; }
-.document-extractor-distribution { flex:0 0 auto; max-height:10rem; overflow-x:hidden; overflow-y:auto; margin:.45rem 0 0; padding:.5rem .55rem; border:1px solid #dbe3ec; border-radius:7px; background:#fff; }
-.document-extractor-distribution h3 { margin:0 0 .35rem; color:#334155; font-size:.75rem; }
-.document-extractor-distribution-row { display:grid; grid-template-columns:minmax(6rem,auto) minmax(2rem,1fr) 2.8rem; gap:.4rem; align-items:center; margin:.32rem 0; font-size:.68rem; }
-.document-extractor-distribution-label { overflow-wrap:anywhere; color:#475569; line-height:1.2; }
-.document-extractor-distribution-track { height:.55rem; overflow:hidden; border-radius:999px; background:#e2e8f0; }
-.document-extractor-distribution-bar { display:block; height:100%; border-radius:inherit; background:#0284c7; }
-.document-extractor-distribution-value { color:#334155; text-align:right; font-variant-numeric:tabular-nums; }
-.document-extractor-count { flex:0 0 auto; margin:.55rem 0; color:#64748b; font-size:.76rem; }
+.document-extractor-search-row { display:flex; gap:.4rem; margin:.45rem 0 0; }
+.document-extractor-search { box-sizing:border-box; width:100%; min-width:0; min-height:2.25rem; padding:.4rem .55rem; border:1px solid #cbd5e1; border-radius:6px; color:#1e293b; background:#fff; font:inherit; font-size:.78rem; }
+.document-extractor-sort { flex:0 0 auto; min-height:2.25rem; padding:.3rem .55rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; cursor:pointer; font:inherit; font-size:.76rem; }
 .document-extractor-results { display:flex; min-height:0; flex:1 1 auto; flex-direction:column; gap:.35rem; overflow-y:auto; }
 .document-extractor-result { display:block; width:100%; padding:.38rem .5rem; border:1px solid #dbe3ec; border-radius:7px; color:#1e293b; background:#fff; text-align:left; cursor:pointer; }
 .document-extractor-result:hover,.document-extractor-result[aria-pressed="true"] { border-color:#0284c7; background:#e0f2fe; }
@@ -119,12 +113,10 @@ if (headerActions && isExtractorEnabled) {
           <label class="document-extractor-filter">都道府県<select data-filter="prefecture"><option value="">すべて</option></select></label>
           <label class="document-extractor-filter">資料種別<select data-filter="type"><option value="">すべて</option></select></label>
         </div>
-        <input class="document-extractor-search" type="search" placeholder="ファイル名・文書IDを検索" aria-label="ファイル名・文書IDを検索">
-        <section class="document-extractor-distribution" aria-label="資料種別の分布">
-          <h3>資料種別の分布</h3>
-          <div class="document-extractor-distribution-rows"></div>
-        </section>
-        <p class="document-extractor-count" role="status" aria-live="polite">TSVを読み込みます…</p>
+        <div class="document-extractor-search-row">
+          <input class="document-extractor-search" type="search" placeholder="ファイル名・文書IDを検索" aria-label="ファイル名・文書IDを検索">
+          <button type="button" class="document-extractor-sort" data-sort-documents aria-label="文書IDの昇順">ID ↑</button>
+        </div>
         <div class="document-extractor-results" role="listbox" aria-label="抽出する文書"></div>
         <div class="document-extractor-pages">
           <button type="button" data-page="previous" disabled>前へ</button>
@@ -155,9 +147,8 @@ if (headerActions && isExtractorEnabled) {
 
   const filterControls = [...dialog.querySelectorAll('[data-filter]')];
   const searchControl = dialog.querySelector('.document-extractor-search');
-  const count = dialog.querySelector('.document-extractor-count');
+  const sortButton = dialog.querySelector('[data-sort-documents]');
   const results = dialog.querySelector('.document-extractor-results');
-  const distributionRows = dialog.querySelector('.document-extractor-distribution-rows');
   const pageLabel = dialog.querySelector('.document-extractor-page-label');
   const previousPage = dialog.querySelector('[data-page="previous"]');
   const nextPage = dialog.querySelector('[data-page="next"]');
@@ -175,6 +166,7 @@ if (headerActions && isExtractorEnabled) {
   let selectedTsv = '';
   let selectedTsvRows = [];
   let selectedTree = null;
+  let sortAscending = true;
   let graphData = null;
   let graphLoading = false;
   let activeView = 'tree';
@@ -252,7 +244,25 @@ if (headerActions && isExtractorEnabled) {
   }
 
   function serializeGraphRecord(record, state) {
-    return `${JSON.stringify(toGraphRecord(record, state), null, 2)}\n`;
+    return `${formatGraphJson(toGraphRecord(record, state))}\n`;
+  }
+
+  function formatGraphJson(value, depth = 0) {
+    const indentation = '  '.repeat(depth);
+    const childIndentation = '  '.repeat(depth + 1);
+    if (Array.isArray(value)) {
+      if (!value.length) return '[]';
+      return `[\n${value.map((item) => `${childIndentation}${formatGraphJson(item, depth + 1)}`).join(',\n')}\n${indentation}]`;
+    }
+    if (value && typeof value === 'object') {
+      const entries = Object.entries(value);
+      if (entries.length === 2 && Object.hasOwn(value, 'ID') && Object.hasOwn(value, 'label')) {
+        return JSON.stringify(value);
+      }
+      if (!entries.length) return '{}';
+      return `{\n${entries.map(([key, item]) => `${childIndentation}${JSON.stringify(key)}: ${formatGraphJson(item, depth + 1)}`).join(',\n')}\n${indentation}}`;
+    }
+    return JSON.stringify(value);
   }
 
   function buildGraphTsvRows(state) {
@@ -337,7 +347,7 @@ if (headerActions && isExtractorEnabled) {
   }
 
   function classesForDocument(record, includeTree = true) {
-    if (!graphData) return { available: false, instances: [], targets: [], counts: { upper: 0, middle: 0, target: 0, instance: 0, unclassified: 0 }, tree: [] };
+    if (!graphData) return { available: false, instances: [], targets: [], counts: { upper: 0, middle: 0, target: 0, instance: 0, unclassifiedTarget: 0 }, tree: [] };
     const number = documentNumber(record);
     const instances = number ? graphData.instancesByDocument.get(number) || [] : [];
     const instanceIds = new Set(instances.map((item) => item.id));
@@ -351,8 +361,21 @@ if (headerActions && isExtractorEnabled) {
     });
     targetIds.forEach((id) => { reachable.add(id); visitParents(id); });
     const countKind = (kind) => [...reachable].filter((id) => id.includes(`/class/${kind}_`)).length;
-    const unclassifiedCount = instances.filter((instance) => !(graphData.classIdsByInstance.get(instance.id) || []).length).length;
-    const counts = { upper: countKind('t'), middle: countKind('m'), target: countKind('c'), instance: instances.length, unclassified: unclassifiedCount };
+    const isUnderUnclassifiedUpper = (id) => {
+      const pending = [...(parents.get(id) || [])];
+      const visited = new Set();
+      while (pending.length) {
+        const parent = pending.pop();
+        if (visited.has(parent)) continue;
+        visited.add(parent);
+        if (parent.includes('/class/t_') && classes.get(parent)?.label === '未分類') return true;
+        pending.push(...(parents.get(parent) || []));
+      }
+      return false;
+    };
+    const unclassifiedTargetCount = [...targetIds]
+      .filter((id) => id.includes('/class/c_') && isUnderUnclassifiedUpper(id)).length;
+    const counts = { upper: countKind('t'), middle: countKind('m'), target: countKind('c'), instance: instances.length, unclassifiedTarget: unclassifiedTargetCount };
     if (!includeTree) return { available: true, instances: [], targets: [], classLabels: {}, counts, tree: [] };
     const children = new Map();
     [...reachable].forEach((id) => {
@@ -528,7 +551,7 @@ if (headerActions && isExtractorEnabled) {
       'インスタンス': row['インスタンス'].slice(0, PREVIEW_ITEM_LIMIT)
     }));
     if (allRows.length > PREVIEW_ITEM_LIMIT) data['残りクラス数'] = allRows.length - PREVIEW_ITEM_LIMIT;
-    return `${JSON.stringify(data, null, 2)}\n`;
+    return `${formatGraphJson(data)}\n`;
   }
 
   function renderTsvPreview() {
@@ -570,7 +593,14 @@ if (headerActions && isExtractorEnabled) {
     const query = searchControl.value.trim().toLocaleLowerCase('ja-JP');
     return documents.filter((record) => (!selected.prefecture || record.prefecture === selected.prefecture)
       && (!selected.type || record['資料種別'] === selected.type)
-      && (!query || `${record.input_file || ''} ${shortId(record.documentIRI)}`.toLocaleLowerCase('ja-JP').includes(query)));
+      && (!query || `${record.input_file || ''} ${shortId(record.documentIRI)}`.toLocaleLowerCase('ja-JP').includes(query)))
+      .sort((left, right) => {
+        const difference = Number(documentNumber(left)) - Number(documentNumber(right));
+        const order = Number.isFinite(difference) && difference !== 0
+          ? difference
+          : String(left.documentIRI).localeCompare(String(right.documentIRI), 'ja-JP');
+        return sortAscending ? order : -order;
+      });
   }
 
   function populateFilters() {
@@ -630,35 +660,6 @@ if (headerActions && isExtractorEnabled) {
     renderActiveView();
   }
 
-  function renderDistribution(matches) {
-    const counts = new Map();
-    matches.forEach((record) => {
-      const type = record['資料種別']?.trim();
-      if (!type) return;
-      counts.set(type, (counts.get(type) || 0) + 1);
-    });
-    const maximum = Math.max(1, ...counts.values());
-    distributionRows.replaceChildren(...[...counts.entries()].sort(([labelA, countA], [labelB, countB]) => countB - countA || labelA.localeCompare(labelB, 'ja-JP'))
-      .map(([label, value]) => {
-        const row = document.createElement('div');
-        row.className = 'document-extractor-distribution-row';
-        const name = document.createElement('span');
-        name.className = 'document-extractor-distribution-label';
-        name.textContent = label;
-        const track = document.createElement('span');
-        track.className = 'document-extractor-distribution-track';
-        const bar = document.createElement('span');
-        bar.className = 'document-extractor-distribution-bar';
-        bar.style.width = `${Math.round((value / maximum) * 100)}%`;
-        track.append(bar);
-        const number = document.createElement('span');
-        number.className = 'document-extractor-distribution-value';
-        number.textContent = `${value.toLocaleString('ja-JP')}件`;
-        row.append(name, track, number);
-        return row;
-      }));
-  }
-
   function resetPreview() {
     selectedDocument = null;
     selectedJson = '';
@@ -678,7 +679,6 @@ if (headerActions && isExtractorEnabled) {
 
   function renderResults() {
     const matches = filteredDocuments();
-    renderDistribution(matches);
     const pageCount = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
     page = Math.max(0, Math.min(page, pageCount - 1));
     const start = page * PAGE_SIZE;
@@ -701,7 +701,7 @@ if (headerActions && isExtractorEnabled) {
         const state = classesForDocument(record, false);
         const counts = document.createElement('span');
         counts.className = 'document-extractor-result-counts';
-        counts.textContent = `上位 ${state.counts.upper} ・ 中間 ${state.counts.middle} ・ 対象 ${state.counts.target} ・ インスタンス ${state.counts.instance} ・ 未分類 ${state.counts.unclassified}`;
+        counts.textContent = `上位クラス数 ${state.counts.upper} ・ 中間クラス数 ${state.counts.middle} ・ 対象クラス数 ${state.counts.target} ・ インスタンス数 ${state.counts.instance} ・ 未分類対象クラス数 ${state.counts.unclassifiedTarget}`;
         button.append(counts);
       }
       button.addEventListener('click', () => {
@@ -713,9 +713,6 @@ if (headerActions && isExtractorEnabled) {
     pageLabel.textContent = `${page + 1} / ${pageCount}ページ`;
     previousPage.disabled = page <= 0;
     nextPage.disabled = page >= pageCount - 1;
-    count.textContent = loaded
-      ? `${matches.length.toLocaleString('ja-JP')}件 / 全${documents.length.toLocaleString('ja-JP')}件${matches.length > PAGE_SIZE ? `（1ページ${PAGE_SIZE}件）` : ''}`
-      : count.textContent;
     if (!matches.length && loaded) {
       const note = document.createElement('p');
       note.className = 'document-extractor-empty';
@@ -726,19 +723,16 @@ if (headerActions && isExtractorEnabled) {
 
   async function loadDocuments() {
     if (loaded) return;
-    count.textContent = '文書一覧を読み込んでいます…';
     try {
       const response = await fetch(SOURCE_URL, { cache: 'no-cache' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       documents = parseTsv(await response.text()).filter((record) => record.documentIRI && record.input_file);
       loaded = true;
-      count.textContent = '';
       populateFilters();
       resetPreview();
       renderResults();
       void loadGraphData();
-    } catch (error) {
-      count.textContent = `文書一覧を読み込めませんでした: ${error.message}`;
+    } catch {
       documents = [];
       loaded = true;
       resetPreview();
@@ -776,6 +770,14 @@ if (headerActions && isExtractorEnabled) {
     renderResults();
   }));
   searchControl.addEventListener('input', () => {
+    page = 0;
+    resetPreview();
+    renderResults();
+  });
+  sortButton.addEventListener('click', () => {
+    sortAscending = !sortAscending;
+    sortButton.textContent = sortAscending ? 'ID ↑' : 'ID ↓';
+    sortButton.setAttribute('aria-label', `文書IDの${sortAscending ? '昇順' : '降順'}`);
     page = 0;
     resetPreview();
     renderResults();
