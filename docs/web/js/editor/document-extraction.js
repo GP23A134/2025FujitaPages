@@ -22,13 +22,14 @@ style.textContent = `
 .document-extractor-filters { display:grid; grid-template-columns:1fr 1fr; gap:.45rem; }
 .document-extractor-filter { display:grid; min-width:0; gap:.2rem; color:#334155; font-size:.72rem; font-weight:700; }
 .document-extractor-filter select { box-sizing:border-box; width:100%; min-height:2.25rem; padding:.35rem .45rem; border:1px solid #cbd5e1; border-radius:6px; color:#1e293b; background:#fff; font:inherit; font-weight:400; }
-.document-extractor-distribution { flex:0 0 auto; max-height:10rem; overflow-y:auto; margin:.45rem 0 0; padding:.5rem .55rem; border:1px solid #dbe3ec; border-radius:7px; background:#fff; }
+.document-extractor-distribution { flex:0 0 auto; max-height:11rem; overflow-x:auto; overflow-y:hidden; margin:.45rem 0 0; padding:.5rem .55rem; border:1px solid #dbe3ec; border-radius:7px; background:#fff; }
 .document-extractor-distribution h3 { margin:0 0 .35rem; color:#334155; font-size:.75rem; }
-.document-extractor-distribution-row { display:grid; grid-template-columns:minmax(5rem,auto) minmax(2rem,1fr) 2.5rem; gap:.35rem; align-items:center; margin:.22rem 0; font-size:.68rem; }
-.document-extractor-distribution-label { overflow-wrap:anywhere; color:#475569; }
-.document-extractor-distribution-track { height:.42rem; overflow:hidden; border-radius:999px; background:#e2e8f0; }
-.document-extractor-distribution-bar { height:100%; border-radius:inherit; background:#0284c7; }
-.document-extractor-distribution-value { color:#334155; text-align:right; font-variant-numeric:tabular-nums; }
+.document-extractor-distribution-rows { display:flex; min-height:8.5rem; align-items:flex-end; gap:.25rem; }
+.document-extractor-distribution-row { display:flex; flex:0 0 4.1rem; height:8.5rem; flex-direction:column; align-items:stretch; justify-content:flex-end; gap:.2rem; font-size:.65rem; text-align:center; }
+.document-extractor-distribution-label { order:3; min-height:2.1rem; overflow-wrap:anywhere; color:#475569; line-height:1.2; }
+.document-extractor-distribution-track { display:flex; order:2; height:5.2rem; align-items:flex-end; justify-content:center; border-bottom:1px solid #cbd5e1; background:repeating-linear-gradient(to top, transparent 0, transparent 24%, #eef2f6 25%, transparent 26%); }
+.document-extractor-distribution-bar { width:68%; min-height:2px; border-radius:4px 4px 0 0; background:#0284c7; }
+.document-extractor-distribution-value { order:1; min-height:1rem; color:#334155; font-variant-numeric:tabular-nums; }
 .document-extractor-count { flex:0 0 auto; margin:.55rem 0; color:#64748b; font-size:.76rem; }
 .document-extractor-results { display:flex; min-height:0; flex:1 1 auto; flex-direction:column; gap:.35rem; overflow-y:auto; }
 .document-extractor-result { display:block; width:100%; padding:.55rem .6rem; border:1px solid #dbe3ec; border-radius:7px; color:#1e293b; background:#fff; text-align:left; cursor:pointer; }
@@ -49,8 +50,9 @@ style.textContent = `
 .document-extractor-dialog [hidden] { display:none !important; }
 .document-extractor-card-tree { display:grid; align-content:start; gap:.55rem; }
 .document-extractor-tree-document { padding:.55rem .7rem; border:1px solid #d8e2ea; border-radius:8px; color:#334155; background:#f8fafc; font-weight:700; overflow-wrap:anywhere; }
-.document-extractor-tree-search { box-sizing:border-box; width:100%; min-height:2.1rem; padding:.4rem .55rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; font:inherit; font-size:.78rem; }
+.document-extractor-tree-search { box-sizing:border-box; width:100%; min-height:2.1rem; padding:.4rem .55rem; border:1px solid #cbd5e1; border-radius:6px; outline:none; color:#334155; background:#fff; font:inherit; font-size:.78rem; }
 .document-extractor-tree-search::placeholder { color:#94a3b8; }
+.document-extractor-tree-search:focus { border-color:#1682b4; box-shadow:0 0 0 3px rgb(22 130 180 / 14%); }
 .document-extractor-search-match { border-radius:2px; color:#713f12; background:#fef08a; font-weight:700; }
 .document-extractor-tree-group { display:grid; gap:.45rem; min-width:0; }
 .document-extractor-tree details { min-width:0; border-radius:9px; }
@@ -62,8 +64,12 @@ style.textContent = `
 .document-extractor-tree .level-middle { margin:.45rem 0 0 .75rem; padding:.48rem; border:1px solid #d3e5e1; border-left:3px solid #167a83; background:#fff; }
 .document-extractor-tree .level-target { margin:.35rem 0 0 .6rem; padding:.42rem; border:1px solid #d5dff6; border-left:3px solid #7895e5; background:#fff; }
 .document-extractor-tree-card-title { display:flex; flex:1 1 12rem; min-width:0; align-items:center; flex-wrap:wrap; gap:.35rem; font-size:.8rem; font-weight:700; }
-.document-extractor-tree-card-count { flex:0 0 auto; color:#718095; font-size:.68rem; font-weight:500; }
-.document-extractor-tree-card-id { flex:0 1 auto; color:#718095; font: .64rem ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+.document-extractor-tree-card-count { flex:0 0 auto; color:#64748b; font-size:.72rem; font-weight:600; }
+.document-extractor-tree-card-id { flex:0 1 auto; color:#53677b; font: .7rem ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+.document-extractor-tree-level { flex:0 0 auto; padding:.16rem .38rem; border-radius:4px; font-size:.64rem; font-weight:700; white-space:nowrap; }
+.document-extractor-tree-level.is-top { color:#145b83; background:#edf7fb; }
+.document-extractor-tree-level.is-middle { color:#167a83; background:#eff9f7; }
+.document-extractor-tree-level.is-target { color:#315dc5; background:#f1f4fd; }
 .document-extractor-tree-card-children { min-width:0; }
 .document-extractor-tree .level-top > summary .document-extractor-tree-card-title { color:#145b83; }
 .document-extractor-tree .level-middle > summary .document-extractor-tree-card-title { color:#167a83; }
@@ -110,7 +116,6 @@ if (headerActions && isExtractorEnabled) {
       <h2 id="document-extractor-title">文書データ抽出</h2>
       <button type="button" class="document-extractor-close" aria-label="閉じる">×</button>
     </div>
-    <p class="document-extractor-note">都道府県・資料種別で絞り込み、一覧から文書を選択してください。クラスとインスタンスの構成をJSONまたはTSVで確認・保存できます。文書本文はこの一覧に含まれていません。</p>
     <div class="document-extractor-layout">
       <section class="document-extractor-browser" aria-label="文書一覧">
         <div class="document-extractor-filters">
@@ -426,6 +431,9 @@ if (headerActions && isExtractorEnabled) {
         setHighlightedText(label, node.label || node.id);
         const kindLabel = { t: '上位クラス', m: '中間クラス', c: '対象クラス' }[kind] || 'クラス';
         label.setAttribute('aria-label', `${kindLabel}: ${node.label || node.id}`);
+        const level = document.createElement('span');
+        level.className = `document-extractor-tree-level is-${kindName}`;
+        level.textContent = kindLabel;
         const count = document.createElement('span');
         count.className = 'document-extractor-tree-card-count';
         count.textContent = node.children.length ? `下位 ${node.children.length}件` : `${node.instances.length}件`;
@@ -433,7 +441,7 @@ if (headerActions && isExtractorEnabled) {
         classId.className = 'document-extractor-tree-card-id';
         setHighlightedText(classId, node.id.split('/').pop());
         classId.title = node.id;
-        summaryNode.append(classId, label, count);
+        summaryNode.append(level, classId, label, count);
         details.append(summaryNode);
         if (node.children.length || node.instances.length) {
           const nested = document.createElement('div');
@@ -607,7 +615,7 @@ if (headerActions && isExtractorEnabled) {
       counts.set(type, (counts.get(type) || 0) + 1);
     });
     const maximum = Math.max(1, ...counts.values());
-    distributionRows.replaceChildren(...[...counts.entries()].sort(([a], [b]) => a.localeCompare(b, 'ja-JP'))
+    distributionRows.replaceChildren(...[...counts.entries()].sort(([labelA, countA], [labelB, countB]) => countB - countA || labelA.localeCompare(labelB, 'ja-JP'))
       .map(([label, value]) => {
         const row = document.createElement('div');
         row.className = 'document-extractor-distribution-row';
@@ -618,7 +626,7 @@ if (headerActions && isExtractorEnabled) {
         track.className = 'document-extractor-distribution-track';
         const bar = document.createElement('span');
         bar.className = 'document-extractor-distribution-bar';
-        bar.style.width = `${Math.round((value / maximum) * 100)}%`;
+        bar.style.height = `${Math.max(2, Math.round((value / maximum) * 100))}%`;
         track.append(bar);
         const number = document.createElement('span');
         number.className = 'document-extractor-distribution-value';
