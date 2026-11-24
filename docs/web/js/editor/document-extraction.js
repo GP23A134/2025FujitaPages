@@ -59,9 +59,9 @@ style.textContent = `
 .document-extractor-tree details > summary::-webkit-details-marker { display:none; }
 .document-extractor-tree details > summary::before { display:inline-grid; flex:0 0 1rem; width:1rem; height:1rem; place-items:center; color:#617184; content:'＋'; }
 .document-extractor-tree details[open] > summary::before { content:'−'; }
-.document-extractor-tree .level-top { padding:.55rem; border:1px solid #cfe0eb; border-left:4px solid #145b83; background:#fff; }
-.document-extractor-tree .level-middle { margin:.45rem 0 0 .75rem; padding:.48rem; border:1px solid #d3e5e1; border-left:3px solid #167a83; background:#fff; }
-.document-extractor-tree .level-target { margin:.35rem 0 0 .6rem; padding:.42rem; border:1px solid #d5dff6; border-left:3px solid #7895e5; background:#fff; }
+.document-extractor-tree .level-top { padding:.55rem; border:1px solid #cfe0eb; border-left:4px solid #145b83; background:#f4f9fc; }
+.document-extractor-tree .level-middle { margin:.45rem 0 0 .75rem; padding:.48rem; border:1px solid #d3e5e1; border-left:3px solid #167a83; background:#f3faf8; }
+.document-extractor-tree .level-target { margin:.35rem 0 0 .6rem; padding:.42rem; border:1px solid #d5dff6; border-left:3px solid #7895e5; background:#f6f7fd; }
 .document-extractor-tree-card-title { display:flex; flex:1 1 12rem; min-width:0; align-items:center; flex-wrap:wrap; gap:.35rem; font-size:.8rem; font-weight:700; }
 .document-extractor-tree-card-count { flex:0 0 auto; color:#64748b; font-size:.72rem; font-weight:600; }
 .document-extractor-tree-card-id { flex:0 1 auto; color:#53677b; font: .7rem ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
