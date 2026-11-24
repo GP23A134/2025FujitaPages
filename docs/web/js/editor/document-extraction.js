@@ -60,7 +60,7 @@ style.textContent = `
 .document-extractor-tree .level-target { margin:.35rem 0 0 .6rem; padding:.42rem; border-left:3px solid #85a4ef; background:#fff; }
 .document-extractor-tree-card-title { display:flex; flex:1 1 12rem; min-width:0; align-items:center; flex-wrap:wrap; gap:.35rem; font-size:.8rem; font-weight:700; }
 .document-extractor-tree-card-count { flex:0 0 auto; color:#718095; font-size:.68rem; font-weight:500; }
-.document-extractor-tree-card-id { flex-basis:100%; padding-left:1.4rem; color:#718095; font: .64rem ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+.document-extractor-tree-card-id { flex:0 1 auto; color:#718095; font: .64rem ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
 .document-extractor-tree-card-children { min-width:0; }
 .document-extractor-tree .level-top > summary .document-extractor-tree-card-title { color:#145b83; }
 .document-extractor-tree .level-middle > summary .document-extractor-tree-card-title { color:#167a83; }
@@ -74,6 +74,11 @@ style.textContent = `
 .document-extractor-tree-instance-id { color:#8492a1; font: .63rem ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
 .document-extractor-result-counts { color:#075985 !important; }
 .document-extractor-json { min-height:0; flex:1 1 auto; overflow:auto; margin:0; padding:.75rem; border:1px solid #dbe3ec; border-radius:7px; color:#0f172a; background:#fff; font: .76rem/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; white-space:pre; }
+.document-extractor-tsv-preview { min-height:0; flex:1 1 auto; overflow:auto; border:1px solid #dbe3ec; border-radius:7px; background:#fff; }
+.document-extractor-tsv-table { width:100%; border-collapse:collapse; color:#334155; font-size:.72rem; }
+.document-extractor-tsv-table th,.document-extractor-tsv-table td { padding:.45rem .55rem; border:1px solid #dbe3ec; text-align:left; vertical-align:top; overflow-wrap:anywhere; }
+.document-extractor-tsv-table th { position:sticky; top:0; z-index:1; color:#334155; background:#edf4f8; font-weight:700; }
+.document-extractor-tsv-table tbody tr:nth-child(even) { background:#f8fafc; }
 .document-extractor-preview-expand { align-self:flex-start; flex:0 0 auto; margin:.4rem 0; padding:.3rem .55rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; cursor:pointer; font:inherit; font-size:.75rem; }
 .document-extractor-preview-note { align-self:flex-start; flex:0 0 auto; margin:.2rem 0; color:#64748b; font-size:.72rem; }
 .document-extractor-empty { display:grid; min-height:0; flex:1 1 auto; place-items:center; padding:1rem; color:#64748b; text-align:center; }
@@ -130,6 +135,7 @@ if (headerActions && isExtractorEnabled) {
         </div>
         <div class="document-extractor-empty">左の一覧から文書を選択してください。</div>
         <pre class="document-extractor-json" hidden></pre>
+        <div class="document-extractor-tsv-preview" hidden></div>
         <p class="document-extractor-preview-note" hidden></p>
         <button type="button" class="document-extractor-preview-expand" hidden>すべて表示</button>
         <div class="document-extractor-tree" hidden></div>
@@ -150,6 +156,7 @@ if (headerActions && isExtractorEnabled) {
   const nextPage = dialog.querySelector('[data-page="next"]');
   const empty = dialog.querySelector('.document-extractor-empty');
   const jsonPreview = dialog.querySelector('.document-extractor-json');
+  const tsvPreview = dialog.querySelector('.document-extractor-tsv-preview');
   const previewNote = dialog.querySelector('.document-extractor-preview-note');
   const previewExpand = dialog.querySelector('.document-extractor-preview-expand');
   const treePreview = dialog.querySelector('.document-extractor-tree');
@@ -382,7 +389,7 @@ if (headerActions && isExtractorEnabled) {
         classId.className = 'document-extractor-tree-card-id';
         classId.textContent = node.id.split('/').pop();
         classId.title = node.id;
-        summaryNode.append(label, count, classId);
+        summaryNode.append(classId, label, count);
         details.append(summaryNode);
         if (node.children.length || node.instances.length) {
           const nested = document.createElement('div');
@@ -398,7 +405,7 @@ if (headerActions && isExtractorEnabled) {
             instanceId.className = 'document-extractor-tree-instance-id';
             instanceId.textContent = instance.id.split('/').pop();
             instanceId.title = instance.id;
-            instanceRow.append(instanceName, instanceId);
+            instanceRow.append(instanceId, instanceName);
             nested.append(instanceRow);
           });
           details.append(nested);
@@ -419,7 +426,8 @@ if (headerActions && isExtractorEnabled) {
 
   function renderActiveView() {
     const hasSelection = Boolean(selectedDocument);
-    jsonPreview.hidden = !hasSelection || !['json', 'tsv'].includes(activeView);
+    jsonPreview.hidden = !hasSelection || activeView !== 'json';
+    tsvPreview.hidden = !hasSelection || activeView !== 'tsv';
     treePreview.hidden = !hasSelection || activeView !== 'tree';
     viewButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.view === activeView)));
     dialog.querySelector('.document-extractor-preview-title').textContent = activeView === 'json' ? 'JSONプレビュー' : activeView === 'tsv' ? 'TSVプレビュー' : '文書ツリー';
@@ -433,7 +441,8 @@ if (headerActions && isExtractorEnabled) {
       : `一部表示：先頭${PREVIEW_ITEM_LIMIT}行です。保存ファイルには全行含まれます。`;
     previewExpand.hidden = !hasSelection || !isDataView || !hasMore;
     previewExpand.textContent = showAllPreview ? '一部表示に戻す' : 'すべて表示';
-    jsonPreview.textContent = activeView === 'tsv' ? renderTsvPreview() : renderJsonPreview();
+    if (activeView === 'json') jsonPreview.textContent = renderJsonPreview();
+    if (activeView === 'tsv') renderTsvPreview();
   }
 
   function hasMoreClassNodes(node) {
@@ -463,9 +472,33 @@ if (headerActions && isExtractorEnabled) {
   }
 
   function renderTsvPreview() {
-    if (showAllPreview || !selectedTsvRows.length) return selectedTsv;
-    const rows = selectedTsvRows.slice(0, PREVIEW_ITEM_LIMIT + 1);
-    return `${rows.map((row) => row.map(escapeTsvCell).join('\t')).join('\r\n')}\r\n`;
+    tsvPreview.replaceChildren();
+    if (!selectedTsvRows.length) return;
+    const [headers, ...dataRows] = selectedTsvRows;
+    const visibleRows = showAllPreview ? dataRows : dataRows.slice(0, PREVIEW_ITEM_LIMIT);
+    const table = document.createElement('table');
+    table.className = 'document-extractor-tsv-table';
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    headers.forEach((header) => {
+      const cell = document.createElement('th');
+      cell.scope = 'col';
+      cell.textContent = header;
+      headerRow.append(cell);
+    });
+    thead.append(headerRow);
+    const tbody = document.createElement('tbody');
+    visibleRows.forEach((row) => {
+      const tableRow = document.createElement('tr');
+      row.forEach((value) => {
+        const cell = document.createElement('td');
+        cell.textContent = value;
+        tableRow.append(cell);
+      });
+      tbody.append(tableRow);
+    });
+    table.append(thead, tbody);
+    tsvPreview.append(table);
   }
 
   function filteredDocuments() {
@@ -547,6 +580,8 @@ if (headerActions && isExtractorEnabled) {
     empty.textContent = documents.length ? '左の一覧から文書を選択してください。' : '抽出できる文書がありません。';
     jsonPreview.hidden = true;
     jsonPreview.textContent = '';
+    tsvPreview.replaceChildren();
+    tsvPreview.hidden = true;
     downloadButtons.forEach((button) => { button.disabled = true; });
     renderActiveView();
   }
