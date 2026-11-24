@@ -185,6 +185,21 @@ export function createAssistantWorkflow({
     });
   }
 
+  function getProposalScopeCandidates(scopeRequests, getCandidates) {
+    const details = getCandidates(scopeRequests.map((item) => item.classId));
+    return details.map((candidate) => {
+      const request = scopeRequests.find((item) => item.classId === candidate.id);
+      const needsChange = Boolean(request.needsChange && grants.change.has(candidate.id));
+      if (request.needsChange && !needsChange) deniedChangeIds.add(candidate.id);
+      return {
+        ...candidate,
+        needsReference: Boolean(request.needsReference),
+        needsChange
+      };
+    }).filter((item) => (item.needsReference && !deniedReferenceIds.has(item.id))
+      || (item.needsChange && !deniedChangeIds.has(item.id)));
+  }
+
   async function applyScopeDecision(decision, { continueInPlace = false } = {}) {
     if (decision.choice === 'cancel') {
       setStatus('cancelled');
@@ -197,7 +212,8 @@ export function createAssistantWorkflow({
       return 'denied';
     }
     decision.referenceIds.forEach((id) => grants.reference.add(id));
-    decision.changeIds.forEach((id) => grants.change.add(id));
+    const selectedScope = new Set(selectedClassIds);
+    decision.changeIds.filter((id) => selectedScope.has(id)).forEach((id) => grants.change.add(id));
     updateState({
       ...state,
       scopeGrants: { reference: [...grants.reference], change: [...grants.change] },
@@ -272,6 +288,29 @@ export function createAssistantWorkflow({
       signal, onProgress: emitProgress, onUsage: reportUsage
     }) : null;
     const batchedTargetMove = usesBatchedTargetMove(plan);
+    const continueTargetReviewWithinGrantedScope = async () => {
+      const fallbackPlan = {
+        ...plan,
+        executionBrief: {
+          objective: '追加共有を使わず、選択済みクラスの名称だけで確認できる範囲を評価する。',
+          successCriteria: ['許可済みの選択クラスだけを使う', '親子関係や移動先を推測しない', '変更案を作らず判断できない点を示す']
+        },
+        dataNeeds: { ...plan.dataNeeds, selectedClassDetails: true, hierarchyIndex: false, parentContext: 'none', instanceContext: 'none' },
+        changeOperations: []
+      };
+      const fallbackRunner = createChunkedReadOnlyReview({
+        reader, client: activeClient, budgetGuard, model: currentModel, apiKey: currentApiKey,
+        request: `${state.request}\n\n追加範囲の共有は拒否されました。許可済みの選択クラスの名称だけを使って確認を続け、親子関係や移動先を推測せず、変更案は作成しないでください。`,
+        plan: fallbackPlan,
+        pageLimit: settings['dataRetrieval.pageAndIdLimit'],
+        maxOutputTokens: settings['runtime.maxOutputTokens'],
+        signal, onProgress: emitProgress, onUsage: reportUsage
+      });
+      const fallback = await fallbackRunner.run({ includeParentContext: false });
+      const parsed = JSON.parse(fallback.text);
+      parsed.message += '\n\n追加範囲は拒否されたため、選択済みクラスの名称だけで確認を続けました。親子関係と移動先候補は使わず、移動案は作成していません。';
+      return { status: 'scope_limited', result: { ...parsed, blocked: [] } };
+    };
     let loop = null;
     let uniqueTools = [];
     let targetMoveProcessor = null;
@@ -340,10 +379,7 @@ export function createAssistantWorkflow({
         if (targetMoveProcessor && error?.scopeRequest) {
           const candidates = (error.scopeRequest.candidates || []).filter((item) => !deniedReferenceIds.has(item.id));
           if (!candidates.length) {
-            return {
-              status: 'scope_limited',
-              result: { message: '追加の階層参照は許可されていないため、安全な移動先を確認できず、移動案は作成しませんでした。', proposals: [], alternativeGroups: [], blocked: [] }
-            };
+            return await continueTargetReviewWithinGrantedScope();
           }
           const decision = await askForScope({
             candidates,
@@ -355,13 +391,7 @@ export function createAssistantWorkflow({
           if (scopeDecision === 'cancel') return { status: 'cancelled' };
           if (scopeDecision === 'allow') return { status: 'replan_required' };
           candidates.forEach((item) => deniedReferenceIds.add(item.id));
-          return {
-            status: 'scope_limited',
-            result: {
-              message: '追加の階層参照が許可されなかったため、安全な移動先を確認できず、移動案は作成しませんでした。許可済みの範囲で可能な確認を続けてください。',
-              proposals: [], alternativeGroups: [], blocked: []
-            }
-          };
+          return await continueTargetReviewWithinGrantedScope();
         }
         throw withErrorSource(error, chunkedReview
           ? 'features/data-retrieval/chunked-read-only-review.js'
@@ -386,13 +416,7 @@ export function createAssistantWorkflow({
           const deniedIds = (result.scopeRequest.candidates || []).map((item) => typeof item === 'string' ? item : item.id);
           deniedIds.forEach((id) => deniedReferenceIds.add(id));
           if (targetMoveProcessor) {
-            return {
-              status: 'scope_limited',
-              result: {
-                message: '追加の階層参照が許可されなかったため、安全な移動先を確認できず、移動案は作成しませんでした。',
-                proposals: [], alternativeGroups: [], blocked: []
-              }
-            };
+            return await continueTargetReviewWithinGrantedScope();
           }
           if (chunkedReview) {
             result = await chunkedReviewRunner.run({ includeParentContext: false });
@@ -410,10 +434,7 @@ export function createAssistantWorkflow({
         if (scopeDecision === 'denied' && chunkedReview) {
           // The selected records can still be reviewed without disclosing parent classes.
         } else if (decision.choice === 'original_scope' || !decision.referenceIds.length) {
-          if (targetMoveProcessor) return {
-            status: 'scope_limited',
-            result: { message: '追加の階層参照が許可されなかったため、安全な移動先を確認できず、移動案は作成しませんでした。', proposals: [], alternativeGroups: [], blocked: [] }
-          };
+          if (targetMoveProcessor) return await continueTargetReviewWithinGrantedScope();
           if (!chunkedReview) {
             messages = [{ role: 'user', content: `${state.request}\n\n追加参照は許可されていません。許可済みの情報だけを使い、範囲外を推測せずに回答してください。` }];
             continue;
@@ -448,16 +469,12 @@ export function createAssistantWorkflow({
         throw withErrorSource(error, 'features/proposals/proposal-contract.js');
       }
       if (validation.scopeRequests?.length) {
-        const requestedCandidates = reader.getScopeCandidates(validation.scopeRequests.map((item) => item.classId))
-          .map((candidate) => {
-            const request = validation.scopeRequests.find((item) => item.classId === candidate.id);
-            return { ...candidate, needsReference: request.needsReference, needsChange: request.needsChange };
-          });
-        const candidates = requestedCandidates.filter((item) =>
-          (!item.needsReference || !deniedReferenceIds.has(item.id))
-          && (!item.needsChange || !deniedChangeIds.has(item.id)));
+        const candidates = getProposalScopeCandidates(validation.scopeRequests, reader.getScopeCandidates);
         if (!candidates.length) {
-          validation.blocked.push({ proposalId: null, reason: '追加参照が許可されなかったため、範囲外の提案を保留しました。' });
+          const externalChangeRequested = validation.scopeRequests.some((item) => item.needsChange && deniedChangeIds.has(item.classId));
+          validation.blocked.push({ proposalId: null, reason: externalChangeRequested
+            ? '選択範囲外のクラスを変更対象に含める提案は対象外のため、保留しました。'
+            : '追加参照が許可されていないため、範囲外の提案を保留しました。' });
           validation.scopeRequests = [];
           break;
         }
@@ -465,7 +482,7 @@ export function createAssistantWorkflow({
         const needsChange = candidates.some((item) => item.needsChange);
         const decision = await askForScope({
           candidates, allowReference: needsReference, allowChange: needsChange,
-          purpose: '変更案の検証で、選択範囲外のクラスを参照または変更対象に含める必要があります。'
+          purpose: '変更案の検証に選択範囲外クラスの参照が必要です。選択範囲外クラスは変更対象に追加しません。'
         });
         const scopeDecision = await applyScopeDecision(decision);
         if (scopeDecision === 'cancel') return { status: 'cancelled' };
@@ -626,7 +643,8 @@ export function createAssistantWorkflow({
           maxReplans: settings['runtime.maxReplans']
         },
         onChange: (counters) => { state = { ...state, counters, updatedAt: now() }; onEvent({ type: 'state', state }); },
-        onResponseLimit: (detail) => budgetApproval?.request?.(detail)
+        onResponseLimit: (detail) => budgetApproval?.request?.(detail),
+        onInputLimit: (detail) => budgetApproval?.request?.(detail)
       });
       return await runPlan({ signal: activeSignal });
     } catch (error) {
@@ -641,6 +659,15 @@ export function createAssistantWorkflow({
       const canBudgetStop = error.status === 'budget_exhausted' || error.code?.includes('BUDGET') || error.code?.includes('LIMIT');
       try { setStatus(canBudgetStop ? 'budget_exhausted' : 'failed'); } catch { /* Terminal state may already be set. */ }
       emitProgress(canBudgetStop ? 'budget_exhausted' : 'failed', { note: error.message });
+      if (canBudgetStop) {
+        const result = {
+          message: `${error.message}\n\n上限に達する前にクラス確認結果は確定していません。`,
+          proposals: [], alternativeGroups: [], blocked: [], budgetLimited: true
+        };
+        lastResult = result;
+        onEvent({ type: 'result', result, plan, state });
+        return { status: state?.status || 'budget_exhausted', result, error };
+      }
       emitError(error);
       return { status: state?.status || 'failed', error };
     } finally {
@@ -699,7 +726,8 @@ export function createAssistantWorkflow({
         maxReplans: settings['runtime.maxReplans']
       },
       onChange: (counters) => { state = { ...state, counters, updatedAt: now() }; onEvent({ type: 'state', state }); },
-      onResponseLimit: (detail) => budgetApproval?.request?.(detail)
+      onResponseLimit: (detail) => budgetApproval?.request?.(detail),
+      onInputLimit: (detail) => budgetApproval?.request?.(detail)
     });
   }
 
@@ -782,14 +810,7 @@ export function createAssistantWorkflow({
         dataVersion: window.classEditorAssistant?.getDataVersion?.() || null
       });
       if (checked.scopeRequests.length) {
-        const requestedCandidates = lastAgentContext.getScopeCandidates(checked.scopeRequests.map((item) => item.classId))
-          .map((candidate) => {
-            const request = checked.scopeRequests.find((item) => item.classId === candidate.id);
-            return { ...candidate, needsReference: request.needsReference, needsChange: request.needsChange };
-          });
-        const candidates = requestedCandidates.filter((item) =>
-          (!item.needsReference || !deniedReferenceIds.has(item.id))
-          && (!item.needsChange || !deniedChangeIds.has(item.id)));
+        const candidates = getProposalScopeCandidates(checked.scopeRequests, lastAgentContext.getScopeCandidates);
         let scopeDecision = 'denied';
         if (candidates.length) {
           const needsReference = candidates.some((item) => item.needsReference);
@@ -798,7 +819,7 @@ export function createAssistantWorkflow({
             candidates,
             allowReference: needsReference,
             allowChange: needsChange,
-            purpose: '回答後の変更案に、選択範囲外のクラスを参照または変更対象に含める必要があります。'
+            purpose: '回答後の変更案に選択範囲外クラスの参照が必要です。選択範囲外クラスは変更対象に追加しません。'
           });
           scopeDecision = await applyScopeDecision(decision);
           if (scopeDecision === 'cancel') return { status: 'cancelled' };
@@ -806,12 +827,15 @@ export function createAssistantWorkflow({
         if (scopeDecision === 'denied') {
           candidates.filter((item) => item.needsReference).forEach((item) => deniedReferenceIds.add(item.id));
           candidates.filter((item) => item.needsChange).forEach((item) => deniedChangeIds.add(item.id));
-          checked.blocked.push({ proposalId, reason: '追加参照が許可されなかったため、この提案の範囲外操作を保留しました。' });
+          const externalChangeRequested = checked.scopeRequests.some((item) => item.needsChange && deniedChangeIds.has(item.classId));
+          checked.blocked.push({ proposalId, reason: externalChangeRequested
+            ? '選択範囲外のクラスを変更対象に含める提案は対象外のため、この提案を保留しました。'
+            : '追加参照が許可されなかったため、この提案の範囲外操作を保留しました。' });
           checked.scopeRequests = [];
         } else {
           const permissionsGranted = checked.scopeRequests.every((item) =>
             (!item.needsReference || grants.reference.has(item.classId))
-            && (!item.needsChange || grants.change.has(item.classId)));
+            && (!item.needsChange || grants.change.has(item.classId) || deniedChangeIds.has(item.classId)));
           if (!permissionsGranted) {
             const scopeRequest = { candidates };
             failScopeContinuation('approved_scope_incomplete');

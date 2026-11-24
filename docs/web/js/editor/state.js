@@ -43,6 +43,23 @@ if (toggleJsonExport) {
     }
   });
 }
+const toggleDeselectChangedClasses = document.getElementById('toggle-deselect-changed-classes');
+if (toggleDeselectChangedClasses) {
+  const preferenceKey = 'classEditor.deselectChangedClassesAfterApply';
+  try {
+    toggleDeselectChangedClasses.checked = window.localStorage.getItem(preferenceKey) !== 'false';
+  } catch (error) {
+    console.warn('[クラス編集] 変更クラスの選択解除設定を読み込めません。', error);
+    toggleDeselectChangedClasses.checked = true;
+  }
+  toggleDeselectChangedClasses.addEventListener('change', () => {
+    try {
+      window.localStorage.setItem(preferenceKey, String(toggleDeselectChangedClasses.checked));
+    } catch (error) {
+      console.warn('[クラス編集] 変更クラスの選択解除設定を保存できません。', error);
+    }
+  });
+}
 let pinnedHeldPanelBoundsFrame = 0;
 function setInlineStyleIfChanged(element, property, value) {
   if (element.style.getPropertyValue(property) === value) return;

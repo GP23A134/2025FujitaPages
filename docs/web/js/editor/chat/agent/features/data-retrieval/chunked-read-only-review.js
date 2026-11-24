@@ -86,7 +86,7 @@ export function createChunkedReadOnlyReview({
     };
     let reservation;
     try {
-      reservation = budgetGuard.reserveInput(requestOptions, reserveFinal ? {
+      reservation = await (budgetGuard.reserveInputWithApproval || budgetGuard.reserveInput).call(budgetGuard, requestOptions, reserveFinal ? {
         reserveForInput: {
           model,
           input: [{ role: 'system', content: '選択範囲の全バッチ結果を統合してください。' }, { role: 'user', content: FINAL_RESERVE }],
@@ -110,7 +110,9 @@ export function createChunkedReadOnlyReview({
       throw error;
     }
     budgetGuard.countResponse(responseSlot);
-    const usageResult = budgetGuard.reconcileInput(reservation, response.usage?.input_tokens);
+    const usageResult = await (budgetGuard.reconcileInputWithApproval || budgetGuard.reconcileInput).call(
+      budgetGuard, reservation, response.usage?.input_tokens
+    );
     onUsage({ model, usage: response.usage || null });
     if (usageResult.overBudget) {
       throw Object.assign(new Error('分割確認中に累積入力トークン上限を超えました。'), {
@@ -130,6 +132,26 @@ export function createChunkedReadOnlyReview({
     let missingCount = 0;
     let completedCount = 0;
     let batchNumber = 0;
+    const isTokenLimit = (error) => ['INPUT_TOKEN_BUDGET', 'INPUT_TOKEN_BUDGET_ACTUAL', 'INPUT_TOKEN_FINALIZATION_REQUIRED'].includes(error?.code);
+    const partialResult = () => {
+      const candidateCount = batchSummaries.reduce((sum, batch) => sum + batch.findings.length, 0);
+      const findings = batchSummaries.flatMap((batch) => batch.findings.map((finding) => {
+        const examples = finding.examples.map((item) => item.parentLabel
+          ? `「${item.label}」（親: 「${item.parentLabel}」）` : `「${item.label}」`).join('、');
+        return `第${batch.batch}バッチ: ${finding.text}${examples ? ` 例: ${examples}` : ''}`;
+      }));
+      const summaries = batchSummaries.map((batch) => `第${batch.batch}バッチ（${batch.count}件）: ${batch.summary}`).filter(Boolean);
+      const total = selectedCount || totalCount;
+      const remaining = total === null ? null : Math.max(0, total - completedCount);
+      let message = `累積入力トークン上限で停止しました。停止前に確認を完了したのは${completedCount.toLocaleString('ja-JP')}/${total === null ? '不明' : total.toLocaleString('ja-JP')}件、完了バッチは${batchNumber}件です。`;
+      if (remaining !== null) message += `未確認は${remaining.toLocaleString('ja-JP')}件です。`;
+      if (missingCount) message += `選択対象のうち見つからなかったものは${missingCount.toLocaleString('ja-JP')}件です。`;
+      if (summaries.length) message += `\n\n完了バッチの要約:\n${summaries.join('\n')}`;
+      if (findings.length) message += `\n\n停止前に列挙された所見候補（延べ${candidateCount}件、重複整理前）:\n${findings.join('\n')}`;
+      if (batchSummaries.some((batch) => batch.moreFindingsMayExist)) message += '\n一部バッチでは、ここに示したもの以外にも所見候補があり得ます。';
+      message += '\nこの読み取り専用の確認処理ではデータ変更を行っていません。';
+      return { text: JSON.stringify({ message, proposals: [], alternativeGroups: [] }), messages: [], budgetLimited: true, counters: budgetGuard.getCounters() };
+    };
 
     while (true) {
       const items = [];
@@ -176,13 +198,19 @@ export function createChunkedReadOnlyReview({
         }) }
       ];
       onProgress({ stage: 'analyzing', note: `${completedCount} / ${totalCount ?? '…'}件を確認済み` });
-      const response = await callAI({
-        input: analysisInput,
-        schemaName: 'selection_review_batch',
-        schema: BATCH_SCHEMA,
-        outputLimit: maxOutputTokens,
-        reserveFinal: true
-      });
+      let response;
+      try {
+        response = await callAI({
+          input: analysisInput,
+          schemaName: 'selection_review_batch',
+          schema: BATCH_SCHEMA,
+          outputLimit: maxOutputTokens,
+          reserveFinal: true
+        });
+      } catch (error) {
+        if (isTokenLimit(error)) return partialResult();
+        throw error;
+      }
       const analysis = parseJson(responseText(response), '分割確認');
       if (analysis.checkedCount !== items.length
         || !Array.isArray(analysis.findings)
@@ -219,25 +247,36 @@ export function createChunkedReadOnlyReview({
     const finalInput = [
       { role: 'system', content: [
         '分割して確認した選択クラスの結果を、依頼に沿って日本語で簡潔にまとめてください。',
-        '全バッチで確認した範囲を明示し、確認結果と代表的な問題点を説明してください。',
-        '一部の例だけから全体傾向を断定しないでください。moreFindingsMayExistがtrueなら、表示した例以外にも問題があり得ると明記してください。',
+        '確認結果は、全体の傾向、所見候補の内容、判断できない点に分けて説明してください。確認できた事実と名称・親子関係からの推定を区別し、分類意図が分からないものは誤りと断定しないでください。',
+        'バッチごとのfindingsはAIが列挙した所見候補であり、候補の種類数を問題クラス数と呼ばないでください。代表例だけを説明する場合は一部の例だと明記し、候補数を確定した誤りの件数として扱わないでください。',
+        '一部の例だけから全体傾向を断定しないでください。moreFindingsMayExistがtrueなら、表示した例以外にも追加候補があり得ると明記してください。falseでも分類意図までは確認できていないため、問題がないと断定しないでください。',
+        '確認件数やバッチ数は入力値に従い、入力にない完了状況を作らないでください。',
         'クラスデータの変更案は出さないでください。'
       ].join('\n') },
       { role: 'user', content: JSON.stringify({ request, totalCount, completedCount, missingCount, batches: batchSummaries }) }
     ];
     onProgress({ stage: 'analyzing', note: '各バッチの結果をまとめています' });
-    const finalResponse = await callAI({
-      input: finalInput,
-      schemaName: 'selection_review_summary',
-      schema: FINAL_SCHEMA,
-      outputLimit: maxOutputTokens
-    });
+    let finalResponse;
+    try {
+      finalResponse = await callAI({
+        input: finalInput,
+        schemaName: 'selection_review_summary',
+        schema: FINAL_SCHEMA,
+        outputLimit: maxOutputTokens
+      });
+    } catch (error) {
+      if (isTokenLimit(error)) return partialResult();
+      throw error;
+    }
     const final = parseJson(responseText(finalResponse), '分割確認の統合');
-    const completeness = `確認済み範囲：選択対象 ${completedCount.toLocaleString('ja-JP')}件を全${batchNumber}バッチで確認しました。`
+    const findingCandidateCount = batchSummaries.reduce((sum, batch) => sum + batch.findings.length, 0);
+    const completeness = `確認済み範囲：選択対象 ${completedCount.toLocaleString('ja-JP')}件を全${batchNumber}バッチで確認しました（取得した各対象の未確認は0件）。`
       + (missingCount ? `見つからなかった対象：${missingCount.toLocaleString('ja-JP')}件。` : '')
+      + `各バッチが列挙した所見候補は延べ${findingCandidateCount.toLocaleString('ja-JP')}件（重複整理前）です。`
       + (!includeParentContext ? '追加参照は許可されなかったため、親クラス情報を除いて確認しました。' : '')
       + (batchSummaries.some((batch) => batch.moreFindingsMayExist)
-        ? '一部バッチには表示しきれない追加の指摘候補があります。' : '');
+        ? '一部バッチには表示しきれない追加の指摘候補があります。' : '')
+      + 'この読み取り専用の確認処理ではデータ変更を行っていません。';
     return {
       text: JSON.stringify({ message: `${final.message}\n\n${completeness}`, proposals: [], alternativeGroups: [] }),
       messages: finalInput,

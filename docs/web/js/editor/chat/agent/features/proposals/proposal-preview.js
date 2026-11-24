@@ -827,13 +827,8 @@ export const createProposalPreview = ({
       && hasProposalOperations(item)
       && !['awaiting-answers', 'superseded', 'alternative-rejected', 'invalid'].includes(item.status));
   };
-  const previewNavigationProposals = (proposalItem = null) => [...previewableProposals()]
-    .filter((item) => !proposalItem?.responseGroupId || item.responseGroupId === proposalItem.responseGroupId)
-    .sort((a, b) => {
-    const aUnjudged = ['pending', 'previewed', 'stale'].includes(a.status);
-    const bUnjudged = ['pending', 'previewed', 'stale'].includes(b.status);
-    return Number(bUnjudged) - Number(aUnjudged);
-  });
+  const previewNavigationProposals = (proposalItem = null) => previewableProposals()
+    .filter((item) => !proposalItem?.responseGroupId || item.responseGroupId === proposalItem.responseGroupId);
   const renderProposalChoices = (proposalItem) => {
     const section = document.getElementById('ai-preview-proposal-choices');
     const list = document.getElementById('ai-preview-proposal-choices-list');
@@ -889,8 +884,15 @@ export const createProposalPreview = ({
     }
     void transitionPreview(() => showPreview(next)).catch(reportPreviewError);
   });
-  const nextUnjudgedProposal = (currentProposal) => previewNavigationProposals(currentProposal).find((item) => item !== currentProposal
-    && ['pending', 'previewed', 'stale'].includes(item.status)) || null;
+  const nextUnjudgedProposal = (currentProposal) => {
+    const allInOrder = getCurrentConversation().items.filter((item) => item.type === 'proposal'
+      && hasProposalOperations(item)
+      && (!currentProposal.responseGroupId || item.responseGroupId === currentProposal.responseGroupId));
+    const currentIndex = allInOrder.indexOf(currentProposal);
+    const candidates = currentIndex >= 0 ? allInOrder.slice(currentIndex + 1) : previewNavigationProposals(currentProposal);
+    return candidates.find((item) => item !== currentProposal
+      && ['pending', 'previewed', 'stale'].includes(item.status)) || null;
+  };
   const navigateConflictGroup = (direction) => {
     const item = previewPlan?.proposalItem;
     const groups = item?.proposal.conflictGroups || [];
@@ -982,7 +984,8 @@ export const createProposalPreview = ({
       updatePreviewProposalHeading(proposalItem, operations);
       renderPreviewTypeLegend(operations);
       document.getElementById('ai-preview-summary').textContent = proposalItem.proposal.summary || proposalItem.proposal.title || '変更内容の説明はありません。';
-      document.getElementById('ai-preview-reason').textContent = proposalItem.proposal.reason || '理由の記載はありません。';
+      document.getElementById('ai-preview-reason').textContent = (proposalItem.proposal.reason || '理由の記載はありません。')
+        .replace(/([。．.!！?？])(?:[\s　]*[。．.!！?？])+/gu, '$1');
       document.getElementById('ai-preview-uncertainties').textContent = proposalItem.proposal.uncertainties?.length
         ? proposalItem.proposal.uncertainties.join('\n') : '特になし';
       document.getElementById('ai-preview-change-list-details').open = false;

@@ -82,6 +82,7 @@ export function createEditorAssistantHost({
         agentDismiss: () => onDismiss?.(sourceItem)
       }));
       const proxy = agentPreviewProxies[sourceItems.indexOf(item)] || agentPreviewProxies[0];
+      proxy.agentSelectAlternative?.();
       agentPreviewOwner.items.push(...agentPreviewProxies);
       try {
         const baseDataHash = await currentDataHash();

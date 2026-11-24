@@ -31,7 +31,9 @@ export function createPlanningService({ client, getDeveloperSettings }) {
         responseSlot = budgetGuard.reserveResponseSlot
           ? await budgetGuard.reserveResponseSlot()
           : (await budgetGuard.assertResponseAllowed(), null);
-        reservation = budgetGuard.reserveInput({ model, input, textFormat });
+        reservation = await (budgetGuard.reserveInputWithApproval || budgetGuard.reserveInput).call(
+          budgetGuard, { model, input, textFormat }
+        );
       }
       response = await requestClient.request({
       apiKey,
@@ -47,7 +49,9 @@ export function createPlanningService({ client, getDeveloperSettings }) {
     }
     if (reservation) {
       budgetGuard.countResponse(responseSlot);
-      const usageResult = budgetGuard.reconcileInput(reservation, response.usage?.input_tokens);
+      const usageResult = await (budgetGuard.reconcileInputWithApproval || budgetGuard.reconcileInput).call(
+        budgetGuard, reservation, response.usage?.input_tokens
+      );
       if (usageResult.overBudget) {
         const error = new Error('API実績が累積入力トークン上限を超えたため、計画を停止しました。');
         error.code = 'INPUT_TOKEN_BUDGET_ACTUAL';

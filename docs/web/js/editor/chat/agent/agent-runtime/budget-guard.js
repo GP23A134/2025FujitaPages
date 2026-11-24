@@ -6,7 +6,7 @@ export function estimateInputTokens(input) {
   return Math.ceil(utf8Bytes(serialized) * 0.8) + 256;
 }
 
-export function createBudgetGuard({ state, limits, onChange, onResponseLimit }) {
+export function createBudgetGuard({ state, limits, onChange, onResponseLimit, onInputLimit }) {
   const counters = { ...state.counters };
   const activeLimits = { ...limits };
   const reservations = new Map();
@@ -15,15 +15,40 @@ export function createBudgetGuard({ state, limits, onChange, onResponseLimit }) 
   let nextResponseReservationId = 0;
   let responseLimitApproval = null;
   let responseLimitDenied = false;
+  let inputLimitApproval = null;
+  let inputLimitDenied = false;
   const notify = () => onChange?.({ ...counters });
   const fail = (message, code) => Object.assign(new Error(message), {
     code, status: 'budget_exhausted', sourceModule: 'agent-runtime/budget-guard.js'
   });
 
+  async function ensureInputCapacity(required) {
+    while (counters.inputTokensActual + counters.inputTokensReserved + required > activeLimits.inputTokenCap) {
+      if (inputLimitDenied) throw fail('累積入力トークン上限に達しました。利用者が続行を許可しませんでした。', 'INPUT_TOKEN_BUDGET');
+      const used = counters.inputTokensActual + counters.inputTokensReserved;
+      const extension = Math.max(50_000, used + required - activeLimits.inputTokenCap);
+      if (!inputLimitApproval) {
+        inputLimitApproval = Promise.resolve(onInputLimit?.({
+          kind: 'input_tokens', used, limit: activeLimits.inputTokenCap, required,
+          extension
+        })).then((decision) => {
+          if (decision === 'continue') {
+            activeLimits.inputTokenCap += extension;
+            notify();
+          } else if (decision !== 'cancel') inputLimitDenied = true;
+          return decision;
+        }).finally(() => { inputLimitApproval = null; });
+      }
+      const decision = await inputLimitApproval;
+      if (decision === 'cancel') throw Object.assign(new Error('処理を中止しました。'), { name: 'AbortError' });
+      if (decision !== 'continue') throw fail('累積入力トークン上限に達しました。利用者が続行を許可しませんでした。', 'INPUT_TOKEN_BUDGET');
+    }
+  }
+
   function reserveInput(input, { reserveForInput = null } = {}) {
     const estimate = estimateInputTokens(input);
     const reserve = reserveForInput === null ? 0 : estimateInputTokens(reserveForInput);
-    const cap = limits.inputTokenCap;
+    const cap = activeLimits.inputTokenCap;
     if (!Number.isSafeInteger(cap) || cap <= 0) throw new Error('入力トークン上限が開発者設定にありません。');
     if (counters.inputTokensActual + counters.inputTokensReserved + estimate > cap) {
       throw fail('累積入力トークン上限のため、次のAI要求を送信できません。', 'INPUT_TOKEN_BUDGET');
@@ -41,6 +66,26 @@ export function createBudgetGuard({ state, limits, onChange, onResponseLimit }) 
     return Object.freeze({ id, estimate });
   }
 
+  async function reserveInputWithApproval(input, options = {}) {
+    const estimate = estimateInputTokens(input);
+    const reserve = options.reserveForInput === null || options.reserveForInput === undefined
+      ? 0 : estimateInputTokens(options.reserveForInput);
+    try {
+      await ensureInputCapacity(estimate + reserve);
+    } catch (error) {
+      const used = counters.inputTokensActual + counters.inputTokensReserved;
+      if (reserve > 0 && error?.code === 'INPUT_TOKEN_BUDGET'
+        && used + estimate <= activeLimits.inputTokenCap) {
+        throw Object.assign(new Error('最終回答用の入力枠を確保するため、追加のAI要求を止めます。'), {
+          code: 'INPUT_TOKEN_FINALIZATION_REQUIRED', status: 'budget_soft_stop',
+          sourceModule: 'agent-runtime/budget-guard.js'
+        });
+      }
+      throw error;
+    }
+    return reserveInput(input, options);
+  }
+
   function reconcileInput(reservation, actualTokens) {
     if (!reservation || !reservations.has(reservation.id)) throw new Error('入力トークン予約が見つかりません。');
     const reserved = reservations.get(reservation.id);
@@ -54,7 +99,19 @@ export function createBudgetGuard({ state, limits, onChange, onResponseLimit }) 
     }
     counters.inputTokensActual += actualTokens;
     notify();
-    return { overBudget: counters.inputTokensActual + counters.inputTokensReserved > limits.inputTokenCap, actualKnown: true };
+    return { overBudget: counters.inputTokensActual + counters.inputTokensReserved > activeLimits.inputTokenCap, actualKnown: true };
+  }
+
+  async function reconcileInputWithApproval(reservation, actualTokens) {
+    const result = reconcileInput(reservation, actualTokens);
+    if (!result.overBudget) return result;
+    try {
+      await ensureInputCapacity(0);
+      return { ...result, overBudget: false };
+    } catch (error) {
+      if (error?.name === 'AbortError') throw error;
+      return result;
+    }
   }
 
   function releaseInput(reservation) {
@@ -112,7 +169,9 @@ export function createBudgetGuard({ state, limits, onChange, onResponseLimit }) 
 
   return Object.freeze({
     reserveInput,
+    reserveInputWithApproval,
     reconcileInput,
+    reconcileInputWithApproval,
     releaseInput,
     assertResponseAllowed,
     reserveResponseSlot,

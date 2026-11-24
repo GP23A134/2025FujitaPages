@@ -8,7 +8,7 @@
 |---|---|
 | `QueryRun` | SPARQLクエリを実行し、JSONを`data/query-results/`へ保存します。 |
 | `DataIntegrate` | クエリ結果を統合し、`data/integrated/`と確認用TSVを生成します。 |
-| `ClassDataUpdate` | `data/input/`にある日時付き分類更新JSONのうち最新の1件を検証・適用し、既存の上位・中間クラスIDとラベルを維持します。更新前データと処理済み入力を履歴へ保存します。 |
+| `ClassDataUpdate` | `data/input/`にある日時付き分類更新JSONのうち最新の1件を検証・適用します。入力で削除を指定した上位・中間クラスも、親子関係を解消したうえで削除できます。更新前データと処理済み入力を履歴へ保存します。 |
 | `DefinitionIntegrate` | 作業フォルダー直下のベースN-Quadsからクラス・プロパティの定義を集約し、`data/output/merged-definitions.nq`へ出力します。同じ定義トリプルは重複せず、出力では専用の名前付きグラフにまとめます。 |
 | `ClassDataVersion` | 内部のSHA-256版情報を更新し、差分入力が最新データを基に作られたか検証します。 |
 | `WebDataBuild` | 統合データから`web/data/generated/`のJavaScriptを生成します。 |

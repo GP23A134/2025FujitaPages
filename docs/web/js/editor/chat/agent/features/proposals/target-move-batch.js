@@ -1,6 +1,9 @@
 const MAX_BATCH_SIZE = 100;
 const UNCERTAIN_RETRY_BATCH_SIZE = 100;
 const MAX_UNCERTAIN_RETRY_ROUNDS = 2;
+const isTokenLimitError = (error) => ['INPUT_TOKEN_BUDGET', 'INPUT_TOKEN_BUDGET_ACTUAL'].includes(error?.code);
+const combineReasons = (reasons) => [...new Set(reasons.map((reason) => String(reason).trim()
+  .replace(/[。．.!！?？]+$/u, '')).filter(Boolean))].slice(0, 5).join('。') + '。';
 
 function createDecisionSchema(itemCount, destinationKeys) {
   return {
@@ -188,7 +191,7 @@ export function createTargetMoveBatchProcessor({
       textFormat: { type: 'json_schema', name: schemaName, strict: true, schema }
     };
     let reservation;
-    try { reservation = budgetGuard.reserveInput(options); }
+    try { reservation = await (budgetGuard.reserveInputWithApproval || budgetGuard.reserveInput).call(budgetGuard, options); }
     catch (error) { if (responseSlot) budgetGuard.releaseResponse?.(responseSlot); throw error; }
     let response;
     try {
@@ -204,7 +207,9 @@ export function createTargetMoveBatchProcessor({
       throw error;
     }
     budgetGuard.countResponse(responseSlot);
-    const usage = budgetGuard.reconcileInput(reservation, response.usage?.input_tokens);
+    const usage = await (budgetGuard.reconcileInputWithApproval || budgetGuard.reconcileInput).call(
+      budgetGuard, reservation, response.usage?.input_tokens
+    );
     onUsage({ model, usage: response.usage || null });
     if (usage.overBudget) throw Object.assign(new Error('移動案の作成中に累積入力トークン上限へ達しました。'), {
       code: 'INPUT_TOKEN_BUDGET_ACTUAL', status: 'budget_exhausted'
@@ -296,7 +301,18 @@ export function createTargetMoveBatchProcessor({
     let hierarchy;
     try { hierarchy = await readAllHierarchy(); }
     catch (error) { if (error.scopeRequest) return { status: 'needs_scope_approval', scopeRequest: error.scopeRequest }; throw error; }
-    const destinationSelection = await selectDestinations(hierarchy, targetClasses);
+    let destinationSelection;
+    try { destinationSelection = await selectDestinations(hierarchy, targetClasses); }
+    catch (error) {
+      if (!isTokenLimitError(error)) throw error;
+      return {
+        text: JSON.stringify({
+          message: `累積入力トークン上限で停止しました。選択対象${targetClasses.length.toLocaleString('ja-JP')}件と許可された階層は取得済みですが、移動先候補の選定前に停止したため、対象は未判定で移動案はありません。`,
+          proposals: [], alternativeGroups: []
+        }),
+        messages: [], budgetLimited: true, counters: budgetGuard.getCounters()
+      };
+    }
     const destinations = destinationSelection.destinations;
     if (!destinations.length) return {
       text: JSON.stringify({
@@ -426,18 +442,31 @@ export function createTargetMoveBatchProcessor({
             const left = targetItems.slice(0, midpoint);
             const right = targetItems.slice(midpoint);
             onProgress({ stage: 'analyzing', note: `第${batchLabel}バッチの応答が不完全だったため、${targetItems.length}件を分割して再処理します` });
-            return [
-              ...(await processDecisionBatch(left, `${batchLabel}.1`)),
-              ...(await processDecisionBatch(right, `${batchLabel}.2`))
-            ];
+            const leftResults = await processDecisionBatch(left, `${batchLabel}.1`);
+            if (budgetLimited) return leftResults;
+            try {
+              const rightResults = await processDecisionBatch(right, `${batchLabel}.2`);
+              return [...leftResults, ...rightResults];
+            } catch (error) {
+              if (!isTokenLimitError(error)) throw error;
+              budgetLimited = true;
+              return leftResults;
+            }
           }
           onProgress({ stage: 'analyzing', note: `第${batchLabel}バッチの判断形式を修正して再試行しています（${attempt + 1}/${maxRetries}）` });
         }
       }
     };
     let processed = 0;
-    for (let index = 0; index < targetBatches.length; index += 1) {
-      const resultGroup = await processDecisionBatch(targetBatches[index], String(index + 1));
+    let budgetLimited = false;
+    for (let index = 0; index < targetBatches.length && !budgetLimited; index += 1) {
+      let resultGroup;
+      try { resultGroup = await processDecisionBatch(targetBatches[index], String(index + 1)); }
+      catch (error) {
+        if (!isTokenLimitError(error)) throw error;
+        budgetLimited = true;
+        break;
+      }
       for (const result of resultGroup) {
         applyDecisions(result.items, result.decisions, result.notes);
         processed += result.items.length;
@@ -448,7 +477,7 @@ export function createTargetMoveBatchProcessor({
       }
     }
 
-    for (let retryRound = 1; retryRound <= MAX_UNCERTAIN_RETRY_ROUNDS && uncertainItems.size; retryRound += 1) {
+    for (let retryRound = 1; !budgetLimited && retryRound <= MAX_UNCERTAIN_RETRY_ROUNDS && uncertainItems.size; retryRound += 1) {
       const pending = [...uncertainItems.values()];
       let retryProcessed = 0;
       onProgress({
@@ -487,7 +516,13 @@ export function createTargetMoveBatchProcessor({
             { role: 'system', content: `${input[0].content}\n前回の応答は検証に失敗しました。今回の番号範囲とJSONスキーマに合わせて再回答してください。` },
             input[1]
           ];
-          const response = await requestAI(attemptInput, 'target_move_uncertain_retry', schema, outputLimit);
+          let response;
+          try { response = await requestAI(attemptInput, 'target_move_uncertain_retry', schema, outputLimit); }
+          catch (error) {
+            if (!isTokenLimitError(error)) throw error;
+            budgetLimited = true;
+            break;
+          }
           try {
             const text = responseText(response);
             if (!text.trim()) throw Object.assign(new Error(describeMissingResponse(response)), { code: 'INVALID_MOVE_DECISIONS' });
@@ -507,6 +542,7 @@ export function createTargetMoveBatchProcessor({
             onProgress({ stage: 'analyzing', note: `再判定結果の形式を修正しています（${attempt + 1}/${maxRetries}）` });
           }
         }
+        if (budgetLimited) break;
         if (splitForRetry) {
           onProgress({ stage: 'analyzing', note: `保留分再判定の第${retryBatchNumber}バッチを${retryItems.length}件から分割して再処理します` });
           continue;
@@ -533,7 +569,7 @@ export function createTargetMoveBatchProcessor({
         id: `batch_move_${++proposalSequence}`,
         title: `「${group.destination.label}」へ移動`,
         summary: `${group.operations.length}件の対象クラスを「${group.destination.label}」へ移動する案です。`,
-        reason: [...new Set(group.reasons)].slice(0, 5).join('。') || '対象クラスの名称と現在の親子関係を根拠に移動先を推定しました。',
+        reason: combineReasons(group.reasons) || '対象クラスの名称と現在の親子関係を根拠に移動先を推定しました。',
         uncertainties: [...new Set(group.uncertainties)].slice(0, 8),
         questions: [], operations: group.operations
       });
@@ -575,12 +611,22 @@ export function createTargetMoveBatchProcessor({
       : uncertain.length
         ? `${processed.toLocaleString('ja-JP')}件を依頼条件と現在の親子関係に沿って確認し、${keptCount}件は現在の親を維持、${uncertain.length}件は移動先を絞れず保留しました。保留項目: ${uncertain.slice(0, 8).join('、')}${uncertain.length > 8 ? 'ほか' : ''}。移動先の条件を追加いただければ、その基準で再確認できます。`
         : `${processed.toLocaleString('ja-JP')}件を依頼条件・現在の親子関係・指定された除外条件に沿って確認しました。${keptCount}件は現在の親を維持する判断となり、移動案はありません。無理に移すと誤分類になる可能性があるためです。特定の上位クラスを優先する基準があれば、その条件で再確認できます。`;
-    const message = baseMessage
+    const resultMessage = baseMessage
       + (estimatedCount ? `うち${estimatedCount}件は名称と親子関係からの推定です。` : '')
       + (proposals.length && uncertain.length ? `移動先を判断できなかった${uncertain.length}件は保留しています。` : '');
+    const completedProposalDetails = budgetLimited ? proposals.map((proposal) => {
+      const targets = proposal.operations.map((operation) =>
+        targetClasses.find((item) => item.id === operation.target.classId)?.label
+      ).filter(Boolean);
+      return `・${proposal.title}: ${targets.join('、') || proposal.summary}`;
+    }) : [];
+    const message = budgetLimited
+      ? `累積入力トークン上限で停止しました。${processed.toLocaleString('ja-JP')} / ${targetClasses.length.toLocaleString('ja-JP')}件の判定が完了し、未確認は${(targetClasses.length - processed).toLocaleString('ja-JP')}件です。停止前の結果を表示します。\n${resultMessage}`
+        + (completedProposalDetails.length ? `\n停止前に作成した移動案:\n${completedProposalDetails.join('\n')}` : '')
+      : resultMessage;
     return {
       text: JSON.stringify({ message, proposals, alternativeGroups }),
-      messages: [], counters: budgetGuard.getCounters()
+      messages: [], budgetLimited, counters: budgetGuard.getCounters()
     };
   }
 

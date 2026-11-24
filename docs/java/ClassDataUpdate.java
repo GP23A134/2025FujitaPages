@@ -9,7 +9,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -51,8 +50,12 @@ public final class ClassDataUpdate {
         // 入力JSONもhistoryへ移動しない。
         List<InputCandidate> inputCandidates = findInputCandidates();
         InputCandidate latestInput = inputCandidates.stream()
-                .max(Comparator.comparing(InputCandidate::timestamp)
-                        .thenComparing(candidate -> candidate.path().getFileName().toString()))
+                .max((left, right) -> {
+                    int timestampOrder = left.timestamp().compareTo(right.timestamp());
+                    return timestampOrder != 0 ? timestampOrder
+                            : left.path().getFileName().toString()
+                                    .compareTo(right.path().getFileName().toString());
+                })
                 .orElseThrow(() -> new IOException("data/input/に分類更新JSONがありません。"));
         Path inputFile = latestInput.path();
         System.out.println("適用する入力JSON: " + inputFile);
@@ -61,7 +64,6 @@ public final class ClassDataUpdate {
         Map<String, String> classes = new LinkedHashMap<>();
         Map<String, String> temporaryIds = new LinkedHashMap<>();
         addInputClasses(classes, temporaryIds, input.classes(), existingTargetLabels);
-        validateExistingHierarchyClassesPreserved(classes, existingTargetLabels);
         List<String[]> relations = readRelations(classes, temporaryIds, input.relations());
         validateRelationStructure(relations);
         normalizeDirectTargetRelations(classes, relations);
@@ -232,9 +234,6 @@ public final class ClassDataUpdate {
         JsonArray addedRelations = requireArray(patch, "addRelations");
         JsonArray movedChildren = requireArray(patch, "moveChildren");
         JsonArray removedClasses = requireArray(patch, "removeClasses");
-        if (!removedClasses.isEmpty()) {
-            throw new IOException("既存の上位・中間クラスは削除できません。removeClassesは空配列にしてください。");
-        }
 
         Set<String> upperLabels = new HashSet<>();
         Set<String> addedOrRenamedMiddleLabels = new HashSet<>();
@@ -450,20 +449,6 @@ public final class ClassDataUpdate {
             }
         } catch (com.google.gson.JsonParseException exception) {
             throw new IOException("現在のクラスデータを読み込めません。JSONの構文を確認してください。", exception);
-        }
-    }
-
-    /** 全件入力でも既存の上位・中間クラスIDを欠落させないようにします。 */
-    private static void validateExistingHierarchyClassesPreserved(Map<String, String> classes,
-            Map<String, String> targetLabels) throws IOException {
-        List<String[]> existingClasses = new ArrayList<>();
-        List<String[]> ignoredRelations = new ArrayList<>();
-        readCurrentClassData(existingClasses, ignoredRelations, targetLabels);
-        for (String[] row : existingClasses) {
-            if (!"class".equals(row[0]) && !classes.containsKey(normalizeId(row[1]))) {
-                throw new IOException("既存の上位・中間クラスを削除できません: " + row[1]
-                        + " 「" + row[2] + "」。入力にクラスを残してください。");
-            }
         }
     }
 

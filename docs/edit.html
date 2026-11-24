@@ -9,7 +9,7 @@
     <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
     <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1" />
     <link rel="stylesheet" href="web/css/tree-structure.css?v=20261112-tree-action-buttons-v2" />
-    <link rel="stylesheet" href="web/css/editor-panels.css?v=20261120-proposal-navigation-edge-v8" />
+    <link rel="stylesheet" href="web/css/editor-panels.css?v=20261124-preview-scrollbar-visible-v1" />
     <link rel="stylesheet" href="web/css/test-preferences.css?v=20261119-developer-settings-layout-v2" />
     <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261113-target-connectors-v1" />
     <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261119-held-panel-collapse-restored-v1" />
@@ -21,7 +21,7 @@
 
     <!-- データ → 共通ツリー → 編集状態・パネル・ツリー・イベント → AIの順で実行する。 -->
     <script data-app-script="web/js/shared/tree.js?v=20261113-tree-count-labels-v1"></script>
-    <script data-app-script="web/js/editor/state.js?v=20261119-held-panel-collapse-restored-v1"></script>
+    <script data-app-script="web/js/editor/state.js?v=20261124-deselect-changed-selection-v1"></script>
     <script data-app-script="web/js/editor/panels.js?v=20261119-held-panel-collapse-restored-v1"></script>
     <script data-app-script="web/js/editor/tree.js?v=20261118-tree-autoscroll-acceleration-v1"></script>
     <script data-app-script="web/js/editor/events.js?v=20261119-held-panel-collapse-restored-v1"></script>
@@ -215,7 +215,7 @@
                   <div class="ai-chat-composer-actions">
                     <div class="ai-chat-composer-tools">
                       <button type="button" id="ai-new-consultation" class="ai-new-consultation" aria-label="新しい相談" title="新しい相談">＋</button>
-                      <button type="button" id="ai-full-graph-scope" class="ai-scope-option" role="switch" aria-checked="true" aria-label="全上位・中間クラスを参照" title="新方式では、ONでも全件を計画時に送信せず、計画AIが必要と判断した場合だけ階層索引を取得します。従来形式の動作は従来どおりです。"><span class="ai-scope-switch-track" aria-hidden="true"></span><span>全上位・中間クラスを参照</span></button>
+                      <button type="button" id="ai-full-graph-scope" class="ai-scope-option" role="switch" aria-checked="true" aria-label="全上位・中間クラスを参照" title="ONでも全件を計画時に送信せず、必要と判断した場合だけ階層索引を取得します。追加で共有したクラスは参照のみで、変更対象には含みません。"><span class="ai-scope-switch-track" aria-hidden="true"></span><span>全上位・中間クラスを参照</span></button>
                     </div>
                     <div class="ai-chat-composer-submit">
                       <span id="ai-current-model" class="ai-current-model" aria-live="polite">モデルを読み込み中</span>
@@ -268,6 +268,7 @@
           <label class="edit-settings-toggle edit-settings-toggle-card"><input type="checkbox" id="toggle-edit-ids" /> クラスIDを表示する</label>
           <label class="edit-settings-toggle edit-settings-toggle-card"><input type="checkbox" id="toggle-tree-edit-mode" /> クラス編集を有効にする</label>
           <label class="edit-settings-toggle edit-settings-toggle-card"><input type="checkbox" id="toggle-json-export" /> JSON書き出しを有効にする</label>
+          <label class="edit-settings-toggle edit-settings-toggle-card"><input type="checkbox" id="toggle-deselect-changed-classes" /> 変更したクラスの選択を適用後に解除する</label>
         </div>
       </section>
     </dialog>
@@ -498,8 +499,8 @@
       </div>
       </div>
       <nav id="ai-preview-navigation" class="ai-preview-navigation" aria-label="提案の切り替え">
-        <button type="button" id="ai-preview-previous" aria-label="前の提案">‹</button>
-        <button type="button" id="ai-preview-next" aria-label="次の提案">›</button>
+        <button type="button" id="ai-preview-previous" aria-label="前の提案"><svg class="ai-preview-navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6" /></svg></button>
+        <button type="button" id="ai-preview-next" aria-label="次の提案"><svg class="ai-preview-navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>
       </nav>
     </dialog>
     <!-- 外部APIへ送る依頼文と参照クラスを送信前に確認する。 -->

@@ -1029,6 +1029,21 @@ window.classEditorAI = {
   },
   commitCandidate(candidate, historyMetadata = {}) {
     const before = snapshotEditState();
+    const deselectChangedClasses = (() => {
+      try { return window.localStorage.getItem('classEditor.deselectChangedClassesAfterApply') !== 'false'; } catch { return true; }
+    })();
+    const previousClasses = new Map(classes.map((item) => [item.id, item]));
+    const nextClasses = new Map(candidate.classes.map((item) => [item.id, item]));
+    const previousParents = new Map(data.classData.relations.map(({ child, parent }) => [child, parent]));
+    const nextParents = new Map(candidate.relations.map(({ child, parent }) => [child, parent]));
+    const changedIds = new Set([...previousClasses.keys(), ...nextClasses.keys()]);
+    [...changedIds].forEach((id) => {
+      const previous = previousClasses.get(id);
+      const next = nextClasses.get(id);
+      if (!previous || !next || previous.type !== next.type || previous.label !== next.label
+        || previousParents.get(id) !== nextParents.get(id)) return;
+      changedIds.delete(id);
+    });
     classes.splice(0, classes.length, ...candidate.classes.map((item) => ({ ...item })));
     data.classData.relations = candidate.relations.map((item) => ({ ...item, relation: 'subClassOf' }));
     classById.clear(); classes.forEach((item) => classById.set(item.id, item));
@@ -1046,6 +1061,11 @@ window.classEditorAI = {
       const item = classById.get(id);
       if (!item || classKind(item) !== 'top' || isUnclassified(item)) heldTopClasses.delete(id);
       else heldTopClasses.set(id, item);
+    });
+    if (deselectChangedClasses) changedIds.forEach((id) => {
+      heldInstances.delete(id);
+      heldMiddleClasses.delete(id);
+      heldTopClasses.delete(id);
     });
     hasUnsavedChanges = true;
     const historyEntry = recordEditHistory(before, '', 'AI提案の適用', historyMetadata);

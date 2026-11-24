@@ -16,6 +16,23 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
       : [...baseInput];
     let input = composeInput();
     const finalizationText = '処理上限が近づいたため、これ以上データを取得せずに終了してください。取得済みデータだけを使い、未確認範囲は推測しないでください。全対象を確認できていない場合は変更案を作らず、messageに確認済み範囲・未確認範囲・上限のため一部確認になったことを簡潔に記してください。';
+    function collectedDataNote() {
+      const batches = retrievedData.map((entry) => {
+        const count = Array.isArray(entry.result?.data?.items) ? entry.result.data.items.length : null;
+        const label = entry.tool === 'read_selected_class_details' ? '選択クラス詳細'
+          : entry.tool === 'read_hierarchy_index' ? '階層索引'
+            : entry.tool === 'read_direct_children' ? '直下クラス' : entry.tool;
+        return count === null ? null : `${label}${count}件`;
+      }).filter(Boolean);
+      const items = retrievedData.flatMap((entry) => Array.isArray(entry.result?.data?.items) ? entry.result.data.items : []);
+      const examples = [...new Map(items.filter((item) => item?.label).map((item) => [item.id || item.label, item])).values()]
+        .slice(0, 12).map((item) => item.parentLabel
+          ? `「${item.label}」（親: 「${item.parentLabel}」）` : `「${item.label}」`);
+      if (!batches.length && !examples.length) return '停止前に評価結果として確定した内容はありません。';
+      return `停止前に取得済みのデータ: ${batches.join('、') || '件数不明'}。`
+        + (examples.length ? `一部の取得例: ${examples.join('、')}${items.length > examples.length ? '、ほか' : ''}。` : '')
+        + 'このデータは取得済みですが、上限のため未評価の範囲が残る場合があります。';
+    }
 
     async function finishWithAvailableData(finalInput = input) {
       const userFinalInput = [...finalInput, { role: 'user', content: finalizationText }];
@@ -25,7 +42,7 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
       try {
         assertNotAborted();
         responseSlot = await reserveResponseSlot();
-        reservation = budgetGuard.reserveInput(finalRequest);
+        reservation = await (budgetGuard.reserveInputWithApproval || budgetGuard.reserveInput).call(budgetGuard, finalRequest);
         let response;
         try {
           response = await client.request({ apiKey, model, input: userFinalInput, maxOutputTokens, textFormat, signal });
@@ -35,13 +52,19 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
           throw error;
         }
         budgetGuard.countResponse(responseSlot);
-        const usageResult = budgetGuard.reconcileInput(reservation, response.usage?.input_tokens);
+        const usageResult = await (budgetGuard.reconcileInputWithApproval || budgetGuard.reconcileInput).call(
+          budgetGuard, reservation, response.usage?.input_tokens
+        );
         onUsage({ model, usage: response.usage || null });
-        if (usageResult.overBudget) {
-          return { text: JSON.stringify({ message: '入力トークン上限に達しました。追加取得を止め、取得済み情報での最終回答も完了できませんでした。', proposals: [], alternativeGroups: [] }), messages: userFinalInput, usage: response.usage || null, budgetLimited: true, counters: budgetGuard.getCounters() };
-        }
         const finalText = (response.output || []).flatMap((item) => item.content || [])
           .find((item) => item.type === 'output_text')?.text || '';
+        if (usageResult.overBudget) {
+          return {
+            text: finalText || JSON.stringify({ message: `入力トークン上限に達しました。追加取得を止めました。${collectedDataNote()}`, proposals: [], alternativeGroups: [] }),
+            messages: [...userFinalInput, ...(response.output || [])], usage: response.usage || null,
+            budgetLimited: true, counters: budgetGuard.getCounters()
+          };
+        }
         return {
           text: finalText || JSON.stringify({ message: '入力トークン上限に達したため、追加取得を止めました。取得済み情報だけでは最終回答を作成できませんでした。', proposals: [], alternativeGroups: [] }),
           messages: [...userFinalInput, ...(response.output || [])],
@@ -53,7 +76,7 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
         if (responseSlot && !reservation) releaseResponse(responseSlot);
         if (!['INPUT_TOKEN_BUDGET', 'RESPONSE_LIMIT'].includes(error?.code)) throw error;
         return {
-          text: JSON.stringify({ message: '処理上限に達したため追加取得を止めました。取得済み範囲の最終回答も上限内に送信できませんでした。', proposals: [], alternativeGroups: [] }),
+          text: JSON.stringify({ message: `処理上限に達したため追加取得を止めました。取得済み範囲の最終整理は完了できませんでした。${collectedDataNote()}`, proposals: [], alternativeGroups: [] }),
           messages: userFinalInput,
           usage: null,
           budgetLimited: true,
@@ -78,10 +101,13 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
       let responseSlot;
       try {
         responseSlot = await reserveResponseSlot();
-        reservation = budgetGuard.reserveInput(request, { reserveForInput: finalizationRequest });
+        reservation = await (budgetGuard.reserveInputWithApproval || budgetGuard.reserveInput).call(
+          budgetGuard, request, { reserveForInput: finalizationRequest }
+        );
       } catch (error) {
         if (responseSlot) releaseResponse(responseSlot);
         if (error?.code === 'INPUT_TOKEN_FINALIZATION_REQUIRED') return finishWithAvailableData();
+        if (error?.code === 'INPUT_TOKEN_BUDGET') return finishWithAvailableData();
         throw error;
       }
       let response;
@@ -93,13 +119,19 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
         throw error;
       }
       budgetGuard.countResponse(responseSlot);
-      const usageResult = budgetGuard.reconcileInput(reservation, response.usage?.input_tokens);
+      const usageResult = await (budgetGuard.reconcileInputWithApproval || budgetGuard.reconcileInput).call(
+        budgetGuard, reservation, response.usage?.input_tokens
+      );
       onUsage({ model, usage: response.usage || null });
       if (usageResult.overBudget) {
-        const error = new Error('API実績が累積入力トークン上限を超えたため、処理を一時停止しました。');
-        error.code = 'INPUT_TOKEN_BUDGET_ACTUAL';
-        error.status = 'budget_exhausted';
-        throw error;
+        const calls = (response.output || []).filter((item) => item.type === 'function_call');
+        const finalText = (response.output || []).flatMap((item) => item.content || [])
+          .find((item) => item.type === 'output_text')?.text || '';
+        if (!calls.length && finalText) return {
+          text: finalText, messages: [...input, ...(response.output || [])], usage: response.usage || null,
+          budgetLimited: true, counters: budgetGuard.getCounters()
+        };
+        return finishWithAvailableData();
       }
       const calls = (response.output || []).filter((item) => item.type === 'function_call');
       if (!calls.length) {
