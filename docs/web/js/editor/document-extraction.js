@@ -267,15 +267,28 @@ if (headerActions && isExtractorEnabled) {
 
   const countChipHues = { '上位': 211, '中間': 174, '対象': 267, 'インスタンス': 35, '深さ': 126 };
 
-  function applyCategoryColor(element, kind, value) {
+  function applyCategoryColor(element, kind, value, count) {
     if (!value) {
       element.style.removeProperty('color');
-      element.style.removeProperty('background-color');
       return;
     }
     const hue = stableChipHue(kind, value);
-    element.style.color = `hsl(${hue},45%,30%)`;
-    element.style.backgroundColor = `hsl(${hue},75%,96%)`;
+    element.style.color = count === 0 ? '#000' : `hsl(${hue},45%,30%)`;
+    element.style.removeProperty('background-color');
+  }
+
+  function applySelectedCategoryColor(control, kind) {
+    const value = control.value;
+    if (!value) {
+      control.style.removeProperty('color');
+      control.style.removeProperty('background-color');
+      return;
+    }
+    const hue = stableChipHue(kind, value);
+    const selectedOption = control.selectedOptions[0];
+    const count = Number(selectedOption?.dataset.count);
+    control.style.color = count === 0 ? '#000' : `hsl(${hue},45%,30%)`;
+    control.style.backgroundColor = count === 0 ? '#fff' : `hsl(${hue},75%,92%)`;
   }
 
   function assignCategoryHues() {
@@ -721,6 +734,7 @@ if (headerActions && isExtractorEnabled) {
       const label = prefecture ? option.dataset.prefectureName : 'すべて';
       option.dataset.count = String(matchedCount);
       option.textContent = `${label}（${matchedCount.toLocaleString('ja-JP')}件）`;
+      applyCategoryColor(option, 'prefecture', prefecture, matchedCount);
     });
 
     const selectedPrefecture = prefectureControl.value;
@@ -731,6 +745,7 @@ if (headerActions && isExtractorEnabled) {
       const label = type ? option.dataset.typeName : 'すべて';
       option.dataset.count = String(matchedCount);
       option.textContent = `${label}（${matchedCount.toLocaleString('ja-JP')}件）`;
+      applyCategoryColor(option, 'type', type, matchedCount);
     });
 
     const sortOptionsByCount = (control, labelKey) => {
@@ -744,8 +759,8 @@ if (headerActions && isExtractorEnabled) {
     };
     sortOptionsByCount(prefectureControl, 'prefectureName');
     sortOptionsByCount(typeControl, 'typeName');
-    applyCategoryColor(prefectureControl, 'prefecture', prefectureControl.value);
-    applyCategoryColor(typeControl, 'type', typeControl.value);
+    applySelectedCategoryColor(prefectureControl, 'prefecture');
+    applySelectedCategoryColor(typeControl, 'type');
   }
 
   function selectDocument(record) {
