@@ -225,10 +225,13 @@ if (headerActions && isExtractorEnabled) {
       const kind = node.id.match(/\/class\/([tmc])_/u)?.[1];
       const nextPath = [...path, node];
       if (kind === 'c') {
+        const ancestors = nextPath.slice(0, -1);
         return [{
-          '経路': nextPath.slice(0, -1).map((item) => `${shortId(item.id)} ${item.label || item.id}`).join(' > '),
-          'クラス': `${shortId(node.id)} ${node.label || node.id}`,
-          'インスタンス数': node.instances.length,
+          '上位クラス': ancestors.filter((item) => item.id.includes('/class/t_'))
+            .map((item) => `${shortId(item.id)} ${item.label || item.id}`).join(' > '),
+          '中間クラス': ancestors.filter((item) => item.id.includes('/class/m_'))
+            .map((item) => `${shortId(item.id)} ${item.label || item.id}`),
+          '対象クラス': `${shortId(node.id)} ${node.label || node.id}`,
           'インスタンス': node.instances.map(toExportInstance)
         }];
       }
@@ -496,7 +499,7 @@ if (headerActions && isExtractorEnabled) {
     const isDataView = activeView === 'json' || activeView === 'tsv';
     const comparisonRows = selectedTree ? buildComparisonRows(selectedTree.tree) : [];
     const hasMore = activeView === 'json'
-      ? comparisonRows.length > PREVIEW_ITEM_LIMIT || comparisonRows.some((row) => row['インスタンス数'] > PREVIEW_ITEM_LIMIT)
+      ? comparisonRows.length > PREVIEW_ITEM_LIMIT || comparisonRows.some((row) => row['インスタンス'].length > PREVIEW_ITEM_LIMIT)
       : activeView === 'tsv' && selectedTsvRows.length > PREVIEW_ITEM_LIMIT + 1;
     previewNote.hidden = !hasSelection || !isDataView || showAllPreview || !hasMore;
     previewNote.textContent = activeView === 'json'
@@ -514,8 +517,7 @@ if (headerActions && isExtractorEnabled) {
     const allRows = data['対象クラス'];
     data['対象クラス'] = allRows.slice(0, PREVIEW_ITEM_LIMIT).map((row) => ({
       ...row,
-      'インスタンス': row['インスタンス'].slice(0, PREVIEW_ITEM_LIMIT),
-      ...(row['インスタンス数'] > PREVIEW_ITEM_LIMIT ? { '残りインスタンス数': row['インスタンス数'] - PREVIEW_ITEM_LIMIT } : {})
+      'インスタンス': row['インスタンス'].slice(0, PREVIEW_ITEM_LIMIT)
     }));
     if (allRows.length > PREVIEW_ITEM_LIMIT) data['残り対象クラス数'] = allRows.length - PREVIEW_ITEM_LIMIT;
     return `${JSON.stringify(data, null, 2)}\n`;
