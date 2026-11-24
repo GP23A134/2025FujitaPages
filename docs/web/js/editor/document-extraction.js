@@ -22,6 +22,7 @@ style.textContent = `
 .document-extractor-filters { display:grid; grid-template-columns:1fr 1fr; gap:.45rem; }
 .document-extractor-filter { display:grid; min-width:0; gap:.2rem; color:#334155; font-size:.72rem; font-weight:700; }
 .document-extractor-filter select { box-sizing:border-box; width:100%; min-height:2.25rem; padding:.35rem .45rem; border:1px solid #cbd5e1; border-radius:6px; color:#1e293b; background:#fff; font:inherit; font-weight:400; }
+.document-extractor-search { box-sizing:border-box; width:100%; min-height:2.25rem; margin:.45rem 0 0; padding:.4rem .55rem; border:1px solid #cbd5e1; border-radius:6px; color:#1e293b; background:#fff; font:inherit; font-size:.78rem; }
 .document-extractor-distribution { flex:0 0 auto; max-height:10rem; overflow-x:hidden; overflow-y:auto; margin:.45rem 0 0; padding:.5rem .55rem; border:1px solid #dbe3ec; border-radius:7px; background:#fff; }
 .document-extractor-distribution h3 { margin:0 0 .35rem; color:#334155; font-size:.75rem; }
 .document-extractor-distribution-row { display:grid; grid-template-columns:minmax(6rem,auto) minmax(2rem,1fr) 2.8rem; gap:.4rem; align-items:center; margin:.32rem 0; font-size:.68rem; }
@@ -117,6 +118,7 @@ if (headerActions && isExtractorEnabled) {
           <label class="document-extractor-filter">都道府県<select data-filter="prefecture"><option value="">すべて</option></select></label>
           <label class="document-extractor-filter">資料種別<select data-filter="type"><option value="">すべて</option></select></label>
         </div>
+        <input class="document-extractor-search" type="search" placeholder="ファイル名・文書IDを検索" aria-label="ファイル名・文書IDを検索">
         <section class="document-extractor-distribution" aria-label="資料種別の分布">
           <h3>資料種別の分布</h3>
           <div class="document-extractor-distribution-rows"></div>
@@ -151,6 +153,7 @@ if (headerActions && isExtractorEnabled) {
   document.body.append(dialog);
 
   const filterControls = [...dialog.querySelectorAll('[data-filter]')];
+  const searchControl = dialog.querySelector('.document-extractor-search');
   const count = dialog.querySelector('.document-extractor-count');
   const results = dialog.querySelector('.document-extractor-results');
   const distributionRows = dialog.querySelector('.document-extractor-distribution-rows');
@@ -208,7 +211,6 @@ if (headerActions && isExtractorEnabled) {
     return {
       '文書情報': {
         'input_file': record.input_file,
-        'graph': record.documentIRI,
         'output_file': record.output_file,
         '都道府県': record.prefecture,
         '資料種別': record['資料種別']
@@ -560,8 +562,10 @@ if (headerActions && isExtractorEnabled) {
 
   function filteredDocuments() {
     const selected = Object.fromEntries(filterControls.map((control) => [control.dataset.filter, control.value]));
+    const query = searchControl.value.trim().toLocaleLowerCase('ja-JP');
     return documents.filter((record) => (!selected.prefecture || record.prefecture === selected.prefecture)
-      && (!selected.type || record['資料種別'] === selected.type));
+      && (!selected.type || record['資料種別'] === selected.type)
+      && (!query || `${record.input_file || ''} ${shortId(record.documentIRI)}`.toLocaleLowerCase('ja-JP').includes(query)));
   }
 
   function populateFilters() {
@@ -684,9 +688,12 @@ if (headerActions && isExtractorEnabled) {
       button.setAttribute('aria-pressed', String(record === selectedDocument));
       const title = document.createElement('strong');
       title.textContent = record.input_file || record.documentIRI;
+      const documentId = document.createElement('span');
+      documentId.className = 'document-extractor-document-id';
+      documentId.textContent = `ID: ${shortId(record.documentIRI)}`;
       const detail = document.createElement('span');
       detail.textContent = `${record.prefecture} ・ ${record['資料種別']}`;
-      button.append(title, detail);
+      button.append(title, documentId, detail);
       if (graphData) {
         const state = classesForDocument(record, false);
         const counts = document.createElement('span');
@@ -765,6 +772,11 @@ if (headerActions && isExtractorEnabled) {
     resetPreview();
     renderResults();
   }));
+  searchControl.addEventListener('input', () => {
+    page = 0;
+    resetPreview();
+    renderResults();
+  });
   previousPage.addEventListener('click', () => { page -= 1; resetPreview(); renderResults(); });
   nextPage.addEventListener('click', () => { page += 1; resetPreview(); renderResults(); });
   viewButtons.forEach((button) => button.addEventListener('click', () => {
