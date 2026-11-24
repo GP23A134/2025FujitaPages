@@ -27,7 +27,7 @@ style.textContent = `
 .document-extractor-distribution-row { display:grid; grid-template-columns:minmax(6rem,auto) minmax(2rem,1fr) 2.8rem; gap:.4rem; align-items:center; margin:.32rem 0; font-size:.68rem; }
 .document-extractor-distribution-label { overflow-wrap:anywhere; color:#475569; line-height:1.2; }
 .document-extractor-distribution-track { height:.55rem; overflow:hidden; border-radius:999px; background:#e2e8f0; }
-.document-extractor-distribution-bar { height:100%; border-radius:inherit; background:#0284c7; }
+.document-extractor-distribution-bar { display:block; height:100%; border-radius:inherit; background:#0284c7; }
 .document-extractor-distribution-value { color:#334155; text-align:right; font-variant-numeric:tabular-nums; }
 .document-extractor-count { flex:0 0 auto; margin:.55rem 0; color:#64748b; font-size:.76rem; }
 .document-extractor-results { display:flex; min-height:0; flex:1 1 auto; flex-direction:column; gap:.35rem; overflow-y:auto; }
@@ -73,9 +73,9 @@ style.textContent = `
 .document-extractor-tree .level-middle > summary::before { color:#167a83; }
 .document-extractor-tree .level-target > summary::before { color:#315dc5; }
 .document-extractor-tree-counts { color:#64748b; font-size:.72rem; }
-.document-extractor-tree-instance { display:flex; flex-wrap:wrap; gap:.25rem .4rem; margin:.35rem 0 0 .55rem; padding:.35rem .45rem; border-left:2px dotted #b9c3ce; color:#596779; background:#fafbfc; font-size:.73rem; }
+.document-extractor-tree-instance { display:flex; flex-wrap:wrap; align-items:baseline; gap:.25rem .4rem; margin:.35rem 0 0 .55rem; padding:.35rem .45rem; border-left:2px dotted #b9c3ce; color:#596779; background:#fafbfc; font-size:.73rem; }
 .document-extractor-tree-instance-name { overflow-wrap:anywhere; }
-.document-extractor-tree-instance-id { color:#8492a1; font: .63rem ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+.document-extractor-tree-instance-id { color:#64748b; font: .73rem ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
 .document-extractor-result-counts { color:#075985 !important; }
 .document-extractor-json { min-height:0; flex:1 1 auto; overflow:auto; margin:0; padding:.75rem; border:1px solid #dbe3ec; border-radius:7px; color:#0f172a; background:#fff; font: .76rem/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; white-space:pre; }
 .document-extractor-tsv-preview { min-height:0; flex:1 1 auto; overflow:auto; border:1px solid #dbe3ec; border-radius:7px; background:#fff; }
