@@ -34,8 +34,9 @@ style.textContent = `
 .document-extractor-result span { margin-top:.12rem; color:#64748b; font-size:.68rem; }
 .document-extractor-result-meta,.document-extractor-result-counts { display:flex; flex-wrap:wrap; gap:.25rem; margin-top:.25rem; }
 .document-extractor-result-chip { display:inline-flex !important; align-items:center; margin:0 !important; padding:.08rem .38rem; border:1px solid #cbd5e1; border-radius:999px; color:#475569 !important; background:#f8fafc; font-size:.66rem !important; font-weight:500; line-height:1.35; }
-.document-extractor-result-chip-colored { border-color:hsl(var(--chip-hue),55%,80%); color:hsl(var(--chip-hue),45%,30%) !important; background:hsl(var(--chip-hue),75%,96%); }
+.document-extractor-result-chip-colored { border-color:hsl(var(--chip-hue),55%,72%); color:hsl(var(--chip-hue),65%,25%) !important; background:hsl(var(--chip-hue),75%,92%); }
 .document-extractor-result-chip-attention { border-color:#fdba74; color:#9a3412 !important; background:#fff7ed; }
+.document-extractor-result-chip-zero { border-color:#cbd5e1; color:#64748b !important; background:#fff; }
 .document-extractor-pages { display:flex; flex:0 0 auto; align-items:center; justify-content:space-between; gap:.4rem; padding-top:.55rem; }
 .document-extractor-pages button,.document-extractor-download { min-height:2.2rem; padding:.35rem .7rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; cursor:pointer; font:inherit; font-size:.8rem; }
 .document-extractor-pages button:disabled,.document-extractor-download:disabled { color:#94a3b8; background:#f1f5f9; cursor:not-allowed; }
@@ -240,8 +241,41 @@ if (headerActions && isExtractorEnabled) {
     return String(id || '').split(/[/?#]/u).filter(Boolean).at(-1) || '';
   }
 
+  function renderSearchHighlight(element, text) {
+    const value = String(text ?? '');
+    const query = searchControl.value.trim();
+    if (!query) { element.textContent = value; return; }
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    const expression = new RegExp(escaped, 'giu');
+    let cursor = 0;
+    let match;
+    element.replaceChildren();
+    while ((match = expression.exec(value)) !== null) {
+      element.append(document.createTextNode(value.slice(cursor, match.index)));
+      const mark = document.createElement('mark');
+      mark.className = 'document-extractor-search-match';
+      mark.textContent = match[0];
+      element.append(mark);
+      cursor = match.index + match[0].length;
+    }
+    element.append(document.createTextNode(value.slice(cursor)));
+  }
+
   function stableChipHue(kind, value) {
     return categoryHueMaps[kind].get(value) ?? 0;
+  }
+
+  const countChipHues = { '上位': 211, '中間': 174, '対象': 267, 'インスタンス': 35, '深さ': 126 };
+
+  function applyCategoryColor(element, kind, value) {
+    if (!value) {
+      element.style.removeProperty('color');
+      element.style.removeProperty('background-color');
+      return;
+    }
+    const hue = stableChipHue(kind, value);
+    element.style.color = `hsl(${hue},45%,30%)`;
+    element.style.backgroundColor = `hsl(${hue},75%,96%)`;
   }
 
   function assignCategoryHues() {
@@ -661,6 +695,7 @@ if (headerActions && isExtractorEnabled) {
         option.value = value;
         option.dataset.prefectureName = value;
         option.textContent = value;
+        applyCategoryColor(option, 'prefecture', value);
         prefectureControl.append(option);
       });
     const typeControl = filterControls.find((control) => control.dataset.filter === 'type');
@@ -669,6 +704,7 @@ if (headerActions && isExtractorEnabled) {
       const option = document.createElement('option');
       option.value = type;
       option.dataset.typeName = type;
+      applyCategoryColor(option, 'type', type);
       typeControl.append(option);
     });
     updateFilterOptionCounts();
@@ -708,6 +744,8 @@ if (headerActions && isExtractorEnabled) {
     };
     sortOptionsByCount(prefectureControl, 'prefectureName');
     sortOptionsByCount(typeControl, 'typeName');
+    applyCategoryColor(prefectureControl, 'prefecture', prefectureControl.value);
+    applyCategoryColor(typeControl, 'type', typeControl.value);
   }
 
   function selectDocument(record) {
@@ -759,7 +797,7 @@ if (headerActions && isExtractorEnabled) {
       button.setAttribute('aria-selected', String(record === selectedDocument));
       button.setAttribute('aria-pressed', String(record === selectedDocument));
       const title = document.createElement('strong');
-      title.textContent = record.input_file || record.documentIRI;
+      renderSearchHighlight(title, record.input_file || record.documentIRI);
       const meta = document.createElement('div');
       meta.className = 'document-extractor-result-meta';
       [
@@ -769,7 +807,7 @@ if (headerActions && isExtractorEnabled) {
       ].filter((item) => item.value).forEach((item) => {
         const chip = document.createElement('span');
         chip.className = 'document-extractor-result-chip';
-        chip.textContent = item.value;
+        renderSearchHighlight(chip, item.value);
         if (item.kind) {
           chip.classList.add('document-extractor-result-chip-colored');
           chip.style.setProperty('--chip-hue', stableChipHue(item.kind, item.value));
@@ -790,7 +828,15 @@ if (headerActions && isExtractorEnabled) {
           ['未分類', state.counts.unclassified]
         ].forEach(([label, value]) => {
           const chip = document.createElement('span');
-          chip.className = `document-extractor-result-chip${label === '未分類' && value > 0 ? ' document-extractor-result-chip-attention' : ''}`;
+          chip.className = 'document-extractor-result-chip';
+          if (value === 0) {
+            chip.classList.add('document-extractor-result-chip-zero');
+          } else if (countChipHues[label] !== undefined) {
+            chip.classList.add('document-extractor-result-chip-colored');
+            chip.style.setProperty('--chip-hue', countChipHues[label]);
+          } else if (label === '未分類' && value > 0) {
+            chip.classList.add('document-extractor-result-chip-attention');
+          }
           chip.textContent = `${label} ${value}`;
           counts.append(chip);
         });
