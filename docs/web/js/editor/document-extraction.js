@@ -21,7 +21,8 @@ style.textContent = `
 .document-extractor-browser { padding:.75rem; }
 .document-extractor-filters { display:grid; grid-template-columns:1fr 1fr; gap:.45rem; }
 .document-extractor-filter { display:grid; min-width:0; gap:.2rem; color:#334155; font-size:.72rem; font-weight:700; }
-.document-extractor-filter select { box-sizing:border-box; width:100%; min-height:2.25rem; padding:.35rem .45rem; border:1px solid #cbd5e1; border-radius:6px; color:#1e293b; background:#fff; font:inherit; font-weight:400; }
+.document-extractor-filter select { box-sizing:border-box; width:100%; min-height:2.25rem; padding:.35rem .45rem; border:1px solid #cbd5e1; border-radius:6px; color:#1e293b; background:#fff !important; font:inherit; font-weight:700; }
+.document-extractor-filter select option { background:#fff !important; }
 .document-extractor-search-row { display:flex; gap:.4rem; margin:.45rem 0 0; }
 .document-extractor-search { box-sizing:border-box; width:100%; min-width:0; min-height:2.25rem; padding:.4rem .55rem; border:1px solid #cbd5e1; border-radius:6px; color:#1e293b; background:#fff; font:inherit; font-size:.78rem; }
 .document-extractor-sort-criterion { box-sizing:border-box; flex:0 1 8.5rem; min-width:0; min-height:2.25rem; padding:.3rem .4rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; font:inherit; font-size:.7rem; }
@@ -270,25 +271,26 @@ if (headerActions && isExtractorEnabled) {
   function applyCategoryColor(element, kind, value, count) {
     if (!value) {
       element.style.removeProperty('color');
+      element.style.setProperty('background-color', '#fff', 'important');
       return;
     }
     const hue = stableChipHue(kind, value);
     element.style.color = count === 0 ? '#000' : `hsl(${hue},45%,30%)`;
-    element.style.removeProperty('background-color');
+    element.style.setProperty('background-color', '#fff', 'important');
   }
 
   function applySelectedCategoryColor(control, kind) {
     const value = control.value;
     if (!value) {
       control.style.removeProperty('color');
-      control.style.removeProperty('background-color');
+      control.style.setProperty('background-color', '#fff', 'important');
       return;
     }
     const hue = stableChipHue(kind, value);
     const selectedOption = control.selectedOptions[0];
     const count = Number(selectedOption?.dataset.count);
     control.style.color = count === 0 ? '#000' : `hsl(${hue},45%,30%)`;
-    control.style.removeProperty('background-color');
+    control.style.setProperty('background-color', '#fff', 'important');
   }
 
   function assignCategoryHues() {
