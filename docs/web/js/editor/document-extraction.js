@@ -209,24 +209,37 @@ if (headerActions && isExtractorEnabled) {
         '対象クラス': state.counts.target,
         'インスタンス': state.counts.instance
       },
-      'クラス構成': state.tree.map(toExportClassNode)
+      '対象クラス別': buildComparisonRows(state.tree)
     };
   }
 
-  function toExportClassNode(node) {
+  function toExportClassRef(node) {
     const kind = node.id.match(/\/class\/([tmc])_/u)?.[1];
-    const result = {
+    return {
       '階層': { t: '上位クラス', m: '中間クラス', c: '対象クラス' }[kind] || 'クラス',
-      '名称': node.label || node.id,
-      'ID': node.id
+      'ID': node.id,
+      '名称': node.label || node.id
     };
-    if (node.children.length) result['下位クラス'] = node.children.map(toExportClassNode);
-    if (kind === 'c') result['インスタンス'] = node.instances.map(toExportInstance);
-    return result;
+  }
+
+  function buildComparisonRows(nodes, path = []) {
+    return nodes.flatMap((node) => {
+      const kind = node.id.match(/\/class\/([tmc])_/u)?.[1];
+      const nextPath = [...path, node];
+      if (kind === 'c') {
+        return [{
+          'クラス経路': nextPath.slice(0, -1).map(toExportClassRef),
+          '対象クラス': toExportClassRef(node),
+          'インスタンス数': node.instances.length,
+          'インスタンス': node.instances.map(toExportInstance)
+        }];
+      }
+      return buildComparisonRows(node.children, nextPath);
+    });
   }
 
   function toExportInstance(instance) {
-    return { '名称': instance.label || '', 'ID': instance.id };
+    return { 'ID': instance.id, '名称': instance.label || '' };
   }
 
   function serializeGraphRecord(record, state) {
@@ -234,26 +247,31 @@ if (headerActions && isExtractorEnabled) {
   }
 
   function buildGraphTsvRows(state) {
-    const headers = ['上位クラスID', '上位クラス名', '中間クラスID', '中間クラス名', '対象クラスID', '対象クラス名', 'インスタンスID', 'インスタンス名'];
-    const rows = [];
+    const targetRows = [];
     const appendTargetRows = (nodes, path = []) => nodes.forEach((node) => {
       const nextPath = [...path, node];
       if (node.id.includes('/class/c_')) {
         const matchingInstances = state.instances.filter((instance) => instance.classIds.includes(node.id));
-        (matchingInstances.length ? matchingInstances : [null]).forEach((instance) => rows.push([
-          nextPath.find((item) => item.id.includes('/class/t_'))?.id || '',
-          nextPath.find((item) => item.id.includes('/class/t_'))?.label || '',
-          nextPath.find((item) => item.id.includes('/class/m_'))?.id || '',
-          nextPath.find((item) => item.id.includes('/class/m_'))?.label || '',
-          node.id,
-          node.label || '',
-          instance?.id || '',
-          instance?.label || ''
-        ]));
+        targetRows.push({ path: nextPath, instances: matchingInstances.length ? matchingInstances : [null] });
       }
       appendTargetRows(node.children, nextPath);
     });
     appendTargetRows(state.tree);
+    const middleDepth = Math.max(1, ...targetRows.map(({ path }) => path.filter((item) => item.id.includes('/class/m_')).length));
+    const headers = ['上位クラスID', '上位クラス名'];
+    for (let level = 1; level <= middleDepth; level += 1) headers.push(`中間クラス${level}ID`, `中間クラス${level}名`);
+    headers.push('対象クラスID', '対象クラス名', 'インスタンスID', 'インスタンス名');
+    const rows = targetRows.flatMap(({ path, instances }) => instances.map((instance) => {
+      const upper = path.find((item) => item.id.includes('/class/t_'));
+      const middles = path.filter((item) => item.id.includes('/class/m_'));
+      const row = [upper?.id || '', upper?.label || ''];
+      for (let level = 0; level < middleDepth; level += 1) {
+        row.push(middles[level]?.id || '', middles[level]?.label || '');
+      }
+      const target = path.at(-1);
+      row.push(target.id, target.label || '', instance?.id || '', instance?.label || '');
+      return row;
+    }));
     return [headers, ...rows];
   }
 
@@ -375,7 +393,7 @@ if (headerActions && isExtractorEnabled) {
         const kind = node.id.match(/\/class\/([tmc])_/u)?.[1];
         const kindName = { t: 'top', m: 'middle', c: 'target' }[kind] || 'target';
         details.className = `level-${kindName}`;
-        details.open = kind === 't';
+        details.open = true;
         const summaryNode = document.createElement('summary');
         const label = document.createElement('span');
         label.className = 'document-extractor-tree-card-title';
@@ -432,12 +450,13 @@ if (headerActions && isExtractorEnabled) {
     viewButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.view === activeView)));
     dialog.querySelector('.document-extractor-preview-title').textContent = activeView === 'json' ? 'JSONプレビュー' : activeView === 'tsv' ? 'TSVプレビュー' : '文書ツリー';
     const isDataView = activeView === 'json' || activeView === 'tsv';
+    const comparisonRows = selectedTree ? buildComparisonRows(selectedTree.tree) : [];
     const hasMore = activeView === 'json'
-      ? Boolean(selectedTree && selectedTree.tree.some(hasMoreClassNodes))
+      ? comparisonRows.length > PREVIEW_ITEM_LIMIT || comparisonRows.some((row) => row['インスタンス数'] > PREVIEW_ITEM_LIMIT)
       : activeView === 'tsv' && selectedTsvRows.length > PREVIEW_ITEM_LIMIT + 1;
     previewNote.hidden = !hasSelection || !isDataView || showAllPreview || !hasMore;
     previewNote.textContent = activeView === 'json'
-      ? `一部表示：各階層・クラス内のインスタンスは先頭${PREVIEW_ITEM_LIMIT}件です。保存ファイルには全件含まれます。`
+      ? `一部表示：対象クラスと各クラスのインスタンスを先頭${PREVIEW_ITEM_LIMIT}件表示しています。保存ファイルには全件含まれます。`
       : `一部表示：先頭${PREVIEW_ITEM_LIMIT}行です。保存ファイルには全行含まれます。`;
     previewExpand.hidden = !hasSelection || !isDataView || !hasMore;
     previewExpand.textContent = showAllPreview ? '一部表示に戻す' : 'すべて表示';
@@ -445,29 +464,16 @@ if (headerActions && isExtractorEnabled) {
     if (activeView === 'tsv') renderTsvPreview();
   }
 
-  function hasMoreClassNodes(node) {
-    return node.children.length > PREVIEW_ITEM_LIMIT || node.instances.length > PREVIEW_ITEM_LIMIT || node.children.some(hasMoreClassNodes);
-  }
-
-  function limitClassNodes(nodes) {
-    return nodes.slice(0, PREVIEW_ITEM_LIMIT).map((node) => {
-      const limited = { ...node };
-      if (node['下位クラス']) {
-        limited['下位クラス'] = limitClassNodes(node['下位クラス']);
-        if (node['下位クラス'].length > PREVIEW_ITEM_LIMIT) limited['残り下位クラス'] = node['下位クラス'].length - PREVIEW_ITEM_LIMIT;
-      }
-      if (node['インスタンス']) {
-        limited['インスタンス'] = node['インスタンス'].slice(0, PREVIEW_ITEM_LIMIT);
-        if (node['インスタンス'].length > PREVIEW_ITEM_LIMIT) limited['残りインスタンス'] = node['インスタンス'].length - PREVIEW_ITEM_LIMIT;
-      }
-      return limited;
-    });
-  }
-
   function renderJsonPreview() {
     if (showAllPreview || !selectedJson || !selectedTree) return selectedJson;
     const data = JSON.parse(selectedJson);
-    data['クラス構成'] = limitClassNodes(data['クラス構成']);
+    const allRows = data['対象クラス別'];
+    data['対象クラス別'] = allRows.slice(0, PREVIEW_ITEM_LIMIT).map((row) => ({
+      ...row,
+      'インスタンス': row['インスタンス'].slice(0, PREVIEW_ITEM_LIMIT),
+      ...(row['インスタンス数'] > PREVIEW_ITEM_LIMIT ? { '残りインスタンス数': row['インスタンス数'] - PREVIEW_ITEM_LIMIT } : {})
+    }));
+    if (allRows.length > PREVIEW_ITEM_LIMIT) data['残り対象クラス数'] = allRows.length - PREVIEW_ITEM_LIMIT;
     return `${JSON.stringify(data, null, 2)}\n`;
   }
 
@@ -490,9 +496,13 @@ if (headerActions && isExtractorEnabled) {
     const tbody = document.createElement('tbody');
     visibleRows.forEach((row) => {
       const tableRow = document.createElement('tr');
-      row.forEach((value) => {
+      row.forEach((value, columnIndex) => {
         const cell = document.createElement('td');
-        cell.textContent = value;
+        const isId = headers[columnIndex]?.endsWith('ID') && /^https?:\/\//u.test(value);
+        if (isId) {
+          cell.textContent = value.split(/[/?#]/u).filter(Boolean).at(-1) || value;
+          cell.title = value;
+        } else cell.textContent = value;
         tableRow.append(cell);
       });
       tbody.append(tableRow);
