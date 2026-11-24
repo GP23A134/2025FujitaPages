@@ -49,15 +49,18 @@ style.textContent = `
 .document-extractor-dialog [hidden] { display:none !important; }
 .document-extractor-card-tree { display:grid; align-content:start; gap:.55rem; }
 .document-extractor-tree-document { padding:.55rem .7rem; border:1px solid #d8e2ea; border-radius:8px; color:#334155; background:#f8fafc; font-weight:700; overflow-wrap:anywhere; }
+.document-extractor-tree-search { box-sizing:border-box; width:100%; min-height:2.1rem; padding:.4rem .55rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; font:inherit; font-size:.78rem; }
+.document-extractor-tree-search::placeholder { color:#94a3b8; }
+.document-extractor-search-match { border-radius:2px; color:#713f12; background:#fef08a; font-weight:700; }
 .document-extractor-tree-group { display:grid; gap:.45rem; min-width:0; }
 .document-extractor-tree details { min-width:0; border-radius:9px; }
 .document-extractor-tree details > summary { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; min-width:0; cursor:pointer; list-style:none; }
 .document-extractor-tree details > summary::-webkit-details-marker { display:none; }
 .document-extractor-tree details > summary::before { display:inline-grid; flex:0 0 1rem; width:1rem; height:1rem; place-items:center; color:#617184; content:'＋'; }
 .document-extractor-tree details[open] > summary::before { content:'−'; }
-.document-extractor-tree .level-top { padding:.55rem; border:1px solid #cfe0eb; background:#eff8fc; }
-.document-extractor-tree .level-middle { margin:.45rem 0 0 .75rem; padding:.48rem; border-left:3px solid #62b8b0; background:#f1fbf9; }
-.document-extractor-tree .level-target { margin:.35rem 0 0 .6rem; padding:.42rem; border-left:3px solid #85a4ef; background:#fff; }
+.document-extractor-tree .level-top { padding:.55rem; border:1px solid #cfe0eb; border-left:4px solid #145b83; background:#fff; }
+.document-extractor-tree .level-middle { margin:.45rem 0 0 .75rem; padding:.48rem; border:1px solid #d3e5e1; border-left:3px solid #167a83; background:#fff; }
+.document-extractor-tree .level-target { margin:.35rem 0 0 .6rem; padding:.42rem; border:1px solid #d5dff6; border-left:3px solid #7895e5; background:#fff; }
 .document-extractor-tree-card-title { display:flex; flex:1 1 12rem; min-width:0; align-items:center; flex-wrap:wrap; gap:.35rem; font-size:.8rem; font-weight:700; }
 .document-extractor-tree-card-count { flex:0 0 auto; color:#718095; font-size:.68rem; font-weight:500; }
 .document-extractor-tree-card-id { flex:0 1 auto; color:#718095; font: .64rem ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
@@ -127,11 +130,11 @@ if (headerActions && isExtractorEnabled) {
         </div>
       </section>
       <section class="document-extractor-preview" aria-label="選択した文書のデータ">
-        <h3 class="document-extractor-preview-title">JSONプレビュー</h3>
+        <h3 class="document-extractor-preview-title">文書ツリー</h3>
         <div class="document-extractor-view-switch" role="group" aria-label="表示形式">
-          <button type="button" data-view="json" aria-pressed="true">JSON</button>
+          <button type="button" data-view="tree" aria-pressed="true">ツリー</button>
+          <button type="button" data-view="json" aria-pressed="false">JSON</button>
           <button type="button" data-view="tsv" aria-pressed="false">TSV</button>
-          <button type="button" data-view="tree" aria-pressed="false">ツリー</button>
         </div>
         <div class="document-extractor-empty">左の一覧から文書を選択してください。</div>
         <pre class="document-extractor-json" hidden></pre>
@@ -170,7 +173,7 @@ if (headerActions && isExtractorEnabled) {
   let selectedTree = null;
   let graphData = null;
   let graphLoading = false;
-  let activeView = 'json';
+  let activeView = 'tree';
   let showAllPreview = false;
   let page = 0;
   let loaded = false;
@@ -375,16 +378,39 @@ if (headerActions && isExtractorEnabled) {
 
   function renderDocumentTree(data) {
     treePreview.replaceChildren();
-    const summary = document.createElement('p');
-    summary.className = 'document-extractor-tree-counts';
-    summary.textContent = `上位クラス ${data.counts.upper}件 ・ 中間クラス ${data.counts.middle}件 ・ 対象クラス ${data.counts.target}件 ・ インスタンス ${data.counts.instance}件 ・ 未分類 ${data.counts.unclassified}件`;
-    treePreview.append(summary);
     const cardTree = document.createElement('div');
     cardTree.className = 'document-extractor-card-tree';
     const documentTitle = document.createElement('div');
     documentTitle.className = 'document-extractor-tree-document';
     documentTitle.textContent = selectedDocument.input_file || selectedDocument.documentIRI;
     cardTree.append(documentTitle);
+    const search = document.createElement('input');
+    search.type = 'search';
+    search.className = 'document-extractor-tree-search';
+    search.placeholder = 'クラス名・ID・インスタンスを検索';
+    search.setAttribute('aria-label', 'ツリー内を検索');
+    const classContainer = document.createElement('div');
+    classContainer.className = 'document-extractor-tree-results';
+    cardTree.append(search, classContainer);
+    const setHighlightedText = (element, text) => {
+      const value = String(text ?? '');
+      const query = search.value.trim();
+      if (!query) { element.textContent = value; return; }
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+      const expression = new RegExp(escaped, 'giu');
+      let cursor = 0;
+      let match;
+      element.replaceChildren();
+      while ((match = expression.exec(value)) !== null) {
+        element.append(document.createTextNode(value.slice(cursor, match.index)));
+        const mark = document.createElement('mark');
+        mark.className = 'document-extractor-search-match';
+        mark.textContent = match[0];
+        element.append(mark);
+        cursor = match.index + match[0].length;
+      }
+      element.append(document.createTextNode(value.slice(cursor)));
+    };
     const renderClassNodes = (nodes) => {
       const group = document.createElement('div');
       group.className = 'document-extractor-tree-group';
@@ -397,7 +423,7 @@ if (headerActions && isExtractorEnabled) {
         const summaryNode = document.createElement('summary');
         const label = document.createElement('span');
         label.className = 'document-extractor-tree-card-title';
-        label.textContent = node.label || node.id;
+        setHighlightedText(label, node.label || node.id);
         const kindLabel = { t: '上位クラス', m: '中間クラス', c: '対象クラス' }[kind] || 'クラス';
         label.setAttribute('aria-label', `${kindLabel}: ${node.label || node.id}`);
         const count = document.createElement('span');
@@ -405,7 +431,7 @@ if (headerActions && isExtractorEnabled) {
         count.textContent = node.children.length ? `下位 ${node.children.length}件` : `${node.instances.length}件`;
         const classId = document.createElement('code');
         classId.className = 'document-extractor-tree-card-id';
-        classId.textContent = node.id.split('/').pop();
+        setHighlightedText(classId, node.id.split('/').pop());
         classId.title = node.id;
         summaryNode.append(classId, label, count);
         details.append(summaryNode);
@@ -418,10 +444,10 @@ if (headerActions && isExtractorEnabled) {
             instanceRow.className = 'document-extractor-tree-instance';
             const instanceName = document.createElement('span');
             instanceName.className = 'document-extractor-tree-instance-name';
-            instanceName.textContent = instance.label || instance.id;
+            setHighlightedText(instanceName, instance.label || instance.id);
             const instanceId = document.createElement('code');
             instanceId.className = 'document-extractor-tree-instance-id';
-            instanceId.textContent = instance.id.split('/').pop();
+            setHighlightedText(instanceId, instance.id.split('/').pop());
             instanceId.title = instance.id;
             instanceRow.append(instanceId, instanceName);
             nested.append(instanceRow);
@@ -432,7 +458,30 @@ if (headerActions && isExtractorEnabled) {
       });
       return group;
     };
-    cardTree.append(renderClassNodes(data.tree));
+    const filterTree = (nodes, query) => {
+      if (!query) return nodes;
+      const needle = query.toLocaleLowerCase('ja-JP');
+      return nodes.flatMap((node) => {
+        const matchesNode = `${node.label || ''} ${node.id}`.toLocaleLowerCase('ja-JP').includes(needle);
+        if (matchesNode) return [node];
+        const children = filterTree(node.children, query);
+        const instances = node.instances.filter((instance) => `${instance.label || ''} ${instance.id}`.toLocaleLowerCase('ja-JP').includes(needle));
+        return children.length || instances.length ? [{ ...node, children, instances }] : [];
+      });
+    };
+    const renderFilteredTree = () => {
+      const filtered = filterTree(data.tree, search.value.trim());
+      classContainer.replaceChildren();
+      if (filtered.length) classContainer.append(renderClassNodes(filtered));
+      else if (data.available && data.instances.length) {
+        const noMatches = document.createElement('p');
+        noMatches.className = 'document-extractor-tree-counts';
+        noMatches.textContent = '一致するクラス・インスタンスはありません。';
+        classContainer.append(noMatches);
+      }
+    };
+    search.addEventListener('input', renderFilteredTree);
+    renderFilteredTree();
     if (!data.available || !data.instances.length) {
       const message = document.createElement('p');
       message.className = 'document-extractor-tree-counts';
