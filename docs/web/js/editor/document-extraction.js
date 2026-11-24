@@ -32,11 +32,12 @@ style.textContent = `
 .document-extractor-distribution-value { color:#334155; text-align:right; font-variant-numeric:tabular-nums; }
 .document-extractor-count { flex:0 0 auto; margin:.55rem 0; color:#64748b; font-size:.76rem; }
 .document-extractor-results { display:flex; min-height:0; flex:1 1 auto; flex-direction:column; gap:.35rem; overflow-y:auto; }
-.document-extractor-result { display:block; width:100%; padding:.55rem .6rem; border:1px solid #dbe3ec; border-radius:7px; color:#1e293b; background:#fff; text-align:left; cursor:pointer; }
+.document-extractor-result { display:block; width:100%; padding:.38rem .5rem; border:1px solid #dbe3ec; border-radius:7px; color:#1e293b; background:#fff; text-align:left; cursor:pointer; }
 .document-extractor-result:hover,.document-extractor-result[aria-pressed="true"] { border-color:#0284c7; background:#e0f2fe; }
 .document-extractor-result strong,.document-extractor-result span { display:block; overflow-wrap:anywhere; }
 .document-extractor-result strong { font-size:.8rem; }
-.document-extractor-result span { margin-top:.2rem; color:#64748b; font-size:.7rem; }
+.document-extractor-result span { margin-top:.12rem; color:#64748b; font-size:.68rem; }
+.document-extractor-result-meta { color:#64748b; font-size:.68rem; line-height:1.25; }
 .document-extractor-pages { display:flex; flex:0 0 auto; align-items:center; justify-content:space-between; gap:.4rem; padding-top:.55rem; }
 .document-extractor-pages button,.document-extractor-download { min-height:2.2rem; padding:.35rem .7rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; cursor:pointer; font:inherit; font-size:.8rem; }
 .document-extractor-pages button:disabled,.document-extractor-download:disabled { color:#94a3b8; background:#f1f5f9; cursor:not-allowed; }
@@ -215,7 +216,7 @@ if (headerActions && isExtractorEnabled) {
         '都道府県': record.prefecture,
         '資料種別': record['資料種別']
       },
-      '対象クラス': buildComparisonRows(state.tree)
+      'クラス一覧': buildComparisonRows(state.tree)
     };
   }
 
@@ -229,12 +230,12 @@ if (headerActions && isExtractorEnabled) {
       const nextPath = [...path, node];
       if (kind === 'c') {
         const ancestors = nextPath.slice(0, -1);
+        const upper = ancestors.find((item) => item.id.includes('/class/t_'));
         return [{
-          '上位クラス': ancestors.filter((item) => item.id.includes('/class/t_'))
-            .map((item) => `${shortId(item.id)} ${item.label || item.id}`).join(' > '),
+          '上位クラス': upper ? toExportClass(upper) : null,
           '中間クラス': ancestors.filter((item) => item.id.includes('/class/m_'))
-            .map((item) => `${shortId(item.id)} ${item.label || item.id}`),
-          '対象クラス': `${shortId(node.id)} ${node.label || node.id}`,
+            .map(toExportClass),
+          'クラス': toExportClass(node),
           'インスタンス': node.instances.map(toExportInstance)
         }];
       }
@@ -242,8 +243,12 @@ if (headerActions && isExtractorEnabled) {
     });
   }
 
+  function toExportClass(item) {
+    return { 'ID': shortId(item.id), 'label': item.label || item.id };
+  }
+
   function toExportInstance(instance) {
-    return `${shortId(instance.id)} ${instance.label || ''}`;
+    return { 'ID': shortId(instance.id), 'label': instance.label || '' };
   }
 
   function serializeGraphRecord(record, state) {
@@ -506,7 +511,7 @@ if (headerActions && isExtractorEnabled) {
       : activeView === 'tsv' && selectedTsvRows.length > PREVIEW_ITEM_LIMIT + 1;
     previewNote.hidden = !hasSelection || !isDataView || showAllPreview || !hasMore;
     previewNote.textContent = activeView === 'json'
-      ? `一部表示：対象クラスと各クラスのインスタンスを先頭${PREVIEW_ITEM_LIMIT}件表示しています。保存ファイルには全件含まれます。`
+      ? `一部表示：クラス一覧と各クラスのインスタンスを先頭${PREVIEW_ITEM_LIMIT}件表示しています。保存ファイルには全件含まれます。`
       : `一部表示：先頭${PREVIEW_ITEM_LIMIT}行です。保存ファイルには全行含まれます。`;
     previewExpand.hidden = !hasSelection || !isDataView || !hasMore;
     previewExpand.textContent = showAllPreview ? '一部表示に戻す' : 'すべて表示';
@@ -517,12 +522,12 @@ if (headerActions && isExtractorEnabled) {
   function renderJsonPreview() {
     if (showAllPreview || !selectedJson || !selectedTree) return selectedJson;
     const data = JSON.parse(selectedJson);
-    const allRows = data['対象クラス'];
-    data['対象クラス'] = allRows.slice(0, PREVIEW_ITEM_LIMIT).map((row) => ({
+    const allRows = data['クラス一覧'];
+    data['クラス一覧'] = allRows.slice(0, PREVIEW_ITEM_LIMIT).map((row) => ({
       ...row,
       'インスタンス': row['インスタンス'].slice(0, PREVIEW_ITEM_LIMIT)
     }));
-    if (allRows.length > PREVIEW_ITEM_LIMIT) data['残り対象クラス数'] = allRows.length - PREVIEW_ITEM_LIMIT;
+    if (allRows.length > PREVIEW_ITEM_LIMIT) data['残りクラス数'] = allRows.length - PREVIEW_ITEM_LIMIT;
     return `${JSON.stringify(data, null, 2)}\n`;
   }
 
@@ -688,12 +693,10 @@ if (headerActions && isExtractorEnabled) {
       button.setAttribute('aria-pressed', String(record === selectedDocument));
       const title = document.createElement('strong');
       title.textContent = record.input_file || record.documentIRI;
-      const documentId = document.createElement('span');
-      documentId.className = 'document-extractor-document-id';
-      documentId.textContent = `ID: ${shortId(record.documentIRI)}`;
-      const detail = document.createElement('span');
-      detail.textContent = `${record.prefecture} ・ ${record['資料種別']}`;
-      button.append(title, documentId, detail);
+      const meta = document.createElement('div');
+      meta.className = 'document-extractor-result-meta';
+      meta.textContent = `ID: ${shortId(record.documentIRI)} ・ ${record.prefecture} ・ ${record['資料種別']}`;
+      button.append(title, meta);
       if (graphData) {
         const state = classesForDocument(record, false);
         const counts = document.createElement('span');
