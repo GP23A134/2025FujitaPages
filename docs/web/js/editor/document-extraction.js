@@ -288,7 +288,7 @@ if (headerActions && isExtractorEnabled) {
     const selectedOption = control.selectedOptions[0];
     const count = Number(selectedOption?.dataset.count);
     control.style.color = count === 0 ? '#000' : `hsl(${hue},45%,30%)`;
-    control.style.backgroundColor = count === 0 ? '#fff' : `hsl(${hue},75%,92%)`;
+    control.style.removeProperty('background-color');
   }
 
   function assignCategoryHues() {
