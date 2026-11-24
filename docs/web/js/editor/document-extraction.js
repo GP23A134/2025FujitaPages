@@ -86,7 +86,7 @@ style.textContent = `
 .document-extractor-preview-expand { min-height:2.2rem; flex:0 0 auto; margin:0; padding:.35rem .7rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; cursor:pointer; font:inherit; font-size:.8rem; }
 .document-extractor-preview-note { align-self:flex-start; flex:0 0 auto; margin:.2rem 0; color:#64748b; font-size:.72rem; }
 .document-extractor-empty { display:grid; min-height:0; flex:1 1 auto; place-items:center; padding:1rem; color:#64748b; text-align:center; }
-.document-extractor-download { align-self:flex-end; flex:0 0 auto; margin-top:.6rem; border-color:#0369a1; color:#fff; background:#0369a1; font-weight:700; }
+.document-extractor-download { align-self:flex-end; flex:0 0 auto; margin-top:0; border-color:#0369a1; color:#fff; background:#0369a1; font-weight:700; }
 .document-extractor-downloads { display:flex; flex:0 0 auto; align-items:center; justify-content:space-between; gap:.5rem; }
 .document-extractor-download-actions { display:flex; gap:.5rem; }
 .document-extractor-download:disabled { border-color:#cbd5e1; color:#94a3b8; background:#f1f5f9; }
@@ -174,6 +174,7 @@ if (headerActions && isExtractorEnabled) {
   const previewNote = dialog.querySelector('.document-extractor-preview-note');
   const previewExpand = dialog.querySelector('.document-extractor-preview-expand');
   const selectedDocumentTitle = dialog.querySelector('.document-extractor-selected-document');
+  const downloadActions = dialog.querySelector('.document-extractor-download-actions');
   const treePreview = dialog.querySelector('.document-extractor-tree');
   const viewButtons = [...dialog.querySelectorAll('[data-view]')];
   const downloadButtons = [...dialog.querySelectorAll('[data-download]')];
@@ -364,7 +365,7 @@ if (headerActions && isExtractorEnabled) {
   }
 
   function classesForDocument(record, includeTree = true) {
-    if (!graphData) return { available: false, instances: [], targets: [], counts: { upper: 0, middle: 0, target: 0, instance: 0, depth: 0, unclassified: { upper: 0, middle: 0, target: 0 } }, tree: [] };
+    if (!graphData) return { available: false, instances: [], targets: [], counts: { upper: 0, middle: 0, target: 0, instance: 0, depth: 0, unclassified: 0 }, tree: [] };
     const number = documentNumber(record);
     const instances = number ? graphData.instancesByDocument.get(number) || [] : [];
     const instanceIds = new Set(instances.map((item) => item.id));
@@ -390,11 +391,8 @@ if (headerActions && isExtractorEnabled) {
       }
       return false;
     };
-    const unclassified = {
-      upper: [...reachable].filter((id) => id.includes('/class/t_') && classes.get(id)?.label === '未分類').length,
-      middle: [...reachable].filter((id) => id.includes('/class/m_') && isUnderUnclassifiedUpper(id)).length,
-      target: [...reachable].filter((id) => id.includes('/class/c_') && isUnderUnclassifiedUpper(id)).length
-    };
+    const unclassified = [...reachable]
+      .filter((id) => id.includes('/class/c_') && isUnderUnclassifiedUpper(id)).length;
     const getDepth = (id, path = new Set()) => {
       if (path.has(id)) return 0;
       const nextPath = new Set(path).add(id);
@@ -551,6 +549,8 @@ if (headerActions && isExtractorEnabled) {
     treePreview.hidden = !hasSelection || activeView !== 'tree';
     viewButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.view === activeView)));
     const isDataView = activeView === 'json' || activeView === 'tsv';
+    downloadActions.hidden = !hasSelection || !isDataView;
+    downloadButtons.forEach((button) => { button.hidden = !hasSelection || button.dataset.download !== activeView; });
     const comparisonRows = selectedTree ? buildComparisonRows(selectedTree.tree) : [];
     const hasMore = activeView === 'json'
       ? comparisonRows.length > PREVIEW_ITEM_LIMIT || comparisonRows.some((row) => row['インスタンス'].length > PREVIEW_ITEM_LIMIT)
@@ -660,6 +660,7 @@ if (headerActions && isExtractorEnabled) {
       const matchedCount = documents.filter((record) => (!prefecture || record.prefecture === prefecture)
         && (!selectedType || record['資料種別'] === selectedType)).length;
       const label = prefecture ? option.dataset.prefectureName : 'すべて';
+      option.dataset.count = String(matchedCount);
       option.textContent = `${label}（${matchedCount.toLocaleString('ja-JP')}件）`;
     });
 
@@ -669,8 +670,21 @@ if (headerActions && isExtractorEnabled) {
       const matchedCount = documents.filter((record) => (!selectedPrefecture || record.prefecture === selectedPrefecture)
         && (!type || record['資料種別'] === type)).length;
       const label = type ? option.dataset.typeName : 'すべて';
+      option.dataset.count = String(matchedCount);
       option.textContent = `${label}（${matchedCount.toLocaleString('ja-JP')}件）`;
     });
+
+    const sortOptionsByCount = (control, labelKey) => {
+      const selectedValue = control.value;
+      const allOption = [...control.options].find((option) => !option.value);
+      const countedOptions = [...control.options].filter((option) => option.value)
+        .sort((left, right) => Number(right.dataset.count) - Number(left.dataset.count)
+          || left.dataset[labelKey].localeCompare(right.dataset[labelKey], 'ja-JP'));
+      control.replaceChildren(...[allOption, ...countedOptions].filter(Boolean));
+      control.value = selectedValue;
+    };
+    sortOptionsByCount(prefectureControl, 'prefectureName');
+    sortOptionsByCount(typeControl, 'typeName');
   }
 
   function selectDocument(record) {
@@ -731,7 +745,7 @@ if (headerActions && isExtractorEnabled) {
         const state = classesForDocument(record, false);
         const counts = document.createElement('span');
         counts.className = 'document-extractor-result-counts';
-        counts.textContent = `上位クラス数 ${state.counts.upper} ・ 中間クラス数 ${state.counts.middle} ・ 対象クラス数 ${state.counts.target} ・ インスタンス数 ${state.counts.instance} ・ 最大深さ ${state.counts.depth} ・ 未分類（上位 ${state.counts.unclassified.upper} ・ 中間 ${state.counts.unclassified.middle} ・ 対象 ${state.counts.unclassified.target}）`;
+        counts.textContent = `上位クラス数 ${state.counts.upper} ・ 中間クラス数 ${state.counts.middle} ・ 対象クラス数 ${state.counts.target} ・ インスタンス数 ${state.counts.instance} ・ 最大深さ ${state.counts.depth} ・ 未分類 ${state.counts.unclassified}`;
         button.append(counts);
       }
       button.addEventListener('click', () => {
