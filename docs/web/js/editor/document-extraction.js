@@ -6,6 +6,7 @@ const GRAPH_DATA_URLS = {
   targets: 'data/integrated/target-class-data.json'
 };
 const PAGE_SIZE = 30;
+const PREVIEW_ITEM_LIMIT = 5;
 
 const style = document.createElement('style');
 style.textContent = `
@@ -45,17 +46,29 @@ style.textContent = `
 .document-extractor-view-switch button { min-height:2rem; padding:.3rem .65rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; cursor:pointer; font:inherit; font-size:.75rem; }
 .document-extractor-view-switch button[aria-pressed="true"] { border-color:#0369a1; color:#075985; background:#e0f2fe; font-weight:700; }
 .document-extractor-tree { min-height:0; flex:1 1 auto; overflow:auto; margin:0; padding:.65rem; border:1px solid #dbe3ec; border-radius:7px; background:#fff; }
-.document-extractor-tree ul { margin:.2rem 0 .2rem 1rem; padding-left:1rem; border-left:1px solid #cbd5e1; list-style:none; }
-.document-extractor-tree li { margin:.25rem 0; }
-.document-extractor-tree details > summary { cursor:pointer; }
+.document-extractor-dialog [hidden] { display:none !important; }
+.document-extractor-tree ul { margin:.2rem 0 .2rem .85rem; padding-left:.65rem; list-style:none; }
+.document-extractor-tree > ul { margin:0; padding:0; }
+.document-extractor-tree li { margin:.22rem 0; }
+.document-extractor-tree details > summary { display:flex; flex-wrap:wrap; align-items:center; gap:.35rem; min-height:1.8rem; padding:.22rem .4rem; border-radius:5px; background:#f8fafc; cursor:pointer; list-style:none; }
+.document-extractor-tree details > summary:hover { background:#eff6ff; }
+.document-extractor-tree details > summary::-webkit-details-marker { display:none; }
+.document-extractor-tree details > summary::before { content:'›'; display:inline-grid; width:1rem; height:1rem; place-items:center; color:#64748b; font-size:1.1rem; }
+.document-extractor-tree details[open] > summary::before { content:'⌄'; }
 .document-extractor-tree-counts { color:#64748b; font-size:.72rem; }
 .document-extractor-tree-label { overflow-wrap:anywhere; }
+.document-extractor-tree-level { flex:0 0 auto; padding:.08rem .38rem; border-radius:999px; color:#fff; font-size:.65rem; font-weight:700; }
+.document-extractor-tree-level.is-upper { background:#0369a1; }
+.document-extractor-tree-level.is-middle { background:#0f766e; }
+.document-extractor-tree-level.is-target { background:#7c3aed; }
+.document-extractor-tree-id { color:#64748b; font: .66rem ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+.document-extractor-tree-meta { margin-left:auto; color:#64748b; font-size:.65rem; }
+.document-extractor-tree-instance { display:flex; flex-wrap:wrap; gap:.35rem; padding:.3rem .5rem; border-radius:4px; background:#f1f5f9; }
+.document-extractor-tree-instance-name { color:#334155; }
 .document-extractor-result-counts { color:#075985 !important; }
-.document-extractor-status { flex:0 0 auto; margin-bottom:.55rem; padding:.55rem .65rem; border:1px solid #cbd5e1; border-radius:7px; background:#fff; }
-.document-extractor-status-top { display:flex; flex-wrap:wrap; gap:.35rem .8rem; font-size:.75rem; }
-.document-extractor-status-top strong { color:#075985; }
-.document-extractor-status-reason { margin:.4rem 0 0; color:#475569; font-size:.72rem; line-height:1.45; }
 .document-extractor-json { min-height:0; flex:1 1 auto; overflow:auto; margin:0; padding:.75rem; border:1px solid #dbe3ec; border-radius:7px; color:#0f172a; background:#fff; font: .76rem/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; white-space:pre; }
+.document-extractor-preview-expand { align-self:flex-start; flex:0 0 auto; margin:.4rem 0; padding:.3rem .55rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; cursor:pointer; font:inherit; font-size:.75rem; }
+.document-extractor-preview-note { align-self:flex-start; flex:0 0 auto; margin:.2rem 0; color:#64748b; font-size:.72rem; }
 .document-extractor-empty { display:grid; min-height:0; flex:1 1 auto; place-items:center; padding:1rem; color:#64748b; text-align:center; }
 .document-extractor-download { align-self:flex-end; flex:0 0 auto; margin-top:.6rem; border-color:#0369a1; color:#fff; background:#0369a1; font-weight:700; }
 .document-extractor-downloads { display:flex; flex:0 0 auto; justify-content:flex-end; gap:.5rem; }
@@ -109,11 +122,9 @@ if (headerActions && isExtractorEnabled) {
           <button type="button" data-view="tree" aria-pressed="false">ツリー</button>
         </div>
         <div class="document-extractor-empty">左の一覧から文書を選択してください。</div>
-        <div class="document-extractor-status" hidden>
-          <div class="document-extractor-status-top"><span>資料種別: <strong data-status="type"></strong></span></div>
-          <p class="document-extractor-status-reason" data-status="reason"></p>
-        </div>
         <pre class="document-extractor-json" hidden></pre>
+        <p class="document-extractor-preview-note" hidden></p>
+        <button type="button" class="document-extractor-preview-expand" hidden>すべて表示</button>
         <div class="document-extractor-tree" hidden></div>
         <div class="document-extractor-downloads">
           <button type="button" class="document-extractor-download" data-download="json" disabled>JSONを保存</button>
@@ -131,8 +142,9 @@ if (headerActions && isExtractorEnabled) {
   const previousPage = dialog.querySelector('[data-page="previous"]');
   const nextPage = dialog.querySelector('[data-page="next"]');
   const empty = dialog.querySelector('.document-extractor-empty');
-  const statusPanel = dialog.querySelector('.document-extractor-status');
   const jsonPreview = dialog.querySelector('.document-extractor-json');
+  const previewNote = dialog.querySelector('.document-extractor-preview-note');
+  const previewExpand = dialog.querySelector('.document-extractor-preview-expand');
   const treePreview = dialog.querySelector('.document-extractor-tree');
   const viewButtons = [...dialog.querySelectorAll('[data-view]')];
   const downloadButtons = [...dialog.querySelectorAll('[data-download]')];
@@ -140,9 +152,12 @@ if (headerActions && isExtractorEnabled) {
   let selectedDocument = null;
   let selectedJson = '';
   let selectedTsv = '';
+  let selectedTsvRows = [];
   let selectedTree = null;
   let graphData = null;
+  let graphLoading = false;
   let activeView = 'json';
+  let showAllPreview = false;
   let page = 0;
   let loaded = false;
 
@@ -174,36 +189,38 @@ if (headerActions && isExtractorEnabled) {
 
   function toGraphRecord(record, state) {
     return {
-      summary: {
-        upperClassCount: state.counts.upper,
-        middleClassCount: state.counts.middle,
-        targetClassCount: state.counts.target,
-        instanceCount: state.counts.instance
+      '件数': {
+        '上位クラス': state.counts.upper,
+        '中間クラス': state.counts.middle,
+        '対象クラス': state.counts.target,
+        'インスタンス': state.counts.instance
       },
-      classTree: state.tree.map(toExportClassNode),
-      instances: state.instances.map((instance) => ({
-        id: instance.id,
-        name: instance.label || '',
-        targetClasses: instance.classIds.map((id) => ({ id, name: state.classLabels[id] || id }))
-      }))
+      'クラス構成': state.tree.map(toExportClassNode),
+      '未割当インスタンス': state.instances.filter((instance) => !instance.classIds.length).map(toExportInstance)
     };
   }
 
   function toExportClassNode(node) {
     const kind = node.id.match(/\/class\/([tmc])_/u)?.[1];
-    return {
-      id: node.id,
-      name: node.label || node.id,
-      level: { t: 'upper', m: 'middle', c: 'target' }[kind] || 'class',
-      children: node.children.map(toExportClassNode)
+    const result = {
+      '階層': { t: '上位クラス', m: '中間クラス', c: '対象クラス' }[kind] || 'クラス',
+      '名称': node.label || node.id,
+      'ID': node.id
     };
+    if (node.children.length) result['下位クラス'] = node.children.map(toExportClassNode);
+    if (kind === 'c') result['インスタンス'] = node.instances.map(toExportInstance);
+    return result;
+  }
+
+  function toExportInstance(instance) {
+    return { '名称': instance.label || '', 'ID': instance.id };
   }
 
   function serializeGraphRecord(record, state) {
     return `${JSON.stringify(toGraphRecord(record, state), null, 2)}\n`;
   }
 
-  function serializeGraphTsv(state) {
+  function buildGraphTsvRows(state) {
     const headers = ['上位クラスID', '上位クラス名', '中間クラスID', '中間クラス名', '対象クラスID', '対象クラス名', 'インスタンスID', 'インスタンス名'];
     const rows = [];
     const appendTargetRows = (nodes, path = []) => nodes.forEach((node) => {
@@ -228,11 +245,16 @@ if (headerActions && isExtractorEnabled) {
     state.instances.filter((instance) => !represented.has(instance.id)).forEach((instance) => {
       rows.push(['', '', '', '', '', '', instance.id, instance.label || '']);
     });
-    const escapeCell = (value) => {
-      const text = String(value ?? '');
-      return /[\t\r\n"]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-    };
-    return `${[headers, ...rows].map((row) => row.map(escapeCell).join('\t')).join('\r\n')}\r\n`;
+    return [headers, ...rows];
+  }
+
+  function serializeGraphTsv(rows) {
+    return `${rows.map((row) => row.map(escapeTsvCell).join('\t')).join('\r\n')}\r\n`;
+  }
+
+  function escapeTsvCell(value) {
+    const text = String(value ?? '');
+    return /[\t\r\n"]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   }
 
   function documentNumber(record) {
@@ -240,27 +262,59 @@ if (headerActions && isExtractorEnabled) {
     return match?.[1] || '';
   }
 
-  function classesForDocument(record) {
-    if (!graphData) return { available: false, instances: [], targets: [], counts: { upper: 0, middle: 0, target: 0, instance: 0 }, tree: [] };
-    const number = documentNumber(record);
-    const instances = number ? graphData.instances.filter((item) => item.id.match(new RegExp(`/id_${number}_`, 'u'))) : [];
-    const instanceIds = new Set(instances.map((item) => item.id));
-    const targetIds = new Set(graphData.assignments.filter((item) => instanceIds.has(item.instance)).map((item) => item.class));
+  function indexGraphData(instanceData, assignmentData, hierarchyData, targetData) {
+    const instancesByDocument = new Map();
+    const instancesById = new Map();
+    const classIdsByInstance = new Map();
+    const instancesByClass = new Map();
     const parents = new Map();
-    graphData.hierarchy.relations.forEach((relation) => {
-      if (relation.relation === 'subClassOf') {
-        const list = parents.get(relation.child) || [];
-        list.push(relation.parent);
-        parents.set(relation.child, list);
+    const classes = new Map([...hierarchyData.classes, ...targetData.classes].map((item) => [item.id, item]));
+    (instanceData.instances || []).forEach((instance) => {
+      instancesById.set(instance.id, instance);
+      const number = instance.id.match(/\/id_(\d+)_/u)?.[1];
+      if (number) {
+        const list = instancesByDocument.get(number) || [];
+        list.push(instance);
+        instancesByDocument.set(number, list);
       }
     });
-    const classes = new Map([...graphData.hierarchy.classes, ...graphData.targets].map((item) => [item.id, item]));
+    (assignmentData.relations || []).forEach((assignment) => {
+      const classIds = classIdsByInstance.get(assignment.instance) || [];
+      classIds.push(assignment.class);
+      classIdsByInstance.set(assignment.instance, classIds);
+      const instance = instancesById.get(assignment.instance);
+      if (instance) {
+        const list = instancesByClass.get(assignment.class) || [];
+        list.push(instance);
+        instancesByClass.set(assignment.class, list);
+      }
+    });
+    (hierarchyData.relations || []).forEach((relation) => {
+      if (relation.relation !== 'subClassOf') return;
+      const list = parents.get(relation.child) || [];
+      list.push(relation.parent);
+      parents.set(relation.child, list);
+    });
+    return { instancesByDocument, instancesById, classIdsByInstance, instancesByClass, parents, classes };
+  }
+
+  function classesForDocument(record, includeTree = true) {
+    if (!graphData) return { available: false, instances: [], targets: [], counts: { upper: 0, middle: 0, target: 0, instance: 0 }, tree: [] };
+    const number = documentNumber(record);
+    const instances = number ? graphData.instancesByDocument.get(number) || [] : [];
+    const instanceIds = new Set(instances.map((item) => item.id));
+    const targetIds = new Set();
+    instances.forEach((instance) => (graphData.classIdsByInstance.get(instance.id) || []).forEach((id) => targetIds.add(id)));
+    const parents = graphData.parents;
+    const classes = graphData.classes;
     const reachable = new Set();
     const visitParents = (id) => (parents.get(id) || []).forEach((parent) => {
       if (!reachable.has(parent)) { reachable.add(parent); visitParents(parent); }
     });
     targetIds.forEach((id) => { reachable.add(id); visitParents(id); });
     const countKind = (kind) => [...reachable].filter((id) => id.includes(`/class/${kind}_`)).length;
+    const counts = { upper: countKind('t'), middle: countKind('m'), target: countKind('c'), instance: instances.length };
+    if (!includeTree) return { available: true, instances: [], targets: [], classLabels: {}, counts, tree: [] };
     const children = new Map();
     [...reachable].forEach((id) => {
       const item = classes.get(id);
@@ -272,18 +326,19 @@ if (headerActions && isExtractorEnabled) {
       children.set(parentId, list);
     });
     const makeTree = (parentId) => (children.get(parentId) || []).sort((a, b) => a.label.localeCompare(b.label, 'ja-JP'))
-      .map((item) => ({ ...item, children: makeTree(item.id), instances: instances.filter((instance) => graphData.assignments.some((assignment) => assignment.instance === instance.id && assignment.class === item.id)) }));
-    const classLabels = Object.fromEntries([...classes].map(([id, item]) => [id, item.label || id]));
+      .map((item) => ({ ...item, children: makeTree(item.id), instances: (graphData.instancesByClass.get(item.id) || []).filter((instance) => instanceIds.has(instance.id)) }));
+    const classLabels = Object.fromEntries([...new Set(instances.flatMap((instance) => graphData.classIdsByInstance.get(instance.id) || []))]
+      .map((id) => [id, classes.get(id)?.label || id]));
     const instancesWithClasses = instances.map((instance) => ({
       ...instance,
-      classIds: [...new Set(graphData.assignments.filter((assignment) => assignment.instance === instance.id).map((assignment) => assignment.class))]
+      classIds: [...new Set(graphData.classIdsByInstance.get(instance.id) || [])]
     }));
     return {
       available: true,
       instances: instancesWithClasses,
       targets: [...targetIds],
       classLabels,
-      counts: { upper: countKind('t'), middle: countKind('m'), target: countKind('c'), instance: instances.length },
+      counts,
       tree: makeTree('')
     };
   }
@@ -301,26 +356,44 @@ if (headerActions && isExtractorEnabled) {
     const docSummary = document.createElement('summary');
     docSummary.textContent = selectedDocument.input_file || selectedDocument.documentIRI;
     docDetails.append(docSummary);
-    const appendClasses = (parent, nodes) => {
+    const renderClassNodes = (nodes) => {
       const list = document.createElement('ul');
       nodes.forEach((node) => {
         const li = document.createElement('li');
         const details = document.createElement('details');
-        details.open = true;
+        const kind = node.id.match(/\/class\/([tmc])_/u)?.[1];
+        details.open = kind === 't';
         const summaryNode = document.createElement('summary');
         const label = document.createElement('span');
         label.className = 'document-extractor-tree-label';
         label.textContent = node.label || node.id;
-        const kind = node.id.match(/\/class\/([tmc])_/u)?.[1];
         const kindLabel = { t: '上位', m: '中間', c: '対象' }[kind] || 'クラス';
-        summaryNode.append(label, document.createTextNode(` (${kindLabel})`));
+        const level = document.createElement('span');
+        level.className = `document-extractor-tree-level is-${{ t: 'upper', m: 'middle', c: 'target' }[kind] || 'upper'}`;
+        level.textContent = kindLabel;
+        level.title = node.id;
+        const classId = document.createElement('code');
+        classId.className = 'document-extractor-tree-id';
+        classId.textContent = node.id.split('/').pop();
+        classId.title = node.id;
+        const meta = document.createElement('span');
+        meta.className = 'document-extractor-tree-meta';
+        meta.textContent = `${node.children.length ? `下位 ${node.children.length}` : ''}${node.children.length && node.instances.length ? ' ・ ' : ''}${node.instances.length ? `事例 ${node.instances.length}` : ''}`;
+        summaryNode.append(level, label, classId, meta);
         details.append(summaryNode);
         if (node.children.length || node.instances.length) {
-          const nested = document.createElement('ul');
-          if (node.children.length) appendClasses(nested, node.children);
+          const nested = renderClassNodes(node.children);
           node.instances.forEach((instance) => {
             const instanceLi = document.createElement('li');
-            instanceLi.textContent = instance.label || instance.id;
+            instanceLi.className = 'document-extractor-tree-instance';
+            const instanceName = document.createElement('span');
+            instanceName.className = 'document-extractor-tree-instance-name';
+            instanceName.textContent = instance.label || instance.id;
+            const instanceId = document.createElement('code');
+            instanceId.className = 'document-extractor-tree-id';
+            instanceId.textContent = instance.id.split('/').pop();
+            instanceId.title = instance.id;
+            instanceLi.append(instanceName, instanceId);
             nested.append(instanceLi);
           });
           details.append(nested);
@@ -328,13 +401,13 @@ if (headerActions && isExtractorEnabled) {
         li.append(details);
         list.append(li);
       });
-      parent.append(list);
+      return list;
     };
-    appendClasses(docDetails, data.tree);
+    docDetails.append(renderClassNodes(data.tree));
     if (!data.available || !data.instances.length) {
       const message = document.createElement('p');
       message.className = 'document-extractor-tree-counts';
-      message.textContent = data.available ? 'この文書IDに一致するインスタンスが見つかりません。' : 'クラス・インスタンスデータを読み込めません。';
+      message.textContent = data.available ? 'この文書IDに一致するインスタンスが見つかりません。' : graphLoading ? 'クラス・インスタンスデータを読み込んでいます…' : 'クラス・インスタンスデータを読み込めません。';
       docDetails.append(message);
     }
     docItem.append(docDetails);
@@ -348,7 +421,51 @@ if (headerActions && isExtractorEnabled) {
     treePreview.hidden = !hasSelection || activeView !== 'tree';
     viewButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.view === activeView)));
     dialog.querySelector('.document-extractor-preview-title').textContent = activeView === 'json' ? 'JSONプレビュー' : activeView === 'tsv' ? 'TSVプレビュー' : '文書ツリー';
-    jsonPreview.textContent = activeView === 'tsv' ? selectedTsv : selectedJson;
+    const isDataView = activeView === 'json' || activeView === 'tsv';
+    const hasMore = activeView === 'json'
+      ? Boolean(selectedTree && (selectedTree.tree.some(hasMoreClassNodes)
+        || selectedTree.instances.filter((instance) => !instance.classIds.length).length > PREVIEW_ITEM_LIMIT))
+      : activeView === 'tsv' && selectedTsvRows.length > PREVIEW_ITEM_LIMIT + 1;
+    previewNote.hidden = !hasSelection || !isDataView || showAllPreview || !hasMore;
+    previewNote.textContent = activeView === 'json'
+      ? `一部表示：各階層・クラス内のインスタンスは先頭${PREVIEW_ITEM_LIMIT}件です。保存ファイルには全件含まれます。`
+      : `一部表示：先頭${PREVIEW_ITEM_LIMIT}行です。保存ファイルには全行含まれます。`;
+    previewExpand.hidden = !hasSelection || !isDataView || !hasMore;
+    previewExpand.textContent = showAllPreview ? '一部表示に戻す' : 'すべて表示';
+    jsonPreview.textContent = activeView === 'tsv' ? renderTsvPreview() : renderJsonPreview();
+  }
+
+  function hasMoreClassNodes(node) {
+    return node.children.length > PREVIEW_ITEM_LIMIT || node.instances.length > PREVIEW_ITEM_LIMIT || node.children.some(hasMoreClassNodes);
+  }
+
+  function limitClassNodes(nodes) {
+    return nodes.slice(0, PREVIEW_ITEM_LIMIT).map((node) => {
+      const limited = { ...node };
+      if (node['下位クラス']) {
+        limited['下位クラス'] = limitClassNodes(node['下位クラス']);
+        if (node['下位クラス'].length > PREVIEW_ITEM_LIMIT) limited['残り下位クラス'] = node['下位クラス'].length - PREVIEW_ITEM_LIMIT;
+      }
+      if (node['インスタンス']) {
+        limited['インスタンス'] = node['インスタンス'].slice(0, PREVIEW_ITEM_LIMIT);
+        if (node['インスタンス'].length > PREVIEW_ITEM_LIMIT) limited['残りインスタンス'] = node['インスタンス'].length - PREVIEW_ITEM_LIMIT;
+      }
+      return limited;
+    });
+  }
+
+  function renderJsonPreview() {
+    if (showAllPreview || !selectedJson || !selectedTree) return selectedJson;
+    const data = JSON.parse(selectedJson);
+    data['クラス構成'] = limitClassNodes(data['クラス構成']);
+    data['未割当インスタンス'] = data['未割当インスタンス'].slice(0, PREVIEW_ITEM_LIMIT);
+    return `${JSON.stringify(data, null, 2)}\n`;
+  }
+
+  function renderTsvPreview() {
+    if (showAllPreview || !selectedTsvRows.length) return selectedTsv;
+    const rows = selectedTsvRows.slice(0, PREVIEW_ITEM_LIMIT + 1);
+    return `${rows.map((row) => row.map(escapeTsvCell).join('\t')).join('\r\n')}\r\n`;
   }
 
   function filteredDocuments() {
@@ -369,6 +486,19 @@ if (headerActions && isExtractorEnabled) {
         control.append(option);
       });
     });
+  }
+
+  function selectDocument(record) {
+    selectedDocument = record;
+    selectedTree = classesForDocument(record);
+    selectedJson = serializeGraphRecord(record, selectedTree);
+    selectedTsvRows = buildGraphTsvRows(selectedTree);
+    selectedTsv = serializeGraphTsv(selectedTsvRows);
+    showAllPreview = false;
+    empty.hidden = true;
+    renderDocumentTree(selectedTree);
+    downloadButtons.forEach((button) => { button.disabled = !selectedTree.available; });
+    renderActiveView();
   }
 
   function renderDistribution(matches) {
@@ -404,12 +534,13 @@ if (headerActions && isExtractorEnabled) {
     selectedDocument = null;
     selectedJson = '';
     selectedTsv = '';
+    selectedTsvRows = [];
     selectedTree = null;
+    showAllPreview = false;
     empty.hidden = false;
     empty.textContent = documents.length ? '左の一覧から文書を選択してください。' : '抽出できる文書がありません。';
     jsonPreview.hidden = true;
     jsonPreview.textContent = '';
-    statusPanel.hidden = true;
     downloadButtons.forEach((button) => { button.disabled = true; });
     renderActiveView();
   }
@@ -435,26 +566,14 @@ if (headerActions && isExtractorEnabled) {
       detail.textContent = `${record.prefecture} ・ ${record['資料種別']}`;
       button.append(title, detail);
       if (graphData) {
-        const state = classesForDocument(record);
+        const state = classesForDocument(record, false);
         const counts = document.createElement('span');
         counts.className = 'document-extractor-result-counts';
         counts.textContent = `上位 ${state.counts.upper} ・ 中間 ${state.counts.middle} ・ 対象 ${state.counts.target} ・ インスタンス ${state.counts.instance}`;
         button.append(counts);
       }
       button.addEventListener('click', () => {
-        selectedDocument = record;
-        selectedTree = classesForDocument(record);
-        selectedJson = serializeGraphRecord(record, selectedTree);
-        selectedTsv = serializeGraphTsv(selectedTree);
-        empty.hidden = true;
-        statusPanel.hidden = false;
-        statusPanel.querySelector('[data-status="type"]').textContent = record['資料種別'];
-        statusPanel.querySelector('[data-status="reason"]').textContent = `判定根拠: ${record['判定根拠']}`;
-        jsonPreview.hidden = false;
-        jsonPreview.textContent = activeView === 'tsv' ? selectedTsv : selectedJson;
-        renderDocumentTree(selectedTree);
-        downloadButtons.forEach((button) => { button.disabled = false; });
-        renderActiveView();
+        selectDocument(record);
         renderResults();
       });
       results.append(button);
@@ -477,28 +596,37 @@ if (headerActions && isExtractorEnabled) {
     if (loaded) return;
     count.textContent = '文書一覧を読み込んでいます…';
     try {
-      const [response, ...graphResponses] = await Promise.all([
-        fetch(SOURCE_URL, { cache: 'no-cache' }),
-        ...Object.values(GRAPH_DATA_URLS).map((url) => fetch(url, { cache: 'no-cache' }).catch(() => null))
-      ]);
+      const response = await fetch(SOURCE_URL, { cache: 'no-cache' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      if (graphResponses.every((item) => item?.ok)) {
-        try {
-          const [instanceData, assignmentData, hierarchyData, targetData] = await Promise.all(graphResponses.map((item) => item.json()));
-          graphData = { instances: instanceData.instances || [], assignments: assignmentData.relations || [], hierarchy: hierarchyData, targets: targetData.classes || [] };
-        } catch { graphData = null; }
-      } else graphData = null;
       documents = parseTsv(await response.text()).filter((record) => record.documentIRI && record.input_file);
       loaded = true;
       count.textContent = '';
       populateFilters();
       resetPreview();
       renderResults();
+      void loadGraphData();
     } catch (error) {
       count.textContent = `文書一覧を読み込めませんでした: ${error.message}`;
       documents = [];
       loaded = true;
       resetPreview();
+    }
+  }
+
+  async function loadGraphData() {
+    graphLoading = true;
+    try {
+      const responses = await Promise.all(Object.values(GRAPH_DATA_URLS).map((url) => fetch(url, { cache: 'force-cache' })));
+      if (responses.some((response) => !response.ok)) throw new Error('グラフデータを読み込めません');
+      const [instanceData, assignmentData, hierarchyData, targetData] = await Promise.all(responses.map((response) => response.json()));
+      graphData = indexGraphData(instanceData, assignmentData, hierarchyData, targetData);
+      graphLoading = false;
+      renderResults();
+      if (selectedDocument) selectDocument(selectedDocument);
+    } catch {
+      graphData = null;
+      graphLoading = false;
+      if (selectedDocument) renderDocumentTree(selectedTree);
     }
   }
 
@@ -516,6 +644,10 @@ if (headerActions && isExtractorEnabled) {
     activeView = button.dataset.view;
     renderActiveView();
   }));
+  previewExpand.addEventListener('click', () => {
+    showAllPreview = !showAllPreview;
+    renderActiveView();
+  });
   downloadButtons.forEach((button) => button.addEventListener('click', () => {
     const format = button.dataset.download;
     const content = format === 'tsv' ? selectedTsv : selectedJson;
