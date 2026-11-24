@@ -206,11 +206,12 @@ if (headerActions && isExtractorEnabled) {
 
   function toGraphRecord(record, state) {
     return {
-      '件数': {
-        '上位クラス': state.counts.upper,
-        '中間クラス': state.counts.middle,
-        '対象クラス': state.counts.target,
-        'インスタンス': state.counts.instance
+      '文書情報': {
+        'input_file': record.input_file,
+        'graph': record.documentIRI,
+        'output_file': record.output_file,
+        '都道府県': record.prefecture,
+        '資料種別': record['資料種別']
       },
       '対象クラス': buildComparisonRows(state.tree)
     };
