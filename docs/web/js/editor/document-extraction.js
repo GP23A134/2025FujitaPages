@@ -10,13 +10,13 @@ const PREVIEW_ITEM_LIMIT = 5;
 
 const style = document.createElement('style');
 style.textContent = `
-.document-extractor-dialog { width: min(92rem, calc(100vw - 2rem)); max-width: none; max-height: min(94dvh, 72rem); overflow: hidden; padding: 1.1rem; border: 1px solid #cbd5e1; border-radius: 14px; color: #1e293b; background: #fff; box-shadow: 0 20px 60px rgba(15,23,42,.28); }
+.document-extractor-dialog { width: min(92rem, calc(100vw - 2rem)); max-width: none; max-height: min(98dvh, 72rem); overflow: hidden; padding: 1.1rem; border: 1px solid #cbd5e1; border-radius: 14px; color: #1e293b; background: #fff; box-shadow: 0 20px 60px rgba(15,23,42,.28); }
 .document-extractor-dialog::backdrop { background: rgba(15,23,42,.48); }
 .document-extractor-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.5rem; }
 .document-extractor-header h2 { margin:0; color:#0f3d63; font-size:1.2rem; }
 .document-extractor-close { width:2.3rem; height:2.3rem; border:1px solid #cbd5e1; border-radius:50%; color:#334155; background:#fff; font-size:1.2rem; cursor:pointer; }
 .document-extractor-note { margin:.2rem 0 .9rem; color:#64748b; font-size:.85rem; }
-.document-extractor-layout { display:grid; grid-template-columns:minmax(18rem,.9fr) minmax(0,1.4fr); gap:1rem; min-height:0; height:min(78dvh,56rem); }
+.document-extractor-layout { display:grid; grid-template-columns:minmax(18rem,.9fr) minmax(0,1.4fr); gap:1rem; min-height:0; height:min(84dvh,60rem); }
 .document-extractor-browser,.document-extractor-preview { display:flex; min-width:0; min-height:0; flex-direction:column; border:1px solid #dbe3ec; border-radius:9px; background:#f8fafc; }
 .document-extractor-browser { padding:.75rem; }
 .document-extractor-filters { display:grid; grid-template-columns:1fr 1fr; gap:.45rem; }
@@ -47,24 +47,31 @@ style.textContent = `
 .document-extractor-view-switch button[aria-pressed="true"] { border-color:#0369a1; color:#075985; background:#e0f2fe; font-weight:700; }
 .document-extractor-tree { min-height:0; flex:1 1 auto; overflow:auto; margin:0; padding:.65rem; border:1px solid #dbe3ec; border-radius:7px; background:#fff; }
 .document-extractor-dialog [hidden] { display:none !important; }
-.document-extractor-tree ul { margin:.2rem 0 .2rem .85rem; padding-left:.65rem; list-style:none; }
-.document-extractor-tree > ul { margin:0; padding:0; }
-.document-extractor-tree li { margin:.22rem 0; }
-.document-extractor-tree details > summary { display:flex; flex-wrap:wrap; align-items:center; gap:.35rem; min-height:1.8rem; padding:.22rem .4rem; border-radius:5px; background:#f8fafc; cursor:pointer; list-style:none; }
-.document-extractor-tree details > summary:hover { background:#eff6ff; }
+.document-extractor-card-tree { display:grid; align-content:start; gap:.55rem; }
+.document-extractor-tree-document { padding:.55rem .7rem; border:1px solid #d8e2ea; border-radius:8px; color:#334155; background:#f8fafc; font-weight:700; overflow-wrap:anywhere; }
+.document-extractor-tree-group { display:grid; gap:.45rem; min-width:0; }
+.document-extractor-tree details { min-width:0; border-radius:9px; }
+.document-extractor-tree details > summary { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; min-width:0; cursor:pointer; list-style:none; }
 .document-extractor-tree details > summary::-webkit-details-marker { display:none; }
-.document-extractor-tree details > summary::before { content:'›'; display:inline-grid; width:1rem; height:1rem; place-items:center; color:#64748b; font-size:1.1rem; }
-.document-extractor-tree details[open] > summary::before { content:'⌄'; }
+.document-extractor-tree details > summary::before { display:inline-grid; flex:0 0 1rem; width:1rem; height:1rem; place-items:center; color:#617184; content:'＋'; }
+.document-extractor-tree details[open] > summary::before { content:'−'; }
+.document-extractor-tree .level-top { padding:.55rem; border:1px solid #cfe0eb; background:#eff8fc; }
+.document-extractor-tree .level-middle { margin:.45rem 0 0 .75rem; padding:.48rem; border-left:3px solid #62b8b0; background:#f1fbf9; }
+.document-extractor-tree .level-target { margin:.35rem 0 0 .6rem; padding:.42rem; border-left:3px solid #85a4ef; background:#fff; }
+.document-extractor-tree-card-title { display:flex; flex:1 1 12rem; min-width:0; align-items:center; flex-wrap:wrap; gap:.35rem; font-size:.8rem; font-weight:700; }
+.document-extractor-tree-card-count { flex:0 0 auto; color:#718095; font-size:.68rem; font-weight:500; }
+.document-extractor-tree-card-id { flex-basis:100%; padding-left:1.4rem; color:#718095; font: .64rem ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+.document-extractor-tree-card-children { min-width:0; }
+.document-extractor-tree .level-top > summary .document-extractor-tree-card-title { color:#145b83; }
+.document-extractor-tree .level-middle > summary .document-extractor-tree-card-title { color:#167a83; }
+.document-extractor-tree .level-target > summary .document-extractor-tree-card-title { color:#315dc5; }
+.document-extractor-tree .level-top > summary::before { color:#145b83; }
+.document-extractor-tree .level-middle > summary::before { color:#167a83; }
+.document-extractor-tree .level-target > summary::before { color:#315dc5; }
 .document-extractor-tree-counts { color:#64748b; font-size:.72rem; }
-.document-extractor-tree-label { overflow-wrap:anywhere; }
-.document-extractor-tree-level { flex:0 0 auto; padding:.08rem .38rem; border-radius:999px; color:#fff; font-size:.65rem; font-weight:700; }
-.document-extractor-tree-level.is-upper { background:#0369a1; }
-.document-extractor-tree-level.is-middle { background:#0f766e; }
-.document-extractor-tree-level.is-target { background:#7c3aed; }
-.document-extractor-tree-id { color:#64748b; font: .66rem ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
-.document-extractor-tree-meta { margin-left:auto; color:#64748b; font-size:.65rem; }
-.document-extractor-tree-instance { display:flex; flex-wrap:wrap; gap:.35rem; padding:.3rem .5rem; border-radius:4px; background:#f1f5f9; }
-.document-extractor-tree-instance-name { color:#334155; }
+.document-extractor-tree-instance { display:flex; flex-wrap:wrap; gap:.25rem .4rem; margin:.35rem 0 0 .55rem; padding:.35rem .45rem; border-left:2px dotted #b9c3ce; color:#596779; background:#fafbfc; font-size:.73rem; }
+.document-extractor-tree-instance-name { overflow-wrap:anywhere; }
+.document-extractor-tree-instance-id { color:#8492a1; font: .63rem ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
 .document-extractor-result-counts { color:#075985 !important; }
 .document-extractor-json { min-height:0; flex:1 1 auto; overflow:auto; margin:0; padding:.75rem; border:1px solid #dbe3ec; border-radius:7px; color:#0f172a; background:#fff; font: .76rem/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; white-space:pre; }
 .document-extractor-preview-expand { align-self:flex-start; flex:0 0 auto; margin:.4rem 0; padding:.3rem .55rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; cursor:pointer; font:inherit; font-size:.75rem; }
@@ -195,8 +202,7 @@ if (headerActions && isExtractorEnabled) {
         '対象クラス': state.counts.target,
         'インスタンス': state.counts.instance
       },
-      'クラス構成': state.tree.map(toExportClassNode),
-      '未割当インスタンス': state.instances.filter((instance) => !instance.classIds.length).map(toExportInstance)
+      'クラス構成': state.tree.map(toExportClassNode)
     };
   }
 
@@ -241,10 +247,6 @@ if (headerActions && isExtractorEnabled) {
       appendTargetRows(node.children, nextPath);
     });
     appendTargetRows(state.tree);
-    const represented = new Set(rows.map((row) => row[6]).filter(Boolean));
-    state.instances.filter((instance) => !represented.has(instance.id)).forEach((instance) => {
-      rows.push(['', '', '', '', '', '', instance.id, instance.label || '']);
-    });
     return [headers, ...rows];
   }
 
@@ -258,8 +260,10 @@ if (headerActions && isExtractorEnabled) {
   }
 
   function documentNumber(record) {
-    const match = record.documentIRI.match(/(?:docs\/|id_)(\d+)(?:_|$)/u);
-    return match?.[1] || '';
+    const iriPath = (record.documentIRI || '').split(/[?#]/u, 1)[0];
+    const lastSegment = iriPath.slice(iriPath.lastIndexOf('/') + 1);
+    if (/^\d+$/u.test(lastSegment)) return lastSegment;
+    return iriPath.match(/id_(\d+)_/u)?.[1] || '';
   }
 
   function indexGraphData(instanceData, assignmentData, hierarchyData, targetData) {
@@ -299,7 +303,7 @@ if (headerActions && isExtractorEnabled) {
   }
 
   function classesForDocument(record, includeTree = true) {
-    if (!graphData) return { available: false, instances: [], targets: [], counts: { upper: 0, middle: 0, target: 0, instance: 0 }, tree: [] };
+    if (!graphData) return { available: false, instances: [], targets: [], counts: { upper: 0, middle: 0, target: 0, instance: 0, unclassified: 0 }, tree: [] };
     const number = documentNumber(record);
     const instances = number ? graphData.instancesByDocument.get(number) || [] : [];
     const instanceIds = new Set(instances.map((item) => item.id));
@@ -313,7 +317,8 @@ if (headerActions && isExtractorEnabled) {
     });
     targetIds.forEach((id) => { reachable.add(id); visitParents(id); });
     const countKind = (kind) => [...reachable].filter((id) => id.includes(`/class/${kind}_`)).length;
-    const counts = { upper: countKind('t'), middle: countKind('m'), target: countKind('c'), instance: instances.length };
+    const unclassifiedCount = instances.filter((instance) => !(graphData.classIdsByInstance.get(instance.id) || []).length).length;
+    const counts = { upper: countKind('t'), middle: countKind('m'), target: countKind('c'), instance: instances.length, unclassified: unclassifiedCount };
     if (!includeTree) return { available: true, instances: [], targets: [], classLabels: {}, counts, tree: [] };
     const children = new Map();
     [...reachable].forEach((id) => {
@@ -347,72 +352,69 @@ if (headerActions && isExtractorEnabled) {
     treePreview.replaceChildren();
     const summary = document.createElement('p');
     summary.className = 'document-extractor-tree-counts';
-    summary.textContent = `上位クラス ${data.counts.upper}件 ・ 中間クラス ${data.counts.middle}件 ・ 対象クラス ${data.counts.target}件 ・ インスタンス ${data.counts.instance}件`;
+    summary.textContent = `上位クラス ${data.counts.upper}件 ・ 中間クラス ${data.counts.middle}件 ・ 対象クラス ${data.counts.target}件 ・ インスタンス ${data.counts.instance}件 ・ 未分類 ${data.counts.unclassified}件`;
     treePreview.append(summary);
-    const root = document.createElement('ul');
-    const docItem = document.createElement('li');
-    const docDetails = document.createElement('details');
-    docDetails.open = true;
-    const docSummary = document.createElement('summary');
-    docSummary.textContent = selectedDocument.input_file || selectedDocument.documentIRI;
-    docDetails.append(docSummary);
+    const cardTree = document.createElement('div');
+    cardTree.className = 'document-extractor-card-tree';
+    const documentTitle = document.createElement('div');
+    documentTitle.className = 'document-extractor-tree-document';
+    documentTitle.textContent = selectedDocument.input_file || selectedDocument.documentIRI;
+    cardTree.append(documentTitle);
     const renderClassNodes = (nodes) => {
-      const list = document.createElement('ul');
+      const group = document.createElement('div');
+      group.className = 'document-extractor-tree-group';
       nodes.forEach((node) => {
-        const li = document.createElement('li');
         const details = document.createElement('details');
         const kind = node.id.match(/\/class\/([tmc])_/u)?.[1];
+        const kindName = { t: 'top', m: 'middle', c: 'target' }[kind] || 'target';
+        details.className = `level-${kindName}`;
         details.open = kind === 't';
         const summaryNode = document.createElement('summary');
         const label = document.createElement('span');
-        label.className = 'document-extractor-tree-label';
+        label.className = 'document-extractor-tree-card-title';
         label.textContent = node.label || node.id;
-        const kindLabel = { t: '上位', m: '中間', c: '対象' }[kind] || 'クラス';
-        const level = document.createElement('span');
-        level.className = `document-extractor-tree-level is-${{ t: 'upper', m: 'middle', c: 'target' }[kind] || 'upper'}`;
-        level.textContent = kindLabel;
-        level.title = node.id;
+        const kindLabel = { t: '上位クラス', m: '中間クラス', c: '対象クラス' }[kind] || 'クラス';
+        label.setAttribute('aria-label', `${kindLabel}: ${node.label || node.id}`);
+        const count = document.createElement('span');
+        count.className = 'document-extractor-tree-card-count';
+        count.textContent = node.children.length ? `下位 ${node.children.length}件` : `${node.instances.length}件`;
         const classId = document.createElement('code');
-        classId.className = 'document-extractor-tree-id';
+        classId.className = 'document-extractor-tree-card-id';
         classId.textContent = node.id.split('/').pop();
         classId.title = node.id;
-        const meta = document.createElement('span');
-        meta.className = 'document-extractor-tree-meta';
-        meta.textContent = `${node.children.length ? `下位 ${node.children.length}` : ''}${node.children.length && node.instances.length ? ' ・ ' : ''}${node.instances.length ? `事例 ${node.instances.length}` : ''}`;
-        summaryNode.append(level, label, classId, meta);
+        summaryNode.append(label, count, classId);
         details.append(summaryNode);
         if (node.children.length || node.instances.length) {
-          const nested = renderClassNodes(node.children);
+          const nested = document.createElement('div');
+          nested.className = 'document-extractor-tree-card-children';
+          if (node.children.length) nested.append(renderClassNodes(node.children));
           node.instances.forEach((instance) => {
-            const instanceLi = document.createElement('li');
-            instanceLi.className = 'document-extractor-tree-instance';
+            const instanceRow = document.createElement('div');
+            instanceRow.className = 'document-extractor-tree-instance';
             const instanceName = document.createElement('span');
             instanceName.className = 'document-extractor-tree-instance-name';
             instanceName.textContent = instance.label || instance.id;
             const instanceId = document.createElement('code');
-            instanceId.className = 'document-extractor-tree-id';
+            instanceId.className = 'document-extractor-tree-instance-id';
             instanceId.textContent = instance.id.split('/').pop();
             instanceId.title = instance.id;
-            instanceLi.append(instanceName, instanceId);
-            nested.append(instanceLi);
+            instanceRow.append(instanceName, instanceId);
+            nested.append(instanceRow);
           });
           details.append(nested);
         }
-        li.append(details);
-        list.append(li);
+        group.append(details);
       });
-      return list;
+      return group;
     };
-    docDetails.append(renderClassNodes(data.tree));
+    cardTree.append(renderClassNodes(data.tree));
     if (!data.available || !data.instances.length) {
       const message = document.createElement('p');
       message.className = 'document-extractor-tree-counts';
       message.textContent = data.available ? 'この文書IDに一致するインスタンスが見つかりません。' : graphLoading ? 'クラス・インスタンスデータを読み込んでいます…' : 'クラス・インスタンスデータを読み込めません。';
-      docDetails.append(message);
+      cardTree.append(message);
     }
-    docItem.append(docDetails);
-    root.append(docItem);
-    treePreview.append(root);
+    treePreview.append(cardTree);
   }
 
   function renderActiveView() {
@@ -423,8 +425,7 @@ if (headerActions && isExtractorEnabled) {
     dialog.querySelector('.document-extractor-preview-title').textContent = activeView === 'json' ? 'JSONプレビュー' : activeView === 'tsv' ? 'TSVプレビュー' : '文書ツリー';
     const isDataView = activeView === 'json' || activeView === 'tsv';
     const hasMore = activeView === 'json'
-      ? Boolean(selectedTree && (selectedTree.tree.some(hasMoreClassNodes)
-        || selectedTree.instances.filter((instance) => !instance.classIds.length).length > PREVIEW_ITEM_LIMIT))
+      ? Boolean(selectedTree && selectedTree.tree.some(hasMoreClassNodes))
       : activeView === 'tsv' && selectedTsvRows.length > PREVIEW_ITEM_LIMIT + 1;
     previewNote.hidden = !hasSelection || !isDataView || showAllPreview || !hasMore;
     previewNote.textContent = activeView === 'json'
@@ -458,7 +459,6 @@ if (headerActions && isExtractorEnabled) {
     if (showAllPreview || !selectedJson || !selectedTree) return selectedJson;
     const data = JSON.parse(selectedJson);
     data['クラス構成'] = limitClassNodes(data['クラス構成']);
-    data['未割当インスタンス'] = data['未割当インスタンス'].slice(0, PREVIEW_ITEM_LIMIT);
     return `${JSON.stringify(data, null, 2)}\n`;
   }
 
@@ -475,16 +475,22 @@ if (headerActions && isExtractorEnabled) {
   }
 
   function populateFilters() {
-    const fields = { prefecture: 'prefecture', type: '資料種別' };
-    filterControls.forEach((control) => {
-      const values = [...new Set(documents.map((record) => record[fields[control.dataset.filter]]).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b, 'ja-JP'));
-      values.forEach((value) => {
+    const prefectureControl = filterControls.find((control) => control.dataset.filter === 'prefecture');
+    [...new Set(documents.map((record) => record.prefecture).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'ja-JP'))
+      .forEach((value) => {
         const option = document.createElement('option');
         option.value = value;
         option.textContent = value;
-        control.append(option);
+        prefectureControl.append(option);
       });
+    const typeControl = filterControls.find((control) => control.dataset.filter === 'type');
+    [...new Set(documents.map((record) => record['資料種別']).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'ja-JP')).forEach((type) => {
+      const option = document.createElement('option');
+      option.value = type;
+      option.textContent = type;
+      typeControl.append(option);
     });
   }
 
@@ -569,7 +575,7 @@ if (headerActions && isExtractorEnabled) {
         const state = classesForDocument(record, false);
         const counts = document.createElement('span');
         counts.className = 'document-extractor-result-counts';
-        counts.textContent = `上位 ${state.counts.upper} ・ 中間 ${state.counts.middle} ・ 対象 ${state.counts.target} ・ インスタンス ${state.counts.instance}`;
+        counts.textContent = `上位 ${state.counts.upper} ・ 中間 ${state.counts.middle} ・ 対象 ${state.counts.target} ・ インスタンス ${state.counts.instance} ・ 未分類 ${state.counts.unclassified}`;
         button.append(counts);
       }
       button.addEventListener('click', () => {
