@@ -32,7 +32,10 @@ style.textContent = `
 .document-extractor-result strong,.document-extractor-result span { display:block; overflow-wrap:anywhere; }
 .document-extractor-result strong { font-size:.8rem; }
 .document-extractor-result span { margin-top:.12rem; color:#64748b; font-size:.68rem; }
-.document-extractor-result-meta { color:#64748b; font-size:.68rem; line-height:1.25; }
+.document-extractor-result-meta,.document-extractor-result-counts { display:flex; flex-wrap:wrap; gap:.25rem; margin-top:.25rem; }
+.document-extractor-result-chip { display:inline-flex !important; align-items:center; margin:0 !important; padding:.08rem .38rem; border:1px solid #cbd5e1; border-radius:999px; color:#475569 !important; background:#f8fafc; font-size:.66rem !important; font-weight:500; line-height:1.35; }
+.document-extractor-result-chip-colored { border-color:hsl(var(--chip-hue),55%,80%); color:hsl(var(--chip-hue),45%,30%) !important; background:hsl(var(--chip-hue),75%,96%); }
+.document-extractor-result-chip-attention { border-color:#fdba74; color:#9a3412 !important; background:#fff7ed; }
 .document-extractor-pages { display:flex; flex:0 0 auto; align-items:center; justify-content:space-between; gap:.4rem; padding-top:.55rem; }
 .document-extractor-pages button,.document-extractor-download { min-height:2.2rem; padding:.35rem .7rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; cursor:pointer; font:inherit; font-size:.8rem; }
 .document-extractor-pages button:disabled,.document-extractor-download:disabled { color:#94a3b8; background:#f1f5f9; cursor:not-allowed; }
@@ -89,8 +92,8 @@ style.textContent = `
 .document-extractor-preview-note { align-self:flex-start; flex:0 0 auto; margin:.2rem 0; color:#64748b; font-size:.72rem; }
 .document-extractor-empty { display:grid; min-height:0; flex:1 1 auto; place-items:center; padding:1rem; color:#64748b; text-align:center; }
 .document-extractor-download { align-self:flex-end; flex:0 0 auto; margin-top:0; border-color:#0369a1; color:#fff; background:#0369a1; font-weight:700; }
-.document-extractor-downloads { display:flex; flex:0 0 auto; align-items:center; justify-content:space-between; gap:.5rem; }
-.document-extractor-download-actions { display:flex; gap:.5rem; }
+.document-extractor-downloads { display:flex; flex:0 0 auto; align-items:center; justify-content:space-between; gap:.5rem; margin-top:.55rem; }
+.document-extractor-download-actions { display:flex; gap:.5rem; margin-left:auto; }
 .document-extractor-download:disabled { border-color:#cbd5e1; color:#94a3b8; background:#f1f5f9; }
 @media (max-width: 760px) { .document-extractor-layout { grid-template-columns:minmax(0,1fr); height:75dvh; grid-template-rows:minmax(12rem,.75fr) minmax(12rem,1.25fr); } .document-extractor-dialog { padding:.75rem; } }
 `;
@@ -181,6 +184,7 @@ if (headerActions && isExtractorEnabled) {
   const viewButtons = [...dialog.querySelectorAll('[data-view]')];
   const downloadButtons = [...dialog.querySelectorAll('[data-download]')];
   let documents = [];
+  const categoryHueMaps = { prefecture: new Map(), type: new Map() };
   let selectedDocument = null;
   let selectedJson = '';
   let selectedTsv = '';
@@ -234,6 +238,23 @@ if (headerActions && isExtractorEnabled) {
 
   function shortId(id) {
     return String(id || '').split(/[/?#]/u).filter(Boolean).at(-1) || '';
+  }
+
+  function stableChipHue(kind, value) {
+    return categoryHueMaps[kind].get(value) ?? 0;
+  }
+
+  function assignCategoryHues() {
+    const categories = {
+      prefecture: [...new Set(documents.map((record) => record.prefecture).filter(Boolean))]
+        .sort((left, right) => left.localeCompare(right, 'ja-JP')),
+      type: [...new Set(documents.map((record) => record['資料種別']).filter(Boolean))]
+        .sort((left, right) => left.localeCompare(right, 'ja-JP'))
+    };
+    Object.entries(categories).forEach(([kind, values]) => {
+      categoryHueMaps[kind].clear();
+      values.forEach((value, index) => categoryHueMaps[kind].set(value, Math.round(index * 360 / values.length)));
+    });
   }
 
   function buildComparisonRows(nodes, path = []) {
@@ -741,13 +762,38 @@ if (headerActions && isExtractorEnabled) {
       title.textContent = record.input_file || record.documentIRI;
       const meta = document.createElement('div');
       meta.className = 'document-extractor-result-meta';
-      meta.textContent = `ID: ${shortId(record.documentIRI)} ・ ${record.prefecture} ・ ${record['資料種別']}`;
+      [
+        { value: `ID ${shortId(record.documentIRI)}` },
+        { value: record.prefecture, kind: 'prefecture' },
+        { value: record['資料種別'], kind: 'type' }
+      ].filter((item) => item.value).forEach((item) => {
+        const chip = document.createElement('span');
+        chip.className = 'document-extractor-result-chip';
+        chip.textContent = item.value;
+        if (item.kind) {
+          chip.classList.add('document-extractor-result-chip-colored');
+          chip.style.setProperty('--chip-hue', stableChipHue(item.kind, item.value));
+        }
+        meta.append(chip);
+      });
       button.append(title, meta);
       if (graphData) {
         const state = classesForDocument(record, false);
-        const counts = document.createElement('span');
+        const counts = document.createElement('div');
         counts.className = 'document-extractor-result-counts';
-        counts.textContent = `上位クラス数 ${state.counts.upper} ・ 中間クラス数 ${state.counts.middle} ・ 対象クラス数 ${state.counts.target} ・ インスタンス数 ${state.counts.instance} ・ 最大深さ ${state.counts.depth} ・ 未分類 ${state.counts.unclassified}`;
+        [
+          ['上位', state.counts.upper],
+          ['中間', state.counts.middle],
+          ['対象', state.counts.target],
+          ['インスタンス', state.counts.instance],
+          ['深さ', state.counts.depth],
+          ['未分類', state.counts.unclassified]
+        ].forEach(([label, value]) => {
+          const chip = document.createElement('span');
+          chip.className = `document-extractor-result-chip${label === '未分類' && value > 0 ? ' document-extractor-result-chip-attention' : ''}`;
+          chip.textContent = `${label} ${value}`;
+          counts.append(chip);
+        });
         button.append(counts);
       }
       button.addEventListener('click', () => {
@@ -773,6 +819,7 @@ if (headerActions && isExtractorEnabled) {
       const response = await fetch(SOURCE_URL, { cache: 'no-cache' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       documents = parseTsv(await response.text()).filter((record) => record.documentIRI && record.input_file);
+      assignCategoryHues();
       loaded = true;
       populateFilters();
       resetPreview();
