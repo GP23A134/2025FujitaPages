@@ -24,8 +24,9 @@ style.textContent = `
 .document-extractor-filter select { box-sizing:border-box; width:100%; min-height:2.25rem; padding:.35rem .45rem; border:1px solid #cbd5e1; border-radius:6px; color:#1e293b; background:#fff; font:inherit; font-weight:400; }
 .document-extractor-search-row { display:flex; gap:.4rem; margin:.45rem 0 0; }
 .document-extractor-search { box-sizing:border-box; width:100%; min-width:0; min-height:2.25rem; padding:.4rem .55rem; border:1px solid #cbd5e1; border-radius:6px; color:#1e293b; background:#fff; font:inherit; font-size:.78rem; }
-.document-extractor-sort { flex:0 0 auto; min-height:2.25rem; padding:.3rem .55rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; cursor:pointer; font:inherit; font-size:.76rem; }
-.document-extractor-results { display:flex; min-height:0; flex:1 1 auto; flex-direction:column; gap:.35rem; overflow-y:auto; }
+.document-extractor-sort-criterion { box-sizing:border-box; flex:0 1 8.5rem; min-width:0; min-height:2.25rem; padding:.3rem .4rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; font:inherit; font-size:.7rem; }
+.document-extractor-sort-direction { flex:0 0 2.25rem; min-height:2.25rem; padding:.3rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; cursor:pointer; font:inherit; font-size:.85rem; }
+.document-extractor-results { display:flex; min-height:0; flex:1 1 auto; flex-direction:column; gap:.35rem; overflow-y:scroll; }
 .document-extractor-result { display:block; width:100%; padding:.38rem .5rem; border:1px solid #dbe3ec; border-radius:7px; color:#1e293b; background:#fff; text-align:left; cursor:pointer; }
 .document-extractor-result:hover,.document-extractor-result[aria-pressed="true"] { border-color:#0284c7; background:#e0f2fe; }
 .document-extractor-result strong,.document-extractor-result span { display:block; overflow-wrap:anywhere; }
@@ -37,14 +38,13 @@ style.textContent = `
 .document-extractor-pages button:disabled,.document-extractor-download:disabled { color:#94a3b8; background:#f1f5f9; cursor:not-allowed; }
 .document-extractor-page-label { color:#64748b; font-size:.75rem; }
 .document-extractor-preview { padding:.75rem; }
-.document-extractor-preview-title { margin:0 0 .55rem; color:#334155; font-size:.9rem; }
+.document-extractor-selected-document { flex:0 0 auto; margin:0 0 .55rem; padding:.55rem .7rem; border:1px solid #d8e2ea; border-radius:8px; color:#334155; background:#f8fafc; font-weight:700; overflow-wrap:anywhere; }
 .document-extractor-view-switch { display:flex; flex:0 0 auto; gap:.35rem; margin:0 0 .55rem; }
 .document-extractor-view-switch button { min-height:2rem; padding:.3rem .65rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; cursor:pointer; font:inherit; font-size:.75rem; }
 .document-extractor-view-switch button[aria-pressed="true"] { border-color:#0369a1; color:#075985; background:#e0f2fe; font-weight:700; }
-.document-extractor-tree { min-height:0; flex:1 1 auto; overflow:auto; margin:0; padding:.65rem; border:1px solid #dbe3ec; border-radius:7px; background:#fff; }
+.document-extractor-tree { min-height:0; flex:1 1 auto; overflow:scroll; margin:0; padding:.65rem; border:1px solid #dbe3ec; border-radius:7px; background:#fff; }
 .document-extractor-dialog [hidden] { display:none !important; }
 .document-extractor-card-tree { display:grid; align-content:start; gap:.55rem; }
-.document-extractor-tree-document { padding:.55rem .7rem; border:1px solid #d8e2ea; border-radius:8px; color:#334155; background:#f8fafc; font-weight:700; overflow-wrap:anywhere; }
 .document-extractor-tree-search { box-sizing:border-box; width:100%; min-height:2.1rem; padding:.4rem .55rem; border:1px solid #cbd5e1; border-radius:6px; outline:none; color:#334155; background:#fff; font:inherit; font-size:.78rem; }
 .document-extractor-tree-search::placeholder { color:#94a3b8; }
 .document-extractor-tree-search:focus { border-color:#1682b4; box-shadow:0 0 0 3px rgb(22 130 180 / 14%); }
@@ -73,17 +73,22 @@ style.textContent = `
 .document-extractor-tree-instance-name { overflow-wrap:anywhere; }
 .document-extractor-tree-instance-id { color:#64748b; font: .73rem ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
 .document-extractor-result-counts { color:#075985 !important; }
-.document-extractor-json { min-height:0; flex:1 1 auto; overflow:auto; margin:0; padding:.75rem; border:1px solid #dbe3ec; border-radius:7px; color:#0f172a; background:#fff; font: .76rem/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; white-space:pre; }
-.document-extractor-tsv-preview { min-height:0; flex:1 1 auto; overflow:auto; border:1px solid #dbe3ec; border-radius:7px; background:#fff; }
+.document-extractor-json { min-height:0; flex:1 1 auto; overflow:scroll; margin:0; padding:.75rem; border:1px solid #dbe3ec; border-radius:7px; color:#0f172a; background:#fff; font: .76rem/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; white-space:pre; }
+.document-extractor-tsv-preview { min-height:0; flex:1 1 auto; overflow:scroll; border:1px solid #dbe3ec; border-radius:7px; background:#fff; }
+.document-extractor-results,.document-extractor-tree,.document-extractor-json,.document-extractor-tsv-preview { scrollbar-width:thin; scrollbar-color:#94a3b8 #f1f5f9; }
+.document-extractor-results::-webkit-scrollbar,.document-extractor-tree::-webkit-scrollbar,.document-extractor-json::-webkit-scrollbar,.document-extractor-tsv-preview::-webkit-scrollbar { width:10px; height:10px; }
+.document-extractor-results::-webkit-scrollbar-track,.document-extractor-tree::-webkit-scrollbar-track,.document-extractor-json::-webkit-scrollbar-track,.document-extractor-tsv-preview::-webkit-scrollbar-track { background:#f1f5f9; border-radius:999px; }
+.document-extractor-results::-webkit-scrollbar-thumb,.document-extractor-tree::-webkit-scrollbar-thumb,.document-extractor-json::-webkit-scrollbar-thumb,.document-extractor-tsv-preview::-webkit-scrollbar-thumb { border:2px solid #f1f5f9; border-radius:999px; background:#94a3b8; }
 .document-extractor-tsv-table { width:100%; border-collapse:collapse; color:#334155; font-size:.72rem; }
 .document-extractor-tsv-table th,.document-extractor-tsv-table td { padding:.45rem .55rem; border:1px solid #dbe3ec; text-align:left; vertical-align:top; overflow-wrap:anywhere; }
 .document-extractor-tsv-table th { position:sticky; top:0; z-index:1; color:#334155; background:#edf4f8; font-weight:700; }
 .document-extractor-tsv-table tbody tr:nth-child(even) { background:#f8fafc; }
-.document-extractor-preview-expand { align-self:flex-start; flex:0 0 auto; margin:.4rem 0; padding:.3rem .55rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; cursor:pointer; font:inherit; font-size:.75rem; }
+.document-extractor-preview-expand { min-height:2.2rem; flex:0 0 auto; margin:0; padding:.35rem .7rem; border:1px solid #cbd5e1; border-radius:6px; color:#334155; background:#fff; cursor:pointer; font:inherit; font-size:.8rem; }
 .document-extractor-preview-note { align-self:flex-start; flex:0 0 auto; margin:.2rem 0; color:#64748b; font-size:.72rem; }
 .document-extractor-empty { display:grid; min-height:0; flex:1 1 auto; place-items:center; padding:1rem; color:#64748b; text-align:center; }
 .document-extractor-download { align-self:flex-end; flex:0 0 auto; margin-top:.6rem; border-color:#0369a1; color:#fff; background:#0369a1; font-weight:700; }
-.document-extractor-downloads { display:flex; flex:0 0 auto; justify-content:flex-end; gap:.5rem; }
+.document-extractor-downloads { display:flex; flex:0 0 auto; align-items:center; justify-content:space-between; gap:.5rem; }
+.document-extractor-download-actions { display:flex; gap:.5rem; }
 .document-extractor-download:disabled { border-color:#cbd5e1; color:#94a3b8; background:#f1f5f9; }
 @media (max-width: 760px) { .document-extractor-layout { grid-template-columns:minmax(0,1fr); height:75dvh; grid-template-rows:minmax(12rem,.75fr) minmax(12rem,1.25fr); } .document-extractor-dialog { padding:.75rem; } }
 `;
@@ -115,7 +120,15 @@ if (headerActions && isExtractorEnabled) {
         </div>
         <div class="document-extractor-search-row">
           <input class="document-extractor-search" type="search" placeholder="ファイル名・文書IDを検索" aria-label="ファイル名・文書IDを検索">
-          <button type="button" class="document-extractor-sort" data-sort-documents aria-label="文書IDの昇順">ID ↑</button>
+          <select class="document-extractor-sort-criterion" data-sort-criterion aria-label="並び替え条件">
+            <option value="id">文書ID</option>
+            <option value="upper">上位クラス数</option>
+            <option value="middle">中間クラス数</option>
+            <option value="target">対象クラス数</option>
+            <option value="instance" selected>インスタンス数</option>
+            <option value="unclassifiedTarget">未分類対象クラス数</option>
+          </select>
+          <button type="button" class="document-extractor-sort-direction" data-sort-direction aria-label="降順">↓</button>
         </div>
         <div class="document-extractor-results" role="listbox" aria-label="抽出する文書"></div>
         <div class="document-extractor-pages">
@@ -125,21 +138,23 @@ if (headerActions && isExtractorEnabled) {
         </div>
       </section>
       <section class="document-extractor-preview" aria-label="選択した文書のデータ">
-        <h3 class="document-extractor-preview-title">文書ツリー</h3>
+        <div class="document-extractor-selected-document" hidden></div>
         <div class="document-extractor-view-switch" role="group" aria-label="表示形式">
-          <button type="button" data-view="tree" aria-pressed="true">ツリー</button>
-          <button type="button" data-view="json" aria-pressed="false">JSON</button>
-          <button type="button" data-view="tsv" aria-pressed="false">TSV</button>
+          <button type="button" data-view="tree" aria-pressed="true">文書ツリー</button>
+          <button type="button" data-view="json" aria-pressed="false">JSONプレビュー</button>
+          <button type="button" data-view="tsv" aria-pressed="false">TSVプレビュー</button>
         </div>
         <div class="document-extractor-empty">左の一覧から文書を選択してください。</div>
         <pre class="document-extractor-json" hidden></pre>
         <div class="document-extractor-tsv-preview" hidden></div>
         <p class="document-extractor-preview-note" hidden></p>
-        <button type="button" class="document-extractor-preview-expand" hidden>すべて表示</button>
         <div class="document-extractor-tree" hidden></div>
         <div class="document-extractor-downloads">
-          <button type="button" class="document-extractor-download" data-download="json" disabled>JSONを保存</button>
-          <button type="button" class="document-extractor-download" data-download="tsv" disabled>TSVを保存</button>
+          <button type="button" class="document-extractor-preview-expand" hidden>すべて表示</button>
+          <div class="document-extractor-download-actions">
+            <button type="button" class="document-extractor-download" data-download="json" disabled>JSONを保存</button>
+            <button type="button" class="document-extractor-download" data-download="tsv" disabled>TSVを保存</button>
+          </div>
         </div>
       </section>
     </div>`;
@@ -147,7 +162,8 @@ if (headerActions && isExtractorEnabled) {
 
   const filterControls = [...dialog.querySelectorAll('[data-filter]')];
   const searchControl = dialog.querySelector('.document-extractor-search');
-  const sortButton = dialog.querySelector('[data-sort-documents]');
+  const sortCriterion = dialog.querySelector('[data-sort-criterion]');
+  const sortDirectionButton = dialog.querySelector('[data-sort-direction]');
   const results = dialog.querySelector('.document-extractor-results');
   const pageLabel = dialog.querySelector('.document-extractor-page-label');
   const previousPage = dialog.querySelector('[data-page="previous"]');
@@ -157,6 +173,7 @@ if (headerActions && isExtractorEnabled) {
   const tsvPreview = dialog.querySelector('.document-extractor-tsv-preview');
   const previewNote = dialog.querySelector('.document-extractor-preview-note');
   const previewExpand = dialog.querySelector('.document-extractor-preview-expand');
+  const selectedDocumentTitle = dialog.querySelector('.document-extractor-selected-document');
   const treePreview = dialog.querySelector('.document-extractor-tree');
   const viewButtons = [...dialog.querySelectorAll('[data-view]')];
   const downloadButtons = [...dialog.querySelectorAll('[data-download]')];
@@ -166,7 +183,7 @@ if (headerActions && isExtractorEnabled) {
   let selectedTsv = '';
   let selectedTsvRows = [];
   let selectedTree = null;
-  let sortAscending = true;
+  let sortAscending = false;
   let graphData = null;
   let graphLoading = false;
   let activeView = 'tree';
@@ -347,7 +364,7 @@ if (headerActions && isExtractorEnabled) {
   }
 
   function classesForDocument(record, includeTree = true) {
-    if (!graphData) return { available: false, instances: [], targets: [], counts: { upper: 0, middle: 0, target: 0, instance: 0, unclassifiedTarget: 0 }, tree: [] };
+    if (!graphData) return { available: false, instances: [], targets: [], counts: { upper: 0, middle: 0, target: 0, instance: 0, depth: 0, unclassified: { upper: 0, middle: 0, target: 0 } }, tree: [] };
     const number = documentNumber(record);
     const instances = number ? graphData.instancesByDocument.get(number) || [] : [];
     const instanceIds = new Set(instances.map((item) => item.id));
@@ -373,9 +390,20 @@ if (headerActions && isExtractorEnabled) {
       }
       return false;
     };
-    const unclassifiedTargetCount = [...targetIds]
-      .filter((id) => id.includes('/class/c_') && isUnderUnclassifiedUpper(id)).length;
-    const counts = { upper: countKind('t'), middle: countKind('m'), target: countKind('c'), instance: instances.length, unclassifiedTarget: unclassifiedTargetCount };
+    const unclassified = {
+      upper: [...reachable].filter((id) => id.includes('/class/t_') && classes.get(id)?.label === '未分類').length,
+      middle: [...reachable].filter((id) => id.includes('/class/m_') && isUnderUnclassifiedUpper(id)).length,
+      target: [...reachable].filter((id) => id.includes('/class/c_') && isUnderUnclassifiedUpper(id)).length
+    };
+    const getDepth = (id, path = new Set()) => {
+      if (path.has(id)) return 0;
+      const nextPath = new Set(path).add(id);
+      const parentDepths = (parents.get(id) || []).filter((parent) => reachable.has(parent))
+        .map((parent) => getDepth(parent, nextPath));
+      return 1 + Math.max(0, ...parentDepths);
+    };
+    const depth = Math.max(0, ...[...targetIds].filter((id) => id.includes('/class/c_')).map((id) => getDepth(id)));
+    const counts = { upper: countKind('t'), middle: countKind('m'), target: countKind('c'), instance: instances.length, depth, unclassified };
     if (!includeTree) return { available: true, instances: [], targets: [], classLabels: {}, counts, tree: [] };
     const children = new Map();
     [...reachable].forEach((id) => {
@@ -409,10 +437,6 @@ if (headerActions && isExtractorEnabled) {
     treePreview.replaceChildren();
     const cardTree = document.createElement('div');
     cardTree.className = 'document-extractor-card-tree';
-    const documentTitle = document.createElement('div');
-    documentTitle.className = 'document-extractor-tree-document';
-    documentTitle.textContent = selectedDocument.input_file || selectedDocument.documentIRI;
-    cardTree.append(documentTitle);
     const search = document.createElement('input');
     search.type = 'search';
     search.className = 'document-extractor-tree-search';
@@ -526,7 +550,6 @@ if (headerActions && isExtractorEnabled) {
     tsvPreview.hidden = !hasSelection || activeView !== 'tsv';
     treePreview.hidden = !hasSelection || activeView !== 'tree';
     viewButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.view === activeView)));
-    dialog.querySelector('.document-extractor-preview-title').textContent = activeView === 'json' ? 'JSONプレビュー' : activeView === 'tsv' ? 'TSVプレビュー' : '文書ツリー';
     const isDataView = activeView === 'json' || activeView === 'tsv';
     const comparisonRows = selectedTree ? buildComparisonRows(selectedTree.tree) : [];
     const hasMore = activeView === 'json'
@@ -591,16 +614,19 @@ if (headerActions && isExtractorEnabled) {
   function filteredDocuments() {
     const selected = Object.fromEntries(filterControls.map((control) => [control.dataset.filter, control.value]));
     const query = searchControl.value.trim().toLocaleLowerCase('ja-JP');
-    return documents.filter((record) => (!selected.prefecture || record.prefecture === selected.prefecture)
+    const matches = documents.filter((record) => (!selected.prefecture || record.prefecture === selected.prefecture)
       && (!selected.type || record['資料種別'] === selected.type)
-      && (!query || `${record.input_file || ''} ${shortId(record.documentIRI)}`.toLocaleLowerCase('ja-JP').includes(query)))
-      .sort((left, right) => {
-        const difference = Number(documentNumber(left)) - Number(documentNumber(right));
-        const order = Number.isFinite(difference) && difference !== 0
-          ? difference
-          : String(left.documentIRI).localeCompare(String(right.documentIRI), 'ja-JP');
-        return sortAscending ? order : -order;
-      });
+      && (!query || `${record.input_file || ''} ${shortId(record.documentIRI)}`.toLocaleLowerCase('ja-JP').includes(query)));
+    const criterion = sortCriterion.value;
+    const sortValues = new Map(matches.map((record) => [record, criterion === 'id'
+      ? Number(documentNumber(record))
+      : classesForDocument(record, false).counts[criterion]]));
+    matches.sort((left, right) => {
+      const difference = Number(sortValues.get(left)) - Number(sortValues.get(right));
+      if (Number.isFinite(difference) && difference !== 0) return sortAscending ? difference : -difference;
+      return String(left.documentIRI).localeCompare(String(right.documentIRI), 'ja-JP');
+    });
+    return matches;
   }
 
   function populateFilters() {
@@ -649,6 +675,8 @@ if (headerActions && isExtractorEnabled) {
 
   function selectDocument(record) {
     selectedDocument = record;
+    selectedDocumentTitle.textContent = record.input_file || record.documentIRI;
+    selectedDocumentTitle.hidden = false;
     selectedTree = classesForDocument(record);
     selectedJson = serializeGraphRecord(record, selectedTree);
     selectedTsvRows = buildGraphTsvRows(selectedTree);
@@ -666,6 +694,8 @@ if (headerActions && isExtractorEnabled) {
     selectedTsv = '';
     selectedTsvRows = [];
     selectedTree = null;
+    selectedDocumentTitle.textContent = '';
+    selectedDocumentTitle.hidden = true;
     showAllPreview = false;
     empty.hidden = false;
     empty.textContent = documents.length ? '左の一覧から文書を選択してください。' : '抽出できる文書がありません。';
@@ -701,7 +731,7 @@ if (headerActions && isExtractorEnabled) {
         const state = classesForDocument(record, false);
         const counts = document.createElement('span');
         counts.className = 'document-extractor-result-counts';
-        counts.textContent = `上位クラス数 ${state.counts.upper} ・ 中間クラス数 ${state.counts.middle} ・ 対象クラス数 ${state.counts.target} ・ インスタンス数 ${state.counts.instance} ・ 未分類対象クラス数 ${state.counts.unclassifiedTarget}`;
+        counts.textContent = `上位クラス数 ${state.counts.upper} ・ 中間クラス数 ${state.counts.middle} ・ 対象クラス数 ${state.counts.target} ・ インスタンス数 ${state.counts.instance} ・ 最大深さ ${state.counts.depth} ・ 未分類（上位 ${state.counts.unclassified.upper} ・ 中間 ${state.counts.unclassified.middle} ・ 対象 ${state.counts.unclassified.target}）`;
         button.append(counts);
       }
       button.addEventListener('click', () => {
@@ -774,10 +804,15 @@ if (headerActions && isExtractorEnabled) {
     resetPreview();
     renderResults();
   });
-  sortButton.addEventListener('click', () => {
+  sortCriterion.addEventListener('change', () => {
+    page = 0;
+    resetPreview();
+    renderResults();
+  });
+  sortDirectionButton.addEventListener('click', () => {
     sortAscending = !sortAscending;
-    sortButton.textContent = sortAscending ? 'ID ↑' : 'ID ↓';
-    sortButton.setAttribute('aria-label', `文書IDの${sortAscending ? '昇順' : '降順'}`);
+    sortDirectionButton.textContent = sortAscending ? '↑' : '↓';
+    sortDirectionButton.setAttribute('aria-label', sortAscending ? '昇順' : '降順');
     page = 0;
     resetPreview();
     renderResults();
