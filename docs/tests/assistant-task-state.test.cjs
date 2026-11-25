@@ -13,6 +13,16 @@ test('task action authorization accepts scoped existing-structure inspection', (
   }, { scopeIds: ['a', 'b'], dataVersion: 'v1' }), { allowed: true, action: 'use_existing_structure', input: {} });
 });
 
+test('scope inspection is permitted before a named target has been resolved', () => {
+  const unbound = task({ scopeIds: [] });
+  assert.deepEqual(authorizeTaskAction(unbound, { action: 'inspect_scope', input: {} }, {
+    scopeIds: [], dataVersion: 'v1'
+  }), { allowed: true, action: 'inspect_scope', input: {} });
+  assert.equal(authorizeTaskAction(unbound, { action: 'place_items', input: { targetIds: ['a'] } }, {
+    scopeIds: [], dataVersion: 'v1'
+  }).reason, 'scope_violation');
+});
+
 test('task action authorization rejects scope, structure, version, and iteration violations', () => {
   assert.equal(authorizeTaskAction(task(), { action: 'place_items', input: { targetIds: ['outside'] } }, { dataVersion: 'v1' }).reason, 'scope_violation');
   assert.equal(authorizeTaskAction(task(), { action: 'design_structure', input: {} }, { dataVersion: 'v1' }).reason, 'structure_mode_mismatch');

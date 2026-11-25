@@ -91,7 +91,7 @@ const plan = (overrides = {}) => ({
   scopeNeeds: { referenceBeyondSelection: false, changeBeyondSelection: false },
   changeOperations: [], questions: [], unsupportedParts: [], ...overrides
 });
-function harness(planSequence) {
+function harness(planSequence, { selectedIds = ['target-id'] } = {}) {
   const events = [];
   const progressReports = [];
   const planInputs = [];
@@ -101,7 +101,7 @@ function harness(planSequence) {
   targetMoveProcessorOptions.length = 0;
   agentRunResponseQueue.length = 0;
   agentProgressQueue.length = 0;
-  const editor = { selectedIds: ['target-id'], getState: () => classState };
+  const editor = { selectedIds, getState: () => classState };
   const settings = {
     'runtime.inputTokenCap': 300000, 'runtime.maxResponseRounds': 30, 'runtime.maxRetrievalCalls': 200, 'runtime.maxReplans': 5,
     'runtime.maxOutputTokens': 5000, 'dataRetrieval.pageAndIdLimit': 100, 'validation.maxRepairRetries': 2,
@@ -149,6 +149,41 @@ test('ready read-only workflow completes without exposing IDs or API keys to pla
   const stateText = JSON.stringify(workflow.getState());
   assert.equal(stateText.includes('secret-api-key'), false);
   assert.equal(stateText.includes('top-secret-id'), false);
+});
+
+test('an exact named hierarchy root resolves to its full descendant scope before planning', async () => {
+  const { workflow, planInputs, planningOptions } = harness([plan()]);
+  const result = await workflow.start({
+    request: '秘密名配下の階層を確認してください', apiKey: 'secret-api-key', model: 'model-x', selectedClassIds: []
+  });
+  assert.equal(result.status, 'completed');
+  assert.equal(planningOptions[0].hierarchyIndexAvailable, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(planInputs[0].classCounts.selected)), { top: 1, middle: 0, target: 1 });
+  assert.deepEqual([...readerOptions[0].getReferenceScope()].sort(), ['target-id', 'top-secret-id']);
+  assert.deepEqual([...readerOptions[0].getSelectedIds()].sort(), ['target-id', 'top-secret-id']);
+});
+
+test('an unresolved named hierarchy target asks for clarification instead of entering retrieval', async () => {
+  const { workflow, events, planningOptions } = harness([plan()]);
+  const result = await workflow.start({
+    request: '存在しない分類の配下を再編してください', apiKey: 'secret-api-key', model: 'model-x', selectedClassIds: []
+  });
+  assert.equal(result.status, 'needs_clarification');
+  assert.equal(planningOptions.length, 0);
+  assert.match(events.find((event) => event.type === 'questions').questions[0].text, /対象となる階層クラス名/);
+  assert.equal(workflow.getState().taskState.status, 'awaiting_user');
+});
+
+test('clarification can resolve an exact hierarchy name and resume the task', async () => {
+  const { workflow, planningOptions } = harness([plan()], { selectedIds: [] });
+  const waiting = await workflow.start({
+    request: '対象分類を再編してください', apiKey: 'secret-api-key', model: 'model-x', selectedClassIds: []
+  });
+  assert.equal(waiting.status, 'needs_clarification');
+  const resumed = await workflow.answerQuestions('秘密名', undefined);
+  assert.equal(resumed.status, 'completed');
+  assert.equal(planningOptions[0].hierarchyIndexAvailable, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(workflow.getState().selectedClassIds)).sort(), ['target-id', 'top-secret-id']);
 });
 
 test('a plan that requires data cannot complete without runtime evidence', async () => {

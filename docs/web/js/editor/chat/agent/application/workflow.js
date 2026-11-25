@@ -49,6 +49,15 @@ const expandScopeDescendants = (classes, relations, roots) => {
   const available = new Set(classes.map((item) => item.id));
   return [...found].filter((id) => available.has(id));
 };
+const resolveNamedHierarchyRoots = (request, classes) => {
+  const normalizedRequest = String(request || '').normalize('NFC');
+  const candidates = (classes || []).filter((item) => ['top', 'middle'].includes(item.type)
+    && typeof item.label === 'string' && item.label.trim()
+    && normalizedRequest.includes(item.label.trim().normalize('NFC')));
+  if (!candidates.length) return [];
+  const longestLength = Math.max(...candidates.map((item) => item.label.trim().normalize('NFC').length));
+  return candidates.filter((item) => item.label.trim().normalize('NFC').length === longestLength);
+};
 const parseResponse = (text) => {
   try { return JSON.parse(text); }
   catch {
@@ -362,11 +371,23 @@ export function createAssistantWorkflow({
     decision.referenceIds.forEach((id) => grants.reference.add(id));
     const selectedScope = new Set(selectedClassIds);
     decision.changeIds.filter((id) => selectedScope.has(id)).forEach((id) => grants.change.add(id));
-    updateState({
+    let nextState = {
       ...state,
       scopeGrants: { reference: [...grants.reference], change: [...grants.change] },
       updatedAt: now()
-    });
+    };
+    const taskState = normalizeTaskState(nextState.taskState);
+    if (taskState?.status === 'awaiting_user') {
+      const resumedTask = resumeTask(taskState, {
+        scopeIds: nextState.selectedClassIds,
+        dataVersion: window.classEditorAssistant?.getDataVersion?.() || ''
+      });
+      if (!resumedTask) throw Object.assign(new Error('参照許可の待機中に対象データが更新されたため、タスクを再開できません。'), {
+        code: 'DATA_VERSION_CHANGED', sourceModule: 'application/task-state.js'
+      });
+      nextState = { ...nextState, taskState: resumedTask };
+    }
+    updateState(nextState);
     setStatus(continueInPlace ? 'retrieving' : 'planning');
     return 'allow';
   }
@@ -765,6 +786,49 @@ export function createAssistantWorkflow({
 
   async function runPlan({ replan = false, signal } = {}) {
     if (replan) setStatus('planning');
+    if (!selectedClassIds.length && editor.selectedIds?.length) {
+      const available = new Set(editor.getState().classes.map((item) => item.id));
+      selectedClassIds = [...new Set(editor.selectedIds.filter((id) => available.has(id)))];
+      selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
+      hierarchyIndexAvailable = hierarchyIndexAvailable || selectedClassIds.some((id) =>
+        editor.getState().classes.some((item) => item.id === id && ['top', 'middle'].includes(item.type)));
+      const taskState = normalizeTaskState(state.taskState);
+      state = {
+        ...state, selectedClassIds: [...selectedClassIds],
+        scopeGrants: { reference: [...grants.reference], change: [...grants.change] },
+        taskState: taskState ? normalizeTaskState({ ...taskState, scopeIds: selectedClassIds, updatedAt: Date.now() }) : state.taskState,
+        updatedAt: now()
+      };
+      updateState(state);
+    }
+    if (!selectedClassIds.length && !state.jobCheckpoint && /クラス|分類|階層|配下|再編|整理/.test(String(state.request || ''))) {
+      const namedRoots = resolveNamedHierarchyRoots(state.request, editor.getState().classes);
+      if (namedRoots.length !== 1) {
+        const names = namedRoots.map((item) => `「${item.label}」`).join('、');
+        plan = { status: 'needs_clarification', questions: [{
+          id: 'target-scope',
+          text: namedRoots.length
+            ? `対象名が複数の階層クラスに一致しました（${names}）。対象を画面で選択するか、親クラス名を含めて指定してください。`
+            : '対象となる階層クラス名を特定できませんでした。対象クラスを画面で選択するか、現在の名称を依頼文に含めてください。'
+        }] };
+        setStatus('needs_clarification');
+        onEvent({ type: 'questions', questions: plan.questions });
+        emitProgress('waiting_for_answer');
+        return { status: 'needs_clarification', questions: plan.questions };
+      }
+      selectedClassIds = expandScopeDescendants(editor.getState().classes, editor.getState().relations, [namedRoots[0].id]);
+      selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
+      hierarchyIndexAvailable = true;
+      const taskState = normalizeTaskState(state.taskState);
+      state = {
+        ...state,
+        selectedClassIds: [...selectedClassIds],
+        scopeGrants: { reference: [...grants.reference], change: [...grants.change] },
+        taskState: taskState ? normalizeTaskState({ ...taskState, scopeIds: selectedClassIds, updatedAt: Date.now() }) : state.taskState,
+        updatedAt: now()
+      };
+      updateState(state);
+    }
     let currentPlan = await createPlan({ replan, signal });
     if (!['unsupported', 'needs_clarification'].includes(currentPlan.status)
       && ((structureModeOf(currentPlan) === 'existing' && hasHierarchyDeletion(currentPlan)) || state.jobCheckpoint?.kind === 'hierarchy_deletion')) {
@@ -1000,11 +1064,24 @@ export function createAssistantWorkflow({
       selectedClassIds = Array.isArray(selectedClassIdsOverride)
         ? [...new Set(selectedClassIdsOverride.filter((id) => typeof id === 'string' && validClassIds.has(id)))]
         : [...(editor.selectedIds || [])];
+      let unresolvedTargetQuestion = null;
+      if (!selectedClassIds.length && !jobCheckpoint && /クラス|分類|階層|配下|再編|整理/.test(String(request || ''))) {
+        const namedRoots = resolveNamedHierarchyRoots(request, editorState.classes);
+        if (namedRoots.length === 1) {
+          selectedClassIds = expandScopeDescendants(editorState.classes, editorState.relations, [namedRoots[0].id]);
+        } else {
+          const names = namedRoots.map((item) => `「${item.label}」`).join('、');
+          unresolvedTargetQuestion = namedRoots.length
+            ? `対象名が複数の階層クラスに一致しました（${names}）。対象を画面で選択してから、もう一度依頼してください。`
+            : '対象となる階層クラス名を特定できませんでした。対象クラスを画面で選択するか、現在の名称を依頼文に含めてください。';
+        }
+      }
       deniedReferenceIds = new Set();
       deniedChangeIds = new Set();
       const extraReferenceIds = Array.isArray(referenceClassIdsOverride)
         ? [...new Set(referenceClassIdsOverride.filter((id) => typeof id === 'string' && validClassIds.has(id)))] : [];
-      hierarchyIndexAvailable = referenceAllHierarchy === true || extraReferenceIds.length > 0;
+      hierarchyIndexAvailable = referenceAllHierarchy === true || extraReferenceIds.length > 0
+        || selectedClassIds.some((id) => editorState.classes.some((item) => item.id === id && ['top', 'middle'].includes(item.type)));
       plan = null;
       lastResult = null;
       lastAgentContext = null;
@@ -1049,6 +1126,13 @@ export function createAssistantWorkflow({
         onResponseLimit: (detail) => budgetApproval?.request?.(detail),
         onInputLimit: (detail) => budgetApproval?.request?.(detail)
       });
+      if (unresolvedTargetQuestion) {
+        plan = { status: 'needs_clarification', questions: [{ id: 'target-scope', text: unresolvedTargetQuestion }] };
+        setStatus('needs_clarification');
+        onEvent({ type: 'questions', questions: plan.questions });
+        emitProgress('waiting_for_answer');
+        return { status: 'needs_clarification', questions: plan.questions };
+      }
       return await runPlan({ signal: activeSignal });
     } catch (error) {
       if (settingsInvalidated) {

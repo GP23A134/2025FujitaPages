@@ -10,7 +10,9 @@ export const TASK_ACTIONS = Object.freeze([
 ]);
 
 const ACTION_RULES = Object.freeze({
-  inspect_scope: { requiredInput: [], needsScope: true },
+  // Scope inspection may be the action that discovers and resolves an initially
+  // unbound target. Actual reads remain subject to the permission guard.
+  inspect_scope: { requiredInput: [], needsScope: false },
   use_existing_structure: { requiredInput: [], needsScope: true, structureMode: 'existing' },
   design_structure: { requiredInput: [], needsScope: true, structureMode: 'design' },
   place_items: { requiredInput: ['targetIds'], needsScope: true },
