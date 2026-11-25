@@ -1,6 +1,10 @@
 import { createJobCheckpoint, normalizeJobCheckpoint, runJobLoop } from '../../application/job-loop.js';
 
 const PAGE_BATCH_SIZE = 100;
+const FAST_PATH_MAX_TARGETS = 100;
+const FAST_PATH_MAX_HIERARCHY = 150;
+const FAST_PATH_MAX_INPUT_CHARS = 24000;
+const DESTINATION_PICKS_PER_BATCH = 5;
 const identity = (item) => ({ kind: 'existing_class', classId: item.id, tempId: null });
 const temporary = (tempId) => ({ kind: 'temporary_class', classId: null, tempId });
 const responseText = (response) => (response?.output || []).flatMap((item) => item.content || [])
@@ -89,11 +93,11 @@ export function createHierarchyReorganizationJob({
     if (sameJob) {
       const priorHierarchyIds = saved.metadata.hierarchyIds || [];
       if (!priorHierarchyIds.every((id) => hierarchyIds.includes(id))) return { status: 'stale_job', message: '保存済み再編ジョブの参照範囲が現在と異なるため続行できません。' };
-      if (priorHierarchyIds.length !== hierarchyIds.length || saved.metadata.designVersion !== 4) {
+      if (priorHierarchyIds.length !== hierarchyIds.length || saved.metadata.designVersion !== 8) {
         activeJob = normalizeJobCheckpoint({
           ...saved,
           status: 'running',
-          metadata: { ...saved.metadata, hierarchyIds, designVersion: 4 },
+          metadata: { ...saved.metadata, hierarchyIds, designVersion: 8 },
           phases: saved.phases.filter((phase) => phase.id === 'target-snapshot'),
           updatedAt: Date.now(), completedAt: null
         });
@@ -121,7 +125,7 @@ export function createHierarchyReorganizationJob({
       id: globalThis.crypto?.randomUUID?.() || `reorg-${Date.now()}`,
       kind: 'hierarchy_reorganization', request: jobRequest || request, dataVersion,
       scopeIds: sortedScope,
-      metadata: { selectedIds, targetIds, hierarchyIds, executionMode: 'reorganization', designVersion: 4, userGuidance: [] }
+      metadata: { selectedIds, targetIds, hierarchyIds, executionMode: 'reorganization', designVersion: 8, userGuidance: [] }
     });
     const persist = async (checkpoint) => { activeJob = checkpoint; await onCheckpoint(checkpoint); };
     const targetPhase = pagePhase({ id: 'target-snapshot', ids: selectedIds, reader, read: (cursor) => reader.readSelectedClassDetails({ cursor }), budgetGuard, onProgress, tool: 'read_selected_class_details', note: '再編対象を全ページ取得しています' });
@@ -162,36 +166,99 @@ export function createHierarchyReorganizationJob({
     if (JSON.stringify(actualTargetIds) !== JSON.stringify([...targetIds].sort((a, b) => a.localeCompare(b)))) return {
       status: 'stale_job', message: '取得した末端対象が変更許可範囲と一致しないため、再編を停止しました。'
     };
-    if (!targets.length) return {
-      text: JSON.stringify({ message: '選択範囲に再編対象の末端クラスがありません。', proposals: [], alternativeGroups: [] }),
-      messages: [], counters: budgetGuard.getCounters()
-    };
-
     const hierarchyById = new Map(hierarchy.map((item) => [item.id, item]));
     const destinationRecords = hierarchy.map((item, index) => ({
       key: `d${index + 1}`, id: item.id, label: item.label, type: item.type,
       parentId: item.parentId, parentLabel: item.parentLabel, editable: editableIds.includes(item.id)
     }));
     const destinationByKey = new Map(destinationRecords.map((item) => [item.key, item]));
-    const editableExistingKeys = destinationRecords.filter((item) => item.editable).map((item) => item.key);
-    const structureSchema = {
+    const estimatedInputChars = request.length
+      + targets.reduce((sum, item) => sum + String(item.label || '').length + String(item.parentLabel || '').length + 8, 0)
+      + destinationRecords.reduce((sum, item) => sum + item.label.length + String(item.parentLabel || '').length + 16, 0);
+    const fastPath = targets.length <= FAST_PATH_MAX_TARGETS
+      && destinationRecords.length <= FAST_PATH_MAX_HIERARCHY
+      && estimatedInputChars <= FAST_PATH_MAX_INPUT_CHARS;
+    const dispositionItems = fastPath ? [] : destinationRecords.filter((item) => item.editable && item.label !== '未分類');
+    const dispositionBatches = Array.from({ length: Math.ceil(dispositionItems.length / PAGE_BATCH_SIZE) }, (_, index) => ({
+      id: `disposition-${index + 1}`,
+      items: dispositionItems.slice(index * PAGE_BATCH_SIZE, (index + 1) * PAGE_BATCH_SIZE)
+    }));
+    const dispositionSchema = (items) => ({
+      type: 'object', additionalProperties: false,
+      properties: { decisions: { type: 'array', minItems: items.length, maxItems: items.length, items: {
+        type: 'object', additionalProperties: false,
+        properties: {
+          key: { type: 'string', enum: items.map((item) => item.key) },
+          disposition: { type: 'string', enum: ['keep', 'delete'] },
+          reason: { type: 'string', maxLength: 300 }
+        }, required: ['key', 'disposition', 'reason']
+      } } }, required: ['decisions']
+    });
+    const dispositionPhase = {
+      id: 'existing-class-disposition', units: dispositionBatches,
+      async execute(unit) {
+        onProgress({ stage: 'analyzing', note: `既存分類を${unit.items.length}件ずつ維持・削除判定しています` });
+        return parseAI(await callAI([
+          { role: 'system', content: [
+            '対象範囲内の既存上位・中間クラスを一件ずつ確認し、維持か削除かを判定してください。',
+            '再編後も役割を持つ分類はkeepにします。重複、不要、または再編後の構造で役割を持たないことが明確な場合に限ってdeleteにします。名称が似ている、件数が少ない、配下がないという理由だけでは削除しません。',
+            '削除を選んだ分類の子は後段で再編先へ移し、移動後に削除します。候補keyを漏れなく一度ずつ返し、内部思考は出力しないでください。'
+          ].join('\n') },
+          { role: 'user', content: JSON.stringify({
+            request, objective: plan.executionBrief,
+            candidates: unit.items.map(({ key, label, type, parentLabel }) => ({ key, label, type, parent: parentLabel || null }))
+          }) }
+        ], 'reorganization_existing_disposition', dispositionSchema(unit.items)), 'INVALID_REORG_DISPOSITION', '既存分類の判定を読み取れませんでした。');
+      },
+      validate(unit, result) {
+        const decisions = result?.decisions;
+        const expected = unit.items.map((item) => item.key);
+        return Array.isArray(decisions) && decisions.length === expected.length
+          && new Set(decisions.map((item) => item.key)).size === expected.length
+          && expected.every((key) => decisions.some((item) => item.key === key))
+          && decisions.every((item) => ['keep', 'delete'].includes(item.disposition) && typeof item.reason === 'string')
+          ? true : `既存分類の判定${unit.id}に漏れまたは重複があります。`;
+      },
+      validatePhase(results) {
+        const actual = results.flatMap((unit) => unit.result?.decisions || []).map((item) => item.key);
+        const expected = dispositionItems.map((item) => item.key);
+        return actual.length === expected.length && new Set(actual).size === expected.length
+          && expected.every((key) => actual.includes(key)) ? true : '既存分類の維持・削除判定が全件揃っていません。';
+      }
+    };
+    const dispositionState = (checkpoint) => {
+      const phase = checkpoint?.phases.find((item) => item.id === 'existing-class-disposition');
+      const decisions = phase?.units.flatMap((unit) => unit.result?.decisions || []) || [];
+      const dispositionByKey = new Map(decisions.map((item) => [item.key, item.disposition]));
+      return {
+        phase,
+        deleteKeys: decisions.filter((item) => item.disposition === 'delete').map((item) => item.key),
+        availableRecords: fastPath
+          ? destinationRecords
+          : destinationRecords.filter((item) => !item.editable || item.label === '未分類' || dispositionByKey.get(item.key) === 'keep'),
+        dispositionByKey
+      };
+    };
+    const structureSchemaFor = (availableRecords, includeDeleteKeys = false) => ({
       type: 'object', additionalProperties: false,
       properties: {
-        categories: { type: 'array', minItems: 1, maxItems: 200, items: {
+        categories: { type: 'array', minItems: targets.length ? 1 : 0, maxItems: 200, items: {
           type: 'object', additionalProperties: false,
           properties: {
             key: { type: 'string', maxLength: 40 }, label: { type: 'string', maxLength: 120 },
             type: { type: 'string', enum: ['top', 'middle'] },
-            existingKey: { anyOf: [{ type: 'string', enum: destinationRecords.map((item) => item.key) }, { type: 'null' }] },
+            existingKey: availableRecords.length
+              ? { anyOf: [{ type: 'string', enum: availableRecords.map((item) => item.key) }, { type: 'null' }] }
+              : { type: 'null' },
             parentKey: { anyOf: [{ type: 'string', maxLength: 40 }, { type: 'null' }] },
             reason: { type: 'string', maxLength: 500 }
           }, required: ['key', 'label', 'type', 'existingKey', 'parentKey', 'reason']
         } },
-        deleteKeys: { type: 'array', uniqueItems: true, items: { type: 'string', enum: editableExistingKeys } },
+        ...(includeDeleteKeys ? { deleteKeys: { type: 'array', uniqueItems: true, items: { type: 'string', enum: dispositionItems.map((item) => item.key) } } } : {}),
         designReason: { type: 'string', maxLength: 1000 }
-      }, required: ['categories', 'deleteKeys', 'designReason']
-    };
-    const evidenceBatches = Array.from({ length: Math.ceil(targets.length / PAGE_BATCH_SIZE) }, (_, index) => ({
+      }, required: [...(includeDeleteKeys ? ['deleteKeys'] : []), 'categories', 'designReason']
+    });
+    const evidenceBatches = fastPath ? [] : Array.from({ length: Math.ceil(targets.length / PAGE_BATCH_SIZE) }, (_, index) => ({
       id: `evidence-${index + 1}`,
       items: targets.slice(index * PAGE_BATCH_SIZE, (index + 1) * PAGE_BATCH_SIZE)
     }));
@@ -224,41 +291,184 @@ export function createHierarchyReorganizationJob({
           ? true : `対象傾向の要約${unit.id}が不正です。`;
       }
     };
+    const taxonomySkeletonPhase = {
+      id: 'taxonomy-skeleton', units: fastPath ? [] : [{ id: 'global-taxonomy' }],
+      async execute(unit) {
+        onProgress({ stage: 'analyzing', note: '対象全体の分割要約から再編後の分類骨組みを設計しています' });
+        const evidence = readResults('structure-evidence');
+        const input = [
+          { role: 'system', content: [
+            '対象クラス全体を分類するための再編後の上位・中間クラスの骨組みを設計してください。',
+            'この段階では既存の移動先を考慮せず、対象の要約から必要な分類軸と親子関係を決めます。中間クラスには上位クラスのkeyを指定してください。',
+            '異なる概念を接続語や中点で無理にまとめず、必要な分類だけを作ります。対象件数が0件ならcategoriesは空で構いません。'
+          ].join('\n') },
+          { role: 'user', content: JSON.stringify({
+            request, objective: plan.executionBrief, targetCount: targets.length,
+            targetBatchSummaries: evidence.map((item, index) => ({ batch: evidenceBatches[index].id, summary: item.summary, themes: item.themes }))
+          }) }
+        ];
+        return parseAI(await callAI(input, 'reorganization_taxonomy_skeleton', {
+          type: 'object', additionalProperties: false,
+          properties: { categories: { type: 'array', minItems: targets.length ? 1 : 0, maxItems: 200, items: {
+            type: 'object', additionalProperties: false,
+            properties: {
+              key: { type: 'string', maxLength: 40 }, label: { type: 'string', maxLength: 120 },
+              type: { type: 'string', enum: ['top', 'middle'] },
+              parentKey: { anyOf: [{ type: 'string', maxLength: 40 }, { type: 'null' }] },
+              reason: { type: 'string', maxLength: 400 }
+            }, required: ['key', 'label', 'type', 'parentKey', 'reason']
+          } } }, required: ['categories']
+        }), 'INVALID_REORG_SKELETON', '再編後の分類骨組みを読み取れませんでした。');
+      },
+      validate(unit, result) {
+        const categories = result?.categories;
+        if (!Array.isArray(categories) || (targets.length > 0 && !categories.length)) return '再編後の分類骨組みがありません。';
+        const keys = categories.map((item) => item.key);
+        if (keys.some((key) => typeof key !== 'string' || !key) || new Set(keys).size !== keys.length) return '分類骨組みのkeyが空または重複しています。';
+        for (const item of categories) {
+          if (!item.label?.trim() || !['top', 'middle'].includes(item.type)) return '分類骨組みの名称または型が不正です。';
+          if (item.type === 'top' && item.parentKey !== null) return '上位クラスの骨組みに親が指定されています。';
+          if (item.type === 'middle' && (!keys.includes(item.parentKey) || categories.find((parent) => parent.key === item.parentKey)?.type !== 'top')) return '中間クラスの骨組みの親が不正です。';
+        }
+        return true;
+      }
+    };
+    const destinationBatches = fastPath ? [] : Array.from({ length: Math.ceil(destinationRecords.length / PAGE_BATCH_SIZE) }, (_, index) => ({
+      id: `destination-${index + 1}`,
+      items: destinationRecords.slice(index * PAGE_BATCH_SIZE, (index + 1) * PAGE_BATCH_SIZE)
+    }));
+    const mandatoryDestinationKeys = (checkpoint) => {
+      const disposition = dispositionState(checkpoint);
+      const deleted = new Set(disposition.deleteKeys);
+      const eligible = new Set(disposition.availableRecords.map((item) => item.key));
+      const mandatory = new Set();
+      const recordById = new Map(destinationRecords.map((item) => [item.id, item]));
+      for (const target of targets) {
+        const parent = recordById.get(target.parentId);
+        if (parent && eligible.has(parent.key)) mandatory.add(parent.key);
+      }
+      for (const top of destinationRecords.filter((item) => item.type === 'top' && deleted.has(item.key))) {
+        for (const middle of destinationRecords.filter((item) => item.type === 'middle' && item.parentId === top.id)) {
+          if (!deleted.has(middle.key) && eligible.has(middle.key)) mandatory.add(middle.key);
+        }
+      }
+      return mandatory;
+    };
+    const destinationPhase = {
+      id: 'destination-shortlist', units: destinationBatches,
+      async execute(unit, { checkpoint }) {
+        const disposition = dispositionState(checkpoint);
+        const eligible = unit.items.filter((item) => disposition.availableRecords.some((candidate) => candidate.key === item.key));
+        const eligibleKeys = new Set(eligible.map((item) => item.key));
+        const mandatory = [...mandatoryDestinationKeys(checkpoint)].filter((key) => eligibleKeys.has(key));
+        if (!eligible.length) return { candidateKeys: [], reason: 'この範囲に利用可能な既存分類はありません。' };
+        const evidence = checkpoint.phases.find((phase) => phase.id === 'structure-evidence')?.units || [];
+        const skeleton = checkpoint.phases.find((phase) => phase.id === 'taxonomy-skeleton')?.units?.[0]?.result;
+        if (!skeleton) throw Object.assign(new Error('分類骨組みが保存されていません。'), { code: 'REORG_SKELETON_INCOMPLETE' });
+        const themes = [...new Set(evidence.flatMap((item) => item.result?.themes || []))].slice(0, 50);
+        onProgress({ stage: 'analyzing', note: `既存移動先を${eligible.length}件ずつ関連度確認しています` });
+        const result = parseAI(await callAI([
+          { role: 'system', content: [
+            '再編後の骨組みと対象全体の要約に照らし、この候補群から移動先として有用な既存分類を最大5件選んでください。',
+            '現在の親として使われている分類や、親子構造上必要な分類だけを無理に選ばず、候補の意味が合うものを選びます。削除判定済み分類は候補に含まれていません。'
+          ].join('\n') },
+          { role: 'user', content: JSON.stringify({
+            request, objective: plan.executionBrief, taxonomySkeleton: skeleton.categories, targetThemes: themes,
+            candidates: eligible.map(({ key, label, type, parentLabel }) => ({ key, label, type, parent: parentLabel || null }))
+          }) }
+        ], 'reorganization_destination_candidates', {
+          type: 'object', additionalProperties: false,
+          properties: {
+            candidateKeys: { type: 'array', uniqueItems: true, maxItems: Math.min(DESTINATION_PICKS_PER_BATCH, eligible.length), items: { type: 'string', enum: [...eligibleKeys] } },
+            reason: { type: 'string', maxLength: 400 }
+          }, required: ['candidateKeys', 'reason']
+        }), 'INVALID_REORG_DESTINATIONS', '既存移動先候補を読み取れませんでした。');
+        return { ...result, candidateKeys: [...new Set([...result.candidateKeys, ...mandatory])] };
+      },
+      validate(unit, result, { checkpoint }) {
+        const disposition = dispositionState(checkpoint);
+        const eligibleKeys = new Set(unit.items.filter((item) => disposition.availableRecords.some((candidate) => candidate.key === item.key)).map((item) => item.key));
+        const mandatory = [...mandatoryDestinationKeys(checkpoint)].filter((key) => eligibleKeys.has(key));
+        return Array.isArray(result?.candidateKeys) && new Set(result.candidateKeys).size === result.candidateKeys.length
+          && result.candidateKeys.every((key) => eligibleKeys.has(key))
+          && mandatory.every((key) => result.candidateKeys.includes(key))
+          ? true : `既存移動先候補${unit.id}が不正です。`;
+      },
+      validatePhase(results) {
+        const keys = results.flatMap((unit) => unit.result?.candidateKeys || []);
+        return new Set(keys).size === keys.length ? true : '既存移動先候補に重複があります。';
+      }
+    };
+    const structureAvailableRecords = (checkpoint) => {
+      if (fastPath) return destinationRecords;
+      const disposition = dispositionState(checkpoint);
+      const shortlisted = new Set(checkpoint.phases.find((phase) => phase.id === 'destination-shortlist')?.units
+        .flatMap((unit) => unit.result?.candidateKeys || []) || []);
+      const deleted = new Set(disposition.deleteKeys);
+      const recordById = new Map(destinationRecords.map((item) => [item.id, item]));
+      for (const key of [...shortlisted]) {
+        const item = destinationByKey.get(key);
+        if (item?.type !== 'middle' || !item.parentId) continue;
+        const parent = recordById.get(item.parentId);
+        if (parent && !deleted.has(parent.key) && disposition.availableRecords.some((candidate) => candidate.key === parent.key)) shortlisted.add(parent.key);
+      }
+      return destinationRecords.filter((item) => shortlisted.has(item.key));
+    };
     const structurePhase = {
       id: 'structure-design', units: [{ id: 'whole-structure' }],
       async execute(unit, { checkpoint }) {
         onProgress({ stage: 'analyzing', note: '分割した対象の要約から再編後の上位・中間クラスを設計しています' });
+        const disposition = dispositionState(checkpoint);
+        if (!disposition.phase || disposition.phase.status !== 'completed'
+          || disposition.phase.units.some((item) => item.status !== 'completed')) {
+          throw Object.assign(new Error('既存分類の維持・削除判定が揃っていません。'), { code: 'REORG_DISPOSITION_INCOMPLETE' });
+        }
+        const structureSchema = structureSchemaFor(
+          fastPath ? destinationRecords : structureAvailableRecords(checkpoint),
+          fastPath
+        );
         const evidence = checkpoint.phases.find((phase) => phase.id === 'structure-evidence')?.units || [];
         if (evidence.length !== evidenceBatches.length || evidence.some((item) => item.status !== 'completed')) {
           throw Object.assign(new Error('再編対象の分割要約が揃っていません。'), { code: 'REORG_EVIDENCE_INCOMPLETE' });
         }
+        const skeleton = checkpoint.phases.find((phase) => phase.id === 'taxonomy-skeleton')?.units?.[0]?.result;
+        const availableRecords = fastPath ? destinationRecords : structureAvailableRecords(checkpoint);
         const input = [
           { role: 'system', content: [
             '対象全体を分類できる再編後の上位・中間クラス構造を設計してください。既存構造の維持だけで済ませず、依頼と全対象から必要な分類軸と階層を判断します。',
             '既存候補はkeyで再利用できます。必要な場合だけ新しいtopまたはmiddleを作ります。middleにはtopをparentKeyで指定してください。editable=falseの既存分類は参照専用で、名称や親を変更しません。editable=trueの既存分類に限り、明確な改善になる場合はlabelへ新名称を指定できます。',
-            'editable=trueの既存top/middleは必ず、categoriesで維持・改名・移動するか、deleteKeysで削除するかを一つずつ明示してください。再編後に不要となる既存分類は削除候補にできます。削除する分類の配下は後工程で新設分類を含む再編先へ移し、移動後に削除します。editable=falseの分類は削除できません。',
+            fastPath
+              ? '既存分類はすべて一括確認し、不要と明確に判断した編集可能分類だけをdeleteKeysに含めます。categoriesには新設する分類、配置先として使う既存分類、改名・移動する既存分類だけを記します。'
+              : 'categoriesには新設する分類、配置先として使う既存分類、改名・移動する既存分類だけを記します。categoriesに含めない維持分類は現在の名称と親を保ちます。削除対象は別工程で判定済みです。',
             '全対象の移動先を後工程で決められるよう、対象範囲を過不足なく受け止める構造にします。名前が似ているだけで分類を統合せず、異なる概念を接続語や中点で無理にまとめません。',
-            'この工程では操作列を作らず、不要な既存分類はdeleteKeysに記録してください。移動・削除操作は後段で全件検査後に生成します。存在しないIDやkeyは作らず、内部思考は出力しないでください。'
+            'この工程では操作列を作りません。存在しないIDやkeyは作らず、内部思考は出力しないでください。'
           ].join('\n') },
           { role: 'user', content: JSON.stringify({
             request, objective: plan.executionBrief, scope: { targetCount: targets.length },
+            ...(fastPath ? {} : { taxonomySkeleton: skeleton?.categories || [] }),
+            ...(fastPath ? { targetItems: targets.map((item) => ({ label: item.label, currentParent: item.parentLabel || null })) } : {}),
             targetBatchSummaries: evidence.map((item, index) => ({ batch: evidenceBatches[index].id, summary: item.result.summary, themes: item.result.themes })),
-            existingHierarchy: destinationRecords.map(({ key, label, type, parentLabel, editable }) => ({ key, label, type, parent: parentLabel, editable }))
+            existingHierarchy: availableRecords.map(({ key, label, type, parentLabel, editable }) => ({ key, label, type, parent: parentLabel, editable }))
           }) }
         ];
         return parseAI(await callAI(input, 'reorganization_structure', structureSchema), 'INVALID_REORG_STRUCTURE', '再編構造の応答を読み取れませんでした。');
       },
-      validate(unit, result) {
-        if (!Array.isArray(result?.categories) || !result.categories.length) return '再編構造に分類先がありません。';
+      validate(unit, result, { checkpoint }) {
+        const disposition = dispositionState(checkpoint);
+        if (!Array.isArray(result?.categories) || (targets.length > 0 && !result.categories.length)) return '再編構造に分類先がありません。';
         const keys = result.categories.map((item) => item.key);
         if (keys.some((key) => typeof key !== 'string' || !key) || new Set(keys).size !== keys.length) return '再編構造のkeyが空または重複しています。';
         const existingKeys = result.categories.map((item) => item.existingKey).filter(Boolean);
         if (new Set(existingKeys).size !== existingKeys.length) return '同じ既存分類が再編構造に重複しています。';
-        if (!Array.isArray(result.deleteKeys) || new Set(result.deleteKeys).size !== result.deleteKeys.length
-          || result.deleteKeys.some((key) => !editableExistingKeys.includes(key))) return '削除対象の既存分類keyが不正です。';
-        if (result.deleteKeys.some((key) => destinationByKey.get(key)?.label === '未分類')) return '「未分類」は再編ジョブでも削除できません。';
-        if (existingKeys.some((key) => result.deleteKeys.includes(key))) return '維持対象と削除対象に同じ既存分類があります。';
-        if (editableExistingKeys.some((key) => !existingKeys.includes(key) && !result.deleteKeys.includes(key))) return '変更範囲内の既存分類に維持・削除の判定漏れがあります。';
+        const availableRecords = fastPath ? destinationRecords : structureAvailableRecords(checkpoint);
+        const availableKeys = new Set(availableRecords.map((item) => item.key));
+        if (existingKeys.some((key) => !availableKeys.has(key))) return '維持判定されていない既存分類が構造案に含まれています。';
+        if (fastPath) {
+          const deletes = result.deleteKeys;
+          const editableKeys = dispositionItems.map((item) => item.key);
+          if (!Array.isArray(deletes) || new Set(deletes).size !== deletes.length || deletes.some((key) => !editableKeys.includes(key))) return '一括設計の削除対象が不正です。';
+          if (existingKeys.some((key) => deletes.includes(key))) return '削除対象が再編構造に含まれています。';
+        }
         for (const item of result.categories) {
           if (!['top', 'middle'].includes(item.type) || !item.label?.trim()) return '再編分類の型または名称が不正です。';
           const existing = item.existingKey ? destinationByKey.get(item.existingKey) : null;
@@ -273,7 +483,7 @@ export function createHierarchyReorganizationJob({
             if ((!plannedParentId || existing.parentId !== plannedParentId) && !existing.editable) return '変更範囲外の既存中間クラスを移動する設計です。';
           }
         }
-        const deletedIds = new Set(result.deleteKeys.map((key) => destinationByKey.get(key)?.id).filter(Boolean));
+        const deletedIds = new Set((fastPath ? result.deleteKeys : disposition.deleteKeys).map((key) => destinationByKey.get(key)?.id).filter(Boolean));
         for (const item of result.categories.filter((category) => category.type === 'middle' && category.existingKey)) {
           const existing = destinationByKey.get(item.existingKey);
           const plannedParent = result.categories.find((category) => category.key === item.parentKey);
@@ -286,7 +496,7 @@ export function createHierarchyReorganizationJob({
         const retainedMiddleIds = new Set(result.categories.filter((item) => item.type === 'middle' && item.existingKey)
           .map((item) => destinationByKey.get(item.existingKey)?.id).filter(Boolean));
         for (const deletedTopId of deletedIds) {
-          const deletedTop = destinationByKey.get(result.deleteKeys.find((key) => destinationByKey.get(key)?.id === deletedTopId));
+          const deletedTop = destinationRecords.find((item) => item.id === deletedTopId);
           if (deletedTop?.type !== 'top') continue;
           const directMiddles = destinationRecords.filter((item) => item.type === 'middle' && item.parentId === deletedTopId);
           for (const middle of directMiddles) {
@@ -370,7 +580,7 @@ export function createHierarchyReorganizationJob({
       }
     };
 
-    const phases = [targetPhase, hierarchyPhase, structureEvidencePhase, structurePhase, assignmentPhase];
+    const phases = [targetPhase, hierarchyPhase, dispositionPhase, structureEvidencePhase, taxonomySkeletonPhase, destinationPhase, structurePhase, assignmentPhase];
     let completed;
     try { completed = await runJobLoop({ checkpoint: activeJob, dataVersion, signal, phases, onCheckpoint: persist, onProgress }); }
     catch (error) {
@@ -382,6 +592,9 @@ export function createHierarchyReorganizationJob({
 
     const design = readResults('structure-design')[0];
     const categories = design.categories;
+    const deleteKeys = fastPath ? (design.deleteKeys || []) : dispositionState(activeJob).deleteKeys;
+    const deleteReasons = dispositionState(activeJob).phase?.units.flatMap((unit) => unit.result?.decisions || [])
+      .filter((item) => item.disposition === 'delete').map((item) => item.reason) || [];
     const categoryByKey = new Map(categories.map((item) => [item.key, item]));
     const assignmentsByTarget = new Map();
     for (const batch of assignmentBatches) {
@@ -450,7 +663,7 @@ export function createHierarchyReorganizationJob({
         reasonByCategory.get(category.key).push(row.reason);
       }
     }
-    const deletedIds = new Set((design.deleteKeys || []).map((key) => destinationByKey.get(key)?.id).filter(Boolean));
+    const deletedIds = new Set(deleteKeys.map((key) => destinationByKey.get(key)?.id).filter(Boolean));
     const unresolvedUnderDeletion = targets.filter((target) => {
       let parentId = target.parentId || null;
       while (parentId) {
@@ -466,7 +679,7 @@ export function createHierarchyReorganizationJob({
         message: `削除予定の分類配下に移動先を確定できない対象があります: ${unresolvedUnderDeletion.slice(0, 8).map((item) => item.label).join('、')}${unresolvedUnderDeletion.length > 8 ? 'ほか' : ''}。移動先の条件を指定してください。`
       };
     }
-    const deletedCategories = (design.deleteKeys || []).map((key) => destinationByKey.get(key)).filter(Boolean);
+    const deletedCategories = deleteKeys.map((key) => destinationByKey.get(key)).filter(Boolean);
     const deletedMiddle = deletedCategories.filter((item) => item.type === 'middle');
     const deletedTop = deletedCategories.filter((item) => item.type === 'top');
     for (const item of deletedMiddle) operationList.push({ type: 'delete_middle_class', target: identity(hierarchyById.get(item.id)), newParent: null, tempId: null, label: null });
@@ -489,7 +702,7 @@ export function createHierarchyReorganizationJob({
       proposals: [{
         id: 'hierarchy_reorganization_1', title: '階層を再編して不要な分類を整理',
         summary: `${targets.length}件の対象を設計した階層へ配置し、必要な分類構造を追加・変更${deletedCount ? 'し、不要な分類を配下の移動後に削除' : ''}する案です。`,
-        reason: [...new Set([design.designReason, ...[...reasonByCategory.values()].flat()])].filter(Boolean).slice(0, 6).join('。') || '対象全体と現在の親子関係をもとに再編後の階層を設計しました。',
+        reason: [...new Set([design.designReason, ...deleteReasons, ...[...reasonByCategory.values()].flat()])].filter(Boolean).slice(0, 6).join('。') || '対象全体と現在の親子関係をもとに再編後の階層を設計しました。',
         uncertainties: held.length ? held.slice(0, 8).map(({ item, reason }) => `${item.label}: ${reason}`) : [],
         questions: [], operations: operationList
       }], alternativeGroups: []

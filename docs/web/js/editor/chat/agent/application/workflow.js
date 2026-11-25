@@ -4,7 +4,7 @@ import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261120-denied-scope-fallback-v1';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-denied-scope-fallback-v1';
 import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261125-generic-intent-v1';
-import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261125-structured-jobs-v5';
+import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261125-structured-jobs-v9';
 import { createHierarchyDeletionJob } from '../features/proposals/hierarchy-deletion-job.js?v=20261125-structured-jobs-v4';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
