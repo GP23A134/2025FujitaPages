@@ -3,11 +3,11 @@ import { createProgressView } from './features/progress/progress-view.js?v=20261
 import { buildPlanInput } from './features/planning/plan-input.js?v=20261124-conversation-context-v1';
 import { createOpenAIClient } from './adapters/openai-client.js?v=20261120-api-retries-v1';
 import { createDataIdCodec, createIdMaskedClient } from './adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
-import { createPlanningService } from './features/planning/planning-service.js?v=20261124-reorganization-coverage-v1';
+import { createPlanningService } from './features/planning/planning-service.js?v=20261125-structured-jobs-v2';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261120-denied-scope-fallback-v1';
 import { createBudgetApprovalView } from './features/budget-approval/budget-approval-view.js?v=20261120-budget-limit-approval-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261125-generic-intent-v1';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261125-structured-jobs-v5';
 import { createQuestionView } from './features/planning/question-view.js?v=20261118-white-question-card-v1';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261119-scope-flow-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261120-proposal-pagination-v1';
@@ -372,7 +372,9 @@ if (window.classEditorAI && statusElement) {
       const resumeJob = jobAction === 'resume';
       const resumeStage = jobAction === 'resume_stage';
       const previousStage = previousMemory?.stages.at(-1) || null;
-      const reorganizationTurn = previousMemory?.kind === 'classification_reorganization' || detectReorganizationRequest(request);
+      const reorganizationTurn = previousMemory?.kind === 'classification_reorganization'
+        || ['hierarchy_reorganization', 'hierarchy_deletion'].includes(previousMemory?.job?.kind)
+        || detectReorganizationRequest(request);
       const finalizingReorganization = previousMemory?.kind === 'classification_reorganization'
         && isReorganizationFinalizationRequest(request);
       const visibleSelectedIds = [...(window.classEditorAI.selectedIds || [])];
@@ -384,6 +386,8 @@ if (window.classEditorAI && statusElement) {
           : [...new Set([...(previousMemory.rootIds || []), ...previousMemory.job.scopeIds])]
         : resumeStage && !reorganizationTurn ? previousStage.selectedIds
         : reorganizationTurn ? expandSelectedHierarchy(scopeRoots) : visibleSelectedIds;
+      const resumedReferenceIds = resumeJob && Array.isArray(previousMemory?.job?.metadata?.hierarchyIds)
+        ? previousMemory.job.metadata.hierarchyIds : [];
       let priorContext = buildConversationContext(activeHistory.items, previousMemory, {
         currentDataVersion: window.classEditorAssistant?.getDataVersion?.() || ''
       });
@@ -412,11 +416,12 @@ if (window.classEditorAI && statusElement) {
       requestInput.dispatchEvent(new Event('input', { bubbles: true }));
       const outcome = await workflow.start({
         request: workflowRequest,
+        continuationInput: resumeJob ? request : '',
         apiKey: apiKeyInput.value,
         model: modelSelect.value,
         conversationContext: priorContext,
         selectedClassIds: selectedIds,
-        referenceClassIds: reorganizationTurn ? selectedIds : null,
+        referenceClassIds: [...new Set([...resumedReferenceIds, ...(reorganizationTurn ? selectedIds : [])])],
         initialCounters: resumeJob || resumeStage || previousMemory?.kind === 'classification_reorganization' ? previousMemory.usage : null,
         jobCheckpoint: resumeJob ? previousMemory.job : null,
         referenceAllHierarchy: document.getElementById('ai-full-graph-scope')?.getAttribute('aria-checked') === 'true'

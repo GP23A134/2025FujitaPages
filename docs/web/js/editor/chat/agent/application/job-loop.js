@@ -191,6 +191,14 @@ export async function runJobLoop({ checkpoint, dataVersion = '', phases, signal,
           await onCheckpoint(job);
           return { status: 'needs_scope_approval', checkpoint: job, scopeRequest: error.scopeRequest };
         }
+        if (error?.status === 'needs_user_input') {
+          savedUnit.status = 'pending';
+          saved.status = 'paused';
+          job.status = 'paused';
+          job.updatedAt = Date.now();
+          await onCheckpoint(job);
+          return { status: 'needs_user_input', checkpoint: job, error };
+        }
         savedUnit.status = 'failed';
         saved.status = 'failed';
         job.status = 'failed';

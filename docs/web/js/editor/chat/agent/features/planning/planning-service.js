@@ -1,6 +1,6 @@
-import { PLAN_RESPONSE_SCHEMA } from './plan-schema.js';
-import { buildPlanSystemPrompt } from '../../prompts/plan-system-prompt.js?v=20261125-generic-intent-v1';
-import { validatePlan } from './plan-contract.js';
+import { PLAN_RESPONSE_SCHEMA } from './plan-schema.js?v=20261125-structured-jobs-v2';
+import { buildPlanSystemPrompt } from '../../prompts/plan-system-prompt.js?v=20261125-delete-job-v2';
+import { validatePlan } from './plan-contract.js?v=20261125-structured-jobs-v2';
 
 function extractJsonText(response) {
   const text = response?.output?.flatMap((item) => item.content || [])

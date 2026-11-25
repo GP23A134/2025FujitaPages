@@ -4,10 +4,12 @@ import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261120-denied-scope-fallback-v1';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-denied-scope-fallback-v1';
 import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261125-generic-intent-v1';
+import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261125-structured-jobs-v5';
+import { createHierarchyDeletionJob } from '../features/proposals/hierarchy-deletion-job.js?v=20261125-structured-jobs-v4';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
 import { createAgentRunLoop } from '../agent-runtime/run-loop.js?v=20261120-denied-scope-fallback-v1';
-import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261125-generic-intent-v1';
+import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261125-delete-job-v2';
 import { PROPOSAL_RESPONSE_SCHEMA } from '../features/proposals/proposal-schema.js';
 import { validateProposalResponse } from '../features/proposals/proposal-contract.js';
 import { createDataIdCodec, createIdMaskedClient } from '../adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
@@ -28,6 +30,23 @@ const countsFor = (classes, ids) => {
   return counts;
 };
 const allClassCounts = (classes) => countsFor(classes, classes.map((item) => item.id));
+const expandScopeDescendants = (classes, relations, roots) => {
+  const children = new Map();
+  relations.forEach(({ child, parent }) => {
+    if (!children.has(parent)) children.set(parent, []);
+    children.get(parent).push(child);
+  });
+  const found = new Set();
+  const pending = [...new Set(roots || [])];
+  while (pending.length) {
+    const id = pending.pop();
+    if (found.has(id)) continue;
+    found.add(id);
+    pending.push(...(children.get(id) || []));
+  }
+  const available = new Set(classes.map((item) => item.id));
+  return [...found].filter((id) => available.has(id));
+};
 const parseResponse = (text) => {
   try { return JSON.parse(text); }
   catch {
@@ -263,6 +282,9 @@ export function createAssistantWorkflow({
     const contextualRequest = state.conversationContext
       ? `${state.request}\n\n会話の継続情報（利用者の意図・合意した方針・進捗。クラスの事実ではない）:\n${state.conversationContext}`
       : state.request;
+    const jobRequest = state.continuationInput
+      ? `${contextualRequest}\n\n再開時の追加指示:\n${state.continuationInput}`
+      : contextualRequest;
     if (plan.dataNeeds.instanceContext !== 'none' && !settings['instances.enabled']) {
       throw Object.assign(new Error('インスタンス情報が無効なため、計画を続けられません。'), { code: 'INSTANCE_CONTEXT_DISABLED' });
     }
@@ -293,8 +315,12 @@ export function createAssistantWorkflow({
       maxOutputTokens: settings['runtime.maxOutputTokens'],
       signal, onProgress: emitProgress, onUsage: reportUsage
     }) : null;
-    const batchedTargetMove = usesBatchedTargetMove(plan)
-      || (state.jobCheckpoint?.kind === 'target_move' && plan.changeOperations.includes('move_target_class'));
+    const hierarchyReorganization = plan.executionMode === 'reorganization'
+      || state.jobCheckpoint?.kind === 'hierarchy_reorganization';
+    const hierarchyDeletion = plan.executionMode === 'deletion'
+      || state.jobCheckpoint?.kind === 'hierarchy_deletion';
+    const batchedTargetMove = !hierarchyReorganization && (usesBatchedTargetMove(plan)
+      || (state.jobCheckpoint?.kind === 'target_move' && plan.changeOperations.includes('move_target_class')));
     const continueTargetReviewWithinGrantedScope = async () => {
       const fallbackPlan = {
         ...plan,
@@ -333,6 +359,8 @@ export function createAssistantWorkflow({
     let loop = null;
     let uniqueTools = [];
     let targetMoveProcessor = null;
+    let hierarchyReorganizationJob = null;
+    let hierarchyDeletionJob = null;
     const resolveRuntimeScopeRequest = async (scopeRequest) => {
       const candidates = (scopeRequest.candidates || []).filter((item) => !deniedReferenceIds.has(typeof item === 'string' ? item : item.id));
       if (!candidates.length) return 'deny';
@@ -350,7 +378,7 @@ export function createAssistantWorkflow({
     if (batchedTargetMove) {
       targetMoveProcessor = createTargetMoveBatchProcessor({
         reader, client: activeClient, budgetGuard, model: currentModel, apiKey: currentApiKey,
-        request: contextualRequest, plan,
+        request: jobRequest, plan,
         maxOutputTokens: settings['runtime.maxOutputTokens'],
         maxRetries: settings['proposals.moveDecisionRetries'], signal,
         jobCheckpoint: state.jobCheckpoint,
@@ -359,6 +387,44 @@ export function createAssistantWorkflow({
         jobScopeIds: editor.getState().classes.filter((item) => item.type === 'class' && selectedClassIds.includes(item.id)).map((item) => item.id),
         jobSelectedIds: [...selectedClassIds],
         jobHierarchyIds: editor.getState().classes.filter((item) => ['top', 'middle'].includes(item.type) && grants.reference.has(item.id)).map((item) => item.id),
+        onCheckpoint: (checkpoint) => {
+          state = { ...state, jobCheckpoint: checkpoint };
+          onEvent({ type: 'job_checkpoint', checkpoint });
+        },
+        onProgress: emitProgress, onUsage: reportUsage
+      });
+    } else if (hierarchyReorganization) {
+      const selectedSet = new Set(selectedClassIds);
+      const classes = editor.getState().classes;
+      hierarchyReorganizationJob = createHierarchyReorganizationJob({
+        reader, client: activeClient, budgetGuard, model: currentModel, apiKey: currentApiKey,
+        request: jobRequest, plan, maxOutputTokens: settings['runtime.maxOutputTokens'], signal,
+        jobCheckpoint: state.jobCheckpoint,
+        dataVersion: window.classEditorAssistant?.getDataVersion?.() || '',
+        jobRequest: state.request,
+        continuationInput: state.continuationInput,
+        jobScopeIds: [...selectedClassIds],
+        jobTargetIds: classes.filter((item) => item.type === 'class' && selectedSet.has(item.id)).map((item) => item.id),
+        jobSelectedIds: [...selectedClassIds],
+        jobHierarchyIds: classes.filter((item) => ['top', 'middle'].includes(item.type) && grants.reference.has(item.id)).map((item) => item.id),
+        onCheckpoint: (checkpoint) => {
+          state = { ...state, jobCheckpoint: checkpoint };
+          onEvent({ type: 'job_checkpoint', checkpoint });
+        },
+        onProgress: emitProgress, onUsage: reportUsage
+      });
+    } else if (hierarchyDeletion) {
+      const classes = editor.getState().classes;
+      hierarchyDeletionJob = createHierarchyDeletionJob({
+        reader, client: activeClient, budgetGuard, model: currentModel, apiKey: currentApiKey,
+        request: jobRequest, plan, maxOutputTokens: settings['runtime.maxOutputTokens'], signal,
+        jobCheckpoint: state.jobCheckpoint,
+        dataVersion: window.classEditorAssistant?.getDataVersion?.() || '',
+        jobRequest: state.request,
+        continuationInput: state.continuationInput,
+        jobScopeIds: [...selectedClassIds],
+        jobSelectedIds: [...selectedClassIds],
+        jobHierarchyIds: classes.filter((item) => ['top', 'middle'].includes(item.type) && grants.reference.has(item.id)).map((item) => item.id),
         onCheckpoint: (checkpoint) => {
           state = { ...state, jobCheckpoint: checkpoint };
           onEvent({ type: 'job_checkpoint', checkpoint });
@@ -403,6 +469,10 @@ export function createAssistantWorkflow({
           ? await chunkedReviewRunner.run()
           : targetMoveProcessor
             ? await targetMoveProcessor.run()
+            : hierarchyReorganizationJob
+              ? await hierarchyReorganizationJob.run()
+              : hierarchyDeletionJob
+                ? await hierarchyDeletionJob.run()
             : await loop.run({ messages, signal, allowedTools: uniqueTools, onProgress: emitProgress });
       } catch (error) {
         if (targetMoveProcessor && error?.scopeRequest) {
@@ -428,6 +498,7 @@ export function createAssistantWorkflow({
           : 'agent-runtime/run-loop.js');
       }
       if (result.status === 'stale_job') return { status: 'stale_job', message: result.message };
+      if (result.status === 'needs_user_input') return { status: 'job_needs_input', message: result.message, checkpoint: result.checkpoint };
       if (result.status === 'cancelled') return { status: 'cancelled' };
       if (result.status === 'needs_scope_approval') {
         const decision = await askForScope({
@@ -560,6 +631,54 @@ export function createAssistantWorkflow({
   async function runPlan({ replan = false, signal } = {}) {
     if (replan) setStatus('planning');
     let currentPlan = await createPlan({ replan, signal });
+    if (!['unsupported', 'needs_clarification'].includes(currentPlan.status)
+      && (currentPlan.executionMode === 'deletion' || state.jobCheckpoint?.kind === 'hierarchy_deletion')) {
+      const tree = editor.getState();
+      selectedClassIds = expandScopeDescendants(tree.classes, tree.relations, selectedClassIds);
+      selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
+      state = {
+        ...state,
+        selectedClassIds: [...selectedClassIds],
+        scopeGrants: { reference: [...grants.reference], change: [...grants.change] },
+        updatedAt: now()
+      };
+      updateState(state);
+      currentPlan = {
+        ...currentPlan,
+        executionMode: 'deletion',
+        taskType: 'mixed',
+        changeOperations: [...new Set([...(currentPlan.changeOperations || []), ...(state.jobCheckpoint?.metadata?.deleteOperations || []), 'move_target_class', 'move_middle_class'])],
+        dataNeeds: { ...currentPlan.dataNeeds, hierarchyIndex: true, selectedClassDetails: true }
+      };
+      plan = currentPlan;
+      onEvent({ type: 'plan', plan: currentPlan, counts: currentCounts() });
+    }
+    if (!['unsupported', 'needs_clarification'].includes(currentPlan.status)
+      && (currentPlan.executionMode === 'reorganization' || state.jobCheckpoint?.kind === 'hierarchy_reorganization')) {
+      const tree = editor.getState();
+      selectedClassIds = expandScopeDescendants(tree.classes, tree.relations, selectedClassIds);
+      selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
+      state = {
+        ...state,
+        selectedClassIds: [...selectedClassIds],
+        scopeGrants: { reference: [...grants.reference], change: [...grants.change] },
+        updatedAt: now()
+      };
+      updateState(state);
+      const reorganizationOperations = [
+        'move_target_class', 'move_middle_class', 'add_top_class', 'add_middle_class',
+        'rename_top_class', 'rename_middle_class', 'delete_top_class', 'delete_middle_class'
+      ];
+      currentPlan = {
+        ...currentPlan,
+        executionMode: 'reorganization',
+        taskType: 'mixed',
+        changeOperations: [...new Set([...(currentPlan.changeOperations || []), ...reorganizationOperations])],
+        dataNeeds: { ...currentPlan.dataNeeds, hierarchyIndex: true, selectedClassDetails: true }
+      };
+      plan = currentPlan;
+      onEvent({ type: 'plan', plan: currentPlan, counts: currentCounts() });
+    }
     if (state.jobCheckpoint?.kind === 'target_move'
       && !['unsupported', 'needs_clarification'].includes(currentPlan.status)) {
       currentPlan = {
@@ -605,6 +724,16 @@ export function createAssistantWorkflow({
     else setStatus('analyzing');
     const outcome = await runAgent({ signal });
     if (outcome.status === 'replan_required') return runPlan({ replan: true, signal });
+    if (outcome.status === 'job_needs_input') {
+      if (state.status === 'retrieving' || state.status === 'planning') setStatus('analyzing');
+      if (state.status !== 'validating') setStatus('validating');
+      setStatus('completed');
+      const result = { message: outcome.message, proposals: [], alternativeGroups: [], jobPaused: true };
+      lastResult = result;
+      onEvent({ type: 'result', result, plan: currentPlan, state });
+      emitProgress('completed');
+      return { status: 'completed', result, plan: currentPlan };
+    }
     if (outcome.status === 'stale_job') {
       if (state.status === 'planning' || state.status === 'retrieving') setStatus('analyzing');
       if (state.status !== 'validating') setStatus('validating');
@@ -650,7 +779,7 @@ export function createAssistantWorkflow({
     return { status: state.status, result: outcome, plan: currentPlan };
   }
 
-  async function start({ request, apiKey, model, signal, referenceAllHierarchy = false, conversationContext = '', selectedClassIds: selectedClassIdsOverride = null, referenceClassIds: referenceClassIdsOverride = null, initialCounters = null, jobCheckpoint = null }) {
+  async function start({ request, continuationInput = '', apiKey, model, signal, referenceAllHierarchy = false, conversationContext = '', selectedClassIds: selectedClassIdsOverride = null, referenceClassIds: referenceClassIdsOverride = null, initialCounters = null, jobCheckpoint = null }) {
     if (active) throw new Error('別のAI処理が実行中です。');
     active = true;
     const activeSignal = beginActive(signal);
@@ -689,7 +818,7 @@ export function createAssistantWorkflow({
         conversationContext,
         initialCounters
       });
-      state = { ...state, scopeGrants: { reference: [...referenceIds], change: selectedClassIds }, jobCheckpoint };
+      state = { ...state, scopeGrants: { reference: [...referenceIds], change: selectedClassIds }, jobCheckpoint, continuationInput };
       currentApiKey = apiKey;
       currentModel = model;
       updateState(state);

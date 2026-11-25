@@ -37,12 +37,13 @@ const hasOnlyKeys = (value, allowed) => Object.keys(value).every((key) => allowe
 export function validatePlan(plan, { instanceInformationEnabled = false, targetClassRenameEnabled = false } = {}) {
   const errors = [];
   if (!isRecord(plan)) return { valid: false, errors: ['計画はオブジェクトである必要があります。'] };
-  if (!hasOnlyKeys(plan, ['status', 'taskType', 'summary', 'executionBrief', 'steps', 'dataNeeds', 'scopeNeeds', 'changeOperations', 'questions', 'unsupportedParts'])) {
+  if (!hasOnlyKeys(plan, ['status', 'taskType', 'executionMode', 'summary', 'executionBrief', 'steps', 'dataNeeds', 'scopeNeeds', 'changeOperations', 'questions', 'unsupportedParts'])) {
     errors.push('計画にスキーマ外の項目があります。');
   }
 
   if (!isEnumValue(plan.status, PLAN_STATUSES)) errors.push('statusが未定義です。');
   if (!isEnumValue(plan.taskType, TASK_TYPES)) errors.push('taskTypeが未定義です。');
+  if (plan.executionMode !== undefined && !isEnumValue(plan.executionMode, ['standard', 'reorganization', 'deletion'])) errors.push('executionModeが未定義です。');
   if (!isString(plan.summary)) errors.push('summaryは空でない文字列が必要です。');
   const brief = plan.executionBrief;
   if (!isRecord(brief)
@@ -80,6 +81,11 @@ export function validatePlan(plan, { instanceInformationEnabled = false, targetC
     errors.push('changeOperationsに未対応または不明な操作があります。');
   } else if (!targetClassRenameEnabled && plan.changeOperations.includes('rename_target_class')) {
     errors.push('対象クラス名の変更が開発者設定で無効です。');
+  }
+  if (Array.isArray(plan.changeOperations)) {
+    const hasDeletion = plan.changeOperations.some((operation) => ['delete_top_class', 'delete_middle_class'].includes(operation));
+    if (hasDeletion && !['deletion', 'reorganization'].includes(plan.executionMode)) errors.push('削除操作を含む計画はexecutionMode=deletionまたはreorganizationが必要です。');
+    if (plan.executionMode === 'deletion' && !hasDeletion) errors.push('削除ジョブには削除操作が必要です。');
   }
 
   if (!Array.isArray(plan.questions) || plan.questions.some((question) => !isRecord(question)

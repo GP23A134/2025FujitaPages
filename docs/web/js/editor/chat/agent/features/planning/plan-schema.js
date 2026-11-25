@@ -24,6 +24,7 @@ export const PLAN_RESPONSE_SCHEMA = Object.freeze({
   properties: {
     status: { type: 'string', enum: ['ready', 'needs_clarification', 'partially_supported', 'unsupported'] },
     taskType: { type: 'string', enum: ['read_only', 'change', 'mixed'] },
+    executionMode: { type: 'string', enum: ['standard', 'reorganization', 'deletion'] },
     summary: { type: 'string' },
     executionBrief: {
       type: 'object', additionalProperties: false,
@@ -57,5 +58,5 @@ export const PLAN_RESPONSE_SCHEMA = Object.freeze({
     questions: { type: 'array', items: questionSchema },
     unsupportedParts: { type: 'array', items: unsupportedPartSchema }
   },
-  required: ['status', 'taskType', 'summary', 'executionBrief', 'steps', 'dataNeeds', 'scopeNeeds', 'changeOperations', 'questions', 'unsupportedParts']
+  required: ['status', 'taskType', 'executionMode', 'summary', 'executionBrief', 'steps', 'dataNeeds', 'scopeNeeds', 'changeOperations', 'questions', 'unsupportedParts']
 });
