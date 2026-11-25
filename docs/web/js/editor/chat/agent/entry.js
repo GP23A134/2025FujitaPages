@@ -221,8 +221,11 @@ if (window.classEditorAI && statusElement) {
         if (activeHistory && activeTurnStageIndex >= 0) {
           const hasPendingReview = (result?.proposals || []).some((item) => item.proposal?.questions?.length)
             || (result?.questions || []).length > 0;
-          const status = event.state?.status === 'budget_exhausted' ? 'interrupted'
-            : hasPendingReview ? 'awaiting_user' : 'completed';
+          const workflowStatus = event.state?.status;
+          const status = ['budget_exhausted', 'cancelled'].includes(workflowStatus) ? 'interrupted'
+            : ['failed'].includes(workflowStatus) ? 'failed'
+              : hasPendingReview || result?.jobPaused || ['needs_clarification', 'needs_scope_approval'].includes(workflowStatus)
+                ? 'awaiting_user' : 'completed';
           activeHistory.workflowMemory = finishConversationStage(activeHistory.workflowMemory, activeTurnStageIndex, {
             status,
             summary: summaries.join('。 ').slice(0, 1600),

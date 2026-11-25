@@ -80,11 +80,11 @@ export function createEditorDataReader({
     if (nextOffset < records.length) {
       nextCursor = makePageCursor(name, nextOffset, data.version);
     }
-    return { items, nextCursor };
+    return { items, nextCursor, totalCount: records.length, dataVersion: data.version };
   }
 
   function createPageCursor(name, offset) {
-    if (!['hierarchy_index', 'selected_class_details'].includes(name)
+    if (!['hierarchy_index', 'selected_class_details', 'reference_scope'].includes(name)
       || !Number.isSafeInteger(offset) || offset < 0) {
       throw new TypeError('ページカーソルの指定が不正です。');
     }
@@ -123,7 +123,8 @@ export function createEditorDataReader({
     if (includeParentContext) includeParents(foundIds, 'クラス詳細', data);
     return {
       items: foundIds.map((id) => detailFor(id, data, includeParentContext)),
-      notFoundIds: uniqueIds.filter((id) => !data.classesById.has(id))
+      notFoundIds: uniqueIds.filter((id) => !data.classesById.has(id)),
+      dataVersion: data.version
     };
   }
 
@@ -140,6 +141,40 @@ export function createEditorDataReader({
       totalCount: records.length,
       notFoundIds: cursor ? [] : selectedIds.filter((id) => !data.classesById.has(id))
     };
+  }
+
+  function readAncestorChains({ classIds } = {}) {
+    if (!Array.isArray(classIds) || classIds.length > idLimit) throw Object.assign(new Error(`祖先経路は一度に${idLimit}件までです。`), { code: 'ID_LIMIT' });
+    const data = snapshot();
+    const ids = [...new Set(classIds)];
+    scopeError(ids, '祖先経路の取得', data);
+    const notFoundIds = ids.filter((id) => !data.classesById.has(id));
+    const items = ids.filter((id) => data.classesById.has(id)).map((classId) => {
+      const ancestors = [];
+      let parentId = data.parentByChild.get(classId) || null;
+      const visited = new Set([classId]);
+      while (parentId) {
+        if (visited.has(parentId)) throw Object.assign(new Error('階層に循環があるため祖先経路を確定できません。'), { code: 'HIERARCHY_CYCLE' });
+        scopeError([parentId], '祖先経路の取得', data);
+        visited.add(parentId);
+        const record = detailFor(parentId, data, true);
+        if (!record) throw Object.assign(new Error('祖先クラスが見つからないため経路を確定できません。'), { code: 'ANCESTOR_NOT_FOUND' });
+        ancestors.push(record);
+        parentId = data.parentByChild.get(parentId) || null;
+      }
+      return { classId, ancestors, rootReached: true };
+    });
+    return { items, notFoundIds, dataVersion: data.version };
+  }
+
+  function readReferenceScope({ cursor = null, includeParentContext = true } = {}) {
+    const data = snapshot();
+    const ids = [...data.classesById.keys()].sort((a, b) => String(a).localeCompare(String(b)));
+    // Calling this tool means the plan requires a search beyond the current grant.
+    // Ask for the concrete full candidate set before returning an inventory.
+    scopeError(ids, '依頼された選択範囲外の全件確認', data);
+    if (includeParentContext) includeParents(ids, '許可済み参照範囲の取得', data);
+    return paginate('reference_scope', ids.map((id) => detailFor(id, data, includeParentContext)), cursor, data);
   }
 
   const stableHash = (value) => {
@@ -237,6 +272,7 @@ export function createEditorDataReader({
     return {
       items,
       notFoundIds,
+      dataVersion: data.version,
       sampling: {
         totalInstancesInAllowedScope: instanceAllocation.totalInstances,
         returnedInstances: returned,
@@ -291,7 +327,19 @@ export function createEditorDataReader({
     execute: readInstanceContext
   });
 
-  return Object.freeze({ registry, readHierarchyIndex, readChildren, readClassDetails, readSelectedClassDetails, readInstanceContext,
+  registry
+    .register({
+      name: 'read_ancestor_chains', permission: 'reference', description: '指定クラスから最上位までの祖先経路を全件取得します。計画で祖先チェーンが必要な場合に使います。',
+      parameters: { type: 'object', additionalProperties: false, properties: { classIds: { type: 'array', items: { type: 'string' }, maxItems: idLimit } }, required: ['classIds'] },
+      execute: readAncestorChains
+    })
+    .register({
+      name: 'read_reference_scope', permission: 'reference', description: '利用者が許可した参照範囲の全クラスをページ単位で取得します。計画が選択範囲外の確認を必要とするときに使います。',
+      parameters: { type: 'object', additionalProperties: false, properties: { cursor: { type: ['string', 'null'] }, includeParentContext: { type: 'boolean' } }, required: ['cursor', 'includeParentContext'] },
+      execute: readReferenceScope
+    });
+
+  return Object.freeze({ registry, readHierarchyIndex, readChildren, readClassDetails, readSelectedClassDetails, readAncestorChains, readReferenceScope, readInstanceContext,
     pageLimit, createPageCursor, getScopeCandidates: (ids, permissions = {}) => {
     const data = snapshot();
     return [...new Set(ids)].map((id) => detailFor(id, data)).filter(Boolean).map((item) => ({

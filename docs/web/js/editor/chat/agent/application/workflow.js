@@ -2,18 +2,19 @@ import { createConversationState, transitionConversation } from './conversation-
 import { createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, authorizeTaskAction } from './task-state.js?v=20261125-task-state-v1';
 import { buildPlanInput } from '../features/planning/plan-input.js?v=20261124-conversation-context-v1';
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
-import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261120-denied-scope-fallback-v1';
+import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261125-verified-retrieval-v1';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-denied-scope-fallback-v1';
 import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261125-generic-intent-v1';
 import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261125-task-controller-v1';
 import { createHierarchyDeletionJob } from '../features/proposals/hierarchy-deletion-job.js?v=20261125-structured-jobs-v4';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
-import { createAgentRunLoop } from '../agent-runtime/run-loop.js?v=20261120-denied-scope-fallback-v1';
-import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261125-delete-job-v2';
+import { createAgentRunLoop } from '../agent-runtime/run-loop.js?v=20261125-verified-retrieval-v1';
+import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261125-scope-chain-tools-v1';
 import { PROPOSAL_RESPONSE_SCHEMA } from '../features/proposals/proposal-schema.js';
 import { validateProposalResponse } from '../features/proposals/proposal-contract.js';
 import { createDataIdCodec, createIdMaskedClient } from '../adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
+import { createTaskController } from './task-controller.js?v=20261125-task-controller-v1';
 
 const now = () => new Date().toISOString();
 const withErrorSource = (error, sourceModule) => {
@@ -70,6 +71,102 @@ const usesBatchedTargetMove = (plan) => plan?.changeOperations?.length === 1
   && plan.dataNeeds?.selectedClassDetails
   && plan.dataNeeds?.hierarchyIndex
   && plan.dataNeeds?.instanceContext === 'none';
+const verifyAgentRetrieval = (plan, evidence, selectedIds, allowedIds, editorState) => {
+  const records = (evidence || []).filter((item) => item?.ok === true);
+  const liveVersion = window.classEditorAssistant?.getDataVersion?.() || null;
+  const versions = new Set(records.map((item) => item.data?.dataVersion));
+  if (!liveVersion || (records.length && (versions.size !== 1 || !versions.has(liveVersion)))) return null;
+  const completePages = (tool) => {
+    const pages = records.filter((item) => item.tool === tool);
+    if (!pages.length || pages.some((item) => item.data?.nextCursor)) return null;
+    const items = pages.flatMap((item) => Array.isArray(item.data?.items) ? item.data.items : []);
+    const totals = pages.map((item) => item.data?.totalCount);
+    if (totals.some((count) => !Number.isSafeInteger(count)) || new Set(totals).size !== 1
+      || items.length !== totals[0] || new Set(items.map((item) => item.id)).size !== items.length) return null;
+    return { pages, items, totalCount: totals[0] };
+  };
+  const needs = plan.dataNeeds || {};
+  const noDataRequired = !needs.hierarchyIndex && !needs.selectedClassDetails
+    && needs.parentContext === 'none' && needs.instanceContext === 'none';
+  if (plan.scopeNeeds?.changeBeyondSelection || (noDataRequired && plan.changeOperations?.length)) return null;
+  const details = completePages('read_selected_class_details');
+  const index = completePages('read_hierarchy_index');
+  if (needs.hierarchyIndex) {
+    const expectedHierarchy = (editorState?.classes || [])
+      .filter((item) => ['top', 'middle'].includes(item.type) && allowedIds?.has(item.id))
+      .map((item) => item.id).sort();
+    const actualHierarchy = index?.items.map((item) => item.id).sort() || [];
+    if (!index || JSON.stringify(actualHierarchy) !== JSON.stringify(expectedHierarchy)) return null;
+  }
+  if (needs.selectedClassDetails && (!details || details.pages[0].data.notFoundIds?.length
+    || details.items.length !== new Set(selectedIds).size
+    || [...new Set(selectedIds)].some((id) => !details.items.some((item) => item.id === id)))) return null;
+  const referenceScope = completePages('read_reference_scope');
+  if (plan.scopeNeeds?.referenceBeyondSelection) {
+    const expected = [...(allowedIds || [])].sort();
+    const actual = referenceScope?.items.map((item) => item.id).sort() || [];
+    const selected = new Set(selectedIds || []);
+    if (!referenceScope || !expected.some((id) => !selected.has(id))
+      || JSON.stringify(actual) !== JSON.stringify(expected)) return null;
+  }
+  if (needs.parentContext === 'direct_parent') {
+    const parentPages = records.filter((item) => ['read_selected_class_details', 'read_class_details'].includes(item.tool));
+    const parentItems = parentPages.flatMap((item) => item.data?.items || []);
+    if (!parentPages.length || parentPages.some((item) => item.arguments?.includeParentContext !== true)
+      || new Set(parentItems.map((item) => item.id)).size !== new Set(selectedIds).size
+      || parentPages.some((item) => item.data?.notFoundIds?.length)
+      || [...new Set(selectedIds)].some((id) => !parentItems.some((item) => item.id === id))) return null;
+    const parents = new Map((editorState?.relations || []).map(({ child, parent }) => [child, parent]));
+    if (parentItems.some((item) => (item.parentId || null) !== (parents.get(item.id) || null))) return null;
+  }
+  if (needs.parentContext === 'ancestor_chain') {
+    const chains = records.filter((item) => item.tool === 'read_ancestor_chains');
+    const byId = new Map((editorState?.classes || []).map((item) => [item.id, item]));
+    const parentByChild = new Map((editorState?.relations || []).map(({ child, parent }) => [child, parent]));
+    const returned = chains.flatMap((item) => item.data?.items || []);
+    const returnedIds = returned.map((item) => item.classId).sort();
+    const expectedIds = [...new Set(selectedIds)].sort();
+    if (!chains.length || chains.some((item) => item.data?.notFoundIds?.length)
+      || JSON.stringify(returnedIds) !== JSON.stringify(expectedIds)) return null;
+    for (const chain of returned) {
+      const expectedAncestors = [];
+      let parentId = parentByChild.get(chain.classId) || null;
+      const seen = new Set([chain.classId]);
+      while (parentId && !seen.has(parentId)) {
+        seen.add(parentId);
+        expectedAncestors.push(parentId);
+        parentId = parentByChild.get(parentId) || null;
+      }
+      const ancestors = Array.isArray(chain.ancestors) ? chain.ancestors : [];
+      if (!chain.rootReached || parentId || JSON.stringify(ancestors.map((item) => item.id)) !== JSON.stringify(expectedAncestors)
+        || ancestors.some((item) => !allowedIds?.has(item.id) || !byId.has(item.id))) return null;
+    }
+  }
+  if (needs.instanceContext !== 'none') {
+    const instances = records.filter((item) => item.tool === 'read_instance_context');
+    const expectedTargets = new Set((selectedIds || []).filter((id) => allowedIds?.has(id)));
+    const covered = new Set(instances.flatMap((item) => Array.isArray(item.arguments?.classIds) ? item.arguments.classIds : []));
+    if (!instances.length || instances.some((item) => item.data?.notFoundIds?.length
+      || item.arguments?.context !== needs.instanceContext
+      || (item.data?.items || []).some((entry) => entry.isPartial || entry.returnedCount < entry.totalCount))
+      || [...expectedTargets].some((id) => !covered.has(id))) return null;
+  }
+  const allItems = records.flatMap((item) => Array.isArray(item.data?.items) ? item.data.items : []);
+  const scopedItems = allItems.flatMap((item) => item.classId
+    ? [{ id: item.classId }, ...(item.ancestors || []).map((ancestor) => ({ id: ancestor.id }))] : [item]);
+  if (scopedItems.some((item) => !allowedIds?.has(item.id))
+    || allItems.some((item) => item.parentId && !allowedIds?.has(item.parentId))) return null;
+  const data = records.flatMap((item) => Array.isArray(item.data?.items) ? item.data.items : []);
+  return {
+    expectedCount: (needs.hierarchyIndex ? index.totalCount : 0) + (needs.selectedClassDetails ? details.totalCount : 0),
+    processedCount: data.length,
+    missingCount: 0,
+    unresolvedCount: 0,
+    scopeComplete: true,
+    resultValidated: true,
+    basis: 'application_verified_tool_results'
+  };
+};
 const hasHierarchyDeletion = (plan) => plan?.changeOperations?.some((operation) =>
   operation === 'delete_top_class' || operation === 'delete_middle_class') === true;
 const structureModeOf = (plan) => plan?.structureMode
@@ -474,7 +571,9 @@ export function createAssistantWorkflow({
       const allowedTools = [];
       if (plan.dataNeeds.hierarchyIndex) allowedTools.push('read_hierarchy_index', 'read_direct_children', 'read_class_details');
       if (plan.dataNeeds.selectedClassDetails) allowedTools.push('read_selected_class_details', 'read_direct_children', 'read_class_details');
-      if (plan.dataNeeds.parentContext !== 'none') allowedTools.push('read_selected_class_details', 'read_class_details');
+      if (plan.dataNeeds.parentContext === 'direct_parent') allowedTools.push('read_selected_class_details', 'read_class_details');
+      if (plan.dataNeeds.parentContext === 'ancestor_chain') allowedTools.push('read_ancestor_chains');
+      if (plan.scopeNeeds.referenceBeyondSelection) allowedTools.push('read_reference_scope');
       if (plan.dataNeeds.instanceContext !== 'none') allowedTools.push('read_instance_context');
       uniqueTools = [...new Set(allowedTools)];
       loop = createAgentRunLoop({
@@ -491,21 +590,21 @@ export function createAssistantWorkflow({
         onScopeRequest: resolveRuntimeScopeRequest
       });
     }
+    const executionController = createTaskController([
+      { id: 'chunked_read_only', matches: () => chunkedReview, run: () => chunkedReviewRunner.run() },
+      { id: 'target_move', matches: () => Boolean(targetMoveProcessor), run: () => targetMoveProcessor.run() },
+      { id: 'hierarchy_reorganization', matches: () => Boolean(hierarchyReorganizationJob), run: () => hierarchyReorganizationJob.run() },
+      { id: 'hierarchy_deletion', matches: () => Boolean(hierarchyDeletionJob), run: () => hierarchyDeletionJob.run() },
+      { id: 'agent_runtime', matches: () => true, run: (__, options) => loop.run(options) }
+    ]);
+    const executionRoute = executionController.select({ plan, checkpoint: state.jobCheckpoint });
     let messages = [{ role: 'user', content: state.request }];
     const retries = settings['validation.maxRepairRetries'];
     for (let attempt = 0; ; attempt += 1) {
       emitProgress(attempt ? 'validating' : (uniqueTools.length ? 'retrieving' : 'analyzing'));
       let result;
       try {
-        result = chunkedReview
-          ? await chunkedReviewRunner.run()
-          : targetMoveProcessor
-            ? await targetMoveProcessor.run()
-            : hierarchyReorganizationJob
-              ? await hierarchyReorganizationJob.run()
-              : hierarchyDeletionJob
-                ? await hierarchyDeletionJob.run()
-            : await loop.run({ messages, signal, allowedTools: uniqueTools, onProgress: emitProgress });
+        result = await executionRoute.run({ messages, signal, allowedTools: uniqueTools, onProgress: emitProgress });
       } catch (error) {
         if (targetMoveProcessor && error?.scopeRequest) {
           const candidates = (error.scopeRequest.candidates || []).filter((item) => !deniedReferenceIds.has(item.id));
@@ -524,10 +623,12 @@ export function createAssistantWorkflow({
           candidates.forEach((item) => deniedReferenceIds.add(item.id));
           return await continueTargetReviewWithinGrantedScope();
         }
-        throw withErrorSource(error, chunkedReview
+        throw withErrorSource(error, executionRoute.id === 'chunked_read_only'
           ? 'features/data-retrieval/chunked-read-only-review.js'
-          : targetMoveProcessor ? 'features/proposals/target-move-batch.js'
-          : 'agent-runtime/run-loop.js');
+          : executionRoute.id === 'target_move' ? 'features/proposals/target-move-batch.js'
+            : executionRoute.id === 'hierarchy_reorganization' ? 'features/proposals/hierarchy-reorganization-job.js'
+              : executionRoute.id === 'hierarchy_deletion' ? 'features/proposals/hierarchy-deletion-job.js'
+                : 'agent-runtime/run-loop.js');
       }
       if (result.status === 'stale_job') return { status: 'stale_job', message: result.message };
       if (result.status === 'needs_user_input') return { status: 'job_needs_input', message: result.message, checkpoint: result.checkpoint };
@@ -654,7 +755,8 @@ export function createAssistantWorkflow({
         ...validation,
         ...(result.budgetLimited ? { proposals: [], alternativeGroups: [] } : {}),
         budgetLimited: Boolean(result.budgetLimited),
-        completionEvidence: result.completionEvidence || null,
+        completionEvidence: result.completionEvidence || verifyAgentRetrieval(plan,
+          result.retrievalEvidence, selectedClassIds, grants.reference, editor.getState()),
         usage: result.usage,
         messages: result.messages
       };
@@ -779,32 +881,36 @@ export function createAssistantWorkflow({
     if (outcome.status === 'job_needs_input') {
       if (state.status === 'retrieving' || state.status === 'planning') setStatus('analyzing');
       if (state.status !== 'validating') setStatus('validating');
-      setStatus('completed');
+      setStatus('needs_clarification');
       const result = { message: outcome.message, proposals: [], alternativeGroups: [], jobPaused: true };
       lastResult = result;
       onEvent({ type: 'result', result, plan: currentPlan, state });
-      emitProgress('completed');
-      return { status: 'completed', result, plan: currentPlan };
+      emitProgress('waiting_for_answer');
+      return { status: 'needs_clarification', result, plan: currentPlan };
     }
     if (outcome.status === 'stale_job') {
       if (state.status === 'planning' || state.status === 'retrieving') setStatus('analyzing');
       if (state.status !== 'validating') setStatus('validating');
-      setStatus('completed');
+      if (state.jobCheckpoint) {
+        state = { ...state, jobCheckpoint: { ...state.jobCheckpoint, status: 'stale', updatedAt: Date.now() } };
+        onEvent({ type: 'job_checkpoint', checkpoint: state.jobCheckpoint });
+      }
+      setStatus('failed');
       const result = { message: outcome.message, proposals: [], alternativeGroups: [] };
       lastResult = result;
       onEvent({ type: 'result', result, plan: currentPlan, state });
-      emitProgress('completed');
+      emitProgress('failed');
       return { status: 'stale', result, plan: currentPlan };
     }
     if (outcome.status === 'cancelled') return outcome;
     if (outcome.status === 'scope_limited') {
       if (state.status === 'retrieving' || state.status === 'planning') setStatus('analyzing');
       if (state.status !== 'validating') setStatus('validating');
-      setStatus('completed');
+      setStatus('failed');
       lastResult = outcome.result;
       onEvent({ type: 'result', result: outcome.result, plan: currentPlan, state });
-      emitProgress('completed');
-      return { status: 'completed', result: outcome.result, plan: currentPlan };
+      emitProgress('failed', { note: '追加参照が許可されず、依頼範囲を完了できませんでした。' });
+      return { status: 'failed', result: outcome.result, plan: currentPlan };
     }
     if (outcome.status === 'scope_blocked') {
       failScopeContinuation(outcome.scopeReason || 'denied');

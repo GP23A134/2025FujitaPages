@@ -1,5 +1,6 @@
 import { createJobCheckpoint, normalizeJobCheckpoint, runJobLoop } from '../../application/job-loop.js';
 import { createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, authorizeTaskAction } from '../../application/task-state.js?v=20261125-task-state-v1';
+import { sameIdSet } from '../../application/id-set.js?v=20261125-id-set-v1';
 
 const PAGE_BATCH_SIZE = 100;
 const FAST_PATH_MAX_TARGETS = 100;
@@ -89,8 +90,8 @@ export function createHierarchyReorganizationJob({
     if (sameJob && saved.dataVersion !== dataVersion) return { status: 'stale_job', message: '保存済み再編ジョブのデータ版が異なるため続行できません。' };
     const sortedScope = [...editableIds].sort((a, b) => a.localeCompare(b));
     if (sameJob && JSON.stringify(saved.scopeIds) !== JSON.stringify(sortedScope)) return { status: 'stale_job', message: '保存済み再編ジョブの変更範囲が現在と異なるため続行できません。' };
-    if (sameJob && JSON.stringify(saved.metadata.selectedIds || []) !== JSON.stringify(selectedIds)) return { status: 'stale_job', message: '保存済み再編ジョブの選択対象が現在と異なるため続行できません。' };
-    if (sameJob && JSON.stringify(saved.metadata.targetIds || []) !== JSON.stringify(targetIds)) return { status: 'stale_job', message: '保存済み再編ジョブの末端対象が現在と異なるため続行できません。' };
+    if (sameJob && !sameIdSet(saved.metadata.selectedIds || [], selectedIds)) return { status: 'stale_job', message: '保存済み再編ジョブの選択対象が現在と異なるため続行できません。' };
+    if (sameJob && !sameIdSet(saved.metadata.targetIds || [], targetIds)) return { status: 'stale_job', message: '保存済み再編ジョブの末端対象が現在と異なるため続行できません。' };
     if (sameJob) {
       const priorHierarchyIds = saved.metadata.hierarchyIds || [];
       if (!priorHierarchyIds.every((id) => hierarchyIds.includes(id))) return { status: 'stale_job', message: '保存済み再編ジョブの参照範囲が現在と異なるため続行できません。' };

@@ -117,6 +117,34 @@ test('selected class details are paged under the shared retrieval limit', () => 
   assert.deepEqual(JSON.parse(JSON.stringify([...first.items, ...last.items].map((item) => item.id))), ['c1', 'm1', 't1']);
 });
 
+test('ancestor-chain reads return every parent through the root and require each ancestor in scope', () => {
+  const { reader } = fixture(['t1', 'm1', 'c1'], 10, 10, ['c1']);
+  const chain = reader.readAncestorChains({ classIds: ['c1'] });
+  assert.deepEqual(JSON.parse(JSON.stringify(chain.items)), [{
+    classId: 'c1', ancestors: [
+      { id: 'm1', label: '飲料', type: 'middle', parentId: 't1', parentLabel: '食品', descendantTargetClassCount: 1 },
+      { id: 't1', label: '食品', type: 'top', parentId: null, parentLabel: null, descendantTargetClassCount: 1 }
+    ], rootReached: true
+  }]);
+  const { reader: limitedReader } = fixture(['c1'], 10, 10, ['c1']);
+  assert.throws(() => limitedReader.readAncestorChains({ classIds: ['c1'] }), (error) => error.code === 'SCOPE_EXPANSION_REQUIRED');
+});
+
+test('reference-scope inventory requests approval for uncovered classes and pages the full grant', () => {
+  const { reader } = fixture(['c1'], 2, 2, ['c1']);
+  assert.throws(() => reader.readReferenceScope(), (error) => {
+    assert.equal(error.code, 'SCOPE_EXPANSION_REQUIRED');
+    assert.deepEqual(JSON.parse(JSON.stringify(error.scopeRequest.candidates.map((item) => item.id))), ['m1', 'm2', 't1']);
+    return true;
+  });
+  const { reader: grantedReader } = fixture(['t1', 'm1', 'm2', 'c1'], 2, 2, ['c1']);
+  const first = grantedReader.readReferenceScope();
+  const second = grantedReader.readReferenceScope({ cursor: first.nextCursor });
+  assert.equal(first.totalCount, 4);
+  assert.equal([...first.items, ...second.items].length, 4);
+  assert.equal(second.nextCursor, null);
+});
+
 test('instance contents obey per-class and task caps with reproducible sampling and no IDs by default', () => {
   const reader = instanceFixture();
   const first = reader.readInstanceContext({ classIds: ['t1'], context: 'instance_content' });

@@ -28,12 +28,14 @@ function evaluate(relativePath, exportNames, stubs = {}) {
 }
 const { createConversationState, transitionConversation } = evaluate('application/conversation-state.js', 'createConversationState, transitionConversation');
 const { buildPlanInput } = evaluate('features/planning/plan-input.js', 'buildPlanInput');
+const { createTaskController } = evaluate('application/task-controller.js', 'createTaskController');
 const taskStateModule = evaluate('application/task-state.js', 'createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, proposeTaskAction, authorizeTaskAction');
 const readerOptions = [];
 const agentRunOptions = [];
 const targetMoveProcessorOptions = [];
 const { createAssistantWorkflow } = evaluate('application/workflow.js', 'createAssistantWorkflow', {
   createConversationState, transitionConversation, buildPlanInput, ...taskStateModule,
+  createTaskController,
   createDataIdCodec: () => ({}),
   createIdMaskedClient: (client) => client,
   createTargetMoveBatchProcessor: (options) => {
@@ -157,6 +159,34 @@ test('a plan that requires data cannot complete without runtime evidence', async
   assert.equal(workflow.getState().taskState.criteriaResults.every((item) => item.status !== 'passed'), true);
 });
 
+test('ancestor-chain plans complete only when the full selected chain matches current approved hierarchy', async () => {
+  const taskPlan = plan({ dataNeeds: { hierarchyIndex: false, selectedClassDetails: false, parentContext: 'ancestor_chain', instanceContext: 'none' } });
+  const { workflow } = harness([taskPlan]);
+  agentRunResponseQueue.push({
+    text: JSON.stringify({ message: '祖先経路を確認しました', proposals: [], alternativeGroups: [] }), messages: [],
+    retrievalEvidence: [{ tool: 'read_ancestor_chains', arguments: { classIds: ['target-id'] }, ok: true,
+      data: { dataVersion: 'data-v1', notFoundIds: [], items: [{ classId: 'target-id', rootReached: true, ancestors: [{ id: 'top-secret-id' }] }] } }]
+  });
+  const result = await workflow.start({ request: '親階層を確認', apiKey: 'secret-api-key', model: 'model-x', referenceClassIds: ['top-secret-id'] });
+  assert.equal(result.status, 'completed');
+  assert.equal(result.result.completionEvidence.basis, 'application_verified_tool_results');
+});
+
+test('expanded-scope plans require a full inventory of the approved scope before completion', async () => {
+  const taskPlan = plan({ scopeNeeds: { referenceBeyondSelection: true, changeBeyondSelection: false } });
+  const { workflow } = harness([taskPlan]);
+  agentRunResponseQueue.push({
+    text: JSON.stringify({ message: '範囲を確認しました', proposals: [], alternativeGroups: [] }), messages: [],
+    retrievalEvidence: [{ tool: 'read_reference_scope', arguments: { cursor: null, includeParentContext: true }, ok: true,
+      data: { dataVersion: 'data-v1', totalCount: 2, nextCursor: null, items: [
+        { id: 'top-secret-id', parentId: null }, { id: 'target-id', parentId: 'top-secret-id' }
+      ] } }]
+  });
+  const result = await workflow.start({ request: '全範囲を確認', apiKey: 'secret-api-key', model: 'model-x', referenceClassIds: ['top-secret-id'] });
+  assert.equal(result.status, 'completed');
+  assert.equal(result.result.completionEvidence.basis, 'application_verified_tool_results');
+});
+
 test('an explicit estimated move request cannot fall through to the read-only review path', async () => {
   const movePlan = plan({
     summary: '目的語の配下への移動案を作成します',
@@ -232,4 +262,16 @@ test('workflow exposes transcript-oriented interaction without checkpoint resume
   assert.equal(typeof workflow.answerQuestions, 'function');
   assert.equal('resume' in workflow, false);
   assert.equal('getPersistenceSnapshot' in workflow, false);
+});
+
+test('common task controller selects one compatible route and passes runtime context through', async () => {
+  const seen = [];
+  const routes = [
+    'chunked_read_only', 'target_move', 'hierarchy_reorganization', 'hierarchy_deletion', 'agent_runtime'
+  ].map((id) => ({ id, matches: ({ route }) => route === id, run: (context, options) => { seen.push([id, context.route, options]); return id; } }));
+  const controller = createTaskController(routes);
+  const selected = controller.select({ route: 'hierarchy_deletion' });
+  assert.equal(selected.id, 'hierarchy_deletion');
+  assert.equal(await selected.run({ attempt: 2 }), 'hierarchy_deletion');
+  assert.deepEqual(seen, [['hierarchy_deletion', 'hierarchy_deletion', { attempt: 2 }]]);
 });

@@ -76,7 +76,7 @@ test('input budget reserves a final response and supports releasing its probe', 
 test('agent loop compacts prior tool-call history into retrieved-data context', async () => {
   const requests = [];
   const registry = { definitions: () => [{ name: 'read_items' }], names: () => ['read_items'] };
-  const dispatcher = { dispatch: async () => ({ items: [{ id: 'c1', label: '項目' }] }), takeScopeRequest: () => null };
+  const dispatcher = { dispatch: async () => ({ ok: true, data: { items: [{ id: 'c1', label: '項目' }] } }), takeScopeRequest: () => null };
   const budgetGuard = createBudgetGuard({ state: baseState, limits: { inputTokenCap: 10000, maxResponseRounds: 4, maxRetrievalCalls: 3, maxReplans: 2 } });
   const loop = createAgentRunLoop({
     client: { request: async (request) => {
@@ -91,6 +91,30 @@ test('agent loop compacts prior tool-call history into retrieved-data context', 
   assert.equal(requests[1].input.some((item) => item.type === 'function_call'), false);
   assert.match(requests[1].input.at(-1).content, /取得済みデータ.*read_items/s);
   assert.match(requests[1].input.at(-1).content, /項目/);
+});
+
+test('agent loop returns app-verifiable successful and failed retrieval records', async () => {
+  let requestCount = 0;
+  const loop = createAgentRunLoop({
+    client: { request: async () => ++requestCount === 1
+      ? { output: [
+        { type: 'function_call', name: 'read_items', arguments: '{"cursor":null}', call_id: 'ok' },
+        { type: 'function_call', name: 'read_items', arguments: '{"cursor":"bad"}', call_id: 'failed' }
+      ], usage: { input_tokens: 10 } }
+      : { output: [{ content: [{ type: 'output_text', text: '{"message":"確認","proposals":[],"alternativeGroups":[]}' }] }], usage: { input_tokens: 10 } } },
+    registry: { definitions: () => [{ name: 'read_items' }], names: () => ['read_items'] },
+    dispatcher: { dispatch: async (_name, rawArgs) => JSON.parse(rawArgs).cursor === 'bad'
+      ? { ok: false, error: { code: 'INVALID_CURSOR' } }
+      : { ok: true, data: { items: [{ id: 'x' }], totalCount: 1, nextCursor: null } }, takeScopeRequest: () => null },
+    budgetGuard: createBudgetGuard({ state: baseState, limits: { inputTokenCap: 10000, maxResponseRounds: 4, maxRetrievalCalls: 4, maxReplans: 2 } }),
+    model: 'test', apiKey: 'secret', systemInstruction: 'system', maxOutputTokens: 100, textFormat: {}
+  });
+  const result = await loop.run({ messages: [{ role: 'user', content: '確認' }] });
+  assert.equal(result.retrievalEvidence.length, 2);
+  assert.equal(result.retrievalEvidence[0].ok, true);
+  assert.equal(result.retrievalEvidence[0].data.totalCount, 1);
+  assert.equal(result.retrievalEvidence[1].ok, false);
+  assert.equal(result.retrievalEvidence[1].errorCode, 'INVALID_CURSOR');
 });
 
 test('agent loop finalizes with tools disabled when a retrieval request would consume the final-response reserve', async () => {

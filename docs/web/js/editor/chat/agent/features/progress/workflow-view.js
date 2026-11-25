@@ -9,28 +9,6 @@ function appendText(parent, tag, text, className = '') {
 export function createWorkflowView(root, questionView, proposalView, { onAnswerQuestions, onError = () => {}, messages }) {
   function renderPlan(plan) {
     root.replaceChildren();
-    if (messages) {
-      const message = document.createElement('div');
-      message.className = 'ai-message';
-      message.dataset.assistantPlanMessage = 'true';
-      message.setAttribute('role', 'article');
-      const body = document.createElement('div');
-      body.className = 'ai-message-body assistant-plan-message';
-      const lines = [plan.summary];
-      if (plan.unsupportedParts.length) {
-        lines.push(...plan.unsupportedParts.map((part) => `今回対応できない内容は「${part.description}」です。${part.reason}`));
-      }
-      body.textContent = lines.join('\n\n');
-      message.append(body);
-      messages.append(message);
-      const scrollToLatest = () => {
-        messages.scrollTo?.({ top: messages.scrollHeight, behavior: 'smooth' });
-        if (!messages.scrollTo) messages.scrollTop = messages.scrollHeight;
-      };
-      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(scrollToLatest);
-      else scrollToLatest();
-      return;
-    }
     const card = document.createElement('section');
     card.className = 'assistant-plan-card';
     appendText(card, 'p', plan.summary);
@@ -56,6 +34,7 @@ export function createWorkflowView(root, questionView, proposalView, { onAnswerQ
     }
     if (event.type === 'unsupported') {
       root.replaceChildren();
+      if (messages) return;
       appendText(root, 'p', event.plan.summary);
       event.plan.unsupportedParts.forEach((part) => appendText(root, 'p', `${part.description}：${part.reason}`));
     }

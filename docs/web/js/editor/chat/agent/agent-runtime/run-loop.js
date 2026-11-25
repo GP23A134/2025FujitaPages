@@ -11,6 +11,8 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
     };
     const baseInput = messages[0]?.role === 'system' ? [...messages] : [{ role: 'system', content: systemInstruction }, ...messages];
     const retrievedData = [];
+    // App-side provenance; never infer successful retrieval from model text.
+    const retrievalEvidence = [];
     const composeInput = () => retrievedData.length
       ? [...baseInput, { role: 'user', content: `取得済みデータ（JSON）:\n${JSON.stringify(retrievedData)}` }]
       : [...baseInput];
@@ -62,7 +64,7 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
           return {
             text: finalText || JSON.stringify({ message: `入力トークン上限に達しました。追加取得を止めました。${collectedDataNote()}`, proposals: [], alternativeGroups: [] }),
             messages: [...userFinalInput, ...(response.output || [])], usage: response.usage || null,
-            budgetLimited: true, counters: budgetGuard.getCounters()
+            budgetLimited: true, counters: budgetGuard.getCounters(), retrievalEvidence: [...retrievalEvidence]
           };
         }
         return {
@@ -70,6 +72,7 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
           messages: [...userFinalInput, ...(response.output || [])],
           usage: response.usage || null,
           budgetLimited: true,
+          retrievalEvidence: [...retrievalEvidence],
           counters: budgetGuard.getCounters()
         };
       } catch (error) {
@@ -80,6 +83,7 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
           messages: userFinalInput,
           usage: null,
           budgetLimited: true,
+          retrievalEvidence: [...retrievalEvidence],
           counters: budgetGuard.getCounters()
         };
       }
@@ -129,7 +133,7 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
           .find((item) => item.type === 'output_text')?.text || '';
         if (!calls.length && finalText) return {
           text: finalText, messages: [...input, ...(response.output || [])], usage: response.usage || null,
-          budgetLimited: true, counters: budgetGuard.getCounters()
+          budgetLimited: true, counters: budgetGuard.getCounters(), retrievalEvidence: [...retrievalEvidence]
         };
         return finishWithAvailableData();
       }
@@ -137,7 +141,7 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
       if (!calls.length) {
         const finalText = (response.output || []).flatMap((item) => item.content || [])
           .find((item) => item.type === 'output_text')?.text || '';
-        return { text: finalText, messages: [...input, ...(response.output || [])], usage: response.usage || null, counters: budgetGuard.getCounters() };
+        return { text: finalText, messages: [...input, ...(response.output || [])], usage: response.usage || null, counters: budgetGuard.getCounters(), retrievalEvidence: [...retrievalEvidence] };
       }
 
       const newResults = [];
@@ -164,6 +168,13 @@ export function createAgentRunLoop({ client, registry, dispatcher, budgetGuard, 
           scopeRequest = dispatcher.takeScopeRequest?.();
         }
         if (scopeRequest) return { status: 'needs_scope_approval', scopeRequest, counters: budgetGuard.getCounters() };
+        retrievalEvidence.push({
+          tool: call.name,
+          arguments: (() => { try { return JSON.parse(call.arguments || '{}'); } catch { return null; } })(),
+          ok: result?.ok === true,
+          data: result?.ok === true ? result.data : null,
+          errorCode: result?.ok === false ? result.error?.code || 'TOOL_FAILED' : null
+        });
         const data = result?.data;
         const itemCount = Array.isArray(data?.items) ? data.items.length : null;
         const totalCount = Number.isSafeInteger(data?.totalCount) ? data.totalCount : null;
