@@ -9,7 +9,7 @@ import { createBudgetApprovalView } from './features/budget-approval/budget-appr
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
 import { createAssistantWorkflow } from './application/workflow.js?v=20261125-task-controller-v1';
 import { createQuestionView } from './features/planning/question-view.js?v=20261118-white-question-card-v1';
-import { createWorkflowView } from './features/progress/workflow-view.js?v=20261119-scope-flow-v1';
+import { createWorkflowView } from './features/progress/workflow-view.js?v=20261125-plan-chat-message-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261120-proposal-pagination-v1';
 import { createSettingsView } from './settings/settings-view.js?v=20261119-developer-settings-layout-v2';
 import { createHistoryService } from './conversations/history-service.js?v=20261124-conversation-context-v1';
@@ -101,6 +101,7 @@ if (window.classEditorAI && statusElement) {
   let activeTurnStageIndex = -1;
   let activeTurnDataVersion = '';
   let activeTurnFinalizingReorganization = false;
+  let activePlanMessageText = '';
   const historyPersistenceEnabled = () => Boolean(settings['conversations.persistAcrossTabs']);
   const trimHistoryItems = () => {
     if (!activeHistory || activeHistory.items.length <= 100) return;
@@ -188,13 +189,15 @@ if (window.classEditorAI && statusElement) {
       } else if (event.type === 'progress' && event.milestone && event.note) {
         addHistoryMessage('assistant', event.note);
       } else if (event.type === 'plan' && event.plan?.summary) {
-        addHistoryMessage('assistant', event.plan.summary);
+        const planText = [event.plan.summary, ...(event.plan.unsupportedParts || []).map((part) =>
+          `今回対応できない内容は「${part.description}」です。${part.reason}`)].join('\n\n');
+        if (planText !== activePlanMessageText) addHistoryMessage('assistant', planText);
+        activePlanMessageText = planText;
       } else if (event.type === 'questions') {
         const questions = (event.questions || []).map((question) => question.text).filter(Boolean);
         if (questions.length) addHistoryMessage('assistant', questions.join('\n'));
       } else if (event.type === 'unsupported') {
-        addHistoryMessage('assistant', event.plan?.unsupportedParts?.map((part) => part.reason).filter(Boolean).join('\n')
-          || 'この依頼は現在の機能では対応できません。');
+        // The complete supported/unsupported summary was recorded with the plan event.
       } else if (event.type === 'scope_blocked') {
         const message = event.scopeReason === 'approved_without_scope'
           ? '許可操作を受け取りましたが、許可対象を特定できず処理を保留しました。'
@@ -338,6 +341,7 @@ if (window.classEditorAI && statusElement) {
     }
     newSystemSubmitting = true;
     activeRequestText = request;
+    activePlanMessageText = '';
     setProcessingButton(true);
     try {
       appendUserRequest(request);

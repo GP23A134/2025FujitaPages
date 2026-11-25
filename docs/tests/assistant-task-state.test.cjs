@@ -13,6 +13,18 @@ test('task action authorization accepts scoped existing-structure inspection', (
   }, { scopeIds: ['a', 'b'], dataVersion: 'v1' }), { allowed: true, action: 'use_existing_structure', input: {} });
 });
 
+test('design tasks may inspect existing destinations without switching to existing structure mode', () => {
+  const designTask = task({ structureMode: 'design' });
+  assert.deepEqual(authorizeTaskAction(designTask, {
+    action: 'inspect_existing_destinations', input: {}
+  }, { scopeIds: ['a', 'b'], dataVersion: 'v1' }), {
+    allowed: true, action: 'inspect_existing_destinations', input: {}
+  });
+  assert.equal(authorizeTaskAction(designTask, {
+    action: 'inspect_existing_destinations', input: {}
+  }, { scopeIds: [], dataVersion: 'v1' }).reason, 'scope_violation');
+});
+
 test('scope inspection is permitted before a named target has been resolved', () => {
   const unbound = task({ scopeIds: [] });
   assert.deepEqual(authorizeTaskAction(unbound, { action: 'inspect_scope', input: {} }, {

@@ -692,7 +692,7 @@ export function createHierarchyReorganizationJob({
           throw Object.assign(new Error('再編ジョブに実行可能な次の作業がありません。'), { code: 'REORG_NO_AVAILABLE_ACTION' });
         }
         const taskAction = nextPhase.id === 'class-placement' ? 'place_items' : nextPhase.id === 'structure-design'
-          ? 'design_structure' : nextPhase.id === 'destination-shortlist' ? 'use_existing_structure' : 'inspect_scope';
+          ? 'design_structure' : nextPhase.id === 'destination-shortlist' ? 'inspect_existing_destinations' : 'inspect_scope';
         const authorization = authorizeTaskAction(activeJob.metadata.taskState, {
           action: taskAction,
           input: taskAction === 'place_items' ? { targetIds: targets.map((item) => item.id), phaseId: nextPhase.id } : { phaseId: nextPhase.id }

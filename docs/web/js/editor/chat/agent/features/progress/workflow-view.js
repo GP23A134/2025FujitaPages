@@ -9,13 +9,29 @@ function appendText(parent, tag, text, className = '') {
 export function createWorkflowView(root, questionView, proposalView, { onAnswerQuestions, onError = () => {}, messages }) {
   function renderPlan(plan) {
     root.replaceChildren();
-    const card = document.createElement('section');
-    card.className = 'assistant-plan-card';
-    appendText(card, 'p', plan.summary);
-    if (plan.unsupportedParts.length) {
-      plan.unsupportedParts.forEach((part) => appendText(card, 'p', `今回対応できない内容は「${part.description}」です。${part.reason}`));
-    }
-    root.append(card);
+    if (!messages) return;
+    const children = [...messages.children];
+    const lastUserIndex = children.reduce((last, item, index) => item.className?.includes('is-user') ? index : last, -1);
+    const existing = children.slice(lastUserIndex + 1).reverse()
+      .find((item) => item.dataset?.assistantPlanMessage === 'true');
+    const message = existing || document.createElement('div');
+    message.className = 'ai-message';
+    message.dataset.assistantPlanMessage = 'true';
+    message.setAttribute('role', 'article');
+    const body = document.createElement('div');
+    body.className = 'ai-message-body assistant-plan-message';
+    appendText(body, 'p', plan.summary);
+    (plan.unsupportedParts || []).forEach((part) => {
+      appendText(body, 'p', `今回対応できない内容は「${part.description}」です。${part.reason}`);
+    });
+    message.replaceChildren(body);
+    if (!existing) messages.append(message);
+    const scrollToLatest = () => {
+      messages.scrollTo?.({ top: messages.scrollHeight, behavior: 'smooth' });
+      if (!messages.scrollTo) messages.scrollTop = messages.scrollHeight;
+    };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(scrollToLatest);
+    else scrollToLatest();
   }
 
   function handle(event) {
@@ -34,9 +50,6 @@ export function createWorkflowView(root, questionView, proposalView, { onAnswerQ
     }
     if (event.type === 'unsupported') {
       root.replaceChildren();
-      if (messages) return;
-      appendText(root, 'p', event.plan.summary);
-      event.plan.unsupportedParts.forEach((part) => appendText(root, 'p', `${part.description}：${part.reason}`));
     }
     if (event.type === 'result') {
       if (messages && (event.result?.budgetLimited || !event.result?.proposals?.length)) {

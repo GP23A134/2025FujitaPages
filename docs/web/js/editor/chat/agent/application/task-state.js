@@ -5,7 +5,7 @@ const stringList = (value, limit = MAX_ITEMS) => Array.isArray(value)
   ? [...new Set(value.filter((item) => typeof item === 'string' && item.length <= 512))].slice(0, limit) : [];
 
 export const TASK_ACTIONS = Object.freeze([
-  'inspect_scope', 'use_existing_structure', 'design_structure', 'place_items',
+  'inspect_scope', 'use_existing_structure', 'inspect_existing_destinations', 'design_structure', 'place_items',
   'validate', 'revise_structure', 'ask_user', 'complete'
 ]);
 
@@ -14,6 +14,7 @@ const ACTION_RULES = Object.freeze({
   // unbound target. Actual reads remain subject to the permission guard.
   inspect_scope: { requiredInput: [], needsScope: false },
   use_existing_structure: { requiredInput: [], needsScope: true, structureMode: 'existing' },
+  inspect_existing_destinations: { requiredInput: [], needsScope: true },
   design_structure: { requiredInput: [], needsScope: true, structureMode: 'design' },
   place_items: { requiredInput: ['targetIds'], needsScope: true },
   validate: { requiredInput: ['artifact'], needsScope: false },
