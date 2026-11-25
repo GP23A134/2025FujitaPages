@@ -14,6 +14,13 @@ export function createEditorDataReader({
   }
 
   let instanceAllocation = null;
+  const pageCursors = new Map();
+  let pageCursorSequence = 0;
+  const makePageCursor = (name, offset, version) => {
+    const token = `cursor_${globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}_${(++pageCursorSequence).toString(36)}`}`;
+    pageCursors.set(token, { name, offset, version });
+    return token;
+  };
 
   function snapshot() {
     const state = editor.getState();
@@ -60,8 +67,7 @@ export function createEditorDataReader({
   function paginate(name, records, cursor, data, limit = pageLimit) {
     let offset = 0;
     if (cursor !== null && cursor !== undefined) {
-      let saved;
-      try { saved = JSON.parse(decodeURIComponent(cursor)); } catch { saved = null; }
+      const saved = typeof cursor === 'string' ? pageCursors.get(cursor) : null;
       if (!saved || saved.name !== name || !Number.isSafeInteger(saved.offset) || saved.offset < 0) {
         throw Object.assign(new Error('続きカーソルが無効です。'), { code: 'INVALID_CURSOR' });
       }
@@ -72,7 +78,7 @@ export function createEditorDataReader({
     const nextOffset = offset + items.length;
     let nextCursor = null;
     if (nextOffset < records.length) {
-      nextCursor = encodeURIComponent(JSON.stringify({ name, offset: nextOffset, version: data.version }));
+      nextCursor = makePageCursor(name, nextOffset, data.version);
     }
     return { items, nextCursor };
   }
@@ -82,7 +88,7 @@ export function createEditorDataReader({
       || !Number.isSafeInteger(offset) || offset < 0) {
       throw new TypeError('ページカーソルの指定が不正です。');
     }
-    return offset === 0 ? null : encodeURIComponent(JSON.stringify({ name, offset, version: getDataVersion?.() || null }));
+    return offset === 0 ? null : makePageCursor(name, offset, getDataVersion?.() || null);
   }
 
   function readHierarchyIndex({ cursor = null } = {}) {

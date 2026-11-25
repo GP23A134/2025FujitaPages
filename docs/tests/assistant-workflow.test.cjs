@@ -28,18 +28,26 @@ function evaluate(relativePath, exportNames, stubs = {}) {
 }
 const { createConversationState, transitionConversation } = evaluate('application/conversation-state.js', 'createConversationState, transitionConversation');
 const { buildPlanInput } = evaluate('features/planning/plan-input.js', 'buildPlanInput');
+const taskStateModule = evaluate('application/task-state.js', 'createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, proposeTaskAction, authorizeTaskAction');
 const readerOptions = [];
 const agentRunOptions = [];
 const targetMoveProcessorOptions = [];
 const { createAssistantWorkflow } = evaluate('application/workflow.js', 'createAssistantWorkflow', {
-  createConversationState, transitionConversation, buildPlanInput,
+  createConversationState, transitionConversation, buildPlanInput, ...taskStateModule,
   createDataIdCodec: () => ({}),
   createIdMaskedClient: (client) => client,
   createTargetMoveBatchProcessor: (options) => {
     targetMoveProcessorOptions.push(options);
     return { run: async () => {
       options.onProgress({ stage: 'retrieving', tool: 'read_hierarchy_index' });
-      return { text: JSON.stringify({ message: 'バッチごとに移動候補を確認しました。', proposals: [], alternativeGroups: [] }), messages: [] };
+      return {
+        text: JSON.stringify({ message: 'バッチごとに移動候補を確認しました。', proposals: [], alternativeGroups: [] }),
+        messages: [],
+        completionEvidence: {
+          expectedCount: 1, processedCount: 1, missingCount: 0, unresolvedCount: 0,
+          scopeComplete: true, resultValidated: true
+        }
+      };
     } };
   },
   createBudgetGuard: ({ state, limits, onChange }) => {
@@ -141,6 +149,14 @@ test('ready read-only workflow completes without exposing IDs or API keys to pla
   assert.equal(stateText.includes('top-secret-id'), false);
 });
 
+test('a plan that requires data cannot complete without runtime evidence', async () => {
+  const dataPlan = plan({ dataNeeds: { hierarchyIndex: false, selectedClassDetails: true, parentContext: 'none', instanceContext: 'none' } });
+  const { workflow } = harness([dataPlan]);
+  const result = await workflow.start({ request: '対象を確認', apiKey: 'secret-api-key', model: 'model-x' });
+  assert.equal(result.status, 'failed');
+  assert.equal(workflow.getState().taskState.criteriaResults.every((item) => item.status !== 'passed'), true);
+});
+
 test('an explicit estimated move request cannot fall through to the read-only review path', async () => {
   const movePlan = plan({
     summary: '目的語の配下への移動案を作成します',
@@ -183,7 +199,7 @@ test('scope intent in a plan does not request an unrestricted scope expansion', 
   const firstPlan = plan({ scopeNeeds: { referenceBeyondSelection: true, changeBeyondSelection: false } });
   const { workflow, planInputs } = harness([firstPlan, plan()]);
   const result = await workflow.start({ request: '配置を確認', apiKey: 'secret-api-key', model: 'model-x' });
-  assert.equal(result.status, 'completed', result.error?.stack || JSON.stringify(result.error));
+  assert.equal(result.status, 'failed');
   assert.equal(planInputs.length, 1);
   assert.equal(workflow.getState().counters.replans, 0);
 });

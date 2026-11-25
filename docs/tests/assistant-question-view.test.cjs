@@ -100,7 +100,7 @@ test('agent confirmation stays in the bottom dock and sends the answer into chat
   assert.equal(dock.hidden, false);
   const option = dock.querySelectorAll('button[data-question-option="0"]')[1];
   option.click();
-  const submit = dock.children[0].children[1].children[1];
+  const submit = dock.children[0].children[2].children[1];
   assert.equal(submit.disabled, false);
   submit.click();
   assert.deepEqual(JSON.parse(JSON.stringify(await pending)), [{ questionId: 'q1', optionId: 'b', text: '案B' }]);

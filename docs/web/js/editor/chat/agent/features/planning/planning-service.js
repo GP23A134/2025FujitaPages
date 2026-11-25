@@ -1,6 +1,6 @@
-import { PLAN_RESPONSE_SCHEMA } from './plan-schema.js?v=20261125-structured-jobs-v2';
-import { buildPlanSystemPrompt } from '../../prompts/plan-system-prompt.js?v=20261125-delete-job-v2';
-import { validatePlan } from './plan-contract.js?v=20261125-structured-jobs-v2';
+import { PLAN_RESPONSE_SCHEMA } from './plan-schema.js?v=20261125-structure-mode-v1';
+import { buildPlanSystemPrompt } from '../../prompts/plan-system-prompt.js?v=20261125-structure-mode-v1';
+import { validatePlan } from './plan-contract.js?v=20261125-structure-mode-v1';
 
 function extractJsonText(response) {
   const text = response?.output?.flatMap((item) => item.content || [])
@@ -83,7 +83,7 @@ export function createPlanningService({ client, getDeveloperSettings }) {
       throw error;
     }
     return Object.freeze({
-      plan,
+      plan: Object.freeze(plan),
       usage: Number.isSafeInteger(response.usage?.input_tokens) ? response.usage.input_tokens : null
     });
   }

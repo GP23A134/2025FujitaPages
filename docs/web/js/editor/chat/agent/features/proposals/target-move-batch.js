@@ -346,7 +346,14 @@ export function createTargetMoveBatchProcessor({
         snapshotPages('target-snapshot', selectedIds, (cursor) => reader.readSelectedClassDetails({ cursor }), 'read_selected_class_details', '選択対象をページ単位で保存しています'),
         snapshotPages('hierarchy-snapshot', hierarchyIds || [], (cursor) => reader.readHierarchyIndex({ cursor }), 'read_hierarchy_index', '移動先候補の階層をページ単位で保存しています')
       ];
-      snapshotLoop = await runJobLoop({ checkpoint: activeJob, dataVersion, signal, phases: snapshotPhases, onCheckpoint, onProgress });
+      const snapshotsAlreadyComplete = snapshotPhases.every((phase) => {
+        const saved = activeJob.phases.find((item) => item.id === phase.id);
+        return saved?.status === 'completed' && saved.units.every((unit) => unit.status === 'completed');
+      });
+      const hasDownstreamCheckpoint = activeJob.phases.some((phase) => !['target-snapshot', 'hierarchy-snapshot'].includes(phase.id));
+      snapshotLoop = hasDownstreamCheckpoint && snapshotsAlreadyComplete
+        ? { status: 'completed', checkpoint: activeJob }
+        : await runJobLoop({ checkpoint: activeJob, dataVersion, signal, phases: snapshotPhases, onCheckpoint, onProgress });
     } catch (error) {
       if (error.scopeRequest) return { status: 'needs_scope_approval', scopeRequest: error.scopeRequest };
       return await pauseForBudget(error);
@@ -745,7 +752,15 @@ export function createTargetMoveBatchProcessor({
     await onCheckpoint(finalCheckpoint);
     return {
       text: JSON.stringify({ message, proposals, alternativeGroups }),
-      messages: [], budgetLimited, checkpoint: finalCheckpoint, counters: budgetGuard.getCounters()
+      messages: [], budgetLimited, checkpoint: finalCheckpoint, counters: budgetGuard.getCounters(),
+      completionEvidence: {
+        expectedCount: targetClasses.length,
+        processedCount: processed,
+        missingCount: Math.max(0, targetClasses.length - processed),
+        unresolvedCount: uncertain.length,
+        scopeComplete: !budgetLimited && processed === targetClasses.length,
+        resultValidated: !budgetLimited && processed === targetClasses.length
+      }
     };
   }
 

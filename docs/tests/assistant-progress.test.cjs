@@ -5,7 +5,8 @@ const vm = require('node:vm');
 const test = require('node:test');
 
 const sourcePath = path.join(__dirname, '../web/js/editor/chat/agent/features/progress/progress-view.js');
-const source = fs.readFileSync(sourcePath, 'utf8').replace(/^export /gm, '')
+const source = fs.readFileSync(sourcePath, 'utf8').replace(/^import \{ CHAT_EVENTS \} from .*;\s*$/m, '')
+  .replace(/^export /gm, '')
   .concat('\nmodule.exports = { createProgressView };');
 
 test('progress view stays after the submitted request and ahead of later messages', () => {
@@ -21,6 +22,13 @@ test('progress view stays after the submitted request and ahead of later message
       toggle(name, force) { if (force) element.classes.add(name); else element.classes.delete(name); return force; }
     };
     element.setAttribute = (name, value) => { element.attributes[name] = value; };
+    element.remove = () => {
+      const siblings = element.parentNode?.children;
+      if (siblings) {
+        const index = siblings.indexOf(element);
+        if (index >= 0) siblings.splice(index, 1);
+      }
+    };
     return element;
   };
   const status = makeElement();
@@ -28,11 +36,13 @@ test('progress view stays after the submitted request and ahead of later message
     this.children = this.children.filter((item) => item !== element);
     this.children.push(element);
     element.parentElement = this;
+    element.parentNode = this;
   }, insertBefore(element, reference) {
     this.children = this.children.filter((item) => item !== element);
     const index = reference ? this.children.indexOf(reference) : -1;
     this.children.splice(index < 0 ? 0 : index, 0, element);
     element.parentElement = this;
+    element.parentNode = this;
   } };
   const sandbox = {
     module: { exports: {} },
@@ -45,6 +55,7 @@ test('progress view stays after the submitted request and ahead of later message
     },
     Date: { now: () => now },
     TypeError
+    , CHAT_EVENTS: { agentProgress: 'assistant:progress' }
   };
   vm.runInNewContext(source, sandbox);
   const view = sandbox.module.exports.createProgressView(status, messages);
@@ -55,23 +66,23 @@ test('progress view stays after the submitted request and ahead of later message
   assert.equal(messages.children.length, 3);
   assert.equal(messages.children[0], userRequest);
   assert.equal(status.textContent, '');
-  assert.equal(messages.children[1].textContent, '0s');
+  assert.equal(messages.children[1].textContent, '0s 作業中');
   assert.equal(messages.children[2].textContent, '依頼を整理しています');
   assert.equal(messages.children[2].classes.has('is-active'), true);
   listeners.get('assistant:progress')({ detail: {
     stage: 'retrieving', tool: 'read_hierarchy_index', note: '100件取得。続きがあります'
   } });
-  assert.equal(messages.children[1].textContent, '0s');
+  assert.equal(messages.children[1].textContent, '0s 作業中');
   assert.equal(messages.children[2].textContent, '階層索引を取得しています。100件取得。続きがあります');
   const earlierMessage = makeElement();
   messages.append(earlierMessage);
   listeners.get('assistant:progress')({ detail: { stage: 'analyzing' } });
-  assert.equal(messages.children[1].textContent, '0s');
+  assert.equal(messages.children[1].textContent, '0s 作業中');
   assert.equal(messages.children[2], earlierMessage);
   assert.equal(messages.children[3].textContent, '取得した情報を確認しています');
   now = 3662000;
   intervalCallback();
-  assert.equal(messages.children[1].textContent, '1h1m1s');
+  assert.equal(messages.children[1].textContent, '1h1m1s 作業中');
   listeners.get('assistant:progress')({ detail: { stage: 'completed' } });
   assert.equal(messages.children.length, 4);
   assert.equal(messages.children[1].hidden, false);

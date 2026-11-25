@@ -10,10 +10,12 @@ test('target moves are decided in compact batches and assembled locally into ope
   const submitted = [];
   let aiCalls = 0;
   const reader = {
+    pageLimit: 1000,
+    createPageCursor: (_name, offset) => offset,
     readHierarchyIndex: () => ({ items: [{ id: 'destination', label: '目的語', type: 'top', parentId: null, parentLabel: null }], nextCursor: null }),
     readSelectedClassDetails({ cursor }) {
       const offset = cursor ? Number(cursor) : 0;
-      const items = records.slice(offset, offset + 2);
+      const items = records.slice(offset, offset + 1000);
       const next = offset + items.length;
       return { items, totalCount: records.length, nextCursor: next < records.length ? String(next) : null };
     }
@@ -43,7 +45,7 @@ test('target moves are decided in compact batches and assembled locally into ope
   const processor = createTargetMoveBatchProcessor({
     reader, client, budgetGuard, model: 'test', apiKey: 'secret', request: '目的語へ移す案。推定でもよい',
     plan: { executionBrief: { objective: '選択対象を目的語へ移す', successCriteria: [] } },
-    pageLimit: 1000, maxOutputTokens: 5000
+    pageLimit: 1000, jobScopeIds: records.map((item) => item.id), jobSelectedIds: records.map((item) => item.id), maxOutputTokens: 5000
   });
 
   const result = await processor.run();
@@ -65,10 +67,14 @@ test('target move checkpoints resume only pending batches and reject changed sco
   }));
   const calls = [];
   const reader = (source = records) => ({
+    pageLimit: 500,
+    createPageCursor: (_name, offset) => offset,
     readHierarchyIndex: () => ({ items: [{ id: 'destination', label: '移動先', type: 'top', parentId: null, parentLabel: null }], nextCursor: null }),
     readSelectedClassDetails({ cursor }) {
       const offset = cursor ? Number(cursor) : 0;
-      return { items: source.slice(offset, offset + 500), nextCursor: null };
+      const items = source.slice(offset, offset + 500);
+      const next = offset + items.length;
+      return { items, nextCursor: next < source.length ? String(next) : null };
     }
   });
   const client = { async request({ input }) {
@@ -99,13 +105,14 @@ test('target move checkpoints resume only pending batches and reject changed sco
   const options = {
     reader: reader(), client, model: 'test', apiKey: 'secret', request: '対象を移動先へ移す', jobRequest: '対象を移動先へ移す',
     plan: { executionBrief: { objective: '対象を移動する', successCriteria: [] } },
-    maxOutputTokens: 5000, dataVersion: 'data-v1'
+    maxOutputTokens: 5000, dataVersion: 'data-v1',
+    jobScopeIds: records.map((item) => item.id), jobSelectedIds: records.map((item) => item.id)
   };
   const first = await createTargetMoveBatchProcessor({ ...options, budgetGuard: makeBudget(3) }).run();
   assert.equal(first.budgetLimited, true);
   assert.equal(first.checkpoint.status, 'paused');
   assert.equal(calls.filter((item) => item === 100).length, 1);
-  assert.deepEqual(first.checkpoint.phases.map((phase) => phase.id), ['target-decisions', 'uncertain-retry-1', 'uncertain-retry-2']);
+  assert.deepEqual(first.checkpoint.phases.map((phase) => phase.id), ['target-snapshot', 'hierarchy-snapshot', 'target-decisions', 'uncertain-retry-1', 'uncertain-retry-2']);
 
   const beforeResume = calls.length;
   const resumed = await createTargetMoveBatchProcessor({ ...options, budgetGuard: makeBudget(), jobCheckpoint: first.checkpoint }).run();
@@ -116,7 +123,8 @@ test('target move checkpoints resume only pending batches and reject changed sco
   assert.equal(response.proposals[0].operations.length, 101);
 
   const changedScope = createTargetMoveBatchProcessor({
-    ...options, reader: reader(records.slice(0, 100)), budgetGuard: makeBudget(), jobCheckpoint: first.checkpoint
+    ...options, reader: reader(records.slice(0, 100)), jobScopeIds: records.slice(0, 100).map((item) => item.id),
+    jobSelectedIds: records.slice(0, 100).map((item) => item.id), budgetGuard: makeBudget(), jobCheckpoint: first.checkpoint
   });
   assert.equal((await changedScope.run()).status, 'stale_job');
   const changedVersion = createTargetMoveBatchProcessor({
@@ -132,6 +140,8 @@ test('uncertain retry decisions are checkpointed and resumed without repeating c
   }));
   let responseCalls = 0;
   const reader = {
+    pageLimit: 500,
+    createPageCursor: (_name, offset) => offset,
     readHierarchyIndex: () => ({ items: [{ id: 'destination', label: '移動先', type: 'top', parentId: null, parentLabel: null }], nextCursor: null }),
     readSelectedClassDetails: ({ cursor }) => {
       const offset = cursor ? Number(cursor) : 0;
@@ -171,7 +181,8 @@ test('uncertain retry decisions are checkpointed and resumed without repeating c
   const options = {
     reader, client, model: 'test', apiKey: 'secret', request: '対象を移動先へ移す', jobRequest: '対象を移動先へ移す',
     plan: { executionBrief: { objective: '対象を移動する', successCriteria: [] } },
-    maxOutputTokens: 5000, dataVersion: 'data-v1'
+    maxOutputTokens: 5000, dataVersion: 'data-v1',
+    jobScopeIds: records.map((item) => item.id), jobSelectedIds: records.map((item) => item.id)
   };
   const first = await createTargetMoveBatchProcessor({ ...options, budgetGuard: makeBudget(5) }).run();
   assert.equal(first.budgetLimited, true);

@@ -22,6 +22,7 @@
 - `../integration/chat-events.js`: 新旧画面をまたぐ進捗・利用量イベント名の共有契約
 - `entry.js`: 編集画面での新モジュール初期化
 - `application/conversation-state.js`: 依頼単位のワークフロー状態・遷移・継続カウンター
+- `application/task-state.js`: 目的・完了条件・対象範囲・データ版・確認事項・未完了事項・行動履歴を保持する共通タスク状態と、構造モードに沿った行動提案の基本検査
 - `settings/registry.js`: 機能別設定の集約と値検証
 - `settings/register-defaults.js`: 各機能の設定登録
 - `conversations/settings.js`: 履歴保存の開発者設定

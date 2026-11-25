@@ -1,10 +1,11 @@
 import { createConversationState, transitionConversation } from './conversation-state.js?v=20261124-conversation-context-v1';
+import { createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, authorizeTaskAction } from './task-state.js?v=20261125-task-state-v1';
 import { buildPlanInput } from '../features/planning/plan-input.js?v=20261124-conversation-context-v1';
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261120-denied-scope-fallback-v1';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-denied-scope-fallback-v1';
 import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261125-generic-intent-v1';
-import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261125-structured-jobs-v9';
+import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261125-task-controller-v1';
 import { createHierarchyDeletionJob } from '../features/proposals/hierarchy-deletion-job.js?v=20261125-structured-jobs-v4';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
@@ -69,6 +70,10 @@ const usesBatchedTargetMove = (plan) => plan?.changeOperations?.length === 1
   && plan.dataNeeds?.selectedClassDetails
   && plan.dataNeeds?.hierarchyIndex
   && plan.dataNeeds?.instanceContext === 'none';
+const hasHierarchyDeletion = (plan) => plan?.changeOperations?.some((operation) =>
+  operation === 'delete_top_class' || operation === 'delete_middle_class') === true;
+const structureModeOf = (plan) => plan?.structureMode
+  || (plan?.executionMode === 'reorganization' ? 'design' : 'existing');
 const correctMoveProposalPlan = (candidate, request) => {
   const brief = candidate.executionBrief || {};
   const plannedText = [candidate.summary, brief.objective, brief.expectedResult].join('\n');
@@ -120,7 +125,34 @@ export function createAssistantWorkflow({
   const updateState = (next) => { state = next; onEvent({ type: 'state', state }); };
   const setStatus = (status) => {
     if (state?.status === status) return;
-    updateState(transitionConversation(state, status, now()));
+    let next = transitionConversation(state, status, now());
+    const actionByStatus = {
+      retrieving: 'inspect_scope', analyzing: 'inspect_scope',
+      needs_scope_approval: 'ask_user', needs_clarification: 'ask_user'
+    };
+    const action = actionByStatus[status];
+    const taskState = normalizeTaskState(next.taskState);
+    if (action && taskState?.status === 'running') {
+      const input = action === 'ask_user'
+        ? { question: status === 'needs_scope_approval' ? '追加参照を許可しますか' : '依頼内容を確認してください', workflowStatus: status }
+        : { scopeIds: taskState.scopeIds, workflowStatus: status };
+      const authorization = authorizeTaskAction(taskState, { action, input }, {
+        scopeIds: taskState.scopeIds, dataVersion: taskState.dataVersion
+      });
+      if (!authorization.allowed) throw Object.assign(new Error(`タスク行動を許可できません: ${authorization.reason}`), { code: 'TASK_ACTION_DENIED' });
+      next = { ...next, taskState: recordTaskAction(taskState, { action, input, outcome: 'entered' }) };
+    }
+    if (['needs_scope_approval', 'needs_clarification'].includes(status)) {
+      const currentTask = normalizeTaskState(next.taskState);
+      if (currentTask?.status === 'running') next = {
+        ...next,
+        taskState: stopTask(currentTask, {
+          reason: status,
+          awaitingUserInput: { reason: status === 'needs_scope_approval' ? 'scope_approval' : 'clarification' }
+        })
+      };
+    }
+    updateState(next);
   };
   const emitProgress = (stage, detail = {}) => {
     const payload = stage && typeof stage === 'object'
@@ -315,9 +347,9 @@ export function createAssistantWorkflow({
       maxOutputTokens: settings['runtime.maxOutputTokens'],
       signal, onProgress: emitProgress, onUsage: reportUsage
     }) : null;
-    const hierarchyReorganization = plan.executionMode === 'reorganization'
+    const hierarchyReorganization = structureModeOf(plan) === 'design'
       || state.jobCheckpoint?.kind === 'hierarchy_reorganization';
-    const hierarchyDeletion = plan.executionMode === 'deletion'
+    const hierarchyDeletion = (structureModeOf(plan) === 'existing' && hasHierarchyDeletion(plan))
       || state.jobCheckpoint?.kind === 'hierarchy_deletion';
     const batchedTargetMove = !hierarchyReorganization && (usesBatchedTargetMove(plan)
       || (state.jobCheckpoint?.kind === 'target_move' && plan.changeOperations.includes('move_target_class')));
@@ -622,6 +654,7 @@ export function createAssistantWorkflow({
         ...validation,
         ...(result.budgetLimited ? { proposals: [], alternativeGroups: [] } : {}),
         budgetLimited: Boolean(result.budgetLimited),
+        completionEvidence: result.completionEvidence || null,
         usage: result.usage,
         messages: result.messages
       };
@@ -632,7 +665,7 @@ export function createAssistantWorkflow({
     if (replan) setStatus('planning');
     let currentPlan = await createPlan({ replan, signal });
     if (!['unsupported', 'needs_clarification'].includes(currentPlan.status)
-      && (currentPlan.executionMode === 'deletion' || state.jobCheckpoint?.kind === 'hierarchy_deletion')) {
+      && ((structureModeOf(currentPlan) === 'existing' && hasHierarchyDeletion(currentPlan)) || state.jobCheckpoint?.kind === 'hierarchy_deletion')) {
       const tree = editor.getState();
       selectedClassIds = expandScopeDescendants(tree.classes, tree.relations, selectedClassIds);
       selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
@@ -645,7 +678,7 @@ export function createAssistantWorkflow({
       updateState(state);
       currentPlan = {
         ...currentPlan,
-        executionMode: 'deletion',
+        structureMode: 'existing',
         taskType: 'mixed',
         changeOperations: [...new Set([...(currentPlan.changeOperations || []), ...(state.jobCheckpoint?.metadata?.deleteOperations || []), 'move_target_class', 'move_middle_class'])],
         dataNeeds: { ...currentPlan.dataNeeds, hierarchyIndex: true, selectedClassDetails: true }
@@ -654,7 +687,7 @@ export function createAssistantWorkflow({
       onEvent({ type: 'plan', plan: currentPlan, counts: currentCounts() });
     }
     if (!['unsupported', 'needs_clarification'].includes(currentPlan.status)
-      && (currentPlan.executionMode === 'reorganization' || state.jobCheckpoint?.kind === 'hierarchy_reorganization')) {
+      && (structureModeOf(currentPlan) === 'design' || state.jobCheckpoint?.kind === 'hierarchy_reorganization')) {
       const tree = editor.getState();
       selectedClassIds = expandScopeDescendants(tree.classes, tree.relations, selectedClassIds);
       selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
@@ -671,7 +704,7 @@ export function createAssistantWorkflow({
       ];
       currentPlan = {
         ...currentPlan,
-        executionMode: 'reorganization',
+        structureMode: 'design',
         taskType: 'mixed',
         changeOperations: [...new Set([...(currentPlan.changeOperations || []), ...reorganizationOperations])],
         dataNeeds: { ...currentPlan.dataNeeds, hierarchyIndex: true, selectedClassDetails: true }
@@ -688,6 +721,25 @@ export function createAssistantWorkflow({
         dataNeeds: { ...currentPlan.dataNeeds, hierarchyIndex: true, selectedClassDetails: true }
       };
       plan = currentPlan;
+    }
+    const taskState = normalizeTaskState(state.taskState);
+    if (taskState && !['unsupported', 'needs_clarification'].includes(currentPlan.status)) {
+      state = {
+        ...state,
+        taskState: normalizeTaskState({
+          ...taskState,
+          scopeIds: selectedClassIds,
+          structureMode: structureModeOf(currentPlan),
+          completionCriteria: [
+            '対象範囲の確認を完了する',
+            currentPlan.changeOperations?.length ? '要求された変更操作を検証する' : '依頼された調査結果を確認する',
+            '処理対象の漏れと範囲外操作がないことを確認する'
+          ],
+          updatedAt: Date.now()
+        }),
+        updatedAt: now()
+      };
+      updateState(state);
     }
     if (currentPlan.status === 'unsupported') {
       setStatus('completed');
@@ -770,8 +822,57 @@ export function createAssistantWorkflow({
     }
     if (outcome.proposals?.length) {
       setStatus('needs_proposal_review');
+      const taskState = normalizeTaskState(state.taskState);
+      if (taskState) state = { ...state, taskState: stopTask(taskState, {
+        reason: 'proposal_review_required', awaitingUserInput: { reason: 'proposal_review' },
+        unfinishedItems: ['提案内容の利用者確認']
+      }) };
     } else {
-      setStatus('completed');
+      const taskState = normalizeTaskState(state.taskState);
+      if (taskState) {
+        let verifiedTask = normalizeTaskState({ ...taskState, unfinishedItems: [] });
+        const evidence = outcome.completionEvidence || (() => {
+          const needs = currentPlan.dataNeeds || {};
+          const scope = currentPlan.scopeNeeds || {};
+          const noDataRequired = !needs.hierarchyIndex && !needs.selectedClassDetails
+            && needs.parentContext === 'none' && needs.instanceContext === 'none';
+          const noExpandedScope = !scope.referenceBeyondSelection && !scope.changeBeyondSelection;
+          const noChangesRequired = !(currentPlan.changeOperations || []).length;
+          if (!noDataRequired || !noExpandedScope || !noChangesRequired) return null;
+          return {
+            expectedCount: 0,
+            processedCount: 0,
+            missingCount: 0,
+            unresolvedCount: 0,
+            scopeComplete: true,
+            resultValidated: true,
+            basis: 'plan_requires_no_data_or_scope_expansion'
+          };
+        })();
+        const completeEvidence = evidence?.scopeComplete === true && evidence?.resultValidated === true
+          && evidence.unresolvedCount === 0 && !outcome.budgetLimited && !outcome.blocked?.length;
+        if (completeEvidence) {
+          for (const criterion of verifiedTask.completionCriteria) {
+            verifiedTask = recordTaskCriterion(verifiedTask, criterion, { ...evidence, verifiedAt: Date.now() }) || verifiedTask;
+          }
+          verifiedTask = normalizeTaskState({
+            ...verifiedTask,
+            confirmedFacts: [...verifiedTask.confirmedFacts, { ...evidence, verifiedAt: Date.now() }]
+          });
+        }
+        const completedTask = completeEvidence ? completeTask(verifiedTask) : null;
+        if (completedTask) {
+          setStatus('completed');
+          state = { ...state, taskState: completedTask };
+        } else {
+          setStatus('failed');
+          state = { ...state, taskState: stopTask(verifiedTask, {
+          reason: 'completion_criteria_unverified',
+          unfinishedItems: verifiedTask.completionCriteria.filter((criterion) =>
+            !verifiedTask.criteriaResults.some((result) => result.criterion === criterion && result.status === 'passed'))
+          }) };
+        }
+      } else setStatus('completed');
     }
     lastResult = outcome;
     onEvent({ type: 'result', result: outcome, plan: currentPlan, state });
@@ -818,7 +919,15 @@ export function createAssistantWorkflow({
         conversationContext,
         initialCounters
       });
-      state = { ...state, scopeGrants: { reference: [...referenceIds], change: selectedClassIds }, jobCheckpoint, continuationInput };
+      state = {
+        ...state,
+        taskState: createTaskState({
+          id: state.id, objective: request,
+          completionCriteria: ['依頼された確認・提案範囲を処理する', '提案がある場合は利用者確認待ちとして保持する'],
+          scopeIds: selectedClassIds, dataVersion: window.classEditorAssistant?.getDataVersion?.() || '', structureMode: 'existing'
+        }),
+        scopeGrants: { reference: [...referenceIds], change: selectedClassIds }, jobCheckpoint, continuationInput
+      };
       currentApiKey = apiKey;
       currentModel = model;
       updateState(state);
@@ -924,6 +1033,13 @@ export function createAssistantWorkflow({
     const formattedAnswers = formatAnswers(plan?.questions, answers);
     if (!formattedAnswers) throw new TypeError('各質問に回答してください。');
     state = { ...state, request: `${state.request}\n\n利用者の回答:\n${formattedAnswers}`, updatedAt: now() };
+    const taskState = normalizeTaskState(state.taskState);
+    if (taskState?.status === 'awaiting_user') {
+      const currentDataVersion = window.classEditorAssistant?.getDataVersion?.() || '';
+      const resumedTask = resumeTask(taskState, { scopeIds: state.selectedClassIds, dataVersion: currentDataVersion });
+      if (!resumedTask) throw new Error('対象範囲が変わったため、このタスク状態を再開できません。');
+      state = { ...state, taskState: resumedTask };
+    }
     setStatus('planning');
     active = true;
     const activeSignal = beginActive(signal);

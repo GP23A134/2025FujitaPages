@@ -280,6 +280,14 @@ export function createChunkedReadOnlyReview({
     return {
       text: JSON.stringify({ message: `${final.message}\n\n${completeness}`, proposals: [], alternativeGroups: [] }),
       messages: finalInput,
+      completionEvidence: {
+        expectedCount: totalCount,
+        processedCount: completedCount,
+        missingCount,
+        scopeComplete: completedCount === totalCount && missingCount === 0,
+        resultValidated: true,
+        unresolvedCount: missingCount + batchSummaries.filter((batch) => batch.moreFindingsMayExist).length
+      },
       usage: finalResponse.usage || null,
       counters: budgetGuard.getCounters()
     };

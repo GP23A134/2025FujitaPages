@@ -1,4 +1,5 @@
 import { createJobCheckpoint, normalizeJobCheckpoint, runJobLoop } from '../../application/job-loop.js';
+import { createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, authorizeTaskAction } from '../../application/task-state.js?v=20261125-task-state-v1';
 
 const PAGE_BATCH_SIZE = 100;
 const FAST_PATH_MAX_TARGETS = 100;
@@ -93,11 +94,11 @@ export function createHierarchyReorganizationJob({
     if (sameJob) {
       const priorHierarchyIds = saved.metadata.hierarchyIds || [];
       if (!priorHierarchyIds.every((id) => hierarchyIds.includes(id))) return { status: 'stale_job', message: '保存済み再編ジョブの参照範囲が現在と異なるため続行できません。' };
-      if (priorHierarchyIds.length !== hierarchyIds.length || saved.metadata.designVersion !== 8) {
+      if (priorHierarchyIds.length !== hierarchyIds.length || saved.metadata.designVersion !== 9) {
         activeJob = normalizeJobCheckpoint({
           ...saved,
           status: 'running',
-          metadata: { ...saved.metadata, hierarchyIds, designVersion: 8 },
+          metadata: { ...saved.metadata, hierarchyIds, designVersion: 9 },
           phases: saved.phases.filter((phase) => phase.id === 'target-snapshot'),
           updatedAt: Date.now(), completedAt: null
         });
@@ -125,8 +126,30 @@ export function createHierarchyReorganizationJob({
       id: globalThis.crypto?.randomUUID?.() || `reorg-${Date.now()}`,
       kind: 'hierarchy_reorganization', request: jobRequest || request, dataVersion,
       scopeIds: sortedScope,
-      metadata: { selectedIds, targetIds, hierarchyIds, executionMode: 'reorganization', designVersion: 8, userGuidance: [] }
+      metadata: {
+        selectedIds, targetIds, hierarchyIds, executionMode: 'reorganization', designVersion: 9, userGuidance: [],
+        taskState: createTaskState({
+          id: globalThis.crypto?.randomUUID?.() || `task-${Date.now()}`,
+          objective: plan.executionBrief?.objective || request,
+          completionCriteria: ['対象全件の配置または保留理由を確定する', '提案操作と階層整合性を検証する'],
+          scopeIds: sortedScope, dataVersion, structureMode: 'design'
+        })
+      }
     });
+    if (sameJob && !normalizeTaskState(activeJob.metadata.taskState)) {
+      activeJob.metadata.taskState = createTaskState({
+        id: activeJob.id, objective: plan.executionBrief?.objective || request,
+        completionCriteria: ['対象全件の配置または保留理由を確定する', '提案操作と階層整合性を検証する'],
+        scopeIds: sortedScope, dataVersion, structureMode: 'design'
+      });
+    }
+    if (sameJob && continuationInput && activeJob.metadata.taskState) {
+      const resumedTask = resumeTask(activeJob.metadata.taskState, { dataVersion, scopeIds: sortedScope });
+      if (!resumedTask) return { status: 'stale_job', message: '保存済みタスク状態の対象範囲が現在と異なるため再開できません。' };
+      activeJob.metadata.taskState = resumedTask;
+      activeJob.metadata.awaitingUserInput = null;
+      await onCheckpoint(activeJob);
+    }
     const persist = async (checkpoint) => { activeJob = checkpoint; await onCheckpoint(checkpoint); };
     const targetPhase = pagePhase({ id: 'target-snapshot', ids: selectedIds, reader, read: (cursor) => reader.readSelectedClassDetails({ cursor }), budgetGuard, onProgress, tool: 'read_selected_class_details', note: '再編対象を全ページ取得しています' });
     const hierarchyPhase = pagePhase({ id: 'hierarchy-snapshot', ids: hierarchyIds, reader, read: (cursor) => reader.readHierarchyIndex({ cursor }), budgetGuard, onProgress, tool: 'read_hierarchy_index', note: '利用可能な階層候補を全ページ取得しています' });
@@ -581,8 +604,134 @@ export function createHierarchyReorganizationJob({
     };
 
     const phases = [targetPhase, hierarchyPhase, dispositionPhase, structureEvidencePhase, taxonomySkeletonPhase, destinationPhase, structurePhase, assignmentPhase];
+    const actionPhases = phases.slice(2);
+    const actionById = new Map(actionPhases.map((phase) => [phase.id, phase]));
+    const actionRequirements = {
+      'existing-class-disposition': [],
+      'structure-evidence': [],
+      'taxonomy-skeleton': ['structure-evidence'],
+      'destination-shortlist': ['existing-class-disposition', 'structure-evidence', 'taxonomy-skeleton'],
+      'structure-design': ['existing-class-disposition', 'structure-evidence', 'taxonomy-skeleton', 'destination-shortlist'],
+      'class-placement': ['structure-design']
+    };
+    const actionDescriptions = {
+      'existing-class-disposition': '既存の上位・中間クラスを維持または削除に分類する',
+      'structure-evidence': '対象クラスを分割して要約する',
+      'taxonomy-skeleton': '対象全体から再編後の分類骨組みを設計する',
+      'destination-shortlist': '既存階層から再編に使える候補を選ぶ',
+      'structure-design': '分類骨組みと既存候補を統合して構造案を確定する',
+      'class-placement': '対象クラスを再編後の構造へ配置する'
+    };
+    const summarizeActionResult = (phase) => {
+      const results = phase.units.filter((unit) => unit.status === 'completed').map((unit) => unit.result);
+      if (phase.id === 'existing-class-disposition') {
+        const decisions = results.flatMap((result) => result?.decisions || []);
+        return { kept: decisions.filter((item) => item.disposition === 'keep').length, deleted: decisions.filter((item) => item.disposition === 'delete').length };
+      }
+      if (phase.id === 'structure-evidence') return results.map((result) => ({ summary: result?.summary, themes: result?.themes }));
+      if (phase.id === 'taxonomy-skeleton') return results[0]?.categories?.map(({ key, label, type, parentKey }) => ({ key, label, type, parentKey })) || [];
+      if (phase.id === 'destination-shortlist') return { candidateCount: results.flatMap((result) => result?.candidateKeys || []).length };
+      if (phase.id === 'structure-design') return { designReason: results[0]?.designReason, categories: results[0]?.categories?.map(({ key, label, type, existingKey, parentKey }) => ({ key, label, type, existingKey, parentKey })) || [] };
+      if (phase.id === 'class-placement') {
+        const assignments = results.flatMap((result) => result?.assignments || []);
+        return { keep: assignments.filter((item) => item.disposition === 'keep').length, move: assignments.filter((item) => item.disposition === 'move').length, hold: assignments.filter((item) => item.disposition === 'hold').length };
+      }
+      return null;
+    };
+    const runAdaptiveActions = async () => {
+      const maxActions = actionPhases.length + 1;
+      for (let iteration = 0; iteration < maxActions; iteration += 1) {
+        const savedById = new Map(activeJob.phases.map((phase) => [phase.id, phase]));
+        const completed = new Set([...savedById.values()].filter((phase) => phase.status === 'completed').map((phase) => phase.id));
+        const incompleteStarted = actionPhases.find((phase) => {
+          const savedPhase = savedById.get(phase.id);
+          return savedPhase && savedPhase.status !== 'completed'
+            && (['running', 'paused', 'failed'].includes(savedPhase.status)
+              || savedPhase.units.some((unit) => unit.status === 'completed' || unit.status === 'paused'));
+        });
+        const ready = actionPhases.filter((phase) => !completed.has(phase.id)
+          && phase.units.length > 0
+          && actionRequirements[phase.id].every((requiredId) => completed.has(requiredId)));
+        const noOpReady = actionPhases.filter((phase) => !completed.has(phase.id)
+          && phase.units.length === 0
+          && actionRequirements[phase.id].every((requiredId) => completed.has(requiredId)));
+        const selectedPhase = incompleteStarted || noOpReady[0] || (ready.length === 1 ? ready[0] : null);
+        let nextPhase = selectedPhase;
+        if (!nextPhase && ready.length > 1) {
+          const savedSummary = actionPhases.filter((phase) => completed.has(phase.id)).map((phase) => ({
+            action: phase.id, result: summarizeActionResult(savedById.get(phase.id))
+          }));
+          const decision = parseAI(await callAI([
+            { role: 'system', content: [
+              '再編作業のチェックポイントと完了済みの結果を確認し、今実行する作業を一つ選んでください。',
+              '提示された候補以外は選べません。すでに完了した作業は選ばず、判断に役立つ情報を先に得られる作業を選んでください。内部思考は出力せず、選択したactionだけを返してください。'
+            ].join('\n') },
+            { role: 'user', content: JSON.stringify({
+              request, objective: plan.executionBrief,
+              targetCount: targets.length,
+              targetOverview: targets.slice(0, 30).map((item) => ({ label: item.label, currentParent: item.parentLabel || null })),
+              existingStructureOverview: {
+                topCount: destinationRecords.filter((item) => item.type === 'top').length,
+                middleCount: destinationRecords.filter((item) => item.type === 'middle').length,
+                examples: destinationRecords.slice(0, 50).map((item) => ({ label: item.label, type: item.type, parent: item.parentLabel || null }))
+              },
+              completedActions: savedSummary,
+              availableActions: ready.map((phase) => ({ id: phase.id, description: actionDescriptions[phase.id] }))
+            }) }
+          ], 'reorganization_next_action', {
+            type: 'object', additionalProperties: false,
+            properties: { action: { type: 'string', enum: ready.map((phase) => phase.id) } },
+            required: ['action']
+          }), 'INVALID_REORG_NEXT_ACTION', '次に行う再編作業を選べませんでした。');
+          nextPhase = actionById.get(decision.action);
+        }
+        if (!nextPhase) {
+          const allCompleted = actionPhases.every((phase) => completed.has(phase.id));
+          if (allCompleted) return { status: 'completed', checkpoint: activeJob };
+          throw Object.assign(new Error('再編ジョブに実行可能な次の作業がありません。'), { code: 'REORG_NO_AVAILABLE_ACTION' });
+        }
+        const taskAction = nextPhase.id === 'class-placement' ? 'place_items' : nextPhase.id === 'structure-design'
+          ? 'design_structure' : nextPhase.id === 'destination-shortlist' ? 'use_existing_structure' : 'inspect_scope';
+        const authorization = authorizeTaskAction(activeJob.metadata.taskState, {
+          action: taskAction,
+          input: taskAction === 'place_items' ? { targetIds: targets.map((item) => item.id), phaseId: nextPhase.id } : { phaseId: nextPhase.id }
+        }, { scopeIds: sortedScope, dataVersion, maxIterations: actionPhases.length + 1 });
+        if (!authorization.allowed) {
+          throw Object.assign(new Error(`再編工程を許可できません: ${authorization.reason}`), {
+            code: 'TASK_ACTION_DENIED', reason: authorization.reason
+          });
+        }
+        const orderedPhases = [
+          ...activeJob.phases.map((phase) => actionById.get(phase.id) || (phase.id === 'target-snapshot' ? targetPhase : phase.id === 'hierarchy-snapshot' ? hierarchyPhase : null)).filter(Boolean),
+          nextPhase
+        ];
+        const result = await runJobLoop({ checkpoint: activeJob, dataVersion, signal, phases: orderedPhases, onCheckpoint: persist, onProgress });
+        activeJob = result.checkpoint;
+        const taskState = recordTaskAction(activeJob.metadata.taskState, {
+          action: taskAction, input: { phaseId: nextPhase.id }, outcome: result.status,
+          evidence: { completedPhase: result.status === 'completed' }
+        });
+        if (taskState) {
+          activeJob.metadata.taskState = taskState;
+          await persist(activeJob);
+        }
+        if (result.status !== 'completed') {
+          const currentTask = normalizeTaskState(activeJob.metadata.taskState);
+          if (currentTask) {
+            activeJob.metadata.taskState = stopTask(currentTask, {
+              reason: result.status === 'paused' ? 'budget_or_checkpoint_limit' : result.status,
+              awaitingUserInput: result.status === 'needs_user_input' ? { reason: 'placement_guidance' }
+                : result.status === 'needs_scope_approval' ? { reason: 'scope_approval' } : null
+            });
+            await persist(activeJob);
+          }
+          return result;
+        }
+      }
+      throw Object.assign(new Error('再編ジョブが作業反復の上限に達しました。'), { code: 'REORG_ACTION_LIMIT', status: 'budget_exhausted' });
+    };
     let completed;
-    try { completed = await runJobLoop({ checkpoint: activeJob, dataVersion, signal, phases, onCheckpoint: persist, onProgress }); }
+    try { completed = await runAdaptiveActions(); }
     catch (error) {
       if (error.scopeRequest) return { status: 'needs_scope_approval', scopeRequest: error.scopeRequest, checkpoint: activeJob };
       throw error;
@@ -708,6 +857,32 @@ export function createHierarchyReorganizationJob({
       }], alternativeGroups: []
     };
     activeJob.status = 'completed';
+    const completedTask = normalizeTaskState(activeJob.metadata.taskState);
+    if (completedTask) {
+      const verifiedTask = normalizeTaskState({
+        ...completedTask,
+        confirmedFacts: [...completedTask.confirmedFacts, {
+          kind: 'target_coverage', expectedCount: targets.length, processedCount: assignmentsByTarget.size,
+          uniqueIds: assignmentsByTarget.size === new Set([...assignmentsByTarget.keys()]).size,
+          verifiedAt: Date.now()
+        }]
+      });
+      let checkedTask = verifiedTask;
+      if (assignmentsByTarget.size === targets.length
+        && assignmentsByTarget.size === new Set(assignmentsByTarget.keys()).size
+        && operationList.every((operation) => operation && typeof operation.type === 'string')) {
+        for (const criterion of checkedTask.completionCriteria) {
+          checkedTask = recordTaskCriterion(checkedTask, criterion, {
+            kind: 'reorganization_validation', targetCount: targets.length,
+            processedCount: assignmentsByTarget.size, operationCount: operationList.length,
+            heldCount: held.length, verifiedAt: Date.now()
+          }) || checkedTask;
+        }
+      }
+      activeJob.metadata.taskState = held.length
+        ? stopTask(checkedTask, { reason: 'items_held_for_review', unfinishedItems: held.map((item) => item.item.label) })
+        : completeTask(checkedTask);
+    }
     activeJob.metadata.result = { movedCount, deletedIds: deletedCategories.map((item) => item.id), heldIds: held.map((item) => item.id), operationCount: operationList.length };
     activeJob.updatedAt = Date.now();
     activeJob.completedAt = activeJob.updatedAt;
