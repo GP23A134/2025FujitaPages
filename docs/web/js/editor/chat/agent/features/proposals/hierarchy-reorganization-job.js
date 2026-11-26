@@ -799,12 +799,20 @@ export function createHierarchyReorganizationJob({
       'class-placement': ['structure-design']
     };
     const actionDescriptions = {
-      'existing-class-disposition': 'まず既存の上位・中間クラスを確認し、再編後も維持するものと削除候補を整理します。',
-      'structure-evidence': '次に対象全体を見渡し、再編後の分類を考えるための根拠をまとめます。',
-      'taxonomy-skeleton': 'その内容をもとに、再編後に必要な分類の骨組みを考えます。',
-      'destination-shortlist': '続いて、既存階層から再利用できる移動先があるかを調べます。',
-      'structure-design': '分類候補と既存クラスを照らし合わせ、再編後の親子構造を確定します。',
-      'class-placement': `最後に、対象${targets.length.toLocaleString('ja-JP')}件を一件ずつ構造案に照らし、維持・移動・保留を判断します。`
+      'existing-class-disposition': '既存クラスの維持・削除候補を整理',
+      'structure-evidence': '対象全体の傾向を整理',
+      'taxonomy-skeleton': '再編後の分類骨組みを作成',
+      'destination-shortlist': '既存の移動先候補を確認',
+      'structure-design': '再編後の親子構造を設計',
+      'class-placement': '対象クラスの配置先を判断'
+    };
+    const actionProgressMessages = {
+      'existing-class-disposition': '既存の上位・中間クラスを確認し、維持するものと削除候補を整理しています。',
+      'structure-evidence': '対象全体を見渡し、再編後の分類を考えるための根拠をまとめています。',
+      'taxonomy-skeleton': '整理した根拠をもとに、再編後の分類骨組みを作っています。',
+      'destination-shortlist': '既存階層から再利用できる移動先があるか確認しています。',
+      'structure-design': '分類候補と既存クラスを照らし合わせ、再編後の親子構造を設計しています。',
+      'class-placement': `対象${targets.length.toLocaleString('ja-JP')}件を新しい構造に照らし、配置先を判断しています。`
     };
     const summarizeActionResult = (phase) => {
       const results = phase.units.filter((unit) => unit.status === 'completed').map((unit) => unit.result);
@@ -825,19 +833,23 @@ export function createHierarchyReorganizationJob({
     const actionCompletionMessage = (phaseId) => {
       const phase = activeJob.phases.find((item) => item.id === phaseId);
       const summary = phase ? summarizeActionResult(phase) : null;
-      if (phaseId === 'existing-class-disposition') return `既存の上位・中間クラスを確認しました。再編後も維持すると判断したものは${summary?.kept || 0}件、削除候補は${summary?.deleted || 0}件です。再編後の構造全体は、対象内容を確認してから設計します。`;
-      if (phaseId === 'structure-evidence') return `対象全体の要約工程を終えました。今回は要約バッチが${phase?.units.length || 0}件でした。この結果を踏まえて、再編の分類軸を整理します。`;
+      if (phaseId === 'existing-class-disposition') return `既存の上位・中間クラスを確認しました。維持${summary?.kept || 0}件、削除候補${summary?.deleted || 0}件です。`;
+      if (phaseId === 'structure-evidence') return phase?.units.length
+        ? `対象を${phase.units.length}グループに分けて傾向を整理しました。`
+        : '分類骨組みを考えるための追加要約はありませんでした。';
       if (phaseId === 'taxonomy-skeleton') return summary?.length
-        ? `対象全体から再編後の分類骨組みを作成しました。分類候補は${summary.length}件です。次に、既存階層に再利用できる移動先があるか確認します。`
-        : '対象全体から独立した分類候補は作成されませんでした。続いて、既存階層に再利用できる移動先があるか確認します。';
-      if (phaseId === 'destination-shortlist') return `既存階層の確認を終えました。移動先候補は${summary?.candidateCount || 0}件です。この結果を分類骨組みと合わせて、再編後の構造を決めます。`;
+        ? `分類骨組みを作成しました。候補は${summary.length}件です。`
+        : '分類骨組みの段階では、新しい分類候補はありませんでした。';
+      if (phaseId === 'destination-shortlist') return summary?.candidateCount
+        ? `既存階層から再利用できる移動先候補を${summary.candidateCount}件確認しました。`
+        : '既存階層に再利用できる移動先候補はありませんでした。';
       if (phaseId === 'structure-design') {
         const categories = phase?.units.flatMap((unit) => unit.result?.categories || []) || [];
         const topCount = categories.filter((item) => item.type === 'top').length;
         const middleCount = categories.filter((item) => item.type === 'middle').length;
-        return `再編後の構造案を作成しました。案には上位クラス${topCount}件、中間クラス${middleCount}件を含みます。この数には既存クラスの再利用も含まれるため、実際に追加・改名する件数とは異なります。続いて各対象の配置を判断します。`;
+        return `再編後の構造案を作成しました（上位${topCount}件、中間${middleCount}件。既存クラスの再利用を含みます）。`;
       }
-      if (phaseId === 'class-placement') return `対象${targets.length.toLocaleString('ja-JP')}件の配置先を確認しました。判断結果は維持${summary?.keep || 0}件、移動先を指定${summary?.move || 0}件、保留${summary?.hold || 0}件です。ここでの「移動」は配置先の判断数です。現在の親子関係と照合した実際の移動操作数は、最終案で分けてお伝えします。`;
+      if (phaseId === 'class-placement') return `対象${targets.length.toLocaleString('ja-JP')}件の配置判断を終えました。維持${summary?.keep || 0}件、移動先を指定${summary?.move || 0}件、保留${summary?.hold || 0}件です。実際の移動操作数は最終案に示します。`;
       return `${actionDescriptions[phaseId] || '作業'}が完了しました`;
     };
     const runAdaptiveActions = async () => {
@@ -907,7 +919,7 @@ export function createHierarchyReorganizationJob({
           ...activeJob.phases.map((phase) => actionById.get(phase.id) || (phase.id === 'target-snapshot' ? targetPhase : phase.id === 'hierarchy-snapshot' ? hierarchyPhase : null)).filter(Boolean),
           nextPhase
         ];
-        onProgress({ stage: 'analyzing', milestone: true, note: actionDescriptions[nextPhase.id] });
+        onProgress({ stage: 'analyzing', note: actionProgressMessages[nextPhase.id] || actionDescriptions[nextPhase.id] });
         const result = await runJobLoop({ checkpoint: activeJob, dataVersion, signal, phases: orderedPhases, onCheckpoint: persist, onProgress });
         activeJob = result.checkpoint;
         const taskState = recordTaskAction(activeJob.metadata.taskState, {

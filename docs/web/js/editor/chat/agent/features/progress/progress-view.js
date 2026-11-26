@@ -134,7 +134,7 @@ export function createProgressView(statusElement, messages = document.getElement
       indicator.dataset.progressStage = detail.stage;
       updateIndicator();
       if (activity) {
-        activity.textContent = [label, note].filter(Boolean).join('。');
+        activity.textContent = note || [scope, label].filter(Boolean).join('。');
         activity.classList.toggle('is-active', ACTIVE_STAGES.has(detail.stage));
         if (detail.milestone === true) appendMilestone(note || label);
         // Keep prior chat entries and move only the current activity line to the bottom.
