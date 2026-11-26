@@ -5,7 +5,7 @@ import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261125-verified-retrieval-v1';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-denied-scope-fallback-v1';
 import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261125-generic-intent-v1';
-import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261126-scope-root-reorg-v1';
+import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261126-scope-root-reorg-v3';
 import { createHierarchyDeletionJob } from '../features/proposals/hierarchy-deletion-job.js?v=20261126-reorg-parent-key-normalize-v1';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
@@ -49,14 +49,31 @@ const expandScopeDescendants = (classes, relations, roots) => {
   const available = new Set(classes.map((item) => item.id));
   return [...found].filter((id) => available.has(id));
 };
+const normalizeHierarchyLabel = (value) => String(value || '').normalize('NFKC').replace(/[\s・·]/g, '');
 const resolveNamedHierarchyRoots = (request, classes) => {
-  const normalizedRequest = String(request || '').normalize('NFC');
+  const normalizedRequest = normalizeHierarchyLabel(request);
   const candidates = (classes || []).filter((item) => ['top', 'middle'].includes(item.type)
     && typeof item.label === 'string' && item.label.trim()
-    && normalizedRequest.includes(item.label.trim().normalize('NFC')));
+    && normalizedRequest.includes(normalizeHierarchyLabel(item.label)));
   if (!candidates.length) return [];
-  const longestLength = Math.max(...candidates.map((item) => item.label.trim().normalize('NFC').length));
-  return candidates.filter((item) => item.label.trim().normalize('NFC').length === longestLength);
+  const longestLength = Math.max(...candidates.map((item) => normalizeHierarchyLabel(item.label).length));
+  return candidates.filter((item) => normalizeHierarchyLabel(item.label).length === longestLength);
+};
+const resolveSelectedHierarchyRoot = (selectedIds, classes, relations, request) => {
+  const selected = new Set((classes || []).filter((item) => ['top', 'middle'].includes(item.type)
+    && (selectedIds || []).includes(item.id) && normalizeHierarchyLabel(request).includes(normalizeHierarchyLabel(item.label)))
+    .map((item) => item.id));
+  if (!selected.size) return null;
+  const parentById = new Map((relations || []).map(({ child, parent }) => [child, parent]));
+  const roots = [...selected].filter((id) => {
+    let parent = parentById.get(id); const seen = new Set();
+    while (parent && !seen.has(parent)) {
+      if (selected.has(parent)) return false;
+      seen.add(parent); parent = parentById.get(parent);
+    }
+    return true;
+  });
+  return roots.length === 1 ? (classes || []).find((item) => item.id === roots[0]) || null : null;
 };
 const explicitlyRequestsAnchoredReorganization = (request) => /(?:配下|下位|子階層)/.test(String(request || ''))
   && /(?:再編|再編案|階層.{0,8}(?:見直|整理)|分類構造)/.test(String(request || ''));
@@ -795,6 +812,7 @@ export function createAssistantWorkflow({
     if (!selectedClassIds.length && editor.selectedIds?.length) {
       const available = new Set(editor.getState().classes.map((item) => item.id));
       selectedClassIds = [...new Set(editor.selectedIds.filter((id) => available.has(id)))];
+      selectedRootIds = [...selectedClassIds];
       selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
       hierarchyIndexAvailable = hierarchyIndexAvailable || selectedClassIds.some((id) =>
         editor.getState().classes.some((item) => item.id === id && ['top', 'middle'].includes(item.type)));
@@ -811,8 +829,11 @@ export function createAssistantWorkflow({
     requireAnchoredReorganization = anchoredReorganization;
     if (anchoredReorganization && (!state.jobCheckpoint
       || (state.jobCheckpoint.kind === 'hierarchy_reorganization' && !state.jobCheckpoint.metadata?.rootAnchorIds?.length))) {
-      const namedRoots = resolveNamedHierarchyRoots(state.request, editor.getState().classes);
-      if (namedRoots.length !== 1 || !['top', 'middle'].includes(namedRoots[0].type)) {
+      const classes = editor.getState().classes;
+      const namedRoots = resolveNamedHierarchyRoots(state.request, classes);
+      const selectedRoot = resolveSelectedHierarchyRoot(selectedRootIds, classes, editor.getState().relations, state.request);
+      const root = namedRoots.length === 1 ? namedRoots[0] : selectedRoot;
+      if (!root || !['top', 'middle'].includes(root.type)) {
         const names = namedRoots.map((item) => `「${item.label}」`).join('、');
         plan = { status: 'needs_clarification', questions: [{
           id: 'target-scope',
@@ -825,7 +846,7 @@ export function createAssistantWorkflow({
         emitProgress('waiting_for_answer');
         return { status: 'needs_clarification', questions: plan.questions };
       }
-      const rootId = namedRoots[0].id;
+      const rootId = root.id;
       selectedRootIds = [rootId];
       selectedClassIds = expandScopeDescendants(editor.getState().classes, editor.getState().relations, [rootId]);
       selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
