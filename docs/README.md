@@ -14,6 +14,7 @@
 コンパイルと実行コマンドは[JavaツールREADME](java/)に、JSON形式・更新ルール・履歴からの復元は[クラス分類更新README](data/input/)にまとめています。
 
 ## プロジェクト構成
+
 | パス | 内容 |
 |---|---|
 | `index.html`, `edit.html` | 閲覧画面と編集画面 |
@@ -28,6 +29,7 @@
 | `lib/` | Javaツールの依存ライブラリ |
 | `config/` | 開発補助ツールの設定 |
 | `data/` | 取得結果、統合データ、更新入力、TSV出力 |
+| `tests/` | Node.js標準テストランナーによる回帰テスト |
 
 `data/input/history/`には分類更新前のスナップショットと適用済み入力をローカル保存します。履歴JSONと一時入力は`.gitignore`で除外されます。取得結果、統合JSON、生成TSV、Web表示データは更新後に差分を確認して管理します。
 
@@ -47,10 +49,13 @@
 ### Web画面とコード
 
 - [Webアプリ全体](web/)
+- [TODO・開発状況](TODO.md)
+- [回帰テスト](tests/)
 - [CSS構成と読み込み順](web/css/)
 - [Web用データ](web/data/)
 - [JavaScript全体](web/js/)
 - [共有ツリー処理](web/js/shared/)
 - [閲覧画面](web/js/browse/)
 - [編集画面](web/js/editor/)
-- [AIチャット](web/js/editor/ai/)
+- [AIチャットの構成](web/js/editor/chat/)
+- [新AI処理](web/js/editor/chat/agent/)

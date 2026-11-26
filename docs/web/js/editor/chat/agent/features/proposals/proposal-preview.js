@@ -669,6 +669,44 @@ export const createProposalPreview = ({
   const updatePreviewSelection = (proposalItem, update) => {
     const previous = new Set(proposalItem.excludedOperationIndexes);
     update();
+    const operations = proposalOperationsFor(proposalItem);
+    const additionIndexByTemporaryId = new Map(operations
+      .map((operation, index) => operation.type === 'addClass' && operation.temporaryId
+        ? [operation.temporaryId, index] : null)
+      .filter(Boolean));
+    const prerequisites = operations.map((operation) => {
+      const temporaryReferences = operation.type === 'addClass' ? [operation.parentId]
+        : operation.type === 'moveClass' ? [operation.destinationId]
+          : operation.type === 'moveChildren' ? [operation.to] : [];
+      return new Set(temporaryReferences.map((id) => additionIndexByTemporaryId.get(id)
+        ).filter((index) => Number.isInteger(index)));
+    });
+    const dependents = prerequisites.map(() => new Set());
+    prerequisites.forEach((requiredIndexes, operationIndex) => requiredIndexes.forEach((requiredIndex) => {
+      dependents[requiredIndex].add(operationIndex);
+    }));
+    const nextExcluded = new Set(proposalItem.excludedOperationIndexes);
+    const changedIndexes = operations.map((_, index) => index)
+      .filter((index) => previous.has(index) !== nextExcluded.has(index));
+    const visit = (start, edges, action) => {
+      const pending = [start];
+      const visited = new Set();
+      while (pending.length) {
+        const index = pending.pop();
+        if (visited.has(index)) continue;
+        visited.add(index);
+        action(index);
+        pending.push(...edges[index]);
+      }
+    };
+    changedIndexes.forEach((index) => {
+      if (nextExcluded.has(index)) {
+        visit(index, dependents, (dependentIndex) => nextExcluded.add(dependentIndex));
+      } else {
+        visit(index, prerequisites, (requiredIndex) => nextExcluded.delete(requiredIndex));
+      }
+    });
+    proposalItem.excludedOperationIndexes = nextExcluded;
     void showPreview(proposalItem, false, true).catch((error) => {
       proposalItem.excludedOperationIndexes = previous;
       reportPreviewError(error);
@@ -736,14 +774,28 @@ export const createProposalPreview = ({
       rowControl.append(type);
       if (allowDestinationEdit && operation.type === 'moveClass') {
         const state = editor.getState();
-        const classesById = new Map(state.classes.map((item) => [item.id, item]));
-        const sourceType = classesById.get(operation.classId)?.type;
-        const allowedDestinationTypes = sourceType === 'class' ? new Set(['middle']) : new Set(['top', 'middle']);
+        const allowedDestinationTypes = new Set(['top', 'middle']);
+        const availableIds = new Set(proposalItem.availableIds || []);
+        const parentByChild = new Map(state.relations.map(({ child, parent }) => [child, parent]));
+        const proposedParentByTemporaryId = new Map(proposalOperationsFor(proposalItem)
+          .filter((candidate) => candidate.type === 'addClass' && candidate.temporaryId)
+          .map((candidate) => [candidate.temporaryId, candidate.parentId || null]));
+        const createsCycle = (destinationId) => {
+          const visited = new Set();
+          let currentId = destinationId;
+          while (currentId && !visited.has(currentId)) {
+            if (currentId === operation.classId) return true;
+            visited.add(currentId);
+            currentId = parentByChild.get(currentId) || proposedParentByTemporaryId.get(currentId) || null;
+          }
+          return false;
+        };
         const destinations = [
-          ...state.classes.filter((item) => allowedDestinationTypes.has(item.type)),
+          ...state.classes.filter((item) => availableIds.has(item.id) && allowedDestinationTypes.has(item.type)
+            && !createsCycle(item.id)),
           ...proposalOperationsFor(proposalItem)
             .filter((candidate) => candidate.type === 'addClass' && candidate.temporaryId
-              && allowedDestinationTypes.has(candidate.classType))
+              && allowedDestinationTypes.has(candidate.classType) && !createsCycle(candidate.temporaryId))
             .map((candidate) => ({ id: candidate.temporaryId, label: candidate.label || '新しい分類', type: candidate.classType }))
         ];
         const destination = document.createElement('select');
@@ -770,7 +822,7 @@ export const createProposalPreview = ({
           void showPreview(proposalItem).catch((error) => {
             operation.destinationId = previousDestinationId;
             reportPreviewError(error);
-            if (previewDialog.open) void showPreview(proposalItem, false, true).catch(reportPreviewError);
+            if (previewDialog.open) void showPreview(proposalItem).catch(reportPreviewError);
           });
         });
         rowControl.append(destination);
@@ -788,19 +840,43 @@ export const createProposalPreview = ({
     }
     const state = editor.getState();
     const labels = new Map(state.classes.map((item) => [item.id, item.label]));
+    const additionsByTemporaryId = new Map();
     operations.forEach((operation) => {
-      if (operation.type === 'addClass' && operation.temporaryId) labels.set(operation.temporaryId, operation.label || '新しい分類');
+      if (operation.type === 'addClass' && operation.temporaryId) {
+        labels.set(operation.temporaryId, operation.label || '新しい分類');
+        additionsByTemporaryId.set(operation.temporaryId, operation);
+      }
     });
+    const temporaryRootById = new Map();
+    const temporaryRoot = (id, visiting = new Set()) => {
+      if (!id || !additionsByTemporaryId.has(id) || visiting.has(id)) return null;
+      if (temporaryRootById.has(id)) return temporaryRootById.get(id);
+      const nextVisiting = new Set(visiting).add(id);
+      const parentId = additionsByTemporaryId.get(id)?.parentId;
+      const rootId = additionsByTemporaryId.has(parentId) ? temporaryRoot(parentId, nextVisiting) || id : id;
+      temporaryRootById.set(id, rootId);
+      return rootId;
+    };
     const groups = new Map();
     operations.forEach((operation, index) => {
       let destinationId = null;
       if (operation.type === 'moveClass' || operation.type === 'promoteClass') destinationId = operation.destinationId;
       else if (operation.type === 'moveChildren') destinationId = operation.to;
       else if (operation.type === 'addClass') destinationId = operation.parentId;
-      const destinationLabel = destinationId && labels.get(destinationId);
-      const key = destinationId ? `destination:${destinationId}` : 'structure';
-      const title = destinationId ? `親クラス：${destinationLabel || destinationId.split('/').pop()}` : '親クラスを持たない構造変更';
-      if (!groups.has(key)) groups.set(key, { key, kind: destinationId ? 'destination' : 'structure', destinationId, indexes: [], title });
+      const referencedTemporaryId = operation.type === 'addClass' ? operation.temporaryId
+        : operation.type === 'moveClass' ? operation.destinationId
+          : operation.type === 'moveChildren' ? operation.to : null;
+      const temporaryRootId = temporaryRoot(referencedTemporaryId);
+      const groupDestinationId = temporaryRootId || destinationId;
+      const destinationLabel = groupDestinationId && labels.get(groupDestinationId);
+      const key = temporaryRootId ? `temporary-root:${temporaryRootId}`
+        : destinationId ? `destination:${destinationId}` : 'structure';
+      const title = groupDestinationId
+        ? `親クラス：${destinationLabel || groupDestinationId.split('/').pop()}${temporaryRootId ? '（新設階層）' : ''}`
+        : '親クラスを持たない構造変更';
+      if (!groups.has(key)) groups.set(key, {
+        key, kind: groupDestinationId ? 'destination' : 'structure', destinationId: groupDestinationId, indexes: [], title
+      });
       groups.get(key).indexes.push(index);
     });
     activeReviewGroupIndex = Math.min(activeReviewGroupIndex, Math.max(0, groups.size - 1));

@@ -1190,17 +1190,64 @@ export function createHierarchyReorganizationJob({
       )];
     } else {
       proposals = [];
-      const structuralOperations = operationList.filter((operation) => operation.type !== 'move_target_class'
-        || operation.newParent?.kind !== 'existing_class');
+      const temporaryAdds = new Map(operationList
+        .filter((operation) => operation.type.startsWith('add_') && operation.tempId)
+        .map((operation) => [operation.tempId, operation]));
+      const temporaryRootById = new Map();
+      const findTemporaryRoot = (tempId, seen = new Set()) => {
+        if (!tempId || seen.has(tempId)) return tempId;
+        if (temporaryRootById.has(tempId)) return temporaryRootById.get(tempId);
+        seen.add(tempId);
+        const addOperation = temporaryAdds.get(tempId);
+        const parent = addOperation?.newParent;
+        const rootId = parent?.kind === 'temporary_class'
+          ? findTemporaryRoot(parent.tempId, seen)
+          : tempId;
+        temporaryRootById.set(tempId, rootId);
+        return rootId;
+      };
+      const temporaryParentGroups = new Map();
+      const groupedTemporaryOperations = new Set();
+      operationList.forEach((operation) => {
+        const tempId = operation.type.startsWith('add_') ? operation.tempId
+          : operation.newParent?.kind === 'temporary_class' ? operation.newParent.tempId : null;
+        if (!tempId) return;
+        const rootId = findTemporaryRoot(tempId);
+        if (!temporaryParentGroups.has(rootId)) temporaryParentGroups.set(rootId, []);
+        temporaryParentGroups.get(rootId).push(operation);
+        groupedTemporaryOperations.add(operation);
+      });
+      const structuralOperations = operationList.filter((operation) => !groupedTemporaryOperations.has(operation)
+        && (operation.type !== 'move_target_class' || operation.newParent?.kind !== 'existing_class'));
       if (structuralOperations.length) {
         proposals.push(buildProposal(
-          'hierarchy_reorganization_structure', '階層構造・新設親クラスへの移動',
-          `上位・中間クラスの構造変更と、新設する親クラス配下への移動${structuralOperations.filter((operation) => operation.type === 'move_target_class').length}件をまとめた案です。`,
+          'hierarchy_reorganization_structure', '階層構造の変更',
+          `親クラスごとの移動案とは独立した上位・中間クラスの構造変更${structuralOperations.length}件をまとめた案です。`,
           structuralOperations,
           [design.designReason, ...deleteReasons, ...[...reasonByCategory.values()].flat()],
           held.slice(0, 8).map(({ item, reason }) => `${item.label}: ${reason}`)
         ));
       }
+      [...temporaryParentGroups.entries()]
+        .sort(([leftId], [rightId]) => String(temporaryAdds.get(leftId)?.label || '')
+          .localeCompare(String(temporaryAdds.get(rightId)?.label || ''), 'ja'))
+        .forEach(([rootId, operations], index) => {
+          const rootOperation = temporaryAdds.get(rootId);
+          const rootLabel = rootOperation?.label || '新しい親クラス';
+          const movedTargets = operations.filter((operation) => operation.type === 'move_target_class').length;
+          const title = movedTargets
+            ? rootOperation?.type === 'add_top_class'
+              ? `新設上位クラス「${rootLabel}」配下への移動`
+              : `新設親クラス「${rootLabel}」への移動`
+            : `新設クラス「${rootLabel}」の作成と構造変更`;
+          proposals.push(buildProposal(
+            `hierarchy_reorganization_new_parent_${index + 1}`,
+            title,
+            `新設する親クラスの作成と、その配下への移動${movedTargets}件をまとめた案です。`,
+            operations,
+            [design.designReason, ...[...reasonByCategory.values()].flat()]
+          ));
+        });
       const orderedParents = [...movedByParent.keys()].sort((left, right) =>
         String(hierarchyById.get(left)?.label || '').localeCompare(String(hierarchyById.get(right)?.label || ''), 'ja'));
       orderedParents.forEach((parentId, index) => {

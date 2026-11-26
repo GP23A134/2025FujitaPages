@@ -631,9 +631,10 @@ window.classEditorAI = {
       const item = classById.get(id);
       if (!item) return;
       const type = classKind(item);
-      if (type === 'top' && !isUnclassified(item)) heldTopClasses.set(id, item);
-      else if (type === 'middle') heldMiddleClasses.set(id, item);
-      else heldInstances.set(id, item);
+      if (type === 'top') {
+        if (!isUnclassified(item)) heldTopClasses.set(id, item);
+      } else if (type === 'middle') heldMiddleClasses.set(id, item);
+      else if (type === 'class') heldInstances.set(id, item);
     });
     recordEditHistory(selectionBefore, '', 'AI範囲の選択変更');
     render();
@@ -641,10 +642,11 @@ window.classEditorAI = {
   selectAll() {
     const selectionBefore = snapshotEditState();
     classes.forEach((item) => {
-    const type = classKind(item);
-    if (type === 'top' && !isUnclassified(item)) heldTopClasses.set(item.id, item);
-    else if (type === 'middle') heldMiddleClasses.set(item.id, item);
-    else heldInstances.set(item.id, item);
+      const type = classKind(item);
+      if (type === 'top') {
+        if (!isUnclassified(item)) heldTopClasses.set(item.id, item);
+      } else if (type === 'middle') heldMiddleClasses.set(item.id, item);
+      else if (type === 'class') heldInstances.set(item.id, item);
     });
     recordEditHistory(selectionBefore, '', 'すべて選択');
     render();
