@@ -1,6 +1,6 @@
 import { createConversationState, transitionConversation } from './conversation-state.js?v=20261124-conversation-context-v1';
 import { createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, authorizeTaskAction } from './task-state.js?v=20261125-design-destination-action-v1';
-import { buildPlanInput } from '../features/planning/plan-input.js?v=20261124-conversation-context-v1';
+import { buildPlanInput } from '../features/planning/plan-input.js?v=20261126-scoped-design-plan-v1';
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261125-verified-retrieval-v1';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-denied-scope-fallback-v1';
@@ -51,6 +51,7 @@ const expandScopeDescendants = (classes, relations, roots) => {
 };
 const normalizeHierarchyLabel = (value) => String(value || '').normalize('NFKC')
   .replace(/\s*・\s*/g, '・').replace(/\s+/g, ' ').trim();
+const normalizeHierarchyComponents = (value) => normalizeHierarchyLabel(value).split('・').map((part) => part.trim()).sort().join('・');
 const resolveNamedHierarchyRoots = (request, classes) => {
   const normalizedRequest = normalizeHierarchyLabel(request);
   const hierarchyClasses = (classes || []).filter((item) => ['top', 'middle'].includes(item.type)
@@ -60,8 +61,13 @@ const resolveNamedHierarchyRoots = (request, classes) => {
   const compositeScope = String(request || '').match(/([^。\n「」『』\s]+(?:・[^。\n「」『』\s]+)+)\s*(?:の)?配下/)?.[1];
   const explicitScopeName = quotedScope || compositeScope;
   if (explicitScopeName) {
-    const exact = hierarchyClasses.filter((item) => normalizeHierarchyLabel(item.label) === normalizeHierarchyLabel(explicitScopeName));
+    const normalizedScope = normalizeHierarchyLabel(explicitScopeName);
+    const exact = hierarchyClasses.filter((item) => normalizeHierarchyLabel(item.label) === normalizedScope);
     if (exact.length) return exact;
+    if (normalizedScope.includes('・')) {
+      const equivalent = hierarchyClasses.filter((item) => normalizeHierarchyComponents(item.label) === normalizeHierarchyComponents(normalizedScope));
+      if (equivalent.length) return equivalent;
+    }
     return [];
   }
   const candidates = hierarchyClasses.filter((item) => normalizedRequest.includes(normalizeHierarchyLabel(item.label)));
@@ -69,9 +75,9 @@ const resolveNamedHierarchyRoots = (request, classes) => {
   const longestLength = Math.max(...candidates.map((item) => normalizeHierarchyLabel(item.label).length));
   return candidates.filter((item) => normalizeHierarchyLabel(item.label).length === longestLength);
 };
-const resolveSelectedHierarchyRoot = (selectedIds, classes, relations, request) => {
+const resolveSelectedHierarchyRoot = (selectedIds, classes, relations) => {
   const selected = new Set((classes || []).filter((item) => ['top', 'middle'].includes(item.type)
-    && (selectedIds || []).includes(item.id) && normalizeHierarchyLabel(request).includes(normalizeHierarchyLabel(item.label)))
+    && (selectedIds || []).includes(item.id))
     .map((item) => item.id));
   if (!selected.size) return null;
   const parentById = new Map((relations || []).map(({ child, parent }) => [child, parent]));
@@ -84,6 +90,37 @@ const resolveSelectedHierarchyRoot = (selectedIds, classes, relations, request) 
     return true;
   });
   return roots.length === 1 ? (classes || []).find((item) => item.id === roots[0]) || null : null;
+};
+const buildScopedHierarchyContext = (selectedIds, rootIds, classes, relations) => {
+  const selected = new Set(selectedIds || []);
+  const selectedClasses = (classes || []).filter((item) => selected.has(item.id));
+  const byId = new Map((classes || []).map((item) => [item.id, item]));
+  const parentById = new Map((relations || []).map(({ child, parent }) => [child, parent]));
+  const hierarchyRoots = (rootIds || []).filter((id) => ['top', 'middle'].includes(byId.get(id)?.type));
+  const rootPaths = hierarchyRoots.map((id) => {
+    const path = []; const seen = new Set(); let currentId = id;
+    while (currentId && !seen.has(currentId)) {
+      seen.add(currentId);
+      const item = byId.get(currentId);
+      if (item) path.push(item.label);
+      currentId = parentById.get(currentId);
+    }
+    return path.reverse();
+  });
+  const keyById = new Map(selectedClasses.map((item, index) => [item.id, `scope-${index + 1}`]));
+  return {
+    rootPaths,
+    classes: selectedClasses.map((item) => {
+      const parentId = parentById.get(item.id) || null;
+      const parent = parentId ? byId.get(parentId) : null;
+      return {
+        key: keyById.get(item.id), label: item.label,
+        type: item.type === 'class' ? 'target' : item.type,
+        parentKey: parentId && keyById.has(parentId) ? keyById.get(parentId) : null,
+        parentLabel: parentId && !keyById.has(parentId) ? parent?.label || null : null
+      };
+    })
+  };
 };
 const explicitlyRequestsAnchoredReorganization = (request) => /(?:配下|下位|子階層)/.test(String(request || ''))
   && /(?:再編|再編案|階層.{0,8}(?:見直|整理)|分類構造)/.test(String(request || ''));
@@ -432,7 +469,7 @@ export function createAssistantWorkflow({
     emitProgress('failed', { note });
   }
 
-  async function createPlan({ replan = false, signal } = {}) {
+  async function createPlan({ replan = false, signal, scopedHierarchy = null, initialPlan = null, publishPlan = true } = {}) {
     if (replan) budgetGuard.countReplan();
     emitProgress('planning');
     let result;
@@ -443,7 +480,9 @@ export function createAssistantWorkflow({
         client: activeClient,
         planInput: buildPlanInput(state.request, currentCounts(), {
           instanceCount: currentCounts().instanceCount,
-          conversationContext: state.conversationContext
+          conversationContext: state.conversationContext,
+          scopedHierarchy,
+          initialPlan
         }),
         hierarchyIndexAvailable,
         signal,
@@ -454,7 +493,7 @@ export function createAssistantWorkflow({
       throw withErrorSource(error, 'features/planning/planning-service.js');
     }
     plan = correctMoveProposalPlan(result.plan, state.request);
-    onEvent({ type: 'plan', plan, usage: result.usage, counts: currentCounts() });
+    if (publishPlan) onEvent({ type: 'plan', plan, usage: result.usage, counts: currentCounts() });
     return plan;
   }
 
@@ -874,16 +913,17 @@ export function createAssistantWorkflow({
       && state.jobCheckpoint.metadata?.rootAnchorIds?.length === 1;
     const planSelectedReorganization = validPlan
       && (structureModeOf(currentPlan) === 'design' || state.jobCheckpoint?.kind === 'hierarchy_reorganization');
-    const anchoredReorganization = planSelectedReorganization && (anchoredRequest || savedAnchoredRoot);
+    const classesForScope = editor.getState().classes;
+    const namedRoots = resolveNamedHierarchyRoots(state.request, classesForScope);
+    const selectedRoot = resolveSelectedHierarchyRoot(selectedRootIds, classesForScope, editor.getState().relations);
+    const anchoredReorganization = planSelectedReorganization
+      && (anchoredRequest || savedAnchoredRoot || Boolean(selectedRoot));
     requireAnchoredReorganization = anchoredReorganization;
     if (anchoredReorganization) {
-      const classes = editor.getState().classes;
-      const namedRoots = resolveNamedHierarchyRoots(state.request, classes);
-      const selectedRoot = resolveSelectedHierarchyRoot(selectedRootIds, classes, editor.getState().relations, state.request);
       const checkpointRoot = savedAnchoredRoot
-        ? classes.find((item) => item.id === state.jobCheckpoint.metadata.rootAnchorIds[0])
+        ? classesForScope.find((item) => item.id === state.jobCheckpoint.metadata.rootAnchorIds[0])
         : null;
-      const root = checkpointRoot || (namedRoots.length === 1 ? namedRoots[0] : selectedRoot);
+      const root = checkpointRoot || selectedRoot || (namedRoots.length === 1 ? namedRoots[0] : null);
       if (!root || !['top', 'middle'].includes(root.type)) {
         const names = namedRoots.map((item) => `「${item.label}」`).join('、');
         plan = { status: 'needs_clarification', questions: [{
@@ -898,7 +938,7 @@ export function createAssistantWorkflow({
         return { status: 'needs_clarification', questions: plan.questions };
       }
       selectedRootIds = [root.id];
-      selectedClassIds = expandScopeDescendants(classes, editor.getState().relations, [root.id]);
+      selectedClassIds = expandScopeDescendants(classesForScope, editor.getState().relations, [root.id]);
       selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
       hierarchyIndexAvailable = true;
       const taskState = normalizeTaskState(state.taskState);
@@ -910,6 +950,20 @@ export function createAssistantWorkflow({
         updatedAt: now()
       };
       updateState(state);
+    }
+    if (planSelectedReorganization && currentPlan.status !== 'needs_clarification' && selectedClassIds.length) {
+      const scopedHierarchy = buildScopedHierarchyContext(
+        selectedClassIds, selectedRootIds, editor.getState().classes, editor.getState().relations
+      );
+      if (scopedHierarchy.classes.length) {
+        const initialPlan = currentPlan;
+        currentPlan = await createPlan({ signal, scopedHierarchy, initialPlan, publishPlan: false });
+        if (!['unsupported', 'needs_clarification'].includes(currentPlan.status)) {
+          currentPlan = { ...currentPlan, structureMode: 'design' };
+          plan = currentPlan;
+          onEvent({ type: 'plan', plan: currentPlan, counts: currentCounts() });
+        }
+      }
     }
     if (!['unsupported', 'needs_clarification'].includes(currentPlan.status)
       && ((structureModeOf(currentPlan) === 'existing' && hasHierarchyDeletion(currentPlan)) || state.jobCheckpoint?.kind === 'hierarchy_deletion')) {
@@ -1132,7 +1186,7 @@ export function createAssistantWorkflow({
     return { status: state.status, result: outcome, plan: currentPlan };
   }
 
-  async function start({ request, continuationInput = '', apiKey, model, signal, referenceAllHierarchy = false, conversationContext = '', selectedClassIds: selectedClassIdsOverride = null, referenceClassIds: referenceClassIdsOverride = null, initialCounters = null, jobCheckpoint = null }) {
+  async function start({ request, continuationInput = '', apiKey, model, signal, referenceAllHierarchy = false, conversationContext = '', selectedClassIds: selectedClassIdsOverride = null, scopeRootIds: scopeRootIdsOverride = null, referenceClassIds: referenceClassIdsOverride = null, initialCounters = null, jobCheckpoint = null }) {
     if (active) throw new Error('別のAI処理が実行中です。');
     active = true;
     const activeSignal = beginActive(signal);
@@ -1148,7 +1202,9 @@ export function createAssistantWorkflow({
         : [...(editor.selectedIds || [])];
       selectedRootIds = Array.isArray(jobCheckpoint?.metadata?.rootAnchorIds)
         ? [...new Set(jobCheckpoint.metadata.rootAnchorIds.filter((id) => validClassIds.has(id)))]
-        : [...selectedClassIds];
+        : Array.isArray(scopeRootIdsOverride)
+          ? [...new Set(scopeRootIdsOverride.filter((id) => typeof id === 'string' && validClassIds.has(id)))]
+          : [...selectedClassIds];
       let unresolvedTargetQuestion = null;
       if (!selectedClassIds.length && !jobCheckpoint && !explicitlyRequestsAnchoredReorganization(request)
         && /クラス|分類|階層|配下|再編|整理/.test(String(request || ''))) {

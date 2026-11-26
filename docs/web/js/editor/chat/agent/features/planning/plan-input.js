@@ -14,11 +14,11 @@ function normalizeCountGroup(group, name) {
 }
 
 /**
- * Builds the planning request from the user's intent and aggregate class counts.
- * Class IDs, current labels, hierarchy, versions and retrieved records are not accepted.
- * Optional conversation context carries preferences and progress only, never class facts.
+ * Builds an intent-only planning request, optionally followed by a scoped design
+ * refinement. Stable class IDs are never included; scoped class facts are sent
+ * only after the first plan selects structural design.
  */
-export function buildPlanInput(request, counts, { instanceCount, conversationContext = '' } = {}) {
+export function buildPlanInput(request, counts, { instanceCount, conversationContext = '', scopedHierarchy = null, initialPlan = null } = {}) {
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('依頼文が必要です。');
   if (!counts || typeof counts !== 'object' || Array.isArray(counts)) throw new TypeError('クラス件数が必要です。');
 
@@ -34,6 +34,27 @@ export function buildPlanInput(request, counts, { instanceCount, conversationCon
     input.instanceCounts = { total: instanceCount };
   }
   const safeContext = typeof conversationContext === 'string' ? conversationContext.trim().slice(-5000) : '';
+  const scopedData = scopedHierarchy && typeof scopedHierarchy === 'object' && !Array.isArray(scopedHierarchy)
+    ? Object.freeze({
+      mode: 'complete_scope',
+      rootPaths: Object.freeze((Array.isArray(scopedHierarchy.rootPaths) ? scopedHierarchy.rootPaths : [])
+        .map((path) => Object.freeze((Array.isArray(path) ? path : []).filter((label) => typeof label === 'string').slice(0, 20))),
+      classes: Object.freeze((Array.isArray(scopedHierarchy.classes) ? scopedHierarchy.classes : []).map((item) => Object.freeze({
+        key: String(item.key || ''), label: String(item.label || ''), type: String(item.type || ''),
+        parentKey: item.parentKey == null ? null : String(item.parentKey),
+        parentLabel: item.parentLabel == null ? null : String(item.parentLabel)
+      }))),
+      completeCoverageRequired: true
+    }) : null;
+  const safeInitialPlan = initialPlan && typeof initialPlan === 'object' && !Array.isArray(initialPlan)
+    ? Object.freeze({
+      taskType: initialPlan.taskType,
+      structureMode: initialPlan.structureMode,
+      summary: initialPlan.summary,
+      executionBrief: initialPlan.executionBrief,
+      steps: initialPlan.steps,
+      changeOperations: initialPlan.changeOperations
+    }) : null;
   return Object.freeze({
     request: input.request,
     classCounts: Object.freeze({
@@ -41,6 +62,8 @@ export function buildPlanInput(request, counts, { instanceCount, conversationCon
       selected: input.classCounts.selected
     }),
     ...(input.instanceCounts ? { instanceCounts: Object.freeze({ ...input.instanceCounts }) } : {}),
-    ...(safeContext ? { conversationContext: safeContext } : {})
+    ...(safeContext ? { conversationContext: safeContext } : {}),
+    ...(scopedData ? { scopedHierarchy: scopedData } : {}),
+    ...(safeInitialPlan ? { initialPlan: safeInitialPlan } : {})
   });
 }

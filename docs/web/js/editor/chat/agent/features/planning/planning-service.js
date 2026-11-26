@@ -1,5 +1,5 @@
 import { PLAN_RESPONSE_SCHEMA } from './plan-schema.js?v=20261125-structure-mode-v1';
-import { buildPlanSystemPrompt } from '../../prompts/plan-system-prompt.js?v=20261125-structure-mode-v1';
+import { buildPlanSystemPrompt } from '../../prompts/plan-system-prompt.js?v=20261126-scoped-design-plan-v1';
 import { validatePlan } from './plan-contract.js?v=20261125-structure-mode-v1';
 
 function extractJsonText(response) {
@@ -18,7 +18,8 @@ export function createPlanningService({ client, getDeveloperSettings }) {
       { role: 'system', content: buildPlanSystemPrompt({
         instanceInformationEnabled: settings.instanceInformationEnabled === true,
         targetClassRenameEnabled: settings.targetClassRenameEnabled === true,
-        hierarchyIndexAvailable
+        hierarchyIndexAvailable,
+        scopedHierarchyAvailable: Boolean(planInput?.scopedHierarchy)
       }) },
       { role: 'user', content: JSON.stringify(planInput) }
     ];

@@ -1,13 +1,13 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
 import { createProgressView } from './features/progress/progress-view.js?v=20261119-scope-flow-v1';
-import { buildPlanInput } from './features/planning/plan-input.js?v=20261124-conversation-context-v1';
+import { buildPlanInput } from './features/planning/plan-input.js?v=20261126-scoped-design-plan-v1';
 import { createOpenAIClient } from './adapters/openai-client.js?v=20261120-api-retries-v1';
 import { createDataIdCodec, createIdMaskedClient } from './adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
-import { createPlanningService } from './features/planning/planning-service.js?v=20261125-structure-mode-v1';
+import { createPlanningService } from './features/planning/planning-service.js?v=20261126-scoped-design-plan-v1';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261120-denied-scope-fallback-v1';
 import { createBudgetApprovalView } from './features/budget-approval/budget-approval-view.js?v=20261120-budget-limit-approval-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261126-scope-root-reorg-v7';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261126-scoped-design-plan-v1';
 import { createQuestionView } from './features/planning/question-view.js?v=20261118-white-question-card-v1';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261125-plan-chat-message-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261120-proposal-pagination-v1';
@@ -428,6 +428,7 @@ if (window.classEditorAI && statusElement) {
         model: modelSelect.value,
         conversationContext: priorContext,
         selectedClassIds: selectedIds,
+        scopeRootIds: scopeRoots,
         referenceClassIds: [...new Set([...resumedReferenceIds, ...(reorganizationTurn ? selectedIds : [])])],
         initialCounters: resumeJob || resumeStage || previousMemory?.kind === 'classification_reorganization' ? previousMemory.usage : null,
         jobCheckpoint: resumeJob ? previousMemory.job : null,
