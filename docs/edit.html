@@ -304,26 +304,7 @@
       <p class="edit-settings-note">変更はすぐに反映され、自動保存されます。「保存して閉じる」からも保存できます。</p>
       <section class="edit-settings-section" aria-labelledby="test-ai-chat-title">
         <h3 id="test-ai-chat-title">AIチャット</h3>
-        <section class="edit-settings-section" aria-label="AIチャットの回答・送信設定">
-          <label class="edit-settings-toggle"><input type="checkbox" id="ai-confirm-before-send" checked /> 送信前に内容を確認する</label>
-          <p class="edit-settings-note">ONにすると送信前に内容を確認します。確認画面で「これ以降表示しない」を選ぶと、次回以降はOFFになります。</p>
-          <div class="edit-ai-behavior-grid">
-            <div class="edit-ai-setting-card">
-              <h4>回答</h4>
-              <label for="test-ai-response-mode">AIの回答モード</label>
-              <select id="test-ai-response-mode" class="edit-settings-select" data-preference="responseMode">
-                <option value="proposal">改善提案モード</option>
-                <option value="evaluation">評価モード</option>
-              </select>
-              <p class="edit-settings-note">次の依頼から適用します。確認事項への回答中は、その相談で使っているモードを引き継ぎます。</p>
-              <label for="test-ai-prompt-flexibility">AI提案の自由度</label>
-              <div class="test-range-row"><input id="test-ai-prompt-flexibility" type="range" min="1" max="5" step="1" data-preference="promptFlexibility" /><output for="test-ai-prompt-flexibility"></output></div>
-              <p class="edit-settings-note">1: 大幅な再編・複数案・価値のないクラスの削除 / 2: 関連する再編・統合 / 3: 一通りの編集操作 / 4: 必要な補助操作 / 5: 明示された変更のみ</p>
-              <p class="edit-settings-note">数値が小さいほど自由度が高くなります。入力範囲や安全性などの必須ルールは変わりません。</p>
-            </div>
-          </div>
-          <p id="test-preferences-settings-status" class="ai-status" role="status" aria-live="polite"></p>
-        </section>
+        <p id="test-preferences-settings-status" class="ai-status" role="status" aria-live="polite"></p>
         <div id="assistant-developer-settings" class="assistant-developer-settings" aria-label="新AI処理の調整"></div>
       </section>
       <section class="edit-settings-section" aria-labelledby="test-tree-display-title">
@@ -503,41 +484,6 @@
         <button type="button" id="ai-preview-next" aria-label="次の提案"><svg class="ai-preview-navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>
       </nav>
     </dialog>
-    <!-- 外部APIへ送る依頼文と参照クラスを送信前に確認する。 -->
-    <dialog id="ai-send-confirm-dialog" class="ai-send-confirm-dialog" aria-labelledby="ai-send-confirm-title">
-      <div class="ai-preview-header">
-        <h2 id="ai-send-confirm-title">AIへの送信内容を確認</h2>
-        <button type="button" id="ai-send-confirm-close" class="target-instance-dialog-close" aria-label="送信を中止して閉じる">×</button>
-      </div>
-      <p id="ai-send-confirm-summary" class="ai-send-confirm-summary"></p>
-      <section class="ai-send-confirm-section">
-        <h3>依頼文</h3>
-        <pre id="ai-send-confirm-request" class="ai-send-confirm-request"></pre>
-      </section>
-      <details id="ai-send-confirm-classes-details" class="ai-send-confirm-classes-details">
-        <summary id="ai-send-confirm-classes-summary">参照クラス</summary>
-        <div class="ai-send-confirm-table-wrap">
-          <table class="ai-send-confirm-table">
-            <thead>
-              <tr>
-                <th scope="col">共有区分</th>
-                <th scope="col">種類</th>
-                <th scope="col">クラス名</th>
-                <th scope="col">ID</th>
-              </tr>
-            </thead>
-            <tbody id="ai-send-confirm-classes"></tbody>
-          </table>
-        </div>
-      </details>
-      <p id="ai-send-confirm-history-note" class="edit-settings-note" hidden></p>
-      <label class="ai-send-confirm-skip"><input type="checkbox" id="ai-send-confirm-skip" /> これ以降、この確認画面を表示しない</label>
-      <label id="ai-plan-confirm-skip-label" class="ai-send-confirm-skip" hidden><input type="checkbox" id="ai-plan-confirm-skip" /> これ以降、分析計画の確認を表示しない</label>
-      <div class="ai-send-confirm-actions">
-        <button type="button" id="ai-send-confirm-cancel">キャンセル</button>
-        <button type="button" id="ai-send-confirm-approve" class="search-button">この内容で送信</button>
-      </div>
-    </dialog>
     <!-- 保存・JSON書き出し前に階層の整合性を通知する。 -->
     <dialog id="edit-validation-dialog" class="edit-validation-dialog" aria-labelledby="edit-validation-title">
       <div class="ai-preview-header">
@@ -587,7 +533,7 @@
     <!-- ダイアログDOMの後に、データ読み込みとAIチャットを初期化する。 -->
     <script data-app-script="web/js/shared/data-upload.js?v=20261112-shared-validation-v2"></script>
     <script data-app-script="web/js/editor/document-extraction.js?v=20261124-document-extraction-dev2-v78" data-app-type="module"></script>
-    <script data-app-script="web/js/editor/chat/legacy/main.js?v=20261124-conversation-memory-v1" data-app-type="module"></script>
+    <script data-app-script="web/js/editor/chat/ui/chat-host.js?v=20261126-chat-preview-modules-v1" data-app-type="module"></script>
     <script data-app-script="web/js/editor/chat/agent/entry.js?v=20261126-scoped-design-plan-v1" data-app-type="module"></script>
   </body>
 </html>

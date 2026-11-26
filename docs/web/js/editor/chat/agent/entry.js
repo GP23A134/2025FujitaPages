@@ -14,7 +14,7 @@ import { createProposalResultView } from './features/proposals/proposal-result-v
 import { createSettingsView } from './settings/settings-view.js?v=20261119-developer-settings-layout-v2';
 import { createHistoryService } from './conversations/history-service.js?v=20261124-conversation-context-v1';
 import { beginConversationStage, buildConversationContext, completeConversationMemory, detectReorganizationRequest, finishConversationStage, getConversationJobAction, isReorganizationFinalizationRequest, recordConversationUsage, recordJobCheckpoint, rememberConversationPolicy } from './conversations/conversation-memory.js?v=20261125-job-resume-v1';
-import { getAgentLegacyBridge } from '../integration/agent-legacy-bridge-registry.js?v=20261118-chat-bridge-registry-v1';
+import { getChatUiBridge } from '../integration/chat-ui-bridge-registry.js?v=20261118-chat-bridge-registry-v1';
 import { CHAT_EVENTS, dispatchChatEvent } from '../integration/chat-events.js?v=20261124-conversation-context-v1';
 
 const statusElement = document.getElementById('ai-status');
@@ -114,7 +114,7 @@ if (window.classEditorAI && statusElement) {
     const title = activeHistory.items.find((item) => item.role === 'user')?.text || '新しい相談';
     activeHistory.title = title.replace(/\s+/g, ' ').trim().slice(0, 80) || '新しい相談';
     historyService.upsert(activeHistory, historyPersistenceEnabled());
-    getAgentLegacyBridge()?.upsertHistory?.(activeHistory);
+    getChatUiBridge()?.upsertHistory?.(activeHistory);
   };
   const addHistoryMessage = (role, text) => {
     const normalized = String(text || '').trim();
@@ -128,7 +128,7 @@ if (window.classEditorAI && statusElement) {
     onPreview: async (item, proposals, alternativeGroups, selectedAlternatives) => {
       try {
         workflow.preparePreview(item);
-        const bridge = getAgentLegacyBridge();
+        const bridge = getChatUiBridge();
         if (!bridge?.previewProposal) throw new Error('提案プレビューを利用できません。');
         await bridge.previewProposal({
           item,
@@ -464,7 +464,7 @@ if (window.classEditorAI && statusElement) {
     });
   }, true);
   const restoredHistories = historyService.read(historyPersistenceEnabled());
-  restoredHistories.forEach((record) => getAgentLegacyBridge()?.upsertHistory?.(record));
+  restoredHistories.forEach((record) => getChatUiBridge()?.upsertHistory?.(record));
   window.addEventListener(CHAT_EVENTS.agentNewConversation, () => {
     activeHistory = null;
     activeTurnStageIndex = -1;

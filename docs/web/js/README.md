@@ -9,16 +9,18 @@
 | `shared/tree.js` | 閲覧・編集画面で共用する階層モデル、ツリー描画、検索処理 |
 | `browse/` | 閲覧画面の初期化、ツリー・一覧の表示、集計、検索や絞り込み |
 | `editor/` | 編集画面の状態管理、保持パネル、ツリー編集、保存とイベント |
-| `editor/chat/legacy/` | 旧AIチャットの送信計画、API通信、応答検証、提案の表示と適用 |
+| `editor/chat/ui/` | 現行チャットの会話画面、履歴、提案表示 |
 | `editor/chat/agent/` | 新AIチャットの計画・取得・提案検証・ワークフロー |
-| `editor/chat/integration/` | 新旧チャットの接続アダプターと共有イベント契約 |
+| `editor/chat/domain/` | AI実行方式に依存しない共有提案ロジック |
+| `editor/chat/integration/` | AI処理と画面の接続アダプター、履歴変換、共有イベント契約 |
+| `editor/chat/compat/legacy-ai/` | 現在は読み込まれない旧AI送信コード |
 
 ## 読み込み方
 
 - `index.html`は`shared/tree.js`の後に`browse/`のスクリプトを読み込みます。`bootstrap.js`が画面要素と共通状態を初期化し、後続モジュールがそれを使います。
 - `edit.html`は`shared/tree.js`の後に`editor/`のスクリプトを読み込みます。`state.js`が編集状態と共通操作を準備し、パネル・ツリー・イベントの各モジュールが順に利用します。
 - 閲覧・編集画面の従来スクリプトは通常のスクリプトとしてHTMLに記載した順で動きます。依存関係があるため、読み込み順を変える場合は参照先も確認してください。
-- AI機能は`edit.html`から`editor/chat/legacy/main.js`と`editor/chat/agent/entry.js`をES moduleとして読み込みます。それぞれのチャット処理は自身のフォルダー内に置き、両方式の接続コードだけを`editor/chat/integration/`に置きます。
+- AI機能は`edit.html`から`editor/chat/ui/chat-host.js`と`editor/chat/agent/entry.js`をES moduleとして読み込みます。共有ロジックは`domain/`、接続コードは`integration/`に置きます。
 
 ## データと変更の流れ
 

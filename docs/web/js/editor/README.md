@@ -10,13 +10,15 @@
 | `panels.js` | 保持パネルと選択中クラスの操作 |
 | `tree.js` | 編集用ツリー、検索、件数絞り込み |
 | `events.js` | 保存、Undo/Redo、画面イベントとAI向けデータAPI |
-| `chat/legacy/` | 旧AIチャットの送信・応答・提案処理 |
+| `chat/ui/` | 現行チャットの画面、履歴、提案表示 |
 | `chat/agent/` | 新AIチャットの計画・取得・提案検証 |
-| `chat/integration/` | 旧画面との互換アダプター、チャット間契約 |
+| `chat/domain/` | 共有提案ロジック |
+| `chat/integration/` | AI処理と画面の接続アダプター、チャット間契約 |
+| `chat/compat/legacy-ai/` | 読み込まれない旧AI送信コード |
 
 ## 読み込み順
 
-`edit.html`は`shared/tree.js`の後に`state.js`、`panels.js`、`tree.js`、`events.js`を読み込みます。AIは`chat/legacy/main.js`と`chat/agent/entry.js`をES moduleの入口として読み込みます。詳しくは[旧AIチャットREADME](chat/legacy/)と[新AIチャットREADME](chat/agent/)を参照してください。
+`edit.html`は`shared/tree.js`の後に`state.js`、`panels.js`、`tree.js`、`events.js`を読み込みます。AIは`chat/ui/chat-host.js`と`chat/agent/entry.js`をES moduleの入口として読み込みます。詳しくは[チャット構成README](chat/README.md)と[AI処理README](chat/agent/README.md)を参照してください。
 
 ## 編集画面の操作
 

@@ -1,6 +1,6 @@
 # 新AI処理モジュール
 
-このフォルダーは新しい対話型AI処理の実装先です。旧チャットは `../legacy/` にあり、内部構成やデータ形式を直接共有しません。
+このフォルダーは現行の対話型AI処理の実装先です。利用者向け画面は `../ui/`、移行ブリッジは `../integration/`、共有の提案処理は `../domain/` にあります。
 
 ## 構成と責務
 
@@ -18,7 +18,7 @@
 - `features/planning/question-view.js`: 全体質問・提案ごとの確認に最大4件の回答候補と自由入力を表示
 - `features/validation/settings.js`: 提案修正の再試行設定
 - `adapters/editor-bridge.js`: 既存エディターから件数と内部データ版だけを読む境界
-- `../integration/agent-legacy-bridge.js` と `agent-legacy-bridge-registry.js`: 新方式の提案プレビュー・履歴を旧方式の画面機能へ接続する移行用アダプターと登録契約
+- `../integration/chat-ui-bridge.js` と `chat-ui-bridge-registry.js`: AI処理をチャット画面の提案プレビュー・履歴機能へ接続するアダプターと登録契約
 - `../integration/chat-events.js`: 新旧画面をまたぐ進捗・利用量イベント名の共有契約
 - `entry.js`: 編集画面での新モジュール初期化
 - `application/conversation-state.js`: 依頼単位のワークフロー状態・遷移・継続カウンター
@@ -31,7 +31,7 @@
 - `application/workflow.js`: 計画・取得・提案確認・承認後適用の状態進行
 - `agent-runtime/`: ツール登録、許可範囲、API応答ループ、処理上限
 - `features/proposals/`: 提案形式、原子的な検証、競合選択とプレビュー
-- `features/proposals/proposal-preview.js`: 新方式の提案を表示・選択・適用するプレビュー。画面ロジックは新方式側へ移行済みだが、変更操作の合成と競合選択判定は移行期間中 `legacy/proposal-engine.js` を共有
+- `features/proposals/proposal-preview.js`: 新方式の提案を表示・選択・適用するプレビュー。画面ロジックは新方式側へ移行済みで、変更操作の合成と競合選択判定は `../domain/proposals/proposal-engine.js` を共有
 - 移動案の一括判定は処理前に対象件数と最低取得・応答回数を確認し、1回100クラスずつ扱う。JSON応答の再試行でも失敗する場合は対象を半分に分けて再処理する
 - 移動判定バッチは1件ずつ順番に処理し、各バッチの結果を確認してから次へ進む
 - 一時的な408・レート制限・サーバー過負荷は、`Retry-After`または上限付きバックオフで最大3回再試行する。利用枠・請求上限の429は再試行しない

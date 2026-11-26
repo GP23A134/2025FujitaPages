@@ -560,9 +560,6 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-preview-navigation button:disabled { color: #94a3b8; background: #f1f5f9; cursor: not-allowed; }
 .ai-preview-navigation[hidden] { display: none; }
 .ai-preview-position { flex: 0 0 auto; color: #475569; font-size: 0.72rem; white-space: nowrap; }
-.ai-send-confirm-dialog { width: min(760px, calc(100vw - 1.5rem)); max-height: min(88vh, 780px); overflow: auto; box-sizing: border-box; padding: 1rem; border: 1px solid #cbd5e1; border-radius: 12px; color: #1e293b; box-shadow: 0 20px 60px rgba(15, 23, 42, 0.28); }
-.ai-send-confirm-dialog::backdrop { background: rgba(15, 23, 42, 0.48); }
-.ai-send-confirm-dialog h2 { margin: 0; color: #0f3d63; font-size: 1.15rem; }
 .edit-validation-dialog, .data-import-dialog { width: min(680px, calc(100vw - 1.5rem)); max-height: min(88vh, 760px); overflow: auto; box-sizing: border-box; padding: 1rem; border: 1px solid #cbd5e1; border-radius: 12px; color: #1e293b; box-shadow: 0 20px 60px rgba(15, 23, 42, 0.28); }
 .data-import-dialog { width: min(760px, calc(100vw - 1.5rem)); max-height: min(88vh, 720px); padding: 1rem; }
 .data-import-dialog.is-dragging { border-color: #0284c7; box-shadow: 0 0 0 3px #bae6fd, 0 20px 60px rgba(15, 23, 42, 0.28); }
@@ -623,25 +620,6 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .edit-validation-issues li.is-warning .edit-validation-issue-severity { color: #a16207; }
 .edit-validation-issue-select { padding: 0.3rem 0.45rem; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; background: #fff; font: inherit; cursor: pointer; }
 .edit-validation-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem; }
-.ai-send-confirm-summary { margin: 0.7rem 0; color: #475569; font-size: 0.8rem; line-height: 1.55; white-space: pre-line; }
-.ai-send-confirm-section { margin-top: 0.8rem; }
-.ai-send-confirm-section h3 { margin: 0 0 0.35rem; color: #334155; font-size: 0.86rem; }
-.ai-send-confirm-request { max-height: 8rem; overflow: auto; margin: 0; padding: 0.55rem; border: 1px solid #dbe3ec; border-radius: 7px; background: #f8fafc; font: inherit; font-size: 0.8rem; white-space: pre-wrap; overflow-wrap: anywhere; }
-.ai-send-confirm-classes-details { margin-top: 0.7rem; }
-.ai-send-confirm-classes-details > summary { padding: 0.45rem 0.6rem; border: 1px solid #dbe3ec; border-radius: 7px; color: #334155; background: #f8fafc; cursor: pointer; font-size: 0.8rem; font-weight: 650; }
-.ai-send-confirm-classes-details[open] > summary { border-radius: 7px 7px 0 0; }
-.ai-send-confirm-classes-details .ai-send-confirm-table-wrap { margin-top: 0.35rem; }
-.ai-send-confirm-table-wrap { max-height: 15rem; overflow: auto; border: 1px solid #dbe3ec; border-radius: 7px; }
-.ai-send-confirm-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.76rem; }
-.ai-send-confirm-table th, .ai-send-confirm-table td { padding: 0.35rem 0.45rem; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
-.ai-send-confirm-table th { position: sticky; top: 0; z-index: 1; color: #475569; background: #f1f5f9; }
-.ai-send-confirm-skip { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.75rem; color: #475569; font-size: 0.78rem; }
-.ai-send-confirm-skip[hidden] { display: none; }
-.ai-send-confirm-skip input { margin: 0; }
-.ai-send-confirm-actions { display: flex; justify-content: flex-end; gap: 0.45rem; margin-top: 0.85rem; }
-.ai-send-confirm-actions button { min-height: 2.2rem; padding: 0.35rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; background: #fff; cursor: pointer; font: inherit; font-size: 0.8rem; }
-.ai-send-confirm-actions button:focus-visible { outline: 2px solid #0284c7; outline-offset: 2px; }
-.ai-send-confirm-actions .search-button { border-color: #0369a1; color: #fff; background: #0369a1; }
 .ai-preview-impact { color: #475569; font-size: 0.88rem; }
 .ai-preview-impact[hidden] { display: none; }
 .ai-preview-impact.is-loading { display: flex; align-items: center; gap: 0.55rem; color: #075985; }

@@ -1,5 +1,5 @@
 import { AI_TUNING_LIMITS } from './tuning-limits.js?v=20261113-target-unit-cap-v1';
-import { createOperationPolicy, describeOperationPolicy } from './proposal-engine.js?v=20261112-review-fixes-v1';
+import { createOperationPolicy, describeOperationPolicy } from '../../domain/proposals/proposal-engine.js?v=20261112-review-fixes-v1';
 
 // 現在の選択範囲を依頼JSONへ変換し、大きすぎる範囲を処理単位へ分割します。
 // scope固有の指示はJSON内に一時的に載せ、送信層が固定プロンプトの後ろへ移します。
@@ -1099,18 +1099,6 @@ export const createCrossScopeProposalSynthesizer = ({ MAX_REQUEST_CHARACTERS, ge
   };
   return { plan, synthesize };
 };
-
-// 選択範囲と全体参照設定に合わせて、プロンプト例を絞り込みます。
-export const filterPromptExamples = (examples, context) => examples.filter((example) => {
-  const condition = example?.showWhen;
-  if (!condition || condition.always) return true;
-  if (condition.unclassified && !context.unclassifiedSelected) return false;
-  if (condition.fullGraph && !context.fullGraph) return false;
-  if (Number.isFinite(condition.minSelected) && context.selectedCount < condition.minSelected) return false;
-  if (condition.selectionTypes?.some((type) => !context.selectedTypes.has(type))) return false;
-  if (condition.differentParents && !context.differentParents) return false;
-  return true;
-});
 
 // 送信と全体範囲の再試行を、画面状態から独立した処理として扱います。
 export const createRequestSender = ({ responsesClient, responseHandler, apiKey, model, systemPrompt, proposalPolicy, evaluationMode = false,
