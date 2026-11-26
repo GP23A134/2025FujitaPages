@@ -94,13 +94,13 @@ export function createProposalPreviewController({
   document.getElementById('ai-preview-page-next').addEventListener('click', () => proposalPreview.navigatePreviewPage(1));
   document.getElementById('ai-preview-group-include').addEventListener('click', () => {
     const item = proposalPreview.plan?.proposalItem;
-    const group = proposalPreview.groups[0];
+    const group = proposalPreview.currentGroup;
     if (!item || !group) return;
     proposalPreview.updatePreviewSelection(item, () => group.indexes.forEach((index) => item.excludedOperationIndexes.delete(index)));
   });
   document.getElementById('ai-preview-group-exclude').addEventListener('click', () => {
     const item = proposalPreview.plan?.proposalItem;
-    const group = proposalPreview.groups[0];
+    const group = proposalPreview.currentGroup;
     if (!item || !group) return;
     proposalPreview.updatePreviewSelection(item, () => group.indexes.forEach((index) => item.excludedOperationIndexes.add(index)));
   });

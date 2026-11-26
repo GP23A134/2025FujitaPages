@@ -24,9 +24,11 @@ export const createProposalPreview = ({
   let previewRequestId = 0;
   let previewPageIndex = 0;
   let previewGroups = [];
+  let activeReviewGroupIndex = 0;
   let activeConflictGroupIndex = 0;
   let activeConflictChoiceIndex = 0;
   const proposalOperationsFor = (item) => item?.previewOperations || item?.proposal?.operations || [];
+  const isHierarchyReorganizationProposal = (item) => String(item?.proposal?.id || '').startsWith('hierarchy_reorganization_');
   const hasProposalOperations = (item) => Boolean(item?.proposal?.operations?.length
     || item?.proposal?.conflictGroups?.some((group) => group.choices?.some((choice) => choice.operations?.length)));
   const operationCategory = (operation) => {
@@ -690,7 +692,7 @@ export const createProposalPreview = ({
     }
     return segments.join(' › ');
   };
-  const renderPreviewChangeList = (proposalItem, indexes, listId, detailFor = () => '') => {
+  const renderPreviewChangeList = (proposalItem, indexes, listId, detailFor = () => '', allowDestinationEdit = false) => {
     const list = document.getElementById(listId);
     const rows = indexes.map((index) => {
       const operation = proposalOperationsFor(proposalItem)[index];
@@ -731,7 +733,49 @@ export const createProposalPreview = ({
         type.title = category.label;
       }
       const status = document.createElement('span'); status.className = 'ai-preview-change-status'; status.textContent = excluded ? '除外' : '適用';
-      rowControl.append(type, toggle, text, status);
+      rowControl.append(type);
+      if (allowDestinationEdit && operation.type === 'moveClass') {
+        const state = editor.getState();
+        const classesById = new Map(state.classes.map((item) => [item.id, item]));
+        const sourceType = classesById.get(operation.classId)?.type;
+        const allowedDestinationTypes = sourceType === 'class' ? new Set(['middle']) : new Set(['top', 'middle']);
+        const destinations = [
+          ...state.classes.filter((item) => allowedDestinationTypes.has(item.type)),
+          ...proposalOperationsFor(proposalItem)
+            .filter((candidate) => candidate.type === 'addClass' && candidate.temporaryId
+              && allowedDestinationTypes.has(candidate.classType))
+            .map((candidate) => ({ id: candidate.temporaryId, label: candidate.label || '新しい分類', type: candidate.classType }))
+        ];
+        const destination = document.createElement('select');
+        destination.className = 'ai-preview-destination-select';
+        destination.setAttribute('aria-label', `${operationLabel(operation)}の移動先`);
+        destinations.forEach((item) => {
+          const option = document.createElement('option');
+          option.value = item.id;
+          option.textContent = `${item.label}（${item.type === 'top' ? '上位' : '中間'}）`;
+          option.selected = item.id === operation.destinationId;
+          destination.append(option);
+        });
+        if (!destinations.some((item) => item.id === operation.destinationId)) {
+          const option = document.createElement('option');
+          option.value = operation.destinationId || '';
+          option.textContent = `現在の提案先：${operation.destinationId || '不明'}`;
+          option.selected = true;
+          destination.prepend(option);
+        }
+        destination.disabled = proposalItem.status === 'applied';
+        destination.addEventListener('change', () => {
+          const previousDestinationId = operation.destinationId;
+          operation.destinationId = destination.value;
+          void showPreview(proposalItem).catch((error) => {
+            operation.destinationId = previousDestinationId;
+            reportPreviewError(error);
+            if (previewDialog.open) void showPreview(proposalItem, false, true).catch(reportPreviewError);
+          });
+        });
+        rowControl.append(destination);
+      }
+      rowControl.append(toggle, text, status);
       row.append(rowControl);
       return row;
     });
@@ -739,15 +783,41 @@ export const createProposalPreview = ({
   };
   const buildPreviewGroups = (proposalItem) => {
     const operations = proposalOperationsFor(proposalItem);
-    const commonCount = (proposalItem.proposal.operations || []).length;
-    return [{ key: 'common', kind: 'common', indexes: operations.slice(0, commonCount).map((_, index) => index), title: '共通する変更' }];
+    if (!isHierarchyReorganizationProposal(proposalItem)) {
+      return [{ key: 'common', kind: 'common', indexes: operations.map((_, index) => index), title: 'すべての変更' }];
+    }
+    const state = editor.getState();
+    const labels = new Map(state.classes.map((item) => [item.id, item.label]));
+    operations.forEach((operation) => {
+      if (operation.type === 'addClass' && operation.temporaryId) labels.set(operation.temporaryId, operation.label || '新しい分類');
+    });
+    const groups = new Map();
+    operations.forEach((operation, index) => {
+      let destinationId = null;
+      if (operation.type === 'moveClass' || operation.type === 'promoteClass') destinationId = operation.destinationId;
+      else if (operation.type === 'moveChildren') destinationId = operation.to;
+      else if (operation.type === 'addClass') destinationId = operation.parentId;
+      const destinationLabel = destinationId && labels.get(destinationId);
+      const key = destinationId ? `destination:${destinationId}` : 'structure';
+      const title = destinationId ? `移動先：${destinationLabel || destinationId.split('/').pop()}` : '階層の追加・変更';
+      if (!groups.has(key)) groups.set(key, { key, kind: destinationId ? 'destination' : 'structure', destinationId, indexes: [], title });
+      groups.get(key).indexes.push(index);
+    });
+    activeReviewGroupIndex = Math.min(activeReviewGroupIndex, Math.max(0, groups.size - 1));
+    return [...groups.values()];
   };
   const renderPreviewGroupOverview = (proposalItem) => {
     const host = document.getElementById('ai-preview-group-overview');
     if (!host) return;
+    host.hidden = !isHierarchyReorganizationProposal(proposalItem);
+    if (host.hidden) { host.replaceChildren(); return; }
     host.replaceChildren(...previewGroups.map((group) => {
       const row = document.createElement('li');
-      const title = document.createElement('strong');
+      const title = document.createElement('button');
+      title.type = 'button';
+      title.className = 'ai-preview-review-group-button';
+      title.dataset.reviewGroupIndex = String(previewGroups.indexOf(group));
+      title.setAttribute('aria-pressed', String(previewGroups.indexOf(group) === activeReviewGroupIndex));
       title.textContent = group.title;
       const state = document.createElement('span');
       const included = group.indexes.filter((index) => !proposalItem.excludedOperationIndexes.has(index)).length;
@@ -756,6 +826,12 @@ export const createProposalPreview = ({
       return row;
     }));
   };
+  document.getElementById('ai-preview-group-overview')?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-review-group-index]');
+    if (!button || !previewPlan) return;
+    activeReviewGroupIndex = Number(button.dataset.reviewGroupIndex);
+    void showPreview(previewPlan.proposalItem, false, true).catch(reportPreviewError);
+  });
   const updateConflictControls = (proposalItem) => {
     const groups = proposalItem.proposal.conflictGroups || [];
     const selector = document.getElementById('ai-preview-conflict-selector');
@@ -815,7 +891,10 @@ export const createProposalPreview = ({
       const total = proposalOperationsFor(proposalItem).length;
       const excluded = proposalItem.excludedOperationIndexes || new Set();
       const applicable = proposalOperationsFor(proposalItem).reduce((count, _, index) => count + Number(index >= proposalItem.proposal.operations.length || !excluded.has(index)), 0);
-      document.getElementById('ai-preview-group-label').textContent = `変更一覧（適用 ${applicable}/${total}件）`;
+      const group = previewGroups[activeReviewGroupIndex];
+      const groupIncluded = group?.indexes.filter((index) => !excluded.has(index)).length ?? applicable;
+      const groupTotal = group?.indexes.length ?? total;
+      document.getElementById('ai-preview-group-label').textContent = `${group?.title || '変更一覧'}（適用 ${groupIncluded}/${groupTotal}件・全体 ${applicable}/${total}件）`;
     }
     renderPreviewGroupOverview(proposalItem);
   };
@@ -978,6 +1057,7 @@ export const createProposalPreview = ({
     proposalItem.excludedOperationIndexes ||= new Set();
     if (!fastUpdate) {
       previewPageIndex = 0;
+      activeReviewGroupIndex = 0;
       previewGroups = buildPreviewGroups(proposalItem);
       updatePreviewNavigation(proposalItem);
       renderProposalChoices(proposalItem);
@@ -1069,6 +1149,7 @@ export const createProposalPreview = ({
     const operationIndexesByClass = new Map();
     const selectableOperationIndexesByClass = new Map();
     const deletionOperationByClass = new Map();
+    const activeReviewIndexes = new Set(previewGroups[activeReviewGroupIndex]?.indexes || []);
     const addOperationClass = (id, index) => {
       if (!id) return;
       if (!operationIndexesByClass.has(id)) operationIndexesByClass.set(id, new Set());
@@ -1077,8 +1158,10 @@ export const createProposalPreview = ({
         if (!selectableOperationIndexesByClass.has(id)) selectableOperationIndexesByClass.set(id, new Set());
         selectableOperationIndexesByClass.get(id).add(index);
       }
-      operationIds.add(id);
-      affectedIds.add(id);
+      if (activeReviewIndexes.has(index)) {
+        operationIds.add(id);
+        affectedIds.add(id);
+      }
     };
     const addedClassForReference = (reference) => {
       if (addedClassCache.has(reference)) return addedClassCache.get(reference);
@@ -1165,21 +1248,26 @@ export const createProposalPreview = ({
       }
     });
     for (const id of relationIds) {
-      if (beforeParents.get(id) !== afterParents.get(id)) {
+      const indexes = operationIndexesByClass.get(id) || [];
+      if (beforeParents.get(id) !== afterParents.get(id) && [...indexes].some((index) => activeReviewIndexes.has(index))) {
         operationIds.add(id);
         affectedIds.add(id);
       }
     }
     for (const item of proposedCandidate.classes) {
       const original = beforeClassById.get(item.id);
-      if (!original || original.label !== item.label) {
+      const indexes = operationIndexesByClass.get(item.id) || [];
+      if ((!original || original.label !== item.label) && [...indexes].some((index) => activeReviewIndexes.has(index))) {
         operationIds.add(item.id);
         affectedIds.add(item.id);
       }
     }
     const deletedIds = new Set(beforeState.classes.filter((item) => !proposedIds.has(item.id)
       && deletionOperationByClass.has(item.id)).map((item) => item.id));
-    deletedIds.forEach((id) => { operationIds.add(id); affectedIds.add(id); });
+    deletedIds.forEach((id) => {
+      const indexes = operationIndexesByClass.get(id) || [];
+      if ([...indexes].some((index) => activeReviewIndexes.has(index))) { operationIds.add(id); affectedIds.add(id); }
+    });
     const proposedDisplayState = {
       classes: [...candidate.classes],
       relations: [...candidate.relations],
@@ -1255,7 +1343,7 @@ export const createProposalPreview = ({
       return '';
     };
     updatePreviewPageChrome(proposalItem);
-    const currentGroupIndex = 0;
+    const currentGroupIndex = activeReviewGroupIndex;
     const currentGroup = previewGroups[currentGroupIndex];
     before.replaceChildren();
     after.replaceChildren();
@@ -1293,7 +1381,8 @@ export const createProposalPreview = ({
           });
         }
       });
-      renderPreviewChangeList(proposalItem, currentGroup.indexes, 'ai-preview-change-list', operationDetail);
+      renderPreviewChangeList(proposalItem, currentGroup.indexes, 'ai-preview-change-list', operationDetail,
+        isHierarchyReorganizationProposal(proposalItem));
     } else {
       renderPreviewChangeList(proposalItem, [], 'ai-preview-change-list');
     }
@@ -1445,8 +1534,9 @@ export const createProposalPreview = ({
         if (proposalGroup) proposalGroup.proposalListOpen = true;
         return { currentProposal: item, nextProposal: nextUnjudgedProposal(item) };
       },
-      clear() { previewRequestId += 1; previewPlan = null; previewPageIndex = 0; previewGroups = []; },
+      clear() { previewRequestId += 1; previewPlan = null; previewPageIndex = 0; previewGroups = []; activeReviewGroupIndex = 0; },
       get plan() { return previewPlan; },
-      get groups() { return previewGroups; }
+      get groups() { return previewGroups; },
+      get currentGroup() { return previewGroups[activeReviewGroupIndex] || null; }
     };
 };
