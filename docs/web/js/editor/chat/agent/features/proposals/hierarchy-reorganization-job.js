@@ -49,7 +49,7 @@ export function createHierarchyReorganizationJob({
   reader, client, budgetGuard, model, apiKey, request, plan, maxOutputTokens, signal,
   onProgress = () => {}, onUsage = () => {}, onCheckpoint = async () => {},
   jobCheckpoint = null, dataVersion = '', jobRequest = '', jobScopeIds = null,
-  jobSelectedIds = null, jobTargetIds = null, jobHierarchyIds = null, rootAnchorIds = null, continuationInput = ''
+  jobSelectedIds = null, jobTargetIds = null, jobHierarchyIds = null, rootAnchorIds = null, requireRootAnchor = false, continuationInput = ''
 }) {
   if (!reader?.readHierarchyIndex || !reader?.readSelectedClassDetails || !client?.request || !budgetGuard) {
     throw new TypeError('階層再編ジョブに必要な依存関係が不足しています。');
@@ -105,11 +105,11 @@ export function createHierarchyReorganizationJob({
     if (sameJob) {
       const priorHierarchyIds = saved.metadata.hierarchyIds || [];
       if (!priorHierarchyIds.every((id) => hierarchyIds.includes(id))) return { status: 'stale_job', message: '保存済み再編ジョブの参照範囲が現在と異なるため続行できません。' };
-      if (priorHierarchyIds.length !== hierarchyIds.length || saved.metadata.designVersion !== 10) {
+      if (priorHierarchyIds.length !== hierarchyIds.length || saved.metadata.designVersion !== 11) {
         activeJob = normalizeJobCheckpoint({
           ...saved,
           status: 'running',
-          metadata: { ...saved.metadata, hierarchyIds, rootAnchorIds: requestedRootAnchorIds, designVersion: 10 },
+          metadata: { ...saved.metadata, hierarchyIds, rootAnchorIds: requestedRootAnchorIds, designVersion: 11 },
           phases: saved.phases.filter((phase) => phase.id === 'target-snapshot'),
           updatedAt: Date.now(), completedAt: null
         });
@@ -138,7 +138,7 @@ export function createHierarchyReorganizationJob({
       kind: 'hierarchy_reorganization', request: jobRequest || request, dataVersion,
       scopeIds: sortedScope,
       metadata: {
-        selectedIds, targetIds, hierarchyIds, rootAnchorIds: requestedRootAnchorIds, executionMode: 'reorganization', designVersion: 10, userGuidance: [],
+        selectedIds, targetIds, hierarchyIds, rootAnchorIds: requestedRootAnchorIds, executionMode: 'reorganization', designVersion: 11, userGuidance: [],
         taskState: createTaskState({
           id: globalThis.crypto?.randomUUID?.() || `task-${Date.now()}`,
           objective: plan.executionBrief?.objective || request,
@@ -212,11 +212,12 @@ export function createHierarchyReorganizationJob({
     const destinationByKey = new Map(destinationRecords.map((item) => [item.key, item]));
     const selectedScope = new Set(selectedIds);
     const rootAnchor = requestedRootAnchorIds.length === 1
-      ? destinationRecords.find((item) => item.id === requestedRootAnchorIds[0] && item.type === 'middle' && selectedScope.has(item.id)) || null
+      ? destinationRecords.find((item) => item.id === requestedRootAnchorIds[0] && ['top', 'middle'].includes(item.type) && selectedScope.has(item.id)) || null
       : null;
-    const anchorCategoryKey = rootAnchor ? '__selected_middle_anchor__' : null;
+    if (requireRootAnchor && !rootAnchor) throw Object.assign(new Error('指定された再編起点を対象範囲内の上位または中間クラスとして確認できません。全体再編へ切り替えず停止しました。'), { code: 'REORG_ROOT_ANCHOR_INVALID' });
+    const anchorCategoryKey = rootAnchor ? '__selected_scope_anchor__' : null;
     const designDestinationRecords = rootAnchor
-      ? destinationRecords.filter((item) => item.type === 'middle' && selectedScope.has(item.id))
+      ? destinationRecords.filter((item) => ['top', 'middle'].includes(item.type) && selectedScope.has(item.id))
       : destinationRecords;
     const estimatedInputChars = request.length
       + targets.reduce((sum, item) => sum + String(item.label || '').length + String(item.parentLabel || '').length + 8, 0)
@@ -464,7 +465,9 @@ export function createHierarchyReorganizationJob({
     const structurePhase = {
       id: 'structure-design', units: [{ id: 'whole-structure' }],
       async execute(unit, { checkpoint }) {
-        onProgress({ stage: 'analyzing', note: '分割した対象の要約から再編後の上位・中間クラスを設計しています' });
+        onProgress({ stage: 'analyzing', note: rootAnchor
+          ? `「${rootAnchor.label}」を起点に、配下の階層だけを再編しています`
+          : '分割した対象の要約から再編後の上位・中間クラスを設計しています' });
         const disposition = dispositionState(checkpoint);
         if (!rootAnchor && (!disposition.phase || disposition.phase.status !== 'completed'
           || disposition.phase.units.some((item) => item.status !== 'completed'))) {
@@ -485,7 +488,7 @@ export function createHierarchyReorganizationJob({
         const input = [
           { role: 'system', content: [
             rootAnchor
-              ? `選択ルート「${rootAnchor.label}」は既存の中間クラスとして固定し、削除・改名・移動しません。新設分類はすべて中間クラスにし、最初の親をこのルートにしてください。必要な場合は中間クラスを中間クラスの下に入れ子にできます。上位クラスは作成せず、ルート外への移動もしません。categoriesに選択ルートを含めず、parentKeyでは予約key「${anchorCategoryKey}」をそのルートとして使ってください。既存候補はkeyで再利用し、editable=falseの既存分類は参照専用で名称・親を変更しません。editable=trueの既存中間クラスに限り、明確な改善になる場合はlabel変更や親変更を提案できます。`
+              ? `選択ルート「${rootAnchor.label}」（${rootAnchor.type}）を階層の起点として保持し、削除・改名・移動しません。新設分類はすべて中間クラスとし、このルートまたは配下の中間クラスを親にします。上位クラスは新設せず、ルート外への移動もしません。categoriesに選択ルートを含めず、parentKeyでは予約key「${anchorCategoryKey}」をそのルートとして使ってください。既存候補はkeyで再利用し、editable=falseの既存分類は参照専用で名称・親を変更しません。editable=trueの既存中間クラスに限り、明確な改善になる場合はlabel変更や親変更を提案できます。`
               : '対象全体を分類できる再編後の上位・中間クラス構造を設計してください。既存構造の維持だけで済ませず、依頼と全対象から必要な分類軸と階層を判断します。',
             rootAnchor
               ? '既存クラスは削除しません。各対象の現在の分類を維持するか、ルート配下の既存または新設中間クラスへ配置します。'
@@ -499,7 +502,7 @@ export function createHierarchyReorganizationJob({
           { role: 'user', content: JSON.stringify({
             request, objective: plan.executionBrief, scope: { targetCount: targets.length },
             ...(!fastPath && !rootAnchor ? { taxonomySkeleton: skeleton?.categories || [] } : {}),
-            ...(rootAnchor ? { fixedParent: { key: anchorCategoryKey, label: rootAnchor.label, type: 'middle' } } : {}),
+            ...(rootAnchor ? { fixedParent: { key: anchorCategoryKey, label: rootAnchor.label, type: rootAnchor.type } } : {}),
             ...(fastPath ? { targetItems: targets.map((item) => ({ label: item.label, currentParent: item.parentLabel || null })) } : {}),
             targetBatchSummaries: evidence.map((item, index) => ({ batch: evidenceBatches[index].id, summary: item.result.summary, themes: item.result.themes })),
             existingHierarchy: availableRecords.map(({ key, label, type, parentLabel, editable }) => ({ key, label, type, parent: parentLabel, editable }))
@@ -528,7 +531,7 @@ export function createHierarchyReorganizationJob({
                 else if (existingParent.id === rootAnchor.id) category.parentKey = anchorCategoryKey;
               }
             }
-            categories.unshift({ key: anchorCategoryKey, label: rootAnchor.label, type: 'middle', existingKey: rootAnchor.key, parentKey: null, reason: '選択された固定ルート' });
+            categories.unshift({ key: anchorCategoryKey, label: rootAnchor.label, type: rootAnchor.type, existingKey: rootAnchor.key, parentKey: null, reason: '選択された再編起点' });
             const categoryKeyByExisting = new Map(categories.filter((item) => item.existingKey).map((item) => [item.existingKey, item.key]));
             const remaining = designDestinationRecords.filter((item) => item.id !== rootAnchor.id && !categoryKeyByExisting.has(item.key));
             for (let pass = 0; remaining.length && pass <= designDestinationRecords.length; pass += 1) {
@@ -539,7 +542,7 @@ export function createHierarchyReorganizationJob({
                 const parentKey = parentRecord?.id === rootAnchor.id ? anchorCategoryKey : categoryKeyByExisting.get(parentRecord?.key);
                 if (!parentKey) continue;
                 const internalKey = `__retained_${record.key}`;
-                categories.push({ key: internalKey, label: record.label, type: 'middle', existingKey: record.key, parentKey, reason: '既存階層を維持' });
+                categories.push({ key: internalKey, label: record.label, type: record.type, existingKey: record.key, parentKey, reason: '既存階層を維持' });
                 categoryKeyByExisting.set(record.key, internalKey);
                 remaining.splice(index, 1);
                 added = true;
@@ -607,12 +610,14 @@ export function createHierarchyReorganizationJob({
         if (existingKeys.some((key) => !availableKeys.has(key))) return '維持判定されていない既存分類が構造案に含まれています。';
         if (rootAnchor) {
           const anchor = result.categories.find((item) => item.key === anchorCategoryKey);
-          if (!anchor || anchor.existingKey !== rootAnchor.key || anchor.type !== 'middle') return '選択された固定ルートが設計にありません。';
+          if (!anchor || anchor.existingKey !== rootAnchor.key || anchor.type !== rootAnchor.type) return '選択された再編起点が設計にありません。';
           const byKey = new Map(result.categories.map((item) => [item.key, item]));
-          if (result.categories.some((item) => item.type !== 'middle' || !item.label?.trim())) return '選択ルート配下に上位クラスまたは名称のない分類があります。';
+          if (result.categories.some((item) => (item.key !== anchorCategoryKey && item.type !== 'middle') || !item.label?.trim())) return '再編起点配下に不正な階層または名称のない分類があります。';
           for (const item of result.categories) {
             if (item.key === anchorCategoryKey) continue;
-            if (item.parentKey === item.key || !byKey.has(item.parentKey) || byKey.get(item.parentKey).type !== 'middle') return '中間クラスの親が設計内にありません。';
+            const plannedParent = byKey.get(item.parentKey);
+            if (item.parentKey === item.key || !plannedParent || !['top', 'middle'].includes(plannedParent.type)
+              || (plannedParent.type === 'top' && plannedParent.key !== anchorCategoryKey)) return '中間クラスの親が設計内にありません。';
             const existing = item.existingKey ? destinationByKey.get(item.existingKey) : null;
             if (existing && (existing.type !== 'middle' || (!existing.editable && existing.id !== rootAnchor.id))) return '選択範囲外の中間クラスを変更する設計です。';
             if (existing && item.label.trim() !== existing.label && !existing.editable) return '変更範囲外の既存中間クラスを改名する設計です。';
@@ -626,9 +631,9 @@ export function createHierarchyReorganizationJob({
               if (seen.has(cursor.key)) return '選択ルート配下の親子関係が循環しています。';
               seen.add(cursor.key); cursor = byKey.get(cursor.parentKey);
             }
-            if (!cursor) return '分類が選択された固定ルートの配下にありません。';
+            if (!cursor) return '分類が指定された再編起点の配下にありません。';
           }
-          if (anchor.label !== rootAnchor.label || anchor.parentKey !== null) return '選択された固定ルートを変更する設計です。';
+          if (anchor.label !== rootAnchor.label || anchor.parentKey !== null) return '選択された再編起点を変更する設計です。';
           return true;
         }
         if (fastPath) {

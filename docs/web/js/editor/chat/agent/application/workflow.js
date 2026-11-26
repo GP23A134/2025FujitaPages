@@ -5,7 +5,7 @@ import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261125-verified-retrieval-v1';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-denied-scope-fallback-v1';
 import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261125-generic-intent-v1';
-import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261126-middle-anchor-reorg-v1';
+import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261126-scope-root-reorg-v1';
 import { createHierarchyDeletionJob } from '../features/proposals/hierarchy-deletion-job.js?v=20261126-reorg-parent-key-normalize-v1';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
@@ -58,6 +58,8 @@ const resolveNamedHierarchyRoots = (request, classes) => {
   const longestLength = Math.max(...candidates.map((item) => item.label.trim().normalize('NFC').length));
   return candidates.filter((item) => item.label.trim().normalize('NFC').length === longestLength);
 };
+const explicitlyRequestsAnchoredReorganization = (request) => /(?:配下|下位|子階層)/.test(String(request || ''))
+  && /(?:再編|再編案|階層.{0,8}(?:見直|整理)|分類構造)/.test(String(request || ''));
 const parseResponse = (text) => {
   try { return JSON.parse(text); }
   catch {
@@ -216,6 +218,7 @@ export function createAssistantWorkflow({
   let budgetGuard = null;
   let selectedClassIds = [];
   let selectedRootIds = [];
+  let requireAnchoredReorganization = false;
   let hierarchyIndexAvailable = false;
   let currentApiKey = null;
   let currentModel = null;
@@ -558,6 +561,7 @@ export function createAssistantWorkflow({
         jobTargetIds: classes.filter((item) => item.type === 'class' && selectedSet.has(item.id)).map((item) => item.id),
         jobSelectedIds: [...selectedClassIds],
         rootAnchorIds: [...selectedRootIds],
+        requireRootAnchor: requireAnchoredReorganization,
         jobHierarchyIds: classes.filter((item) => ['top', 'middle'].includes(item.type) && grants.reference.has(item.id)).map((item) => item.id),
         onCheckpoint: (checkpoint) => {
           state = { ...state, jobCheckpoint: checkpoint };
@@ -803,6 +807,39 @@ export function createAssistantWorkflow({
       };
       updateState(state);
     }
+    const anchoredReorganization = explicitlyRequestsAnchoredReorganization(state.request);
+    requireAnchoredReorganization = anchoredReorganization;
+    if (anchoredReorganization && (!state.jobCheckpoint
+      || (state.jobCheckpoint.kind === 'hierarchy_reorganization' && !state.jobCheckpoint.metadata?.rootAnchorIds?.length))) {
+      const namedRoots = resolveNamedHierarchyRoots(state.request, editor.getState().classes);
+      if (namedRoots.length !== 1 || !['top', 'middle'].includes(namedRoots[0].type)) {
+        const names = namedRoots.map((item) => `「${item.label}」`).join('、');
+        plan = { status: 'needs_clarification', questions: [{
+          id: 'target-scope',
+          text: namedRoots.length
+            ? `再編の起点となる階層クラスを1件に特定できません（${names}）。対象の上位または中間クラス名を明示してください。`
+            : '再編の起点となる上位または中間クラスを特定できませんでした。対象クラス名を依頼文に含めてください。'
+        }] };
+        setStatus('needs_clarification');
+        onEvent({ type: 'questions', questions: plan.questions });
+        emitProgress('waiting_for_answer');
+        return { status: 'needs_clarification', questions: plan.questions };
+      }
+      const rootId = namedRoots[0].id;
+      selectedRootIds = [rootId];
+      selectedClassIds = expandScopeDescendants(editor.getState().classes, editor.getState().relations, [rootId]);
+      selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
+      hierarchyIndexAvailable = true;
+      const taskState = normalizeTaskState(state.taskState);
+      state = {
+        ...state,
+        selectedClassIds: [...selectedClassIds],
+        scopeGrants: { reference: [...grants.reference], change: [...grants.change] },
+        taskState: taskState ? normalizeTaskState({ ...taskState, scopeIds: selectedClassIds, updatedAt: Date.now() }) : state.taskState,
+        updatedAt: now()
+      };
+      updateState(state);
+    }
     if (!selectedClassIds.length && !state.jobCheckpoint && /クラス|分類|階層|配下|再編|整理/.test(String(state.request || ''))) {
       const namedRoots = resolveNamedHierarchyRoots(state.request, editor.getState().classes);
       if (namedRoots.length !== 1) {
@@ -833,6 +870,14 @@ export function createAssistantWorkflow({
       updateState(state);
     }
     let currentPlan = await createPlan({ replan, signal });
+    if (anchoredReorganization && !['unsupported', 'needs_clarification'].includes(currentPlan.status)) {
+      currentPlan = {
+        ...currentPlan,
+        structureMode: 'design', executionMode: 'reorganization', taskType: 'mixed',
+        changeOperations: [...new Set([...(currentPlan.changeOperations || []), 'move_target_class', 'move_middle_class', 'add_middle_class', 'rename_middle_class'])],
+        dataNeeds: { ...currentPlan.dataNeeds, hierarchyIndex: true, selectedClassDetails: true }
+      };
+    }
     if (!['unsupported', 'needs_clarification'].includes(currentPlan.status)
       && ((structureModeOf(currentPlan) === 'existing' && hasHierarchyDeletion(currentPlan)) || state.jobCheckpoint?.kind === 'hierarchy_deletion')) {
       const tree = editor.getState();
