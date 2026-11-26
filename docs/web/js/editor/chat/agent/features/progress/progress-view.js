@@ -29,6 +29,10 @@ const TOOL_LABELS = Object.freeze({
   read_instance_context: 'インスタンス情報を取得しています'
 });
 const ACTIVE_STAGES = new Set(['planning', 'checking_scope', 'retrieving', 'analyzing', 'validating']);
+const MILESTONE_STAGE_LABELS = Object.freeze({
+  planning: '依頼の整理', checking_scope: '範囲の確認', retrieving: 'データの取得',
+  analyzing: '分析・分類', validating: '変更案の検証'
+});
 
 export function createProgressView(statusElement, messages = document.getElementById('ai-chat-messages')) {
   if (!statusElement) throw new TypeError('進捗表示要素が必要です。');
@@ -36,6 +40,10 @@ export function createProgressView(statusElement, messages = document.getElement
   let indicator = null;
   let activity = null;
   let lastMilestoneText = '';
+  let milestonePanel = null;
+  let milestoneList = null;
+  let milestoneGroups = new Map();
+  let milestoneCount = 0;
   let startedAt = 0;
   let timer = null;
   let waiting = false;
@@ -86,15 +94,48 @@ export function createProgressView(statusElement, messages = document.getElement
     indicator.setAttribute('aria-label', [label, note, display].filter(Boolean).join('。'));
   };
 
-  const appendMilestone = (text) => {
+  const appendMilestone = (text, stage) => {
     if (!messages || !text || lastMilestoneText === text) return;
-    const milestone = document.createElement('p');
-    milestone.className = 'assistant-progress-milestone';
+    if (!milestonePanel) {
+      milestonePanel = document.createElement('details');
+      milestonePanel.className = 'assistant-progress-history';
+      milestonePanel.dataset.assistantProgressHistory = 'true';
+      const summary = document.createElement('summary');
+      summary.textContent = '進捗の記録';
+      milestoneList = document.createElement('div');
+      milestoneList.className = 'assistant-progress-history-groups';
+      milestonePanel.append(summary, milestoneList);
+    }
+    const stageKey = stage || 'other';
+    let group = milestoneGroups.get(stageKey);
+    if (!group) {
+      const details = document.createElement('details');
+      details.className = 'assistant-progress-stage';
+      const summary = document.createElement('summary');
+      const label = document.createElement('span');
+      label.textContent = MILESTONE_STAGE_LABELS[stageKey] || 'その他';
+      const count = document.createElement('span');
+      count.className = 'assistant-progress-stage-count';
+      count.textContent = '0件';
+      summary.append(label, count);
+      const list = document.createElement('ul');
+      list.className = 'assistant-progress-stage-list';
+      details.append(summary, list);
+      milestoneList.append(details);
+      group = { details, list, count, total: 0 };
+      milestoneGroups.set(stageKey, group);
+    }
+    const milestone = document.createElement('li');
     milestone.dataset.assistantProgressMilestone = 'true';
     milestone.textContent = text;
+    group.list.append(milestone);
+    group.total += 1;
+    group.count.textContent = `${group.total}件`;
+    milestoneCount += 1;
+    milestonePanel.querySelector('summary').textContent = `進捗の記録（${milestoneCount}件）`;
     lastMilestoneText = text;
-    if (activity?.parentNode === messages) messages.insertBefore(milestone, activity);
-    else messages.append(milestone);
+    if (activity?.parentNode === messages) messages.insertBefore(milestonePanel, activity);
+    else messages.append(milestonePanel);
   };
 
   function render(event) {
@@ -114,6 +155,10 @@ export function createProgressView(statusElement, messages = document.getElement
       if (startsNewRun) {
         startedAt = Date.now();
         lastMilestoneText = '';
+        milestonePanel = null;
+        milestoneList = null;
+        milestoneGroups = new Map();
+        milestoneCount = 0;
       }
       waiting = false;
       resumeSameRunAfterWait = false;
@@ -136,7 +181,7 @@ export function createProgressView(statusElement, messages = document.getElement
       if (activity) {
         activity.textContent = note || [scope, label].filter(Boolean).join('。');
         activity.classList.toggle('is-active', ACTIVE_STAGES.has(detail.stage));
-        if (detail.milestone === true) appendMilestone(note || label);
+        if (detail.milestone === true) appendMilestone(note || label, detail.stage);
         // Keep prior chat entries and move only the current activity line to the bottom.
         messages.append(activity);
         if (isFinished) {

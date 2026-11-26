@@ -186,8 +186,6 @@ if (window.classEditorAI && statusElement) {
       } else if (event.type === 'job_checkpoint' && activeHistory) {
         activeHistory.workflowMemory = recordJobCheckpoint(activeHistory.workflowMemory, event.checkpoint);
         publishHistory();
-      } else if (event.type === 'progress' && event.milestone && event.note) {
-        addHistoryMessage('assistant', event.note);
       } else if (event.type === 'plan' && event.plan?.summary) {
         const planText = [event.plan.summary, ...(event.plan.unsupportedParts || []).map((part) =>
           `今回対応できない内容は「${part.description}」です。${part.reason}`)].join('\n\n');
@@ -420,6 +418,23 @@ if (window.classEditorAI && statusElement) {
       activeHistory.selectedIds = scopeRoots;
       activeHistory.items.push({ type: 'message', role: 'user', text: request });
       trimHistoryItems();
+      {
+        const targetScope = new Set(expandSelectedHierarchy(selectedIds));
+        const targetCount = (window.classEditorAI.getState?.().classes || [])
+          .filter((item) => item.type === 'class' && targetScope.has(item.id)).length;
+        const startMessage = finalizingReorganization
+          ? '再編案の最終確認を始めます。'
+          : reorganizationTurn
+            ? resumeJob || resumeStage ? '再編作業を再開します。' : '再編案の作成を始めます。'
+            : '依頼の処理を始めます。';
+        const scopeMessage = targetCount
+          ? reorganizationTurn
+            ? `対象${targetCount.toLocaleString('ja-JP')}件を確認し、移動先の親クラスごとに案を整理します。`
+            : `対象クラス${targetCount.toLocaleString('ja-JP')}件を確認します。`
+          : reorganizationTurn ? '対象範囲と現在の階層を確認して案を整理します。'
+            : '依頼内容を確認し、必要な情報を調べます。';
+        addHistoryMessage('assistant', `${startMessage}${scopeMessage}`);
+      }
       activeTurnDataVersion = window.classEditorAssistant?.getDataVersion?.() || '';
       const turn = beginConversationStage(activeHistory.workflowMemory, {
         request,

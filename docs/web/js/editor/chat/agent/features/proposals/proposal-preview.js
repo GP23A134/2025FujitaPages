@@ -799,7 +799,7 @@ export const createProposalPreview = ({
       else if (operation.type === 'addClass') destinationId = operation.parentId;
       const destinationLabel = destinationId && labels.get(destinationId);
       const key = destinationId ? `destination:${destinationId}` : 'structure';
-      const title = destinationId ? `移動先：${destinationLabel || destinationId.split('/').pop()}` : '階層の追加・変更';
+      const title = destinationId ? `親クラス：${destinationLabel || destinationId.split('/').pop()}` : '親クラスを持たない構造変更';
       if (!groups.has(key)) groups.set(key, { key, kind: destinationId ? 'destination' : 'structure', destinationId, indexes: [], title });
       groups.get(key).indexes.push(index);
     });

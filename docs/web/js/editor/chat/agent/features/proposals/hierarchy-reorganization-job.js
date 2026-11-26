@@ -1089,6 +1089,8 @@ export function createHierarchyReorganizationJob({
     const targetById = new Map(targets.map((item) => [item.id, item]));
     const movedByCategory = new Map();
     const reasonByCategory = new Map();
+    const movedByParent = new Map();
+    const reasonByParent = new Map();
     const held = [];
     for (const [targetId, row] of assignmentsByTarget) {
       const target = targetById.get(targetId);
@@ -1107,6 +1109,13 @@ export function createHierarchyReorganizationJob({
         movedByCategory.get(category.key).push(target.label);
         if (!reasonByCategory.has(category.key)) reasonByCategory.set(category.key, []);
         reasonByCategory.get(category.key).push(row.reason);
+        if (newParent.kind === 'existing_class') {
+          const parentId = newParent.classId;
+          if (!movedByParent.has(parentId)) movedByParent.set(parentId, []);
+          movedByParent.get(parentId).push(target.label);
+          if (!reasonByParent.has(parentId)) reasonByParent.set(parentId, []);
+          reasonByParent.get(parentId).push(row.reason);
+        }
       }
     }
     const deletedIds = new Set(deleteKeys.map((key) => destinationByKey.get(key)?.id).filter(Boolean));
@@ -1154,28 +1163,80 @@ export function createHierarchyReorganizationJob({
     const movedCount = operationList.filter((operation) => operation.type === 'move_target_class').length;
     const structureChangeCount = operationList.length - movedCount;
     const deletedCount = operationList.filter((operation) => operation.type.startsWith('delete_')).length;
-    const placementSummary = [...movedByCategory].map(([key, items]) => `${categoryByKey.get(key)?.label || '分類先不明'}へ${items.length}件`).join('、');
+    const placementSummary = [...movedByCategory].map(([key, items]) => `・${categoryByKey.get(key)?.label || '分類先不明'}：${items.length}件`);
     const deletedLabels = deletedCategories.map((item) => item.label);
-    const assignmentAndOperationNote = assignmentCounts.move === movedCount
-      ? `配置判断で移動先を指定した${assignmentCounts.move}件について、実際の移動操作も${movedCount}件です。`
-      : `配置判断では${assignmentCounts.move}件に移動先を指定しました。現在の親子関係との照合後、実際に必要な末端クラスの移動操作は${movedCount}件です。配置先の判断数と操作数は異なる場合があります。`;
+    const moveOperationNote = assignmentCounts.move === movedCount
+      ? `・実際の移動操作：${movedCount}件`
+      : `・実際の移動操作：${movedCount}件（移動先指定${assignmentCounts.move}件のうち${assignmentCounts.move - movedCount}件は現在の親子関係と一致）`;
     const deletionSummary = deletedCount
       ? fullRebuild
         ? `既存中間クラス${deletedCount}件（${deletedLabels.join('、')}）は末端クラスを新構造へ移した後に削除する案です。`
         : `不要な上位・中間クラス${deletedCount}件（${deletedLabels.join('、')}）は配下を移動してから削除する案です。`
       : '';
-    const message = `対象${targets.length.toLocaleString('ja-JP')}件すべての配置先を確認し、再編案を作成しました。判断結果は、維持${assignmentCounts.keep}件、移動先を指定${assignmentCounts.move}件、保留${assignmentCounts.hold}件です。${assignmentAndOperationNote}${placementSummary ? `実際の移動先別の内訳は${placementSummary}です。` : '実際に必要な末端クラスの移動操作はありません。'}${deletionSummary}末端クラスの移動以外に、上位・中間クラスへ加える構造変更操作は${structureChangeCount}件です。${held.length ? `${held.length}件は配置を決めず保留しています（${held.slice(0, 6).map(({ item }) => item.label).join('、')}${held.length > 6 ? 'ほか' : ''}）。` : ''}これは変更案で、編集データにはまだ適用していません。`;
+    const buildProposal = (id, title, summary, operations, reason, uncertainties = []) => ({
+      id, title, summary,
+      reason: [...new Set(reason.filter(Boolean))].slice(0, 6).join('。') || '対象全体と現在の親子関係をもとに再編後の階層を設計しました。',
+      uncertainties, questions: [], operations
+    });
+    let proposals;
+    if (deletedCount > 0) {
+      proposals = [buildProposal(
+        'hierarchy_reorganization_1',
+        fullRebuild && rootAnchor ? `「${rootAnchor.label}」配下の中間クラスを組み直す` : '階層を再編して不要な分類を整理',
+        `${targets.length}件の対象を設計した階層へ配置し、必要な構造変更と削除を行う案です。`,
+        operationList,
+        [design.designReason, ...deleteReasons, ...[...reasonByCategory.values()].flat()],
+        held.slice(0, 8).map(({ item, reason }) => `${item.label}: ${reason}`)
+      )];
+    } else {
+      proposals = [];
+      const structuralOperations = operationList.filter((operation) => operation.type !== 'move_target_class'
+        || operation.newParent?.kind !== 'existing_class');
+      if (structuralOperations.length) {
+        proposals.push(buildProposal(
+          'hierarchy_reorganization_structure', '階層構造・新設親クラスへの移動',
+          `上位・中間クラスの構造変更と、新設する親クラス配下への移動${structuralOperations.filter((operation) => operation.type === 'move_target_class').length}件をまとめた案です。`,
+          structuralOperations,
+          [design.designReason, ...deleteReasons, ...[...reasonByCategory.values()].flat()],
+          held.slice(0, 8).map(({ item, reason }) => `${item.label}: ${reason}`)
+        ));
+      }
+      const orderedParents = [...movedByParent.keys()].sort((left, right) =>
+        String(hierarchyById.get(left)?.label || '').localeCompare(String(hierarchyById.get(right)?.label || ''), 'ja'));
+      orderedParents.forEach((parentId, index) => {
+        const operations = operationList.filter((operation) => operation.type === 'move_target_class'
+          && operation.newParent?.kind === 'existing_class' && operation.newParent.classId === parentId);
+        const parentLabel = hierarchyById.get(parentId)?.label || parentId.split('/').pop();
+        proposals.push(buildProposal(
+          `hierarchy_reorganization_parent_${index + 1}`,
+          `親クラス「${parentLabel}」への移動`,
+          `${operations.length}件の対象クラスを親クラス「${parentLabel}」へ移動する案です。`,
+          operations,
+          [...(reasonByParent.get(parentId) || [])]
+        ));
+      });
+    }
+    const message = [
+      `再編案がまとまりました。対象${targets.length.toLocaleString('ja-JP')}件を確認し、変更案を${proposals.length}件作成しました。配置判断と移動先の内訳は以下のとおりです。`,
+      '',
+      '【配置判断】',
+      `・維持：${assignmentCounts.keep}件`,
+      `・移動先を指定：${assignmentCounts.move}件`,
+      `・保留：${assignmentCounts.hold}件`,
+      '',
+      '【変更操作】',
+      moveOperationNote,
+      `・上位・中間クラスの構造変更：${structureChangeCount}件${deletionSummary ? `（${deletionSummary}）` : ''}`,
+      '',
+      '【移動先別の実移動件数】',
+      ...(placementSummary.length ? placementSummary : ['・実際の移動操作はありません']),
+      ...(held.length ? ['', `【保留例】${held.slice(0, 6).map(({ item }) => item.label).join('、')}${held.length > 6 ? '、ほか' : ''}`] : []),
+      '',
+      '編集データにはまだ適用していません。'
+    ].join('\n');
     const response = {
       message,
-      proposals: [{
-        id: 'hierarchy_reorganization_1', title: fullRebuild && rootAnchor ? `「${rootAnchor.label}」配下の中間クラスを組み直す` : '階層を再編して不要な分類を整理',
-        summary: fullRebuild
-          ? `${targets.length}件の末端クラス全体から中間クラス構造を設計し、既存クラスの再利用・改名・移動・削除と新設を組み合わせる案です。`
-          : `${targets.length}件の対象を設計した階層へ配置し、必要な分類構造を追加・変更${deletedCount ? 'し、不要な分類を配下の移動後に削除' : ''}する案です。`,
-        reason: [...new Set([design.designReason, ...deleteReasons, ...[...reasonByCategory.values()].flat()])].filter(Boolean).slice(0, 6).join('。') || '対象全体と現在の親子関係をもとに再編後の階層を設計しました。',
-        uncertainties: held.length ? held.slice(0, 8).map(({ item, reason }) => `${item.label}: ${reason}`) : [],
-        questions: [], operations: operationList
-      }], alternativeGroups: []
+      proposals, alternativeGroups: []
     };
     activeJob.status = 'completed';
     const completedTask = normalizeTaskState(activeJob.metadata.taskState);
