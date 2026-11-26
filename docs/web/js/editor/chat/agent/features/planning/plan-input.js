@@ -38,7 +38,7 @@ export function buildPlanInput(request, counts, { instanceCount, conversationCon
     ? Object.freeze({
       mode: 'complete_scope',
       rootPaths: Object.freeze((Array.isArray(scopedHierarchy.rootPaths) ? scopedHierarchy.rootPaths : [])
-        .map((path) => Object.freeze((Array.isArray(path) ? path : []).filter((label) => typeof label === 'string').slice(0, 20))),
+        .map((path) => Object.freeze((Array.isArray(path) ? path : []).filter((label) => typeof label === 'string').slice(0, 20)))),
       classes: Object.freeze((Array.isArray(scopedHierarchy.classes) ? scopedHierarchy.classes : []).map((item) => Object.freeze({
         key: String(item.key || ''), label: String(item.label || ''), type: String(item.type || ''),
         parentKey: item.parentKey == null ? null : String(item.parentKey),

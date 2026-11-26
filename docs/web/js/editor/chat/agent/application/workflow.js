@@ -1,6 +1,6 @@
 import { createConversationState, transitionConversation } from './conversation-state.js?v=20261124-conversation-context-v1';
 import { createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, authorizeTaskAction } from './task-state.js?v=20261125-design-destination-action-v1';
-import { buildPlanInput } from '../features/planning/plan-input.js?v=20261126-scoped-design-plan-v1';
+import { buildPlanInput } from '../features/planning/plan-input.js?v=20261126-scoped-design-plan-v2';
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261125-verified-retrieval-v1';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-denied-scope-fallback-v1';

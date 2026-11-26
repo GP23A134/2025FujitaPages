@@ -1,6 +1,6 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
 import { createProgressView } from './features/progress/progress-view.js?v=20261119-scope-flow-v1';
-import { buildPlanInput } from './features/planning/plan-input.js?v=20261126-scoped-design-plan-v1';
+import { buildPlanInput } from './features/planning/plan-input.js?v=20261126-scoped-design-plan-v2';
 import { createOpenAIClient } from './adapters/openai-client.js?v=20261120-api-retries-v1';
 import { createDataIdCodec, createIdMaskedClient } from './adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
 import { createPlanningService } from './features/planning/planning-service.js?v=20261126-scoped-design-plan-v1';
