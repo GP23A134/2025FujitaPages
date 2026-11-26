@@ -174,10 +174,14 @@ export function createProgressView(statusElement, messages = document.getElement
       indicator?.classList.add('is-complete');
     }
     if (indicator) {
-      indicator.dataset.progressLabel = label;
+      indicator.dataset.progressLabel = detail.stage === 'completed' ? '' : label;
       indicator.dataset.progressNote = [scope, note].filter(Boolean).join('。');
       indicator.dataset.progressStage = detail.stage;
       updateIndicator();
+      if (detail.stage === 'completed' && activity) {
+        activity.remove();
+        activity = null;
+      }
       if (activity) {
         activity.textContent = note || [scope, label].filter(Boolean).join('。');
         activity.classList.toggle('is-active', ACTIVE_STAGES.has(detail.stage));

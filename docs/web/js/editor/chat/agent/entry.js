@@ -3,7 +3,7 @@ import { createProgressView } from './features/progress/progress-view.js?v=20261
 import { buildPlanInput } from './features/planning/plan-input.js?v=20261126-reorg-intensity-confirm-v1';
 import { createOpenAIClient } from './adapters/openai-client.js?v=20261120-api-retries-v1';
 import { createDataIdCodec, createIdMaskedClient } from './adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
-import { createPlanningService } from './features/planning/planning-service.js?v=20261126-reorg-intensity-confirm-v1';
+import { createPlanningService } from './features/planning/planning-service.js?v=20261126-plan-validation-retry-v1';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261120-denied-scope-fallback-v1';
 import { createBudgetApprovalView } from './features/budget-approval/budget-approval-view.js?v=20261120-budget-limit-approval-v1';
 import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
@@ -240,7 +240,6 @@ if (window.classEditorAI && statusElement) {
           publishHistory();
         }
         if (summaries.length) addHistoryMessage('assistant', [...new Set(summaries)].join('\n'));
-        getChatUiBridge()?.appendAgentNotice?.('確認が完了しました。結果をまとめました。');
       } else if (event.type === 'error') {
         if (activeHistory && activeTurnStageIndex >= 0) {
           activeHistory.workflowMemory = finishConversationStage(activeHistory.workflowMemory, activeTurnStageIndex, {
