@@ -147,12 +147,11 @@ import { CHAT_EVENTS } from '../integration/chat-events.js?v=20261124-conversati
   };
   const isFullGraphScopeEnabled = () => fullGraphScopeToggle.getAttribute('aria-checked') === 'true';
   const defaultPromptExamples = [
-    { id: 'hierarchy-evaluate-conversation', category: '相談を始める', title: '階層を評価して相談する', prompt: '選択した範囲の上位クラスを中心に、配下の中間クラスと対象クラスを確認して、役割分担・重複・分類の抜けを評価してください。根拠となるクラス名と親子関係を挙げ、まずは評価にとどめて変更案を作らず、次に検討する判断があれば私に質問してください。', showWhen: { always: true } },
-    { id: 'isolated-parent-reorganization', category: '配下クラスを再編する', title: '配下クラスのまとまりを見直す', prompt: '選択したクラスを起点に、その直下にあるサブクラス全件と親子関係を確認してください。同じ階層に兄弟クラスがなく、配下に複数のサブクラスがある状況を踏まえ、配下の分類を維持するか、既存クラスの移動・中間クラスの新設や名称変更によって再編するか検討してください。選択したクラス自体を別の親へ移動・改名する案は含めず、末端クラスも改名しないでください。各既存サブクラスの扱いと理由を示し、必要なら新設・改名する中間クラスとその親子関係を明記してください。複数あることだけを理由に変更せず、判断に必要な情報が足りなければ案を確定する前に質問してください。', showWhen: { selectionTypes: ['top', 'middle'], isolatedParentWithMultipleChildren: true } },
-    { id: 'followup-add-top-class', category: '評価の続き', title: '評価をもとに上位クラスを追加', prompt: '先ほどの評価を踏まえ、必要であれば新しい上位クラスを設ける再編案を作成してください。新設する目的と名称、配下に置く既存の中間クラス、その配置理由を示してください。曖昧な点があれば案を確定する前に質問してください。案だけを提示し、編集データには適用しないでください。', showWhen: { priorAssistantReply: true } },
-    { id: 'followup-delete-top-class', category: '評価の続き', title: '評価をもとに上位クラスの削除案', prompt: '先ほどの評価で削除候補に挙がった上位クラスについて、削除案を作成してください。候補が複数ある場合は対象を先に質問してください。対象が決まったら、配下の中間クラスと対象クラスを全件確認し、それぞれの移動先と削除後の親子関係を示してください。判断できない移動先は保留にし、案だけを提示して編集データには適用しないでください。', showWhen: { priorAssistantReply: true } },
-    { id: 'target-membership', category: '配置を見直す', title: '選択クラスの移動先を確認', prompt: '選択範囲の対象クラスについて、クラス名と現在の親子関係を使って分類先を見直してください。移動先が今より適切だと判断できるものは、移動先と理由を示した案を出してください。名称からの推定で確信が持てない場合は、その不確かさも書き、妥当な移動先がなければ無理に案を作らず理由を説明してください。', showWhen: { always: true } },
-    { id: 'common-summary', category: '基本', title: '選択範囲を要約', prompt: 'この範囲のクラス構成を要約してください。', showWhen: { always: true } }
+    { id: 'common-summary', category: '相談を始める', title: '選択範囲を要約', prompt: '選択範囲に含まれるクラスを要約してください。上位・中間・対象クラスのまとまりや分類の特徴を説明し、入力から判断できないことは推測で補わないでください。', showWhen: { always: true } },
+    { id: 'hierarchy-evaluate-conversation', category: '相談を始める', title: '選択範囲を評価', prompt: '選択範囲の上位クラスを中心に、配下の中間クラスと対象クラスを確認し、役割分担・重複・分類の抜けを評価してください。根拠となるクラス名と親子関係を挙げて説明してください。まずは評価にとどめて変更案を作らず、次に検討する判断があれば質問してください。入力から分からないことは推測で補わないでください。', showWhen: { always: true } },
+    { id: 'common-classification-check', category: '相談を始める', title: '分類先を見直す', prompt: '選択範囲の対象クラスについて、クラス名と現在の親子関係から分類先を見直してください。参照できる既存の上位・中間クラスを移動先候補として比べ、今より適切と判断できる場合だけ、対象クラス・移動先・根拠を示した案を出してください。名称からの推定で確信が持てない場合は不確かさを明記し、妥当な移動先がなければ案を作らず理由を説明してください。編集データは変更しないでください。', showWhen: { always: true } },
+    { id: 'common-similar-classes', category: '相談を始める', title: '似た役割のクラスを探す', prompt: '選択範囲のクラス名と現在の親子関係を比べ、役割が似ているクラスや重なりの可能性がある組を示してください。似ている根拠と違いを説明し、名前が似ているだけで同じ意味だと決めつけないでください。', showWhen: { always: true } },
+    { id: 'common-next-review', category: '相談を始める', title: '次に見直す点を整理', prompt: '選択範囲を確認し、根拠から分かったことと判断できないことを分けて整理してください。そのうえで、次に確認するとよい論点を優先度順に示してください。編集案は作らず、入力にない情報は推測で補わないでください。', showWhen: { always: true } }
   ];
   let availablePromptExamples = defaultPromptExamples;
   let lastRenderedPromptExamples = null;

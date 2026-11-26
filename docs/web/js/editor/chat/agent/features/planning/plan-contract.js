@@ -46,7 +46,7 @@ export function validatePlan(plan, { instanceInformationEnabled = false, targetC
   if (plan.structureMode !== undefined && !isEnumValue(plan.structureMode, ['existing', 'design'])) errors.push('structureModeが未定義です。');
   if (!isEnumValue(plan.reorganizationStyle, ['not_applicable', 'undetermined', 'targeted_adjustment', 'rebuild_subclasses'])) errors.push('reorganizationStyleが未定義です。');
   if (plan.reorganizationStyle === 'undetermined' && plan.status !== 'needs_clarification') errors.push('reorganizationStyleが未確定の場合は確認質問が必要です。');
-  if (['targeted_adjustment', 'rebuild_subclasses'].includes(plan.reorganizationStyle) && plan.structureMode !== 'design') errors.push('再編方針にはstructureMode=designが必要です。');
+  if (plan.reorganizationStyle === 'rebuild_subclasses' && plan.structureMode !== 'design') errors.push('中間クラス群を組み直す再編にはstructureMode=designが必要です。');
   if (plan.executionMode !== undefined && !isEnumValue(plan.executionMode, ['standard', 'reorganization', 'deletion'])) errors.push('旧executionModeが未定義です。');
   if (!isString(plan.summary)) errors.push('summaryは空でない文字列が必要です。');
   const brief = plan.executionBrief;

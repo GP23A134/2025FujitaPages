@@ -1,4 +1,4 @@
-import { CHANGE_OPERATIONS } from './plan-contract.js?v=20261126-reorg-intensity-confirm-v1';
+import { CHANGE_OPERATIONS } from './plan-contract.js?v=20261126-targeted-adjustment-mode-v1';
 
 const questionSchema = {
   type: 'object', additionalProperties: false,
