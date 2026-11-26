@@ -5,7 +5,7 @@ import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261125-verified-retrieval-v1';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-denied-scope-fallback-v1';
 import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261125-generic-intent-v1';
-import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261126-reorg-parent-key-normalize-v1';
+import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261126-middle-anchor-reorg-v1';
 import { createHierarchyDeletionJob } from '../features/proposals/hierarchy-deletion-job.js?v=20261126-reorg-parent-key-normalize-v1';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
@@ -215,6 +215,7 @@ export function createAssistantWorkflow({
   let grants = { reference: new Set(), change: new Set() };
   let budgetGuard = null;
   let selectedClassIds = [];
+  let selectedRootIds = [];
   let hierarchyIndexAvailable = false;
   let currentApiKey = null;
   let currentModel = null;
@@ -556,6 +557,7 @@ export function createAssistantWorkflow({
         jobScopeIds: [...selectedClassIds],
         jobTargetIds: classes.filter((item) => item.type === 'class' && selectedSet.has(item.id)).map((item) => item.id),
         jobSelectedIds: [...selectedClassIds],
+        rootAnchorIds: [...selectedRootIds],
         jobHierarchyIds: classes.filter((item) => ['top', 'middle'].includes(item.type) && grants.reference.has(item.id)).map((item) => item.id),
         onCheckpoint: (checkpoint) => {
           state = { ...state, jobCheckpoint: checkpoint };
@@ -817,6 +819,7 @@ export function createAssistantWorkflow({
         return { status: 'needs_clarification', questions: plan.questions };
       }
       selectedClassIds = expandScopeDescendants(editor.getState().classes, editor.getState().relations, [namedRoots[0].id]);
+      selectedRootIds = [namedRoots[0].id];
       selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
       hierarchyIndexAvailable = true;
       const taskState = normalizeTaskState(state.taskState);
@@ -834,6 +837,7 @@ export function createAssistantWorkflow({
       && ((structureModeOf(currentPlan) === 'existing' && hasHierarchyDeletion(currentPlan)) || state.jobCheckpoint?.kind === 'hierarchy_deletion')) {
       const tree = editor.getState();
       selectedClassIds = expandScopeDescendants(tree.classes, tree.relations, selectedClassIds);
+      selectedRootIds = selectedRootIds.length ? selectedRootIds : [...selectedClassIds];
       selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
       state = {
         ...state,
@@ -1064,10 +1068,14 @@ export function createAssistantWorkflow({
       selectedClassIds = Array.isArray(selectedClassIdsOverride)
         ? [...new Set(selectedClassIdsOverride.filter((id) => typeof id === 'string' && validClassIds.has(id)))]
         : [...(editor.selectedIds || [])];
+      selectedRootIds = Array.isArray(jobCheckpoint?.metadata?.rootAnchorIds)
+        ? [...new Set(jobCheckpoint.metadata.rootAnchorIds.filter((id) => validClassIds.has(id)))]
+        : [...selectedClassIds];
       let unresolvedTargetQuestion = null;
       if (!selectedClassIds.length && !jobCheckpoint && /クラス|分類|階層|配下|再編|整理/.test(String(request || ''))) {
         const namedRoots = resolveNamedHierarchyRoots(request, editorState.classes);
         if (namedRoots.length === 1) {
+          selectedRootIds = [namedRoots[0].id];
           selectedClassIds = expandScopeDescendants(editorState.classes, editorState.relations, [namedRoots[0].id]);
         } else {
           const names = namedRoots.map((item) => `「${item.label}」`).join('、');

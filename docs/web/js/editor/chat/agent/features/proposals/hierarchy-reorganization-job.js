@@ -3,6 +3,7 @@ import { createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriter
 import { sameIdSet } from '../../application/id-set.js?v=20261125-id-set-v1';
 
 const PAGE_BATCH_SIZE = 100;
+const MAX_PLACEMENT_RETRIES = 2;
 const FAST_PATH_MAX_TARGETS = 100;
 const FAST_PATH_MAX_HIERARCHY = 150;
 const FAST_PATH_MAX_INPUT_CHARS = 24000;
@@ -11,6 +12,12 @@ const identity = (item) => ({ kind: 'existing_class', classId: item.id, tempId: 
 const temporary = (tempId) => ({ kind: 'temporary_class', classId: null, tempId });
 const responseText = (response) => (response?.output || []).flatMap((item) => item.content || [])
   .find((item) => item.type === 'output_text')?.text || '';
+const responseFailure = (response) => {
+  const refusal = (response?.output || []).flatMap((item) => item.content || [])
+    .find((item) => item.type === 'refusal')?.refusal;
+  const reason = response?.incomplete_details?.reason || response?.status || '応答本文なし';
+  return refusal ? `モデルが応答を拒否しました（${reason}）。` : `モデル応答にJSON本文がありません（${reason}）。`;
+};
 const unique = (items) => [...new Set(items)];
 
 function pagePhase({ id, ids, reader, read, budgetGuard, onProgress, tool, note }) {
@@ -42,7 +49,7 @@ export function createHierarchyReorganizationJob({
   reader, client, budgetGuard, model, apiKey, request, plan, maxOutputTokens, signal,
   onProgress = () => {}, onUsage = () => {}, onCheckpoint = async () => {},
   jobCheckpoint = null, dataVersion = '', jobRequest = '', jobScopeIds = null,
-  jobSelectedIds = null, jobTargetIds = null, jobHierarchyIds = null, continuationInput = ''
+  jobSelectedIds = null, jobTargetIds = null, jobHierarchyIds = null, rootAnchorIds = null, continuationInput = ''
 }) {
   if (!reader?.readHierarchyIndex || !reader?.readSelectedClassDetails || !client?.request || !budgetGuard) {
     throw new TypeError('階層再編ジョブに必要な依存関係が不足しています。');
@@ -51,6 +58,7 @@ export function createHierarchyReorganizationJob({
   const editableIds = unique(Array.isArray(jobScopeIds) ? jobScopeIds : []);
   const targetIds = unique(Array.isArray(jobTargetIds) ? jobTargetIds : editableIds);
   const hierarchyIds = unique(Array.isArray(jobHierarchyIds) ? jobHierarchyIds : []);
+  const requestedRootAnchorIds = unique(Array.isArray(rootAnchorIds) ? rootAnchorIds : []);
   let activeJob = normalizeJobCheckpoint(jobCheckpoint);
 
   async function callAI(input, name, schema, outputLimit = maxOutputTokens) {
@@ -92,14 +100,16 @@ export function createHierarchyReorganizationJob({
     if (sameJob && JSON.stringify(saved.scopeIds) !== JSON.stringify(sortedScope)) return { status: 'stale_job', message: '保存済み再編ジョブの変更範囲が現在と異なるため続行できません。' };
     if (sameJob && !sameIdSet(saved.metadata.selectedIds || [], selectedIds)) return { status: 'stale_job', message: '保存済み再編ジョブの選択対象が現在と異なるため続行できません。' };
     if (sameJob && !sameIdSet(saved.metadata.targetIds || [], targetIds)) return { status: 'stale_job', message: '保存済み再編ジョブの末端対象が現在と異なるため続行できません。' };
+    if (sameJob && Array.isArray(saved.metadata.rootAnchorIds)
+      && !sameIdSet(saved.metadata.rootAnchorIds, requestedRootAnchorIds)) return { status: 'stale_job', message: '保存済み再編ジョブの選択ルートが現在と異なるため続行できません。' };
     if (sameJob) {
       const priorHierarchyIds = saved.metadata.hierarchyIds || [];
       if (!priorHierarchyIds.every((id) => hierarchyIds.includes(id))) return { status: 'stale_job', message: '保存済み再編ジョブの参照範囲が現在と異なるため続行できません。' };
-      if (priorHierarchyIds.length !== hierarchyIds.length || saved.metadata.designVersion !== 9) {
+      if (priorHierarchyIds.length !== hierarchyIds.length || saved.metadata.designVersion !== 10) {
         activeJob = normalizeJobCheckpoint({
           ...saved,
           status: 'running',
-          metadata: { ...saved.metadata, hierarchyIds, designVersion: 9 },
+          metadata: { ...saved.metadata, hierarchyIds, rootAnchorIds: requestedRootAnchorIds, designVersion: 10 },
           phases: saved.phases.filter((phase) => phase.id === 'target-snapshot'),
           updatedAt: Date.now(), completedAt: null
         });
@@ -128,7 +138,7 @@ export function createHierarchyReorganizationJob({
       kind: 'hierarchy_reorganization', request: jobRequest || request, dataVersion,
       scopeIds: sortedScope,
       metadata: {
-        selectedIds, targetIds, hierarchyIds, executionMode: 'reorganization', designVersion: 9, userGuidance: [],
+        selectedIds, targetIds, hierarchyIds, rootAnchorIds: requestedRootAnchorIds, executionMode: 'reorganization', designVersion: 10, userGuidance: [],
         taskState: createTaskState({
           id: globalThis.crypto?.randomUUID?.() || `task-${Date.now()}`,
           objective: plan.executionBrief?.objective || request,
@@ -200,13 +210,21 @@ export function createHierarchyReorganizationJob({
       parentId: item.parentId, parentLabel: item.parentLabel, editable: editableIds.includes(item.id)
     }));
     const destinationByKey = new Map(destinationRecords.map((item) => [item.key, item]));
+    const selectedScope = new Set(selectedIds);
+    const rootAnchor = requestedRootAnchorIds.length === 1
+      ? destinationRecords.find((item) => item.id === requestedRootAnchorIds[0] && item.type === 'middle' && selectedScope.has(item.id)) || null
+      : null;
+    const anchorCategoryKey = rootAnchor ? '__selected_middle_anchor__' : null;
+    const designDestinationRecords = rootAnchor
+      ? destinationRecords.filter((item) => item.type === 'middle' && selectedScope.has(item.id))
+      : destinationRecords;
     const estimatedInputChars = request.length
       + targets.reduce((sum, item) => sum + String(item.label || '').length + String(item.parentLabel || '').length + 8, 0)
-      + destinationRecords.reduce((sum, item) => sum + item.label.length + String(item.parentLabel || '').length + 16, 0);
+      + designDestinationRecords.reduce((sum, item) => sum + item.label.length + String(item.parentLabel || '').length + 16, 0);
     const fastPath = targets.length <= FAST_PATH_MAX_TARGETS
-      && destinationRecords.length <= FAST_PATH_MAX_HIERARCHY
+      && designDestinationRecords.length <= FAST_PATH_MAX_HIERARCHY
       && estimatedInputChars <= FAST_PATH_MAX_INPUT_CHARS;
-    const dispositionItems = fastPath ? [] : destinationRecords.filter((item) => item.editable && item.label !== '未分類');
+    const dispositionItems = fastPath || rootAnchor ? [] : destinationRecords.filter((item) => item.editable && item.label !== '未分類');
     const dispositionBatches = Array.from({ length: Math.ceil(dispositionItems.length / PAGE_BATCH_SIZE) }, (_, index) => ({
       id: `disposition-${index + 1}`,
       items: dispositionItems.slice(index * PAGE_BATCH_SIZE, (index + 1) * PAGE_BATCH_SIZE)
@@ -255,6 +273,7 @@ export function createHierarchyReorganizationJob({
       }
     };
     const dispositionState = (checkpoint) => {
+      if (rootAnchor) return { phase: null, deleteKeys: [], availableRecords: designDestinationRecords, dispositionByKey: new Map() };
       const phase = checkpoint?.phases.find((item) => item.id === 'existing-class-disposition');
       const decisions = phase?.units.flatMap((unit) => unit.result?.decisions || []) || [];
       const dispositionByKey = new Map(decisions.map((item) => [item.key, item.disposition]));
@@ -262,7 +281,7 @@ export function createHierarchyReorganizationJob({
         phase,
         deleteKeys: decisions.filter((item) => item.disposition === 'delete').map((item) => item.key),
         availableRecords: fastPath
-          ? destinationRecords
+          ? designDestinationRecords
           : destinationRecords.filter((item) => !item.editable || item.label === '未分類' || dispositionByKey.get(item.key) === 'keep'),
         dispositionByKey
       };
@@ -270,11 +289,11 @@ export function createHierarchyReorganizationJob({
     const structureSchemaFor = (availableRecords, includeDeleteKeys = false) => ({
       type: 'object', additionalProperties: false,
       properties: {
-        categories: { type: 'array', minItems: targets.length ? 1 : 0, maxItems: 200, items: {
+        categories: { type: 'array', minItems: targets.length ? 1 : 0, maxItems: rootAnchor ? 199 : 200, items: {
           type: 'object', additionalProperties: false,
           properties: {
             key: { type: 'string', maxLength: 40 }, label: { type: 'string', maxLength: 120 },
-            type: { type: 'string', enum: ['top', 'middle'] },
+            type: { type: 'string', enum: rootAnchor ? ['middle'] : ['top', 'middle'] },
             existingKey: availableRecords.length
               ? { anyOf: [{ type: 'string', enum: availableRecords.map((item) => item.key) }, { type: 'null' }] }
               : { type: 'null' },
@@ -320,7 +339,7 @@ export function createHierarchyReorganizationJob({
       }
     };
     const taxonomySkeletonPhase = {
-      id: 'taxonomy-skeleton', units: fastPath ? [] : [{ id: 'global-taxonomy' }],
+      id: 'taxonomy-skeleton', units: fastPath || rootAnchor ? [] : [{ id: 'global-taxonomy' }],
       async execute(unit) {
         onProgress({ stage: 'analyzing', note: '対象全体の分割要約から再編後の分類骨組みを設計しています' });
         const evidence = readResults('structure-evidence');
@@ -361,9 +380,9 @@ export function createHierarchyReorganizationJob({
         return true;
       }
     };
-    const destinationBatches = fastPath ? [] : Array.from({ length: Math.ceil(destinationRecords.length / PAGE_BATCH_SIZE) }, (_, index) => ({
+    const destinationBatches = fastPath ? [] : Array.from({ length: Math.ceil(designDestinationRecords.length / PAGE_BATCH_SIZE) }, (_, index) => ({
       id: `destination-${index + 1}`,
-      items: destinationRecords.slice(index * PAGE_BATCH_SIZE, (index + 1) * PAGE_BATCH_SIZE)
+      items: designDestinationRecords.slice(index * PAGE_BATCH_SIZE, (index + 1) * PAGE_BATCH_SIZE)
     }));
     const mandatoryDestinationKeys = (checkpoint) => {
       const disposition = dispositionState(checkpoint);
@@ -383,7 +402,7 @@ export function createHierarchyReorganizationJob({
       return mandatory;
     };
     const destinationPhase = {
-      id: 'destination-shortlist', units: destinationBatches,
+      id: 'destination-shortlist', units: rootAnchor ? [] : destinationBatches,
       async execute(unit, { checkpoint }) {
         const disposition = dispositionState(checkpoint);
         const eligible = unit.items.filter((item) => disposition.availableRecords.some((candidate) => candidate.key === item.key));
@@ -428,7 +447,7 @@ export function createHierarchyReorganizationJob({
       }
     };
     const structureAvailableRecords = (checkpoint) => {
-      if (fastPath) return destinationRecords;
+      if (rootAnchor || fastPath) return designDestinationRecords;
       const disposition = dispositionState(checkpoint);
       const shortlisted = new Set(checkpoint.phases.find((phase) => phase.id === 'destination-shortlist')?.units
         .flatMap((unit) => unit.result?.candidateKeys || []) || []);
@@ -447,27 +466,31 @@ export function createHierarchyReorganizationJob({
       async execute(unit, { checkpoint }) {
         onProgress({ stage: 'analyzing', note: '分割した対象の要約から再編後の上位・中間クラスを設計しています' });
         const disposition = dispositionState(checkpoint);
-        if (!disposition.phase || disposition.phase.status !== 'completed'
-          || disposition.phase.units.some((item) => item.status !== 'completed')) {
+        if (!rootAnchor && (!disposition.phase || disposition.phase.status !== 'completed'
+          || disposition.phase.units.some((item) => item.status !== 'completed'))) {
           throw Object.assign(new Error('既存分類の維持・削除判定が揃っていません。'), { code: 'REORG_DISPOSITION_INCOMPLETE' });
         }
         const structureSchema = structureSchemaFor(
-          fastPath ? destinationRecords : structureAvailableRecords(checkpoint),
-          fastPath
+          fastPath ? designDestinationRecords : structureAvailableRecords(checkpoint),
+          fastPath && !rootAnchor
         );
         const evidence = checkpoint.phases.find((phase) => phase.id === 'structure-evidence')?.units || [];
         if (evidence.length !== evidenceBatches.length || evidence.some((item) => item.status !== 'completed')) {
           throw Object.assign(new Error('再編対象の分割要約が揃っていません。'), { code: 'REORG_EVIDENCE_INCOMPLETE' });
         }
         const skeleton = checkpoint.phases.find((phase) => phase.id === 'taxonomy-skeleton')?.units?.[0]?.result;
-        const availableRecords = fastPath ? destinationRecords : structureAvailableRecords(checkpoint);
+        const availableRecords = rootAnchor ? designDestinationRecords : fastPath ? designDestinationRecords : structureAvailableRecords(checkpoint);
         const availableTopByKey = new Map(availableRecords.filter((item) => item.type === 'top').map((item) => [item.key, item]));
         const skeletonTopByKey = new Map((skeleton?.categories || []).filter((item) => item.type === 'top').map((item) => [item.key, item]));
         const input = [
           { role: 'system', content: [
-            '対象全体を分類できる再編後の上位・中間クラス構造を設計してください。既存構造の維持だけで済ませず、依頼と全対象から必要な分類軸と階層を判断します。',
-            '既存候補はkeyで再利用できます。必要な場合だけ新しいtopまたはmiddleを作ります。middleのparentKeyは、この応答のcategories配列にあるtype=topのkeyと完全一致させてください。taxonomySkeletonのkeyを使う場合も、そのtopカテゴリ自体をcategoriesに含めてください。editable=falseの既存分類は参照専用で、名称や親を変更しません。editable=trueの既存分類に限り、明確な改善になる場合はlabelへ新名称を指定できます。',
-            fastPath
+            rootAnchor
+              ? `選択ルート「${rootAnchor.label}」は既存の中間クラスとして固定し、削除・改名・移動しません。新設分類はすべて中間クラスにし、最初の親をこのルートにしてください。必要な場合は中間クラスを中間クラスの下に入れ子にできます。上位クラスは作成せず、ルート外への移動もしません。categoriesに選択ルートを含めず、parentKeyでは予約key「${anchorCategoryKey}」をそのルートとして使ってください。既存候補はkeyで再利用し、editable=falseの既存分類は参照専用で名称・親を変更しません。editable=trueの既存中間クラスに限り、明確な改善になる場合はlabel変更や親変更を提案できます。`
+              : '対象全体を分類できる再編後の上位・中間クラス構造を設計してください。既存構造の維持だけで済ませず、依頼と全対象から必要な分類軸と階層を判断します。',
+            rootAnchor
+              ? '既存クラスは削除しません。各対象の現在の分類を維持するか、ルート配下の既存または新設中間クラスへ配置します。'
+              : '既存候補はkeyで再利用できます。必要な場合だけ新しいtopまたはmiddleを作ります。middleのparentKeyは、この応答のcategories配列にあるtype=topのkeyと完全一致させてください。taxonomySkeletonのkeyを使う場合も、そのtopカテゴリ自体をcategoriesに含めてください。editable=falseの既存分類は参照専用で、名称や親を変更しません。editable=trueの既存分類に限り、明確な改善になる場合はlabelへ新名称を指定できます。',
+            rootAnchor ? '' : fastPath
               ? '既存分類はすべて一括確認し、不要と明確に判断した編集可能分類だけをdeleteKeysに含めます。categoriesには新設する分類、配置先として使う既存分類、改名・移動する既存分類だけを記します。'
               : 'categoriesには新設する分類、配置先として使う既存分類、改名・移動する既存分類だけを記します。categoriesに含めない維持分類は現在の名称と親を保ちます。削除対象は別工程で判定済みです。',
             '全対象の移動先を後工程で決められるよう、対象範囲を過不足なく受け止める構造にします。名前が似ているだけで分類を統合せず、異なる概念を接続語や中点で無理にまとめません。',
@@ -475,7 +498,8 @@ export function createHierarchyReorganizationJob({
           ].join('\n') },
           { role: 'user', content: JSON.stringify({
             request, objective: plan.executionBrief, scope: { targetCount: targets.length },
-            ...(fastPath ? {} : { taxonomySkeleton: skeleton?.categories || [] }),
+            ...(!fastPath && !rootAnchor ? { taxonomySkeleton: skeleton?.categories || [] } : {}),
+            ...(rootAnchor ? { fixedParent: { key: anchorCategoryKey, label: rootAnchor.label, type: 'middle' } } : {}),
             ...(fastPath ? { targetItems: targets.map((item) => ({ label: item.label, currentParent: item.parentLabel || null })) } : {}),
             targetBatchSummaries: evidence.map((item, index) => ({ batch: evidenceBatches[index].id, summary: item.result.summary, themes: item.result.themes })),
             existingHierarchy: availableRecords.map(({ key, label, type, parentLabel, editable }) => ({ key, label, type, parent: parentLabel, editable }))
@@ -486,6 +510,52 @@ export function createHierarchyReorganizationJob({
         for (let attempt = 0; attempt <= 2; attempt += 1) {
           result = parseAI(await callAI(repairInput, 'reorganization_structure', structureSchema), 'INVALID_REORG_STRUCTURE', '再編構造の応答を読み取れませんでした。');
           const categories = Array.isArray(result?.categories) ? result.categories.map((item) => ({ ...item })) : [];
+          if (rootAnchor) {
+            const redundantAnchorKeys = new Set(categories.filter((item) => item.existingKey === rootAnchor.key).map((item) => item.key));
+            const filteredCategories = categories.filter((item) => item.existingKey !== rootAnchor.key);
+            for (const category of filteredCategories) {
+              if (redundantAnchorKeys.has(category.parentKey)) category.parentKey = anchorCategoryKey;
+            }
+            categories.length = 0;
+            categories.push(...filteredCategories);
+            for (const category of categories) {
+              if (category.type !== 'middle') continue;
+              if (category.parentKey === rootAnchor.key || category.parentKey === rootAnchor.id) category.parentKey = anchorCategoryKey;
+              const existingParent = designDestinationRecords.find((item) => item.key === category.parentKey);
+              if (existingParent) {
+                const plannedParent = categories.find((item) => item.existingKey === existingParent.key);
+                if (plannedParent) category.parentKey = plannedParent.key;
+                else if (existingParent.id === rootAnchor.id) category.parentKey = anchorCategoryKey;
+              }
+            }
+            categories.unshift({ key: anchorCategoryKey, label: rootAnchor.label, type: 'middle', existingKey: rootAnchor.key, parentKey: null, reason: '選択された固定ルート' });
+            const categoryKeyByExisting = new Map(categories.filter((item) => item.existingKey).map((item) => [item.existingKey, item.key]));
+            const remaining = designDestinationRecords.filter((item) => item.id !== rootAnchor.id && !categoryKeyByExisting.has(item.key));
+            for (let pass = 0; remaining.length && pass <= designDestinationRecords.length; pass += 1) {
+              let added = false;
+              for (let index = remaining.length - 1; index >= 0; index -= 1) {
+                const record = remaining[index];
+                const parentRecord = record.parentId ? destinationRecords.find((item) => item.id === record.parentId) : null;
+                const parentKey = parentRecord?.id === rootAnchor.id ? anchorCategoryKey : categoryKeyByExisting.get(parentRecord?.key);
+                if (!parentKey) continue;
+                const internalKey = `__retained_${record.key}`;
+                categories.push({ key: internalKey, label: record.label, type: 'middle', existingKey: record.key, parentKey, reason: '既存階層を維持' });
+                categoryKeyByExisting.set(record.key, internalKey);
+                remaining.splice(index, 1);
+                added = true;
+              }
+              if (!added) break;
+            }
+            const categoryKeyByRecordId = new Map(designDestinationRecords.map((item) => [item.id, categoryKeyByExisting.get(item.key)]));
+            for (const category of categories) {
+              if (category.key === anchorCategoryKey || categories.some((item) => item.key === category.parentKey)) continue;
+              const parentRecord = designDestinationRecords.find((item) => item.key === category.parentKey || item.id === category.parentKey);
+              if (parentRecord) category.parentKey = parentRecord.id === rootAnchor.id
+                ? anchorCategoryKey : categoryKeyByRecordId.get(parentRecord.id) || category.parentKey;
+            }
+            result = { ...result, categories };
+            break;
+          }
           const categoryByKey = new Map(categories.map((category) => [category.key, category]));
           for (const category of categories) {
             if (category.type !== 'middle' || categoryByKey.has(category.parentKey)) continue;
@@ -532,9 +602,35 @@ export function createHierarchyReorganizationJob({
         if (keys.some((key) => typeof key !== 'string' || !key) || new Set(keys).size !== keys.length) return '再編構造のkeyが空または重複しています。';
         const existingKeys = result.categories.map((item) => item.existingKey).filter(Boolean);
         if (new Set(existingKeys).size !== existingKeys.length) return '同じ既存分類が再編構造に重複しています。';
-        const availableRecords = fastPath ? destinationRecords : structureAvailableRecords(checkpoint);
+        const availableRecords = rootAnchor ? designDestinationRecords : fastPath ? destinationRecords : structureAvailableRecords(checkpoint);
         const availableKeys = new Set(availableRecords.map((item) => item.key));
         if (existingKeys.some((key) => !availableKeys.has(key))) return '維持判定されていない既存分類が構造案に含まれています。';
+        if (rootAnchor) {
+          const anchor = result.categories.find((item) => item.key === anchorCategoryKey);
+          if (!anchor || anchor.existingKey !== rootAnchor.key || anchor.type !== 'middle') return '選択された固定ルートが設計にありません。';
+          const byKey = new Map(result.categories.map((item) => [item.key, item]));
+          if (result.categories.some((item) => item.type !== 'middle' || !item.label?.trim())) return '選択ルート配下に上位クラスまたは名称のない分類があります。';
+          for (const item of result.categories) {
+            if (item.key === anchorCategoryKey) continue;
+            if (item.parentKey === item.key || !byKey.has(item.parentKey) || byKey.get(item.parentKey).type !== 'middle') return '中間クラスの親が設計内にありません。';
+            const existing = item.existingKey ? destinationByKey.get(item.existingKey) : null;
+            if (existing && (existing.type !== 'middle' || (!existing.editable && existing.id !== rootAnchor.id))) return '選択範囲外の中間クラスを変更する設計です。';
+            if (existing && item.label.trim() !== existing.label && !existing.editable) return '変更範囲外の既存中間クラスを改名する設計です。';
+            if (existing && !existing.editable) {
+              const parent = byKey.get(item.parentKey);
+              const parentId = parent?.existingKey ? destinationByKey.get(parent.existingKey)?.id : null;
+              if (existing.parentId !== parentId) return '変更範囲外の既存中間クラスを移動する設計です。';
+            }
+            let cursor = item; const seen = new Set();
+            while (cursor && cursor.key !== anchorCategoryKey) {
+              if (seen.has(cursor.key)) return '選択ルート配下の親子関係が循環しています。';
+              seen.add(cursor.key); cursor = byKey.get(cursor.parentKey);
+            }
+            if (!cursor) return '分類が選択された固定ルートの配下にありません。';
+          }
+          if (anchor.label !== rootAnchor.label || anchor.parentKey !== null) return '選択された固定ルートを変更する設計です。';
+          return true;
+        }
         if (fastPath) {
           const deletes = result.deleteKeys;
           const editableKeys = dispositionItems.map((item) => item.key);
@@ -606,21 +702,55 @@ export function createHierarchyReorganizationJob({
         const design = checkpoint.phases.find((phase) => phase.id === 'structure-design')?.units[0]?.result;
         if (!design) throw new Error('再編構造が保存されていません。');
         onProgress({ stage: 'analyzing', note: `${unit.items.length}件の対象について新しい構造への配置を判断しています` });
-        const input = [
-          { role: 'system', content: [
-            '提示された再編後の構造に、各対象クラスを一件ずつ割り当ててください。移動案を求められていれば、情報が足りる対象は最も妥当な分類先へ配置します。',
-            '現在の親が適切ならkeepとして現在の親に対応する分類keyを返します。分類先が確定できない場合だけholdにし、具体的な不足理由を記します。',
-            '番号はこのバッチ内のitemNumberだけを使い、各番号を重複・漏れなく一度ずつ返します。存在しない分類keyを作らないでください。'
-          ].join('\n') },
-          { role: 'user', content: JSON.stringify({
-            request, objective: plan.executionBrief, categories: design.categories.map(({ key, label, type, parentKey, reason }) => ({ key, label, type, parentKey, reason })),
-            items: unit.items.map((item, index) => ({ itemNumber: index + 1, label: item.label, currentParent: item.parentLabel || null }))
-          }) }
-        ];
-        const value = parseAI(await callAI(input, 'reorganization_placement', assignmentSchema(unit.items, design.categories)), 'INVALID_REORG_PLACEMENT', 'クラス配置の応答を読み取れませんでした。');
+        const requestAssignments = async (items, batchLabel, attempt = 0, priorError = null) => {
+          const input = [
+            { role: 'system', content: [
+              '提示された再編後の構造に、各対象クラスを一件ずつ割り当ててください。移動案を求められていれば、情報が足りる対象は最も妥当な分類先へ配置します。',
+              '現在の親が適切ならkeepとして現在の親に対応する分類keyを返します。分類先が確定できない場合だけholdにし、具体的な不足理由を記します。',
+              '番号はこのバッチ内のitemNumberだけを使い、各番号を重複・漏れなく一度ずつ返します。存在しない分類keyを作らないでください。',
+              priorError ? `前回の応答は読み取りまたは件数検証に失敗しました: ${priorError} 今回は指定件数分の完全なJSONだけを返してください。` : ''
+            ].filter(Boolean).join('\n') },
+            { role: 'user', content: JSON.stringify({
+              request, objective: plan.executionBrief, batch: batchLabel,
+              categories: design.categories.map(({ key, label, type, parentKey, reason }) => ({ key, label, type, parentKey, reason })),
+              items: items.map((item, index) => ({ itemNumber: index + 1, label: item.label, currentParent: item.parentLabel || null }))
+            }) }
+          ];
+          const outputLimit = Math.min(32000, Math.max(maxOutputTokens, 1024 + items.length * 64));
+          let error;
+          try {
+            const response = await callAI(input, 'reorganization_placement', assignmentSchema(items, design.categories), outputLimit);
+            const text = responseText(response);
+            if (!text.trim()) throw Object.assign(new Error(responseFailure(response)), { code: 'INVALID_REORG_PLACEMENT' });
+            let value;
+            try { value = JSON.parse(text); }
+            catch { throw Object.assign(new Error('配置回答が有効なJSONではありません。'), { code: 'INVALID_REORG_PLACEMENT' }); }
+            const rows = value?.assignments;
+            const numbers = Array.isArray(rows) ? rows.map((row) => row?.itemNumber) : [];
+            if (!Array.isArray(rows) || rows.length !== items.length
+              || new Set(numbers).size !== items.length
+              || items.some((__, index) => !numbers.includes(index + 1))) {
+              throw Object.assign(new Error('割当件数またはitemNumberに漏れ・重複があります。'), { code: 'INVALID_REORG_PLACEMENT' });
+            }
+            return rows;
+          } catch (caught) {
+            error = caught;
+          }
+          if (error?.code !== 'INVALID_REORG_PLACEMENT') throw error;
+          if (attempt < MAX_PLACEMENT_RETRIES) {
+            onProgress({ stage: 'analyzing', note: `配置回答を読み取れなかったため、${items.length}件を再試行しています（${attempt + 1}/${MAX_PLACEMENT_RETRIES}）` });
+            return requestAssignments(items, batchLabel, attempt + 1, error.message);
+          }
+          if (items.length < 2) throw error;
+          const midpoint = Math.ceil(items.length / 2);
+          onProgress({ stage: 'analyzing', note: `配置回答が不完全なため、${items.length}件を分割して再処理します` });
+          const left = await requestAssignments(items.slice(0, midpoint), `${batchLabel}.1`);
+          const right = await requestAssignments(items.slice(midpoint), `${batchLabel}.2`);
+          return [...left, ...right.map((row) => ({ ...row, itemNumber: row.itemNumber + midpoint }))];
+        };
+        const assignments = await requestAssignments(unit.items, unit.id);
         return {
-          ...value,
-          assignments: (value.assignments || []).map((row) => ({ ...row, targetId: unit.items[row.itemNumber - 1]?.id || null }))
+          assignments: assignments.map((row) => ({ ...row, targetId: unit.items[row.itemNumber - 1]?.id || null }))
         };
       },
       validate(unit, result, { checkpoint }) {
@@ -824,6 +954,7 @@ export function createHierarchyReorganizationJob({
 
     const operationList = [];
     const categoryRef = new Map();
+    if (rootAnchor) categoryRef.set(anchorCategoryKey, identity(hierarchyById.get(rootAnchor.id)));
     const topCategories = categories.filter((item) => item.type === 'top');
     for (const item of topCategories) {
       if (item.existingKey) {
@@ -836,10 +967,12 @@ export function createHierarchyReorganizationJob({
         operationList.push({ type: 'add_top_class', target: null, newParent: null, tempId, label: item.label.trim() });
       }
     }
-    const middleCategories = categories.filter((item) => item.type === 'middle');
-    for (const item of middleCategories) {
+    const pendingMiddleCategories = categories.filter((item) => item.type === 'middle' && item.key !== anchorCategoryKey);
+    while (pendingMiddleCategories.length) {
+      const readyIndex = pendingMiddleCategories.findIndex((item) => categoryRef.has(item.parentKey));
+      if (readyIndex < 0) return { status: 'invalid_job', message: '再編構造の中間クラス親参照を解決できません。' };
+      const [item] = pendingMiddleCategories.splice(readyIndex, 1);
       const parentRef = categoryRef.get(item.parentKey);
-      if (!parentRef) return { status: 'invalid_job', message: '再編構造の上位クラス参照が見つかりません。' };
       if (item.existingKey) {
         const existing = destinationByKey.get(item.existingKey);
         const record = hierarchyById.get(existing.id);
