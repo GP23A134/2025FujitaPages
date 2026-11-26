@@ -278,7 +278,7 @@ export function createHierarchyReorganizationJob({
             reason: { type: 'string', maxLength: 500 }
           }, required: ['key', 'label', 'type', 'existingKey', 'parentKey', 'reason']
         } },
-        ...(includeDeleteKeys ? { deleteKeys: { type: 'array', uniqueItems: true, items: { type: 'string', enum: dispositionItems.map((item) => item.key) } } } : {}),
+        ...(includeDeleteKeys ? { deleteKeys: { type: 'array', items: { type: 'string', enum: dispositionItems.map((item) => item.key) } } } : {}),
         designReason: { type: 'string', maxLength: 1000 }
       }, required: [...(includeDeleteKeys ? ['deleteKeys'] : []), 'categories', 'designReason']
     });
@@ -403,7 +403,7 @@ export function createHierarchyReorganizationJob({
         ], 'reorganization_destination_candidates', {
           type: 'object', additionalProperties: false,
           properties: {
-            candidateKeys: { type: 'array', uniqueItems: true, maxItems: Math.min(DESTINATION_PICKS_PER_BATCH, eligible.length), items: { type: 'string', enum: [...eligibleKeys] } },
+            candidateKeys: { type: 'array', maxItems: Math.min(DESTINATION_PICKS_PER_BATCH, eligible.length), items: { type: 'string', enum: [...eligibleKeys] } },
             reason: { type: 'string', maxLength: 400 }
           }, required: ['candidateKeys', 'reason']
         }), 'INVALID_REORG_DESTINATIONS', '既存移動先候補を読み取れませんでした。');

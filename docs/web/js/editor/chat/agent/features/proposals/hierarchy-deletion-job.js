@@ -164,7 +164,7 @@ export function createHierarchyDeletionJob({
         ], 'deletion_target_selection', {
           type: 'object', additionalProperties: false,
           properties: {
-            targetKeys: { type: 'array', uniqueItems: true, maxItems: unit.items.length, items: { type: 'string', enum: batchKeys } },
+            targetKeys: { type: 'array', maxItems: unit.items.length, items: { type: 'string', enum: batchKeys } },
             reason: { type: 'string', maxLength: 800 }
           }, required: ['targetKeys', 'reason']
         });
