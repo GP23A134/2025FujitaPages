@@ -91,11 +91,17 @@ export function createEditorDataReader({
     return offset === 0 ? null : makePageCursor(name, offset, getDataVersion?.() || null);
   }
 
-  function readHierarchyIndex({ cursor = null } = {}) {
+  function readHierarchyIndex({ cursor = null, classIds = null } = {}) {
     const data = snapshot();
-    const records = data.state.classes.filter((item) => hierarchyTypes.has(item.type))
-      .sort((left, right) => String(left.id).localeCompare(String(right.id)))
-      .map((item) => item.id);
+    const requestedIds = classIds === null
+      ? null
+      : Array.isArray(classIds) ? [...new Set(classIds)] : null;
+    if (classIds !== null && !requestedIds) throw new TypeError('階層索引の対象IDは配列が必要です。');
+    const records = (requestedIds === null
+      ? data.state.classes.filter((item) => hierarchyTypes.has(item.type) && data.allowed.has(item.id)).map((item) => item.id)
+      : requestedIds).sort((left, right) => String(left).localeCompare(String(right)));
+    const invalidIds = records.filter((id) => !data.classesById.has(id) || !hierarchyTypes.has(data.classesById.get(id)?.type));
+    if (invalidIds.length) throw Object.assign(new Error('階層索引の対象に存在しない上位・中間クラスがあります。'), { code: 'NOT_FOUND' });
     scopeError(records, '階層索引の取得', data);
     includeParents(records, '階層索引', data);
     return paginate('hierarchy_index', records.map((id) => detailFor(id, data)), cursor, data);

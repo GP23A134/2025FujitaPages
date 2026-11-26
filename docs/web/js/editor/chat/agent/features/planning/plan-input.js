@@ -50,6 +50,7 @@ export function buildPlanInput(request, counts, { instanceCount, conversationCon
     ? Object.freeze({
       taskType: initialPlan.taskType,
       structureMode: initialPlan.structureMode,
+      reorganizationStyle: initialPlan.reorganizationStyle,
       summary: initialPlan.summary,
       executionBrief: initialPlan.executionBrief,
       steps: initialPlan.steps,

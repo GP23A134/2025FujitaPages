@@ -37,13 +37,16 @@ const hasOnlyKeys = (value, allowed) => Object.keys(value).every((key) => allowe
 export function validatePlan(plan, { instanceInformationEnabled = false, targetClassRenameEnabled = false } = {}) {
   const errors = [];
   if (!isRecord(plan)) return { valid: false, errors: ['計画はオブジェクトである必要があります。'] };
-  if (!hasOnlyKeys(plan, ['status', 'taskType', 'structureMode', 'executionMode', 'summary', 'executionBrief', 'steps', 'dataNeeds', 'scopeNeeds', 'changeOperations', 'questions', 'unsupportedParts'])) {
+  if (!hasOnlyKeys(plan, ['status', 'taskType', 'structureMode', 'executionMode', 'reorganizationStyle', 'summary', 'executionBrief', 'steps', 'dataNeeds', 'scopeNeeds', 'changeOperations', 'questions', 'unsupportedParts'])) {
     errors.push('計画にスキーマ外の項目があります。');
   }
 
   if (!isEnumValue(plan.status, PLAN_STATUSES)) errors.push('statusが未定義です。');
   if (!isEnumValue(plan.taskType, TASK_TYPES)) errors.push('taskTypeが未定義です。');
   if (plan.structureMode !== undefined && !isEnumValue(plan.structureMode, ['existing', 'design'])) errors.push('structureModeが未定義です。');
+  if (!isEnumValue(plan.reorganizationStyle, ['not_applicable', 'undetermined', 'targeted_adjustment', 'rebuild_subclasses'])) errors.push('reorganizationStyleが未定義です。');
+  if (plan.reorganizationStyle === 'undetermined' && plan.status !== 'needs_clarification') errors.push('reorganizationStyleが未確定の場合は確認質問が必要です。');
+  if (['targeted_adjustment', 'rebuild_subclasses'].includes(plan.reorganizationStyle) && plan.structureMode !== 'design') errors.push('再編方針にはstructureMode=designが必要です。');
   if (plan.executionMode !== undefined && !isEnumValue(plan.executionMode, ['standard', 'reorganization', 'deletion'])) errors.push('旧executionModeが未定義です。');
   if (!isString(plan.summary)) errors.push('summaryは空でない文字列が必要です。');
   const brief = plan.executionBrief;
@@ -94,6 +97,9 @@ export function validatePlan(plan, { instanceInformationEnabled = false, targetC
   if (!Array.isArray(plan.unsupportedParts) || plan.unsupportedParts.some((part) => !isRecord(part)
     || !hasOnlyKeys(part, ['description', 'reason']) || !isString(part.description) || !isString(part.reason))) {
     errors.push('unsupportedPartsはdescriptionとreasonを持つ配列が必要です。');
+  }
+  if (plan.reorganizationStyle === 'undetermined' && (!Array.isArray(plan.questions) || plan.questions.length === 0)) {
+    errors.push('再編の強さが未確定の場合は確認質問が必要です。');
   }
   if (Object.hasOwn(plan, 'classIds') || Object.hasOwn(plan, 'hierarchy') || Object.hasOwn(plan, 'classNames')) {
     errors.push('計画出力にクラスID・名称・階層データは含められません。');

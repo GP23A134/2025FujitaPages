@@ -1,4 +1,4 @@
-import { CHANGE_OPERATIONS } from './plan-contract.js?v=20261125-structure-mode-v1';
+import { CHANGE_OPERATIONS } from './plan-contract.js?v=20261126-reorg-intensity-confirm-v1';
 
 const questionSchema = {
   type: 'object', additionalProperties: false,
@@ -25,6 +25,7 @@ export const PLAN_RESPONSE_SCHEMA = Object.freeze({
     status: { type: 'string', enum: ['ready', 'needs_clarification', 'partially_supported', 'unsupported'] },
     taskType: { type: 'string', enum: ['read_only', 'change', 'mixed'] },
     structureMode: { type: 'string', enum: ['existing', 'design'] },
+    reorganizationStyle: { type: 'string', enum: ['not_applicable', 'undetermined', 'targeted_adjustment', 'rebuild_subclasses'] },
     summary: { type: 'string' },
     executionBrief: {
       type: 'object', additionalProperties: false,
@@ -58,5 +59,5 @@ export const PLAN_RESPONSE_SCHEMA = Object.freeze({
     questions: { type: 'array', items: questionSchema },
     unsupportedParts: { type: 'array', items: unsupportedPartSchema }
   },
-  required: ['status', 'taskType', 'structureMode', 'summary', 'executionBrief', 'steps', 'dataNeeds', 'scopeNeeds', 'changeOperations', 'questions', 'unsupportedParts']
+  required: ['status', 'taskType', 'structureMode', 'reorganizationStyle', 'summary', 'executionBrief', 'steps', 'dataNeeds', 'scopeNeeds', 'changeOperations', 'questions', 'unsupportedParts']
 });

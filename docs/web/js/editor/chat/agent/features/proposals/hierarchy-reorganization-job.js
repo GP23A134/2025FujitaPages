@@ -1,4 +1,4 @@
-import { createJobCheckpoint, normalizeJobCheckpoint, runJobLoop } from '../../application/job-loop.js?v=20261126-bounded-batch-parallelism-v1';
+import { createJobCheckpoint, normalizeJobCheckpoint, runJobLoop } from '../../application/job-loop.js?v=20261126-placement-parent-key-v1';
 import { createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, authorizeTaskAction } from '../../application/task-state.js?v=20261125-design-destination-action-v1';
 import { sameIdSet } from '../../application/id-set.js?v=20261125-id-set-v1';
 
@@ -123,11 +123,11 @@ export function createHierarchyReorganizationJob({
     if (sameJob) {
       const priorHierarchyIds = saved.metadata.hierarchyIds || [];
       if (!priorHierarchyIds.every((id) => hierarchyIds.includes(id))) return { status: 'stale_job', message: '保存済み再編ジョブの参照範囲が現在と異なるため続行できません。' };
-      if (priorHierarchyIds.length !== hierarchyIds.length || saved.metadata.designVersion !== 11) {
+      if (priorHierarchyIds.length !== hierarchyIds.length || saved.metadata.designVersion !== 12) {
         activeJob = normalizeJobCheckpoint({
           ...saved,
           status: 'running',
-          metadata: { ...saved.metadata, hierarchyIds, rootAnchorIds: requestedRootAnchorIds, designVersion: 11 },
+          metadata: { ...saved.metadata, hierarchyIds, rootAnchorIds: requestedRootAnchorIds, designVersion: 12 },
           phases: saved.phases.filter((phase) => phase.id === 'target-snapshot'),
           updatedAt: Date.now(), completedAt: null
         });
@@ -156,7 +156,7 @@ export function createHierarchyReorganizationJob({
       kind: 'hierarchy_reorganization', request: jobRequest || request, dataVersion,
       scopeIds: sortedScope,
       metadata: {
-        selectedIds, targetIds, hierarchyIds, rootAnchorIds: requestedRootAnchorIds, executionMode: 'reorganization', designVersion: 11, userGuidance: [],
+        selectedIds, targetIds, hierarchyIds, rootAnchorIds: requestedRootAnchorIds, executionMode: 'reorganization', designVersion: 12, userGuidance: [],
         taskState: createTaskState({
           id: globalThis.crypto?.randomUUID?.() || `task-${Date.now()}`,
           objective: plan.executionBrief?.objective || request,
@@ -181,7 +181,7 @@ export function createHierarchyReorganizationJob({
     }
     const persist = async (checkpoint) => { activeJob = checkpoint; await onCheckpoint(checkpoint); };
     const targetPhase = pagePhase({ id: 'target-snapshot', ids: selectedIds, reader, read: (cursor) => reader.readSelectedClassDetails({ cursor }), budgetGuard, onProgress, tool: 'read_selected_class_details', note: '再編対象を全ページ取得しています' });
-    const hierarchyPhase = pagePhase({ id: 'hierarchy-snapshot', ids: hierarchyIds, reader, read: (cursor) => reader.readHierarchyIndex({ cursor }), budgetGuard, onProgress, tool: 'read_hierarchy_index', note: '利用可能な階層候補を全ページ取得しています' });
+    const hierarchyPhase = pagePhase({ id: 'hierarchy-snapshot', ids: hierarchyIds, reader, read: (cursor) => reader.readHierarchyIndex({ cursor, classIds: hierarchyIds }), budgetGuard, onProgress, tool: 'read_hierarchy_index', note: '許可済みの階層候補を取得しています' });
 
     const pauseMessage = (result) => ({
       status: result.status,
@@ -232,11 +232,15 @@ export function createHierarchyReorganizationJob({
     const rootAnchor = requestedRootAnchorIds.length === 1
       ? destinationRecords.find((item) => item.id === requestedRootAnchorIds[0] && ['top', 'middle'].includes(item.type) && selectedScope.has(item.id)) || null
       : null;
+    const fullRebuild = plan.reorganizationStyle === 'rebuild_subclasses';
     if (requireRootAnchor && !rootAnchor) throw Object.assign(new Error('指定された再編起点を対象範囲内の上位または中間クラスとして確認できません。全体再編へ切り替えず停止しました。'), { code: 'REORG_ROOT_ANCHOR_INVALID' });
     const anchorCategoryKey = rootAnchor ? '__selected_scope_anchor__' : null;
     const designDestinationRecords = rootAnchor
       ? destinationRecords.filter((item) => ['top', 'middle'].includes(item.type) && selectedScope.has(item.id))
       : destinationRecords;
+    const rebuildMiddleRecords = rootAnchor && fullRebuild
+      ? designDestinationRecords.filter((item) => item.type === 'middle' && item.id !== rootAnchor.id && item.editable)
+      : [];
     const estimatedInputChars = request.length
       + targets.reduce((sum, item) => sum + String(item.label || '').length + String(item.parentLabel || '').length + 8, 0)
       + designDestinationRecords.reduce((sum, item) => sum + item.label.length + String(item.parentLabel || '').length + 16, 0);
@@ -305,25 +309,31 @@ export function createHierarchyReorganizationJob({
         dispositionByKey
       };
     };
-    const structureSchemaFor = (availableRecords, includeDeleteKeys = false) => ({
-      type: 'object', additionalProperties: false,
-      properties: {
-        categories: { type: 'array', minItems: targets.length ? 1 : 0, maxItems: rootAnchor ? 199 : 200, items: {
-          type: 'object', additionalProperties: false,
-          properties: {
-            key: { type: 'string', maxLength: 40 }, label: { type: 'string', maxLength: 120 },
-            type: { type: 'string', enum: rootAnchor ? ['middle'] : ['top', 'middle'] },
-            existingKey: availableRecords.length
-              ? { anyOf: [{ type: 'string', enum: availableRecords.map((item) => item.key) }, { type: 'null' }] }
-              : { type: 'null' },
-            parentKey: { anyOf: [{ type: 'string', maxLength: 40 }, { type: 'null' }] },
-            reason: { type: 'string', maxLength: 500 }
-          }, required: ['key', 'label', 'type', 'existingKey', 'parentKey', 'reason']
-        } },
-        ...(includeDeleteKeys ? { deleteKeys: { type: 'array', items: { type: 'string', enum: dispositionItems.map((item) => item.key) } } } : {}),
-        designReason: { type: 'string', maxLength: 1000 }
-      }, required: [...(includeDeleteKeys ? ['deleteKeys'] : []), 'categories', 'designReason']
-    });
+    const structureSchemaFor = (availableRecords, includeDeleteKeys = false) => {
+      const deletableKeys = rootAnchor ? rebuildMiddleRecords.map((item) => item.key) : dispositionItems.map((item) => item.key);
+      const deleteKeysSchema = deletableKeys.length
+        ? { type: 'array', items: { type: 'string', enum: deletableKeys } }
+        : { type: 'array', maxItems: 0, items: { type: 'string' } };
+      return {
+        type: 'object', additionalProperties: false,
+        properties: {
+          categories: { type: 'array', minItems: targets.length ? 1 : 0, maxItems: rootAnchor ? 199 : 200, items: {
+            type: 'object', additionalProperties: false,
+            properties: {
+              key: { type: 'string', maxLength: 40 }, label: { type: 'string', maxLength: 120 },
+              type: { type: 'string', enum: rootAnchor ? ['middle'] : ['top', 'middle'] },
+              existingKey: availableRecords.length
+                ? { anyOf: [{ type: 'string', enum: availableRecords.map((item) => item.key) }, { type: 'null' }] }
+                : { type: 'null' },
+              parentKey: { anyOf: [{ type: 'string', maxLength: 40 }, { type: 'null' }] },
+              reason: { type: 'string', maxLength: 500 }
+            }, required: ['key', 'label', 'type', 'existingKey', 'parentKey', 'reason']
+          } },
+          ...(includeDeleteKeys ? { deleteKeys: deleteKeysSchema } : {}),
+          designReason: { type: 'string', maxLength: 1000 }
+        }, required: [...(includeDeleteKeys ? ['deleteKeys'] : []), 'categories', 'designReason']
+      };
+    };
     const evidenceBatches = fastPath ? [] : Array.from({ length: Math.ceil(targets.length / PAGE_BATCH_SIZE) }, (_, index) => ({
       id: `evidence-${index + 1}`,
       items: targets.slice(index * PAGE_BATCH_SIZE, (index + 1) * PAGE_BATCH_SIZE)
@@ -493,7 +503,7 @@ export function createHierarchyReorganizationJob({
         }
         const structureSchema = structureSchemaFor(
           fastPath ? designDestinationRecords : structureAvailableRecords(checkpoint),
-          fastPath && !rootAnchor
+          (fastPath && !rootAnchor) || (rootAnchor && fullRebuild)
         );
         const evidence = checkpoint.phases.find((phase) => phase.id === 'structure-evidence')?.units || [];
         if (evidence.length !== evidenceBatches.length || evidence.some((item) => item.status !== 'completed')) {
@@ -509,9 +519,13 @@ export function createHierarchyReorganizationJob({
               ? `選択ルート「${rootAnchor.label}」（${rootAnchor.type}）を階層の起点として保持し、削除・改名・移動しません。新設分類はすべて中間クラスとし、このルートまたは配下の中間クラスを親にします。上位クラスは新設せず、ルート外への移動もしません。categoriesに選択ルートを含めず、parentKeyでは予約key「${anchorCategoryKey}」をそのルートとして使ってください。既存候補はkeyで再利用し、editable=falseの既存分類は参照専用で名称・親を変更しません。editable=trueの既存中間クラスに限り、明確な改善になる場合はlabel変更や親変更を提案できます。`
               : '対象全体を分類できる再編後の上位・中間クラス構造を設計してください。既存構造の維持だけで済ませず、依頼と全対象から必要な分類軸と階層を判断します。',
             rootAnchor
-              ? '既存クラスは削除しません。各対象の現在の分類を維持するか、ルート配下の既存または新設中間クラスへ配置します。'
+              ? fullRebuild
+                ? '全面再編では既存中間クラスを維持する前提を置かず、各クラスを再利用・改名・親変更・削除のいずれかに明示的に分類します。削除する既存中間クラスはdeleteKeysに必ず含め、再利用するクラスはcategoriesに含めます。削除対象の配下クラスや末端クラスは後工程で別の有効な分類へ配置できる構造にしてください。'
+                : '既存クラスは削除しません。各対象の現在の分類を維持するか、ルート配下の既存または新設中間クラスへ配置します。'
               : '既存候補はkeyで再利用できます。必要な場合だけ新しいtopまたはmiddleを作ります。middleのparentKeyは、この応答のcategories配列にあるtype=topのkeyと完全一致させてください。taxonomySkeletonのkeyを使う場合も、そのtopカテゴリ自体をcategoriesに含めてください。editable=falseの既存分類は参照専用で、名称や親を変更しません。editable=trueの既存分類に限り、明確な改善になる場合はlabelへ新名称を指定できます。',
-            rootAnchor ? '' : fastPath
+            rootAnchor && fullRebuild
+              ? '選択ルート配下の編集可能な既存中間クラスは、categoriesで再利用するかdeleteKeysで削除するかを全件決めます。どちらにも含めないまま自動維持扱いにしないでください。editable=falseのクラスは構造を維持します。'
+              : rootAnchor ? '' : fastPath
               ? '既存分類はすべて一括確認し、不要と明確に判断した編集可能分類だけをdeleteKeysに含めます。categoriesには新設する分類、配置先として使う既存分類、改名・移動する既存分類だけを記します。'
               : 'categoriesには新設する分類、配置先として使う既存分類、改名・移動する既存分類だけを記します。categoriesに含めない維持分類は現在の名称と親を保ちます。削除対象は別工程で判定済みです。',
             '全対象の移動先を後工程で決められるよう、対象範囲を過不足なく受け止める構造にします。名前が似ているだけで分類を統合せず、異なる概念を接続語や中点で無理にまとめません。',
@@ -564,7 +578,10 @@ export function createHierarchyReorganizationJob({
             }
             categories.unshift({ key: anchorCategoryKey, label: rootAnchor.label, type: rootAnchor.type, existingKey: rootAnchor.key, parentKey: null, reason: '選択された再編起点' });
             const categoryKeyByExisting = new Map(categories.filter((item) => item.existingKey).map((item) => [item.existingKey, item.key]));
-            const remaining = designDestinationRecords.filter((item) => item.id !== rootAnchor.id && !categoryKeyByExisting.has(item.key));
+            const plannedDeletes = new Set(result.deleteKeys || []);
+            const remaining = designDestinationRecords.filter((item) => item.id !== rootAnchor.id
+              && !categoryKeyByExisting.has(item.key) && !plannedDeletes.has(item.key)
+              && (!fullRebuild || !item.editable));
             for (let pass = 0; remaining.length && pass <= designDestinationRecords.length; pass += 1) {
               let added = false;
               for (let index = remaining.length - 1; index >= 0; index -= 1) {
@@ -642,6 +659,20 @@ export function createHierarchyReorganizationJob({
         if (rootAnchor) {
           const anchor = result.categories.find((item) => item.key === anchorCategoryKey);
           if (!anchor || anchor.existingKey !== rootAnchor.key || anchor.type !== rootAnchor.type) return '選択された再編起点が設計にありません。';
+          const deletes = result.deleteKeys || [];
+          const deletableKeys = new Set(rebuildMiddleRecords.map((item) => item.key));
+          if (fullRebuild && (!Array.isArray(result.deleteKeys) || new Set(deletes).size !== deletes.length
+            || deletes.some((key) => !deletableKeys.has(key)))) return '全面再編の削除対象が不正です。';
+          if (!fullRebuild && result.deleteKeys !== undefined) return '調整型再編に削除対象が含まれています。';
+          if (fullRebuild) {
+            const represented = new Set(result.categories.map((item) => item.existingKey).filter(Boolean));
+            for (const existing of designDestinationRecords.filter((item) => item.type === 'middle' && item.id !== rootAnchor.id)) {
+              const isRepresented = represented.has(existing.key);
+              const isDeleted = deletes.includes(existing.key);
+              if (existing.editable && isRepresented === isDeleted) return `既存中間クラス「${existing.label}」の扱いを再利用または削除のどちらか一方に決めてください。`;
+              if (!existing.editable && (!isRepresented || isDeleted)) return `変更範囲外の既存中間クラス「${existing.label}」は維持する必要があります。`;
+            }
+          }
           const byKey = new Map(result.categories.map((item) => [item.key, item]));
           if (result.categories.some((item) => (item.key !== anchorCategoryKey && item.type !== 'middle') || !item.label?.trim())) return '再編起点配下に不正な階層または名称のない分類があります。';
           for (const item of result.categories) {
@@ -742,14 +773,20 @@ export function createHierarchyReorganizationJob({
           const input = [
             { role: 'system', content: [
               '提示された再編後の構造に、各対象クラスを一件ずつ割り当ててください。移動案を求められていれば、情報が足りる対象は最も妥当な分類先へ配置します。',
-              '現在の親が適切ならkeepとして現在の親に対応する分類keyを返します。分類先が確定できない場合だけholdにし、具体的な不足理由を記します。',
+              'currentParentDestinationKeyがnullでなければ、現状維持はdisposition=keepかつdestinationKeyがその値と完全一致する場合だけ許可します。nullならkeepは禁止です。移動先が決められない場合はholdにし、具体的な不足理由を記します。',
               '番号はこのバッチ内のitemNumberだけを使い、各番号を重複・漏れなく一度ずつ返します。存在しない分類keyを作らないでください。',
-              priorError ? `前回の応答は読み取りまたは件数検証に失敗しました: ${priorError} 今回は指定件数分の完全なJSONだけを返してください。` : ''
+              priorError ? `前回の応答は読み取りまたは割当検証に失敗しました: ${priorError} 今回は指定件数分の完全なJSONだけを返してください。` : ''
             ].filter(Boolean).join('\n') },
             { role: 'user', content: JSON.stringify({
               request, objective: plan.executionBrief, batch: batchLabel,
               categories: design.categories.map(({ key, label, type, parentKey, reason }) => ({ key, label, type, parentKey, reason })),
-              items: items.map((item, index) => ({ itemNumber: index + 1, label: item.label, currentParent: item.parentLabel || null }))
+              items: items.map((item, index) => ({
+                itemNumber: index + 1,
+                label: item.label,
+                currentParent: item.parentLabel || null,
+                currentParentDestinationKey: design.categories.find((category) => category.existingKey
+                  && destinationByKey.get(category.existingKey)?.id === item.parentId)?.key || null
+              }))
             }) }
           ];
           const outputLimit = Math.min(32000, Math.max(maxOutputTokens, 1024 + items.length * 64));
@@ -767,6 +804,14 @@ export function createHierarchyReorganizationJob({
               || new Set(numbers).size !== items.length
               || items.some((__, index) => !numbers.includes(index + 1))) {
               throw Object.assign(new Error('割当件数またはitemNumberに漏れ・重複があります。'), { code: 'INVALID_REORG_PLACEMENT' });
+            }
+            const invalidKeep = rows.find((row) => row.disposition === 'keep'
+              && row.destinationKey !== (items[row.itemNumber - 1]?.parentId
+                ? design.categories.find((category) => category.existingKey
+                  && destinationByKey.get(category.existingKey)?.id === items[row.itemNumber - 1].parentId)?.key || null
+                : null));
+            if (invalidKeep) {
+              throw Object.assign(new Error(`itemNumber ${invalidKeep.itemNumber} のkeep先は現在の親に対応する分類keyと一致しません。`), { code: 'INVALID_REORG_PLACEMENT' });
             }
             return rows;
           } catch (caught) {
@@ -990,7 +1035,7 @@ export function createHierarchyReorganizationJob({
 
     const design = readResults('structure-design')[0];
     const categories = design.categories;
-    const deleteKeys = fastPath ? (design.deleteKeys || []) : dispositionState(activeJob).deleteKeys;
+    const deleteKeys = rootAnchor || fastPath ? (design.deleteKeys || []) : dispositionState(activeJob).deleteKeys;
     const deleteReasons = dispositionState(activeJob).phase?.units.flatMap((unit) => unit.result?.decisions || [])
       .filter((item) => item.disposition === 'delete').map((item) => item.reason) || [];
     const categoryByKey = new Map(categories.map((item) => [item.key, item]));
@@ -1081,7 +1126,16 @@ export function createHierarchyReorganizationJob({
       };
     }
     const deletedCategories = deleteKeys.map((key) => destinationByKey.get(key)).filter(Boolean);
-    const deletedMiddle = deletedCategories.filter((item) => item.type === 'middle');
+    const middleDepth = (item) => {
+      let depth = 0; let parentId = item.parentId; const seen = new Set([item.id]);
+      while (parentId && !seen.has(parentId)) {
+        seen.add(parentId); depth += 1;
+        parentId = destinationRecords.find((record) => record.id === parentId)?.parentId || null;
+      }
+      return depth;
+    };
+    const deletedMiddle = deletedCategories.filter((item) => item.type === 'middle')
+      .sort((left, right) => middleDepth(right) - middleDepth(left));
     const deletedTop = deletedCategories.filter((item) => item.type === 'top');
     for (const item of deletedMiddle) operationList.push({ type: 'delete_middle_class', target: identity(hierarchyById.get(item.id)), newParent: null, tempId: null, label: null });
     for (const item of deletedTop) operationList.push({ type: 'delete_top_class', target: identity(hierarchyById.get(item.id)), newParent: null, tempId: null, label: null });
@@ -1105,12 +1159,19 @@ export function createHierarchyReorganizationJob({
     const assignmentAndOperationNote = assignmentCounts.move === movedCount
       ? `配置判断で移動先を指定した${assignmentCounts.move}件について、実際の移動操作も${movedCount}件です。`
       : `配置判断では${assignmentCounts.move}件に移動先を指定しました。現在の親子関係との照合後、実際に必要な末端クラスの移動操作は${movedCount}件です。配置先の判断数と操作数は異なる場合があります。`;
-    const message = `対象${targets.length.toLocaleString('ja-JP')}件すべての配置先を確認し、再編案を作成しました。判断結果は、維持${assignmentCounts.keep}件、移動先を指定${assignmentCounts.move}件、保留${assignmentCounts.hold}件です。${assignmentAndOperationNote}${placementSummary ? `実際の移動先別の内訳は${placementSummary}です。` : '実際に必要な末端クラスの移動操作はありません。'}${deletedCount ? `不要な上位・中間クラス${deletedCount}件（${deletedLabels.join('、')}）は、配下を移動してから削除する案です。` : ''}末端クラスの移動以外に、上位・中間クラスへ加える構造変更操作は${structureChangeCount}件です。${held.length ? `${held.length}件は配置を決めず保留しています（${held.slice(0, 6).map(({ item }) => item.label).join('、')}${held.length > 6 ? 'ほか' : ''}）。` : ''}これは変更案で、編集データにはまだ適用していません。`;
+    const deletionSummary = deletedCount
+      ? fullRebuild
+        ? `既存中間クラス${deletedCount}件（${deletedLabels.join('、')}）は末端クラスを新構造へ移した後に削除する案です。`
+        : `不要な上位・中間クラス${deletedCount}件（${deletedLabels.join('、')}）は配下を移動してから削除する案です。`
+      : '';
+    const message = `対象${targets.length.toLocaleString('ja-JP')}件すべての配置先を確認し、再編案を作成しました。判断結果は、維持${assignmentCounts.keep}件、移動先を指定${assignmentCounts.move}件、保留${assignmentCounts.hold}件です。${assignmentAndOperationNote}${placementSummary ? `実際の移動先別の内訳は${placementSummary}です。` : '実際に必要な末端クラスの移動操作はありません。'}${deletionSummary}末端クラスの移動以外に、上位・中間クラスへ加える構造変更操作は${structureChangeCount}件です。${held.length ? `${held.length}件は配置を決めず保留しています（${held.slice(0, 6).map(({ item }) => item.label).join('、')}${held.length > 6 ? 'ほか' : ''}）。` : ''}これは変更案で、編集データにはまだ適用していません。`;
     const response = {
       message,
       proposals: [{
-        id: 'hierarchy_reorganization_1', title: '階層を再編して不要な分類を整理',
-        summary: `${targets.length}件の対象を設計した階層へ配置し、必要な分類構造を追加・変更${deletedCount ? 'し、不要な分類を配下の移動後に削除' : ''}する案です。`,
+        id: 'hierarchy_reorganization_1', title: fullRebuild && rootAnchor ? `「${rootAnchor.label}」配下の中間クラスを組み直す` : '階層を再編して不要な分類を整理',
+        summary: fullRebuild
+          ? `${targets.length}件の末端クラス全体から中間クラス構造を設計し、既存クラスの再利用・改名・移動・削除と新設を組み合わせる案です。`
+          : `${targets.length}件の対象を設計した階層へ配置し、必要な分類構造を追加・変更${deletedCount ? 'し、不要な分類を配下の移動後に削除' : ''}する案です。`,
         reason: [...new Set([design.designReason, ...deleteReasons, ...[...reasonByCategory.values()].flat()])].filter(Boolean).slice(0, 6).join('。') || '対象全体と現在の親子関係をもとに再編後の階層を設計しました。',
         uncertainties: held.length ? held.slice(0, 8).map(({ item, reason }) => `${item.label}: ${reason}`) : [],
         questions: [], operations: operationList
