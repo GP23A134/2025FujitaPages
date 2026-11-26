@@ -1,5 +1,5 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
-import { createProgressView } from './features/progress/progress-view.js?v=20261126-live-progress-focus-v1';
+import { createProgressView } from './features/progress/progress-view.js?v=20261126-elapsed-above-start-v1';
 import { buildPlanInput } from './features/planning/plan-input.js?v=20261126-reorg-intensity-confirm-v1';
 import { createOpenAIClient } from './adapters/openai-client.js?v=20261120-api-retries-v1';
 import { createDataIdCodec, createIdMaskedClient } from './adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';

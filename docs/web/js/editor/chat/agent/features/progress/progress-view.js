@@ -66,7 +66,9 @@ export function createProgressView(statusElement, messages = document.getElement
     indicator.className = 'ai-thinking-indicator is-agent-progress';
     indicator.setAttribute('role', 'status');
     indicator.setAttribute('aria-live', 'polite');
-    messages.append(indicator);
+    const runNotices = messages.querySelectorAll('.assistant-run-notice');
+    const latestRunNotice = runNotices[runNotices.length - 1] || null;
+    messages.insertBefore(indicator, latestRunNotice);
     activity = document.createElement('p');
     activity.className = 'assistant-progress-activity';
     activity.setAttribute('role', 'status');
