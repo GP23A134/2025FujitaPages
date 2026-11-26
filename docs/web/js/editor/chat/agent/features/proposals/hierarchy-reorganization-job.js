@@ -772,8 +772,8 @@ export function createHierarchyReorganizationJob({
         const requestAssignments = async (items, batchLabel, attempt = 0, priorError = null) => {
           const input = [
             { role: 'system', content: [
-              '提示された再編後の構造に、各対象クラスを一件ずつ割り当ててください。移動案を求められていれば、情報が足りる対象は最も妥当な分類先へ配置します。',
-              'currentParentDestinationKeyがnullでなければ、現状維持はdisposition=keepかつdestinationKeyがその値と完全一致する場合だけ許可します。nullならkeepは禁止です。移動先が決められない場合はholdにし、具体的な不足理由を記します。',
+              '提示された再編後の構造に、各対象クラスを一件ずつ割り当ててください。移動案を求められている場合、名称・現在の親子関係・分類先から妥当な候補を選べる限り、情報や分類意図に不確かさがあっても最も妥当な分類先へmoveで配置し、reasonに「推定案」と要確認点を記します。定義や用途が未確認という理由だけでholdにしないでください。',
+              'currentParentDestinationKeyがnullでなければ、現状維持はdisposition=keepかつdestinationKeyがその値と完全一致する場合だけ許可します。nullならkeepは禁止です。妥当な移動先を候補から絞れない場合、または誤分類の危険が高い場合に限りholdにし、具体的な不足理由と確認したい点を記します。',
               '番号はこのバッチ内のitemNumberだけを使い、各番号を重複・漏れなく一度ずつ返します。存在しない分類keyを作らないでください。',
               priorError ? `前回の応答は読み取りまたは割当検証に失敗しました: ${priorError} 今回は指定件数分の完全なJSONだけを返してください。` : ''
             ].filter(Boolean).join('\n') },
