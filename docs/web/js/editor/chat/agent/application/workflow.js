@@ -5,12 +5,12 @@ import { createBudgetGuard } from '../agent-runtime/budget-guard.js?v=20261126-p
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261126-reorg-intensity-confirm-v1';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261126-detailed-output-v1';
 import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261126-target-move-scope-set-v1';
-import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261126-task-scope-set-v1';
+import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261126-focused-class-names-v1';
 import { createHierarchyDeletionJob } from '../features/proposals/hierarchy-deletion-job.js?v=20261126-reorg-parent-key-normalize-v1';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
 import { createAgentRunLoop } from '../agent-runtime/run-loop.js?v=20261125-verified-retrieval-v1';
-import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261126-detailed-output-v1';
+import { buildAgentSystemPrompt } from '../prompts/agent-system-prompt.js?v=20261126-focused-class-names-v1';
 import { PROPOSAL_RESPONSE_SCHEMA } from '../features/proposals/proposal-schema.js';
 import { validateProposalResponse } from '../features/proposals/proposal-contract.js';
 import { createDataIdCodec, createIdMaskedClient } from '../adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
