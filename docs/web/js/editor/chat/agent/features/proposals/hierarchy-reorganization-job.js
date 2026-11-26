@@ -176,6 +176,7 @@ export function createHierarchyReorganizationJob({
     if (hasDownstreamPhases && snapshotsAlreadyComplete) snapshot = { status: 'completed', checkpoint: activeJob };
     else {
       try {
+        onProgress({ stage: 'retrieving', milestone: true, note: '選択対象と参照可能な階層データを読み込んでいます' });
         snapshot = await runJobLoop({ checkpoint: activeJob, dataVersion, signal, phases: [targetPhase, hierarchyPhase], onCheckpoint: persist, onProgress });
       } catch (error) {
         if (error.scopeRequest) return { status: 'needs_scope_approval', scopeRequest: error.scopeRequest, checkpoint: activeJob };
@@ -187,6 +188,9 @@ export function createHierarchyReorganizationJob({
     const targets = readResults('target-snapshot').filter((item) => item.type === 'class');
     const hierarchy = readResults('hierarchy-snapshot');
     const actualTargetIds = targets.map((item) => item.id).sort((a, b) => a.localeCompare(b));
+    if (!snapshotsAlreadyComplete) {
+      onProgress({ stage: 'retrieving', milestone: true, note: `対象${targets.length.toLocaleString('ja-JP')}件と階層候補${hierarchy.length.toLocaleString('ja-JP')}件を読み込みました` });
+    }
     if (JSON.stringify(actualTargetIds) !== JSON.stringify([...targetIds].sort((a, b) => a.localeCompare(b)))) return {
       status: 'stale_job', message: '取得した末端対象が変更許可範囲と一致しないため、再編を停止しました。'
     };
@@ -457,10 +461,12 @@ export function createHierarchyReorganizationJob({
         }
         const skeleton = checkpoint.phases.find((phase) => phase.id === 'taxonomy-skeleton')?.units?.[0]?.result;
         const availableRecords = fastPath ? destinationRecords : structureAvailableRecords(checkpoint);
+        const availableTopByKey = new Map(availableRecords.filter((item) => item.type === 'top').map((item) => [item.key, item]));
+        const skeletonTopByKey = new Map((skeleton?.categories || []).filter((item) => item.type === 'top').map((item) => [item.key, item]));
         const input = [
           { role: 'system', content: [
             '対象全体を分類できる再編後の上位・中間クラス構造を設計してください。既存構造の維持だけで済ませず、依頼と全対象から必要な分類軸と階層を判断します。',
-            '既存候補はkeyで再利用できます。必要な場合だけ新しいtopまたはmiddleを作ります。middleにはtopをparentKeyで指定してください。editable=falseの既存分類は参照専用で、名称や親を変更しません。editable=trueの既存分類に限り、明確な改善になる場合はlabelへ新名称を指定できます。',
+            '既存候補はkeyで再利用できます。必要な場合だけ新しいtopまたはmiddleを作ります。middleのparentKeyは、この応答のcategories配列にあるtype=topのkeyと完全一致させてください。taxonomySkeletonのkeyを使う場合も、そのtopカテゴリ自体をcategoriesに含めてください。editable=falseの既存分類は参照専用で、名称や親を変更しません。editable=trueの既存分類に限り、明確な改善になる場合はlabelへ新名称を指定できます。',
             fastPath
               ? '既存分類はすべて一括確認し、不要と明確に判断した編集可能分類だけをdeleteKeysに含めます。categoriesには新設する分類、配置先として使う既存分類、改名・移動する既存分類だけを記します。'
               : 'categoriesには新設する分類、配置先として使う既存分類、改名・移動する既存分類だけを記します。categoriesに含めない維持分類は現在の名称と親を保ちます。削除対象は別工程で判定済みです。',
@@ -475,7 +481,49 @@ export function createHierarchyReorganizationJob({
             existingHierarchy: availableRecords.map(({ key, label, type, parentLabel, editable }) => ({ key, label, type, parent: parentLabel, editable }))
           }) }
         ];
-        return parseAI(await callAI(input, 'reorganization_structure', structureSchema), 'INVALID_REORG_STRUCTURE', '再編構造の応答を読み取れませんでした。');
+        let repairInput = input;
+        let result;
+        for (let attempt = 0; attempt <= 2; attempt += 1) {
+          result = parseAI(await callAI(repairInput, 'reorganization_structure', structureSchema), 'INVALID_REORG_STRUCTURE', '再編構造の応答を読み取れませんでした。');
+          const categories = Array.isArray(result?.categories) ? result.categories.map((item) => ({ ...item })) : [];
+          const categoryByKey = new Map(categories.map((category) => [category.key, category]));
+          for (const category of categories) {
+            if (category.type !== 'middle' || categoryByKey.has(category.parentKey)) continue;
+            // The model sometimes uses an existing-hierarchy key or a taxonomy-skeleton
+            // key where the final design requires a key from its own categories array.
+            const includedExistingTop = categories.find((item) => item.type === 'top' && item.existingKey === category.parentKey);
+            if (includedExistingTop) {
+              category.parentKey = includedExistingTop.key;
+              continue;
+            }
+            const existingTop = availableTopByKey.get(category.parentKey);
+            const skeletonTop = skeletonTopByKey.get(category.parentKey);
+            const parent = existingTop
+              ? { key: existingTop.key, label: existingTop.label, type: 'top', existingKey: existingTop.key, parentKey: null, reason: '既存上位クラスを親として再利用' }
+              : skeletonTop
+                ? { key: skeletonTop.key, label: skeletonTop.label, type: 'top', existingKey: null, parentKey: null, reason: skeletonTop.reason || '分類骨組みの上位クラス' }
+                : null;
+            if (parent && categories.length < 200 && !categoryByKey.has(parent.key)) {
+              categories.push(parent);
+              categoryByKey.set(parent.key, parent);
+            }
+          }
+          result = { ...result, categories };
+          const categoryTypes = new Map(categories.map((category) => [category.key, category.type]));
+          const invalidParent = categories.find((category) => category.type === 'middle'
+            && categoryTypes.get(category.parentKey) !== 'top');
+          if (!invalidParent || attempt === 2) break;
+          onProgress({ stage: 'analyzing', note: '中間クラスの親参照を検証し、設計を修正しています' });
+          repairInput = [
+            ...input,
+            { role: 'assistant', content: JSON.stringify(result) },
+            { role: 'user', content: JSON.stringify({
+              validationError: `中間クラス「${invalidParent.label || invalidParent.key}」のparentKey「${invalidParent.parentKey ?? 'null'}」が、同じcategories配列内のtype=topのkeyを指していません。`,
+              instruction: 'categoriesを修正してください。すべてのmiddleのparentKeyを、同じ応答のcategories内に存在するtype=topのkeyと完全一致させてください。該当するtopがなければtopカテゴリを追加し、そのkeyを指定してください。その他の有効な分類は維持してください。'
+            }) }
+          ];
+        }
+        return result;
       },
       validate(unit, result, { checkpoint }) {
         const disposition = dispositionState(checkpoint);
@@ -639,6 +687,20 @@ export function createHierarchyReorganizationJob({
       }
       return null;
     };
+    const actionCompletionMessage = (phaseId) => {
+      const phase = activeJob.phases.find((item) => item.id === phaseId);
+      const summary = phase ? summarizeActionResult(phase) : null;
+      if (phaseId === 'existing-class-disposition') return `既存分類を確認しました（維持${summary?.kept || 0}件、削除候補${summary?.deleted || 0}件）`;
+      if (phaseId === 'structure-evidence') return `対象全体の要約を作成しました（${phase?.units.length || 0}バッチ）`;
+      if (phaseId === 'taxonomy-skeleton') return `再編後の分類骨組みを作成しました（分類候補${summary?.length || 0}件）`;
+      if (phaseId === 'destination-shortlist') return `既存の移動先候補を確認しました（候補${summary?.candidateCount || 0}件）`;
+      if (phaseId === 'structure-design') {
+        const categories = phase?.units.flatMap((unit) => unit.result?.categories || []) || [];
+        return `再編後の分類構造を作成しました（上位${categories.filter((item) => item.type === 'top').length}件、中間${categories.filter((item) => item.type === 'middle').length}件）`;
+      }
+      if (phaseId === 'class-placement') return `対象クラスの配置を確認しました（維持${summary?.keep || 0}件、移動${summary?.move || 0}件、保留${summary?.hold || 0}件）`;
+      return `${actionDescriptions[phaseId] || '作業'}が完了しました`;
+    };
     const runAdaptiveActions = async () => {
       const maxActions = actionPhases.length + 1;
       for (let iteration = 0; iteration < maxActions; iteration += 1) {
@@ -706,6 +768,7 @@ export function createHierarchyReorganizationJob({
           ...activeJob.phases.map((phase) => actionById.get(phase.id) || (phase.id === 'target-snapshot' ? targetPhase : phase.id === 'hierarchy-snapshot' ? hierarchyPhase : null)).filter(Boolean),
           nextPhase
         ];
+        onProgress({ stage: 'analyzing', milestone: true, note: `${actionDescriptions[nextPhase.id]}を始めます` });
         const result = await runJobLoop({ checkpoint: activeJob, dataVersion, signal, phases: orderedPhases, onCheckpoint: persist, onProgress });
         activeJob = result.checkpoint;
         const taskState = recordTaskAction(activeJob.metadata.taskState, {
@@ -715,6 +778,9 @@ export function createHierarchyReorganizationJob({
         if (taskState) {
           activeJob.metadata.taskState = taskState;
           await persist(activeJob);
+        }
+        if (result.status === 'completed') {
+          onProgress({ stage: 'analyzing', milestone: true, note: actionCompletionMessage(nextPhase.id) });
         }
         if (result.status !== 'completed') {
           const currentTask = normalizeTaskState(activeJob.metadata.taskState);

@@ -118,7 +118,10 @@ export function createHierarchyDeletionJob({
     });
     if (hasDownstreamPhases && snapshotsAlreadyComplete) snapshots = { status: 'completed', checkpoint: activeJob };
     else {
-      try { snapshots = await runJobLoop({ checkpoint: activeJob, dataVersion, signal, phases: [targetPhase, hierarchyPhase], onCheckpoint: persist, onProgress }); }
+      try {
+        onProgress({ stage: 'retrieving', milestone: true, note: '削除対象と移動先候補の階層データを読み込んでいます' });
+        snapshots = await runJobLoop({ checkpoint: activeJob, dataVersion, signal, phases: [targetPhase, hierarchyPhase], onCheckpoint: persist, onProgress });
+      }
       catch (error) {
         if (error.scopeRequest) return { status: 'needs_scope_approval', scopeRequest: error.scopeRequest, checkpoint: activeJob };
         throw error;
@@ -131,6 +134,9 @@ export function createHierarchyDeletionJob({
       text: JSON.stringify({ message: `削除ジョブの対象取得を一時停止しました。${snapshots.error?.message || '未完了ページから再開できます。'}`, proposals: [], alternativeGroups: [] }),
       messages: [], counters: budgetGuard.getCounters()
     };
+    if (!snapshotsAlreadyComplete) {
+      onProgress({ stage: 'retrieving', milestone: true, note: `削除対象候補${targetRows().filter((item) => ['top', 'middle'].includes(item.type)).length}件と移動先候補${hierarchyRows().length}件を読み込みました` });
+    }
 
     const candidates = targetRows().filter((item) => ['top', 'middle'].includes(item.type)
       && item.label !== '未分類'
@@ -188,6 +194,7 @@ export function createHierarchyDeletionJob({
     if (relocationAlreadyPlanned && selectionAlreadyComplete) selectionLoop = { status: 'completed', checkpoint: activeJob };
     else {
       try {
+        onProgress({ stage: 'analyzing', milestone: true, note: `削除候補${candidates.length}件を確認しています` });
         selectionLoop = await runJobLoop({ checkpoint: activeJob, dataVersion, signal, phases: [targetPhase, hierarchyPhase, selectionPhase], onCheckpoint: persist, onProgress });
       } catch (error) {
         if (error.scopeRequest) return { status: 'needs_scope_approval', scopeRequest: error.scopeRequest, checkpoint: activeJob };
@@ -206,6 +213,7 @@ export function createHierarchyDeletionJob({
     const selectionReason = [...new Set(selectionResults.map((result) => result?.reason).filter(Boolean))]
       .slice(0, 4).map((reason) => reason.slice(0, 300)).join('。');
     const selectedTargets = selectedKeys.map((key) => candidateByKey.get(key)).filter(Boolean);
+    onProgress({ stage: 'analyzing', milestone: true, note: `削除対象を選定しました（${selectedTargets.length}件）` });
     if (!selectedTargets.length) {
       activeJob.status = 'completed'; activeJob.completedAt = Date.now(); await onCheckpoint(activeJob);
       return { text: JSON.stringify({ message: '削除対象として依頼に該当する上位・中間クラスを確認できませんでした。削除案は作成していません。', proposals: [], alternativeGroups: [] }), messages: [], checkpoint: activeJob, counters: budgetGuard.getCounters() };
@@ -329,7 +337,10 @@ export function createHierarchyDeletionJob({
     };
     const phases = [targetPhase, hierarchyPhase, selectionPhase, relocationPhase];
     let relocation;
-    try { relocation = await runJobLoop({ checkpoint: activeJob, dataVersion, signal, phases, onCheckpoint: persist, onProgress }); }
+    try {
+      onProgress({ stage: 'analyzing', milestone: true, note: `削除対象の配下${childBatches.reduce((sum, batch) => sum + batch.items.length, 0)}件の移動先を決めています` });
+      relocation = await runJobLoop({ checkpoint: activeJob, dataVersion, signal, phases, onCheckpoint: persist, onProgress });
+    }
     catch (error) {
       if (error.scopeRequest) return { status: 'needs_scope_approval', scopeRequest: error.scopeRequest, checkpoint: activeJob };
       throw error;
@@ -344,6 +355,7 @@ export function createHierarchyDeletionJob({
       text: JSON.stringify({ message: `削除ジョブを一時停止しました。${relocation.error?.message || '未完了工程から再開できます。'}`, proposals: [], alternativeGroups: [] }),
       messages: [], counters: budgetGuard.getCounters()
     };
+    onProgress({ stage: 'analyzing', milestone: true, note: '配下クラスの移動先をすべて確認しました。削除案を組み立てています' });
 
     const operations = [];
     const moveReasons = [];
