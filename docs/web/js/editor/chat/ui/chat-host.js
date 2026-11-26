@@ -1,6 +1,6 @@
 // 移行中のチャット画面ホストです。履歴表示、旧プレビュー画面、新AIとの互換接続を担当します。
 // AI依頼の計画・通信・実行は agent/entry.js と agent/application/workflow.js が担当します。
-import { filterPromptExamples } from './prompt-examples.js?v=20261126-prompt-examples-v1';
+import { filterPromptExamples } from './prompt-examples.js?v=20261126-prompt-conversation-flow-v1';
 import { createResponseHandler } from '../domain/proposals/proposal-engine.js?v=20261126-shared-proposal-engine-v1';
 import { createConversationStore } from './conversation/conversation-store.js?v=20261126-legacy-history-store-v1';
 import { createConversationView } from './conversation/conversation-view.js?v=20261126-conversation-view-v1';
@@ -11,7 +11,7 @@ import { createProposalFormatters } from './proposals/proposal-formatters.js?v=2
 import { reconcilePendingProposalAdditions } from '../domain/proposals/proposal-history-reconciler.js?v=20261126-proposal-history-reconciler-v1';
 import { createProposalView } from './proposals/proposal-view.js?v=20261112-conflict-alternatives-v1';
 import { createConversationRenderer } from './conversation/conversation-renderer.js?v=20261111-ai-chat-renderer-v1';
-import { createChatUiBridge } from '../integration/chat-ui-bridge.js?v=20261126-chat-ui-bridge-v1';
+import { createChatUiBridge } from '../integration/chat-ui-bridge.js?v=20261126-prompt-conversation-flow-v1';
 import { registerChatUiBridge } from '../integration/chat-ui-bridge-registry.js?v=20261126-chat-ui-bridge-v1';
 import { CHAT_EVENTS } from '../integration/chat-events.js?v=20261124-conversation-context-v1';
 
@@ -135,6 +135,8 @@ import { CHAT_EVENTS } from '../integration/chat-events.js?v=20261124-conversati
   const textInput = document.getElementById('ai-chat-input');
   const promptExamplesList = document.getElementById('ai-prompt-examples-list');
   const promptExamplesById = new Map();
+  let currentConversation = null;
+  let promptHistoryHasAssistantReply = false;
   const readAiTuningValue = (key, fallback, minimum, maximum) => {
     try {
       const saved = JSON.parse(localStorage.getItem('classEditorTestPreferences') || '{}');
@@ -145,13 +147,18 @@ import { CHAT_EVENTS } from '../integration/chat-events.js?v=20261124-conversati
   };
   const isFullGraphScopeEnabled = () => fullGraphScopeToggle.getAttribute('aria-checked') === 'true';
   const defaultPromptExamples = [
-    { id: 'target-membership', category: '基本', title: '選択クラスの移動先を確認', prompt: '選択範囲の対象クラスについて、クラス名と現在の親子関係を使って分類先を見直してください。移動先が今より適切だと判断できるものは、移動先と理由を示した案を出してください。名称からの推定で確信が持てない場合は、その不確かさも書き、妥当な移動先がなければ無理に案を作らず理由を説明してください。', showWhen: { always: true } },
+    { id: 'hierarchy-evaluate-conversation', category: '相談を始める', title: '階層を評価して相談する', prompt: '選択した範囲の上位クラスを中心に、配下の中間クラスと対象クラスを確認して、役割分担・重複・分類の抜けを評価してください。根拠となるクラス名と親子関係を挙げ、まずは評価にとどめて変更案を作らず、次に検討する判断があれば私に質問してください。', showWhen: { always: true } },
+    { id: 'isolated-parent-reorganization', category: '配下クラスを再編する', title: '配下クラスのまとまりを見直す', prompt: '選択したクラスを起点に、その直下にあるサブクラス全件と親子関係を確認してください。同じ階層に兄弟クラスがなく、配下に複数のサブクラスがある状況を踏まえ、配下の分類を維持するか、既存クラスの移動・中間クラスの新設や名称変更によって再編するか検討してください。選択したクラス自体を別の親へ移動・改名する案は含めず、末端クラスも改名しないでください。各既存サブクラスの扱いと理由を示し、必要なら新設・改名する中間クラスとその親子関係を明記してください。複数あることだけを理由に変更せず、判断に必要な情報が足りなければ案を確定する前に質問してください。', showWhen: { selectionTypes: ['top', 'middle'], isolatedParentWithMultipleChildren: true } },
+    { id: 'followup-add-top-class', category: '評価の続き', title: '評価をもとに上位クラスを追加', prompt: '先ほどの評価を踏まえ、必要であれば新しい上位クラスを設ける再編案を作成してください。新設する目的と名称、配下に置く既存の中間クラス、その配置理由を示してください。曖昧な点があれば案を確定する前に質問してください。案だけを提示し、編集データには適用しないでください。', showWhen: { priorAssistantReply: true } },
+    { id: 'followup-delete-top-class', category: '評価の続き', title: '評価をもとに上位クラスの削除案', prompt: '先ほどの評価で削除候補に挙がった上位クラスについて、削除案を作成してください。候補が複数ある場合は対象を先に質問してください。対象が決まったら、配下の中間クラスと対象クラスを全件確認し、それぞれの移動先と削除後の親子関係を示してください。判断できない移動先は保留にし、案だけを提示して編集データには適用しないでください。', showWhen: { priorAssistantReply: true } },
+    { id: 'target-membership', category: '配置を見直す', title: '選択クラスの移動先を確認', prompt: '選択範囲の対象クラスについて、クラス名と現在の親子関係を使って分類先を見直してください。移動先が今より適切だと判断できるものは、移動先と理由を示した案を出してください。名称からの推定で確信が持てない場合は、その不確かさも書き、妥当な移動先がなければ無理に案を作らず理由を説明してください。', showWhen: { always: true } },
     { id: 'common-summary', category: '基本', title: '選択範囲を要約', prompt: 'この範囲のクラス構成を要約してください。', showWhen: { always: true } }
   ];
   let availablePromptExamples = defaultPromptExamples;
   let lastRenderedPromptExamples = null;
   let lastPromptExampleContext = '';
-  const renderPromptExamples = (examples = availablePromptExamples) => {
+  const renderPromptExamples = (examples = availablePromptExamples, options = {}) => {
+    if (typeof options.priorAssistantReply === 'boolean') promptHistoryHasAssistantReply = options.priorAssistantReply;
     const state = editor.getState();
     const selectedIds = editor.selectedIds;
     const classesById = new Map(state.classes.map((item) => [item.id, item]));
@@ -176,14 +183,30 @@ import { CHAT_EVENTS } from '../integration/chat-events.js?v=20261124-conversati
       selectedTypes,
       differentParents: selectedParents.size > 1,
       unclassifiedSelected: Boolean(unclassifiedId && selectionRoots.some(belongsToUnclassified)),
-      fullGraph: isFullGraphScopeEnabled()
+      fullGraph: isFullGraphScopeEnabled(),
+      priorAssistantReply: promptHistoryHasAssistantReply,
+      isolatedParentWithMultipleChildren: (() => {
+        if (selectionRoots.length !== 1 || !['top', 'middle'].includes(selectedClasses[0]?.type)
+          || selectedClasses[0].label === '未分類') return false;
+        const selectedParent = selectedClasses[0];
+        const parentId = parentByChild.get(selectedParent.id) ?? null;
+        const hasPeer = state.classes.some((item) => item.type === selectedParent.type && item.id !== selectedParent.id
+          && item.label !== '未分類' && (parentByChild.get(item.id) ?? null) === parentId);
+        if (hasPeer) return false;
+        const childType = selectedParent.type === 'top' ? 'middle' : 'class';
+        const children = state.relations.filter(({ child, parent }) => parent === selectedParent.id
+          && classesById.get(child)?.type === childType).length;
+        return children >= 2;
+      })()
     };
     const contextKey = JSON.stringify({
       selectedCount: context.selectedCount,
       selectedTypes: [...context.selectedTypes].sort(),
       differentParents: context.differentParents,
       unclassifiedSelected: context.unclassifiedSelected,
-      fullGraph: context.fullGraph
+      fullGraph: context.fullGraph,
+      priorAssistantReply: context.priorAssistantReply,
+      isolatedParentWithMultipleChildren: context.isolatedParentWithMultipleChildren
     });
     if (lastRenderedPromptExamples === examples && lastPromptExampleContext === contextKey) return;
     promptExamplesById.clear();
@@ -286,7 +309,6 @@ import { CHAT_EVENTS } from '../integration/chat-events.js?v=20261124-conversati
     localStorage.removeItem('fujita.ai-audit-log-v1');
     localStorage.removeItem('fujita.ai-audit-actor-v1');
   } catch {}
-  let currentConversation = null;
   let editorAssistantHost = null;
   let closePreview = () => {};
   let proposalPreview = null;

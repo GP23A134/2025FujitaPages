@@ -799,12 +799,12 @@ export function createHierarchyReorganizationJob({
       'class-placement': ['structure-design']
     };
     const actionDescriptions = {
-      'existing-class-disposition': '既存の上位・中間クラスを維持または削除に分類する',
-      'structure-evidence': '対象クラスを分割して要約する',
-      'taxonomy-skeleton': '対象全体から再編後の分類骨組みを設計する',
-      'destination-shortlist': '既存階層から再編に使える候補を選ぶ',
-      'structure-design': '分類骨組みと既存候補を統合して構造案を確定する',
-      'class-placement': '対象クラスを再編後の構造へ配置する'
+      'existing-class-disposition': 'まず既存の上位・中間クラスを確認し、再編後も維持するものと削除候補を整理します。',
+      'structure-evidence': '次に対象全体を見渡し、再編後の分類を考えるための根拠をまとめます。',
+      'taxonomy-skeleton': 'その内容をもとに、再編後に必要な分類の骨組みを考えます。',
+      'destination-shortlist': '続いて、既存階層から再利用できる移動先があるかを調べます。',
+      'structure-design': '分類候補と既存クラスを照らし合わせ、再編後の親子構造を確定します。',
+      'class-placement': `最後に、対象${targets.length.toLocaleString('ja-JP')}件を一件ずつ構造案に照らし、維持・移動・保留を判断します。`
     };
     const summarizeActionResult = (phase) => {
       const results = phase.units.filter((unit) => unit.status === 'completed').map((unit) => unit.result);
@@ -825,15 +825,19 @@ export function createHierarchyReorganizationJob({
     const actionCompletionMessage = (phaseId) => {
       const phase = activeJob.phases.find((item) => item.id === phaseId);
       const summary = phase ? summarizeActionResult(phase) : null;
-      if (phaseId === 'existing-class-disposition') return `既存分類を確認しました（維持${summary?.kept || 0}件、削除候補${summary?.deleted || 0}件）`;
-      if (phaseId === 'structure-evidence') return `対象全体の要約を作成しました（${phase?.units.length || 0}バッチ）`;
-      if (phaseId === 'taxonomy-skeleton') return `再編後の分類骨組みを作成しました（分類候補${summary?.length || 0}件）`;
-      if (phaseId === 'destination-shortlist') return `既存の移動先候補を確認しました（候補${summary?.candidateCount || 0}件）`;
+      if (phaseId === 'existing-class-disposition') return `既存の上位・中間クラスを確認しました。再編後も維持すると判断したものは${summary?.kept || 0}件、削除候補は${summary?.deleted || 0}件です。再編後の構造全体は、対象内容を確認してから設計します。`;
+      if (phaseId === 'structure-evidence') return `対象全体の要約工程を終えました。今回は要約バッチが${phase?.units.length || 0}件でした。この結果を踏まえて、再編の分類軸を整理します。`;
+      if (phaseId === 'taxonomy-skeleton') return summary?.length
+        ? `対象全体から再編後の分類骨組みを作成しました。分類候補は${summary.length}件です。次に、既存階層に再利用できる移動先があるか確認します。`
+        : '対象全体から独立した分類候補は作成されませんでした。続いて、既存階層に再利用できる移動先があるか確認します。';
+      if (phaseId === 'destination-shortlist') return `既存階層の確認を終えました。移動先候補は${summary?.candidateCount || 0}件です。この結果を分類骨組みと合わせて、再編後の構造を決めます。`;
       if (phaseId === 'structure-design') {
         const categories = phase?.units.flatMap((unit) => unit.result?.categories || []) || [];
-        return `再編後の分類構造を作成しました（上位${categories.filter((item) => item.type === 'top').length}件、中間${categories.filter((item) => item.type === 'middle').length}件）`;
+        const topCount = categories.filter((item) => item.type === 'top').length;
+        const middleCount = categories.filter((item) => item.type === 'middle').length;
+        return `再編後の構造案を作成しました。案には上位クラス${topCount}件、中間クラス${middleCount}件を含みます。この数には既存クラスの再利用も含まれるため、実際に追加・改名する件数とは異なります。続いて各対象の配置を判断します。`;
       }
-      if (phaseId === 'class-placement') return `対象クラスの配置を確認しました（維持${summary?.keep || 0}件、移動${summary?.move || 0}件、保留${summary?.hold || 0}件）`;
+      if (phaseId === 'class-placement') return `対象${targets.length.toLocaleString('ja-JP')}件の配置先を確認しました。判断結果は維持${summary?.keep || 0}件、移動先を指定${summary?.move || 0}件、保留${summary?.hold || 0}件です。ここでの「移動」は配置先の判断数です。現在の親子関係と照合した実際の移動操作数は、最終案で分けてお伝えします。`;
       return `${actionDescriptions[phaseId] || '作業'}が完了しました`;
     };
     const runAdaptiveActions = async () => {
@@ -903,7 +907,7 @@ export function createHierarchyReorganizationJob({
           ...activeJob.phases.map((phase) => actionById.get(phase.id) || (phase.id === 'target-snapshot' ? targetPhase : phase.id === 'hierarchy-snapshot' ? hierarchyPhase : null)).filter(Boolean),
           nextPhase
         ];
-        onProgress({ stage: 'analyzing', milestone: true, note: `${actionDescriptions[nextPhase.id]}を始めます` });
+        onProgress({ stage: 'analyzing', milestone: true, note: actionDescriptions[nextPhase.id] });
         const result = await runJobLoop({ checkpoint: activeJob, dataVersion, signal, phases: orderedPhases, onCheckpoint: persist, onProgress });
         activeJob = result.checkpoint;
         const taskState = recordTaskAction(activeJob.metadata.taskState, {
@@ -1045,12 +1049,20 @@ export function createHierarchyReorganizationJob({
         messages: [], checkpoint: activeJob, counters: budgetGuard.getCounters()
       };
     }
+    const assignmentCounts = {
+      keep: [...assignmentsByTarget.values()].filter((item) => item.disposition === 'keep').length,
+      move: [...assignmentsByTarget.values()].filter((item) => item.disposition === 'move').length,
+      hold: held.length
+    };
     const movedCount = operationList.filter((operation) => operation.type === 'move_target_class').length;
     const structureChangeCount = operationList.length - movedCount;
     const deletedCount = operationList.filter((operation) => operation.type.startsWith('delete_')).length;
     const placementSummary = [...movedByCategory].map(([key, items]) => `${categoryByKey.get(key)?.label || '分類先不明'}へ${items.length}件`).join('、');
     const deletedLabels = deletedCategories.map((item) => item.label);
-    const message = `対象${targets.length}件を全件確認し、再編後の階層案を作成しました。${placementSummary ? `配置変更は${placementSummary}です。` : ''}${deletedCount ? `不要な上位・中間クラス${deletedCount}件（${deletedLabels.join('、')}）を配下の移動後に削除する案を含みます。` : ''}再編後の構造変更${structureChangeCount}件です。${held.length ? `${held.length}件は判断を保留しています（${held.slice(0, 6).map(({ item }) => item.label).join('、')}${held.length > 6 ? 'ほか' : ''}）。` : ''}変更案のみで、編集データには適用していません。`;
+    const assignmentAndOperationNote = assignmentCounts.move === movedCount
+      ? `配置判断で移動先を指定した${assignmentCounts.move}件について、実際の移動操作も${movedCount}件です。`
+      : `配置判断では${assignmentCounts.move}件に移動先を指定しました。現在の親子関係との照合後、実際に必要な末端クラスの移動操作は${movedCount}件です。配置先の判断数と操作数は異なる場合があります。`;
+    const message = `対象${targets.length.toLocaleString('ja-JP')}件すべての配置先を確認し、再編案を作成しました。判断結果は、維持${assignmentCounts.keep}件、移動先を指定${assignmentCounts.move}件、保留${assignmentCounts.hold}件です。${assignmentAndOperationNote}${placementSummary ? `実際の移動先別の内訳は${placementSummary}です。` : '実際に必要な末端クラスの移動操作はありません。'}${deletedCount ? `不要な上位・中間クラス${deletedCount}件（${deletedLabels.join('、')}）は、配下を移動してから削除する案です。` : ''}末端クラスの移動以外に、上位・中間クラスへ加える構造変更操作は${structureChangeCount}件です。${held.length ? `${held.length}件は配置を決めず保留しています（${held.slice(0, 6).map(({ item }) => item.label).join('、')}${held.length > 6 ? 'ほか' : ''}）。` : ''}これは変更案で、編集データにはまだ適用していません。`;
     const response = {
       message,
       proposals: [{

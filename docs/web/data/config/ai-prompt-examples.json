@@ -6,7 +6,34 @@
     "showWhen": {
       "always": true
     },
-    "category": "基本"
+    "category": "相談を始める"
+  },
+  {
+    "id": "hierarchy-evaluate-conversation",
+    "title": "階層を評価して相談する",
+    "prompt": "選択した範囲の上位クラスを中心に、配下の中間クラスと対象クラスを確認して、役割分担・重複・分類の抜けを評価してください。気づいた点は、根拠となるクラス名と親子関係を挙げて説明してください。まずは評価にとどめて変更案を作らず、次に検討する判断があれば私に質問してください。入力から分からないことは推測で補わないでください。",
+    "showWhen": {
+      "always": true
+    },
+    "category": "相談を始める"
+  },
+  {
+    "id": "followup-add-top-class",
+    "title": "評価をもとに上位クラスを追加",
+    "prompt": "先ほどの評価を踏まえ、必要であれば新しい上位クラスを設ける再編案を作成してください。新設する目的と名称、配下に置く既存の中間クラス、その配置理由を示してください。候補が複数ある場合や配置の判断に確認が必要な場合は、案を確定する前に質問してください。案だけを提示し、編集データには適用しないでください。",
+    "showWhen": {
+      "priorAssistantReply": true
+    },
+    "category": "評価の続き"
+  },
+  {
+    "id": "followup-delete-top-class",
+    "title": "評価をもとに上位クラスの削除案",
+    "prompt": "先ほどの評価で削除候補に挙がった上位クラスについて、削除案を作成してください。候補が複数ある場合は、対象を決める前にどのクラスか質問してください。対象が決まったら、配下の中間クラスと対象クラスを全件確認し、それぞれの移動先と削除後の親子関係を示してください。移動先を判断できないクラスは保留にし、案だけを提示して編集データには適用しないでください。",
+    "showWhen": {
+      "priorAssistantReply": true
+    },
+    "category": "評価の続き"
   },
   {
     "id": "common-classification-check",
@@ -15,7 +42,7 @@
     "showWhen": {
       "always": true
     },
-    "category": "基本"
+    "category": "気になる点を調べる"
   },
   {
     "id": "target-membership",
@@ -24,7 +51,7 @@
     "showWhen": {
       "always": true
     },
-    "category": "基本"
+    "category": "配置を見直す"
   },
   {
     "id": "unclassified-review",
@@ -78,7 +105,20 @@
         "top"
       ]
     },
-    "category": "上位クラス"
+    "category": "上位クラスを見直す"
+  },
+  {
+    "id": "isolated-parent-reorganization",
+    "title": "配下クラスのまとまりを見直す",
+    "prompt": "選択したクラスを起点に、その直下にあるサブクラス全件と親子関係を確認してください。同じ階層に兄弟クラスがなく、配下に複数のサブクラスがある状況を踏まえ、配下の分類を維持するか、既存クラスの移動・中間クラスの新設や名称変更によって再編するか検討してください。選択したクラス自体を別の親へ移動・改名する案は含めず、末端クラスも改名しないでください。各既存サブクラスの扱いと理由を示し、必要なら新設・改名する中間クラスとその親子関係を明記してください。複数あることだけを理由に変更せず、判断に必要な情報が足りなければ案を確定する前に質問してください。",
+    "showWhen": {
+      "selectionTypes": [
+        "top",
+        "middle"
+      ],
+      "isolatedParentWithMultipleChildren": true
+    },
+    "category": "上位クラスを見直す"
   },
   {
     "id": "top-middle-overlap",
@@ -89,7 +129,7 @@
         "top"
       ]
     },
-    "category": "上位クラス"
+    "category": "上位クラスを見直す"
   },
   {
     "id": "middle-children-review",

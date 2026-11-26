@@ -99,7 +99,11 @@ export function createChatUiBridge({
     clearPreviewProxy: clearAgentPreviewProxy,
     isAgentProposal(item) { return typeof item?.agentApply === 'function'; },
     upsertHistory(record) {
-      return upsertAgentHistoryRecord({ record, getConversations, createConversation, updateHistoryList });
+      const updated = upsertAgentHistoryRecord({ record, getConversations, createConversation, updateHistoryList });
+      if (updated) renderPromptExamples(undefined, {
+        priorAssistantReply: record.items.some((item) => item?.type === 'message' && item.role === 'assistant')
+      });
+      return updated;
     },
     onScopeChange() {
       const conversation = getCurrentConversation();

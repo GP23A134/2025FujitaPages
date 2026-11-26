@@ -4,6 +4,8 @@ export const filterPromptExamples = (examples, context) => examples.filter((exam
   if (!condition || condition.always) return true;
   if (condition.unclassified && !context.unclassifiedSelected) return false;
   if (condition.fullGraph && !context.fullGraph) return false;
+  if (condition.priorAssistantReply && !context.priorAssistantReply) return false;
+  if (condition.isolatedParentWithMultipleChildren && !context.isolatedParentWithMultipleChildren) return false;
   if (Number.isFinite(condition.minSelected) && context.selectedCount < condition.minSelected) return false;
   if (condition.selectionTypes?.some((type) => !context.selectedTypes.has(type))) return false;
   if (condition.differentParents && !context.differentParents) return false;
