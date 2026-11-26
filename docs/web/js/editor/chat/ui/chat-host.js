@@ -1,7 +1,7 @@
 // 移行中のチャット画面ホストです。履歴表示、旧プレビュー画面、新AIとの互換接続を担当します。
 // AI依頼の計画・通信・実行は agent/entry.js と agent/application/workflow.js が担当します。
 import { filterPromptExamples } from './prompt-examples.js?v=20261126-prompt-examples-v1';
-import { createResponseHandler } from '../domain/proposals/proposal-engine.js?v=20261113-chat-clarification-v1';
+import { createResponseHandler } from '../domain/proposals/proposal-engine.js?v=20261126-shared-proposal-engine-v1';
 import { createConversationStore } from './conversation/conversation-store.js?v=20261126-legacy-history-store-v1';
 import { createConversationView } from './conversation/conversation-view.js?v=20261126-conversation-view-v1';
 import { createProposalPreview } from '../agent/features/proposals/proposal-preview.js?v=20261124-proposal-order-v1';

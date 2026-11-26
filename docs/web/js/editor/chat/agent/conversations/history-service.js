@@ -1,4 +1,4 @@
-import { normalizeConversationMemory } from './conversation-memory.js';
+import { normalizeConversationMemory } from './conversation-memory.js?v=20261125-job-resume-v1';
 
 const HISTORY_KEY = 'classEditorAssistantHistory-v1';
 const DAY_MS = 24 * 60 * 60 * 1000;

@@ -14,7 +14,7 @@ import { createProposalResultView } from './features/proposals/proposal-result-v
 import { createSettingsView } from './settings/settings-view.js?v=20261119-developer-settings-layout-v2';
 import { createHistoryService } from './conversations/history-service.js?v=20261124-conversation-context-v1';
 import { beginConversationStage, buildConversationContext, completeConversationMemory, detectReorganizationRequest, finishConversationStage, getConversationJobAction, isReorganizationFinalizationRequest, recordConversationUsage, recordJobCheckpoint, rememberConversationPolicy } from './conversations/conversation-memory.js?v=20261125-job-resume-v1';
-import { getChatUiBridge } from '../integration/chat-ui-bridge-registry.js?v=20261118-chat-bridge-registry-v1';
+import { getChatUiBridge } from '../integration/chat-ui-bridge-registry.js?v=20261126-chat-ui-bridge-v1';
 import { CHAT_EVENTS, dispatchChatEvent } from '../integration/chat-events.js?v=20261124-conversation-context-v1';
 
 const statusElement = document.getElementById('ai-status');

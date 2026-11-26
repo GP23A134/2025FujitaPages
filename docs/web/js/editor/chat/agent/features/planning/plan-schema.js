@@ -1,4 +1,4 @@
-import { CHANGE_OPERATIONS } from './plan-contract.js';
+import { CHANGE_OPERATIONS } from './plan-contract.js?v=20261125-structure-mode-v1';
 
 const questionSchema = {
   type: 'object', additionalProperties: false,

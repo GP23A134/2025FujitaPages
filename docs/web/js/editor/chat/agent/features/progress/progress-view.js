@@ -1,4 +1,4 @@
-import { CHAT_EVENTS } from '../../../integration/chat-events.js?v=20261118-chat-events-v1';
+import { CHAT_EVENTS } from '../../../integration/chat-events.js?v=20261124-conversation-context-v1';
 
 const PROGRESS_STAGES = new Set([
   'planning', 'waiting_for_answer', 'checking_scope', 'waiting_for_scope_approval', 'scope_denied',

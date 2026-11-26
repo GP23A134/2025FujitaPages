@@ -1,4 +1,4 @@
-import { composeProposalOperations, conflictChoicesComplete } from '../../../domain/proposals/proposal-engine.js?v=20261112-review-fixes-v1';
+import { composeProposalOperations, conflictChoicesComplete } from '../../../domain/proposals/proposal-engine.js?v=20261126-shared-proposal-engine-v1';
 
 // 提案のプレビュー、操作の選択、対象クラスへの移動・適用を担当します。
 // 呼び出し元が検証した提案を表示し、適用操作は利用者の明示操作後にだけ実行します。
