@@ -15,10 +15,10 @@ function normalizeCountGroup(group, name) {
 
 /**
  * Builds the planning request from the user's intent and aggregate class counts.
- * Raw class IDs, full hierarchy, versions and retrieved records are not accepted.
- * A compact app-resolved scope root and descendant counts may be included.
+ * Class IDs, current labels, hierarchy, versions and retrieved records are not accepted.
+ * Optional conversation context carries preferences and progress only, never class facts.
  */
-export function buildPlanInput(request, counts, { instanceCount, conversationContext = '', scopeContext = null } = {}) {
+export function buildPlanInput(request, counts, { instanceCount, conversationContext = '' } = {}) {
   if (typeof request !== 'string' || !request.trim()) throw new TypeError('依頼文が必要です。');
   if (!counts || typeof counts !== 'object' || Array.isArray(counts)) throw new TypeError('クラス件数が必要です。');
 
@@ -33,20 +33,6 @@ export function buildPlanInput(request, counts, { instanceCount, conversationCon
     if (!Number.isSafeInteger(instanceCount) || instanceCount < 0) throw new RangeError('instanceCountは0以上の整数が必要です。');
     input.instanceCounts = { total: instanceCount };
   }
-  if (scopeContext !== null && scopeContext !== undefined) {
-    if (!scopeContext || typeof scopeContext !== 'object' || Array.isArray(scopeContext)) throw new TypeError('scopeContextの形式が不正です。');
-    const root = scopeContext.root;
-    if (!root || typeof root.label !== 'string' || !root.label.trim() || !['top', 'middle'].includes(root.type)) {
-      throw new TypeError('scopeContext.rootには階層クラス名と種別が必要です。');
-    }
-    if (!['request', 'selection', 'checkpoint'].includes(scopeContext.source)) throw new TypeError('scopeContext.sourceが不正です。');
-    input.scopeContext = Object.freeze({
-      resolution: 'unique',
-      source: scopeContext.source,
-      root: Object.freeze({ label: root.label.trim(), type: root.type }),
-      descendantCounts: normalizeCountGroup(scopeContext.descendantCounts, 'scopeContext.descendantCounts')
-    });
-  }
   const safeContext = typeof conversationContext === 'string' ? conversationContext.trim().slice(-5000) : '';
   return Object.freeze({
     request: input.request,
@@ -55,7 +41,6 @@ export function buildPlanInput(request, counts, { instanceCount, conversationCon
       selected: input.classCounts.selected
     }),
     ...(input.instanceCounts ? { instanceCounts: Object.freeze({ ...input.instanceCounts }) } : {}),
-    ...(input.scopeContext ? { scopeContext: input.scopeContext } : {}),
     ...(safeContext ? { conversationContext: safeContext } : {})
   });
 }

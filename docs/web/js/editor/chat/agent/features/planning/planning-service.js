@@ -1,5 +1,5 @@
 import { PLAN_RESPONSE_SCHEMA } from './plan-schema.js?v=20261125-structure-mode-v1';
-import { buildPlanSystemPrompt } from '../../prompts/plan-system-prompt.js?v=20261126-scope-context-v1';
+import { buildPlanSystemPrompt } from '../../prompts/plan-system-prompt.js?v=20261125-structure-mode-v1';
 import { validatePlan } from './plan-contract.js?v=20261125-structure-mode-v1';
 
 function extractJsonText(response) {
