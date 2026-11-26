@@ -1,5 +1,5 @@
 import { createJobCheckpoint, normalizeJobCheckpoint, runJobLoop } from '../../application/job-loop.js?v=20261126-placement-parent-key-v1';
-import { createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, authorizeTaskAction } from '../../application/task-state.js?v=20261125-design-destination-action-v1';
+import { createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, authorizeTaskAction } from '../../application/task-state.js?v=20261126-task-scope-set-v1';
 import { sameIdSet } from '../../application/id-set.js?v=20261125-id-set-v1';
 
 const PAGE_BATCH_SIZE = 100;
@@ -115,7 +115,7 @@ export function createHierarchyReorganizationJob({
     const sameJob = saved?.kind === 'hierarchy_reorganization' && saved.request === (jobRequest || request);
     if (sameJob && saved.dataVersion !== dataVersion) return { status: 'stale_job', message: '保存済み再編ジョブのデータ版が異なるため続行できません。' };
     const sortedScope = [...editableIds].sort((a, b) => a.localeCompare(b));
-    if (sameJob && JSON.stringify(saved.scopeIds) !== JSON.stringify(sortedScope)) return { status: 'stale_job', message: '保存済み再編ジョブの変更範囲が現在と異なるため続行できません。' };
+    if (sameJob && !sameIdSet(saved.scopeIds, sortedScope)) return { status: 'stale_job', message: '保存済み再編ジョブの変更範囲が現在と異なるため続行できません。' };
     if (sameJob && !sameIdSet(saved.metadata.selectedIds || [], selectedIds)) return { status: 'stale_job', message: '保存済み再編ジョブの選択対象が現在と異なるため続行できません。' };
     if (sameJob && !sameIdSet(saved.metadata.targetIds || [], targetIds)) return { status: 'stale_job', message: '保存済み再編ジョブの末端対象が現在と異なるため続行できません。' };
     if (sameJob && Array.isArray(saved.metadata.rootAnchorIds)
@@ -1129,9 +1129,18 @@ export function createHierarchyReorganizationJob({
     });
     if (unresolvedUnderDeletion.length) {
       activeJob.status = 'paused'; activeJob.metadata.awaitingUserInput = 'placement'; activeJob.updatedAt = Date.now(); await onCheckpoint(activeJob);
+      const unresolvedLabels = unresolvedUnderDeletion.slice(0, 8).map((item) => {
+        const parentLabel = hierarchyById.get(item.parentId)?.label;
+        return parentLabel ? `「${item.label}」（現在「${parentLabel}」配下）` : `「${item.label}」`;
+      }).join('、');
+      const remainingCount = unresolvedUnderDeletion.length - Math.min(unresolvedUnderDeletion.length, 8);
+      const deletionLabels = deleteKeys.map((key) => destinationByKey.get(key)?.label).filter(Boolean);
+      const deletionSummary = deletionLabels.length
+        ? `削除予定の分類: ${deletionLabels.slice(0, 5).map((label) => `「${label}」`).join('、')}${deletionLabels.length > 5 ? 'ほか' : ''}。`
+        : '';
       return {
         status: 'needs_user_input', checkpoint: activeJob,
-        message: `削除予定の分類配下に移動先を確定できない対象があります: ${unresolvedUnderDeletion.slice(0, 8).map((item) => item.label).join('、')}${unresolvedUnderDeletion.length > 8 ? 'ほか' : ''}。移動先の条件を指定してください。`
+        message: `${deletionSummary}その配下に、再編後の移動先がまだ決まっていない対象があります: ${unresolvedLabels}${remainingCount ? `、ほか${remainingCount}件` : ''}。このまま保留すると削除予定の分類に所属する対象が残るため、その分類を削除する案を確定できません。対象ごとに移動先を選ぶ基準、または移動先の判断を任せる範囲を指定してください。移動を保留したい場合は、対象が属する現在の中間クラスを再編後も残す方針かどうかもあわせて指定してください。`
       };
     }
     const deletedCategories = deleteKeys.map((key) => destinationByKey.get(key)).filter(Boolean);

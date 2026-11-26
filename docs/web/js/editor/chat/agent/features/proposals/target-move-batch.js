@@ -1,4 +1,5 @@
 import { createJobCheckpoint, normalizeJobCheckpoint, runJobLoop } from '../../application/job-loop.js';
+import { sameIdSet } from '../../application/id-set.js?v=20261126-scope-set-v1';
 
 const MAX_BATCH_SIZE = 100;
 const MAX_UNCERTAIN_RETRY_ROUNDS = 2;
@@ -308,10 +309,10 @@ export function createTargetMoveBatchProcessor({
     if (sameJobRequest && savedJob.phases.length && !savedJob.phases.some((phase) => phase.id === 'target-snapshot')) return {
       status: 'stale_job', message: '保存済みジョブに取得ページのチェックポイントがないため、このジョブは続行できません。現在の対象で新しい依頼として実行してください。'
     };
-    if (sameJobRequest && selectedIds && JSON.stringify(savedJob.metadata.selectedIds || []) !== JSON.stringify(selectedIds)) return {
+    if (sameJobRequest && selectedIds && !sameIdSet(savedJob.metadata.selectedIds || [], selectedIds)) return {
       status: 'stale_job', message: '保存済みジョブの選択範囲が現在と異なるため、続行を停止しました。'
     };
-    if (sameJobRequest && hierarchyIds && JSON.stringify(savedJob.metadata.hierarchyIds || []) !== JSON.stringify(hierarchyIds)) return {
+    if (sameJobRequest && hierarchyIds && !sameIdSet(savedJob.metadata.hierarchyIds || [], hierarchyIds)) return {
       status: 'stale_job', message: '保存済みジョブの階層参照範囲が現在と異なるため、続行を停止しました。'
     };
     const snapshotPageLimit = Math.max(1, Number(reader.pageLimit) || 100);

@@ -3,11 +3,11 @@ import { createProgressView } from './features/progress/progress-view.js?v=20261
 import { buildPlanInput } from './features/planning/plan-input.js?v=20261126-reorg-intensity-confirm-v1';
 import { createOpenAIClient } from './adapters/openai-client.js?v=20261120-api-retries-v1';
 import { createDataIdCodec, createIdMaskedClient } from './adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
-import { createPlanningService } from './features/planning/planning-service.js?v=20261126-plan-validation-retry-v1';
+import { createPlanningService } from './features/planning/planning-service.js?v=20261126-detailed-questions-v1';
 import { createScopeApprovalView } from './features/scope-approval/scope-approval-view.js?v=20261120-denied-scope-fallback-v1';
 import { createBudgetApprovalView } from './features/budget-approval/budget-approval-view.js?v=20261120-budget-limit-approval-v1';
-import { createAssistantSettingsRegistry } from './settings/register-defaults.js';
-import { createAssistantWorkflow } from './application/workflow.js?v=20261126-reorg-intensity-confirm-v1';
+import { createAssistantSettingsRegistry } from './settings/register-defaults.js?v=20261126-detailed-output-v1';
+import { createAssistantWorkflow } from './application/workflow.js?v=20261126-detailed-output-v1';
 import { createQuestionView } from './features/planning/question-view.js?v=20261118-white-question-card-v1';
 import { createWorkflowView } from './features/progress/workflow-view.js?v=20261125-plan-chat-message-v1';
 import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261120-proposal-pagination-v1';
@@ -51,6 +51,7 @@ if (window.classEditorAI && statusElement) {
     // Migrate the previous default so existing sessions can also process large selections.
     if (saved['runtime.inputTokenCap'] === 30000) saved['runtime.inputTokenCap'] = 300000;
     if (saved['runtime.maxRetrievalCalls'] === 50) saved['runtime.maxRetrievalCalls'] = 200;
+    if (saved['runtime.maxOutputTokens'] === 5000) saved['runtime.maxOutputTokens'] = 8000;
     const candidate = { ...settings, ...Object.fromEntries(settingsRegistry.list()
       .filter((item) => Object.hasOwn(saved, item.key)).map((item) => [item.key, saved[item.key]])) };
     if (settingsRegistry.validate(candidate).valid) settings = candidate;
@@ -426,13 +427,14 @@ if (window.classEditorAI && statusElement) {
           ? '再編案の最終確認を始めます。'
           : reorganizationTurn
             ? resumeJob || resumeStage ? '再編作業を再開します。' : '再編案の作成を始めます。'
-            : '依頼の処理を始めます。';
+            : '依頼内容の確認を始めます。';
         const scopeMessage = targetCount
           ? reorganizationTurn
-            ? `対象${targetCount.toLocaleString('ja-JP')}件を確認し、移動先の親クラスごとに案を整理します。`
-            : `対象クラス${targetCount.toLocaleString('ja-JP')}件を確認します。`
-          : reorganizationTurn ? '対象範囲と現在の階層を確認して案を整理します。'
-            : '依頼内容を確認し、必要な情報を調べます。';
+            ? `対象${targetCount.toLocaleString('ja-JP')}件について、現在の親子関係と再編対象の階層を確認します。ご希望の再編方針に沿って各クラスの維持・移動・保留を判断し、移動案は移動先の親クラスごとに整理します。根拠が足りず配置を決められない場合は、その理由と確認したい点をお伝えします。変更案はプレビューで確認してから適用できます。`
+            : `選択範囲の対象クラス${targetCount.toLocaleString('ja-JP')}件と、依頼の判断に必要な親子関係を確認して回答をまとめます。確認できた事実と名称などからの推定を分け、判断が難しい点は不確かさも説明します。変更案を作る場合は、プレビューで内容を確認してから適用できます。`
+          : reorganizationTurn
+            ? 'まず対象範囲と現在の親子関係を確認し、ご希望の再編方針に沿って維持・移動・保留と必要な階層変更を整理します。判断できない配置は理由を示して確認し、変更案はプレビューで確認してから適用できます。'
+            : '依頼に必要なクラス名や親子関係を確認して回答します。確認できた事実と判断できない点を分けて説明し、変更案が必要な場合はプレビューで内容を確認してから適用できます。';
         getChatUiBridge()?.appendAgentNotice?.(`${startMessage}${scopeMessage}`);
       }
       activeTurnDataVersion = window.classEditorAssistant?.getDataVersion?.() || '';

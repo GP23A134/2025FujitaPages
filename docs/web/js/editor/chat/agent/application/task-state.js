@@ -1,3 +1,5 @@
+import { sameIdSet } from './id-set.js?v=20261126-scope-set-v1';
+
 const MAX_TEXT = 4000;
 const MAX_ITEMS = 200;
 const text = (value, limit = MAX_TEXT) => typeof value === 'string' ? value.trim().slice(0, limit) : '';
@@ -132,7 +134,7 @@ export function resumeTask(task, { dataVersion, scopeIds } = {}) {
   if (dataVersion !== undefined && current.dataVersion && current.dataVersion !== dataVersion) {
     return normalizeTaskState({ ...current, status: 'stale', stopReason: 'data_version_changed', nextAction: null, updatedAt: Date.now() });
   }
-  if (scopeIds !== undefined && JSON.stringify(stringList(scopeIds)) !== JSON.stringify(current.scopeIds)) return null;
+  if (scopeIds !== undefined && !sameIdSet(stringList(scopeIds), current.scopeIds)) return null;
   return normalizeTaskState({ ...current, status: 'running', awaitingUserInput: null, stopReason: '', nextAction: null, updatedAt: Date.now() });
 }
 

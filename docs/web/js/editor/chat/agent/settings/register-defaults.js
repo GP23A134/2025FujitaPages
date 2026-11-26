@@ -1,7 +1,7 @@
 import { DATA_RETRIEVAL_SETTINGS } from '../features/data-retrieval/settings.js';
 import { VALIDATION_SETTINGS } from '../features/validation/settings.js';
 import { CONVERSATION_SETTINGS } from '../conversations/settings.js';
-import { RUNTIME_SETTINGS } from '../agent-runtime/settings.js?v=20261116-selection-12k-v1';
+import { RUNTIME_SETTINGS } from '../agent-runtime/settings.js?v=20261126-detailed-output-v1';
 import { INSTANCE_SETTINGS } from '../features/data-retrieval/instance-settings.js';
 import { PROPOSAL_SETTINGS } from '../features/proposals/settings.js';
 import { CHAT_SYSTEM_SETTINGS } from '../conversations/chat-system-settings.js';
