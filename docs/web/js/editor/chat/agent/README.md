@@ -5,7 +5,7 @@
 ## 構成と責務
 
 - `features/planning/plan-contract.js`: 固定計画形式と入力検査
-- `features/planning/plan-input.js`: 依頼文とクラス件数だけの計画入力を作成
+- `features/planning/plan-input.js`: 依頼文・クラス件数・解決済み再編起点の概要を使って計画入力を作成
 - `features/planning/planning-service.js`: 計画API呼び出しと計画結果検査
 - `features/planning/plan-schema.js`: APIへ渡す厳密な計画JSONスキーマ
 - `prompts/plan-system-prompt.js`: 計画段階の固定指示

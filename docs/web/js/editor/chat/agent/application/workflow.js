@@ -1,11 +1,11 @@
 import { createConversationState, transitionConversation } from './conversation-state.js?v=20261124-conversation-context-v1';
 import { createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, authorizeTaskAction } from './task-state.js?v=20261125-design-destination-action-v1';
-import { buildPlanInput } from '../features/planning/plan-input.js?v=20261124-conversation-context-v1';
+import { buildPlanInput } from '../features/planning/plan-input.js?v=20261126-scope-context-v1';
 import { createBudgetGuard } from '../agent-runtime/budget-guard.js';
 import { createEditorDataReader } from '../features/data-retrieval/editor-data-reader.js?v=20261125-verified-retrieval-v1';
 import { createChunkedReadOnlyReview } from '../features/data-retrieval/chunked-read-only-review.js?v=20261120-denied-scope-fallback-v1';
 import { createTargetMoveBatchProcessor } from '../features/proposals/target-move-batch.js?v=20261125-generic-intent-v1';
-import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261126-scope-root-reorg-v3';
+import { createHierarchyReorganizationJob } from '../features/proposals/hierarchy-reorganization-job.js?v=20261126-scope-root-reorg-v4';
 import { createHierarchyDeletionJob } from '../features/proposals/hierarchy-deletion-job.js?v=20261126-reorg-parent-key-normalize-v1';
 import { createPermissionGuard } from '../agent-runtime/permission-guard.js';
 import { createToolDispatcher } from '../agent-runtime/tool-dispatcher.js';
@@ -235,6 +235,7 @@ export function createAssistantWorkflow({
   let budgetGuard = null;
   let selectedClassIds = [];
   let selectedRootIds = [];
+  let selectedRootSource = 'selection';
   let requireAnchoredReorganization = false;
   let hierarchyIndexAvailable = false;
   let currentApiKey = null;
@@ -350,6 +351,20 @@ export function createAssistantWorkflow({
     };
   }
 
+  function currentPlanningScopeContext() {
+    if (selectedRootIds.length !== 1) return null;
+    const classes = editor.getState().classes;
+    const root = classes.find((item) => item.id === selectedRootIds[0] && ['top', 'middle'].includes(item.type));
+    if (!root) return null;
+    const descendantIds = expandScopeDescendants(editor.getState().classes, editor.getState().relations, [root.id])
+      .filter((id) => id !== root.id);
+    return {
+      source: selectedRootSource,
+      root: { label: root.label, type: root.type },
+      descendantCounts: countsFor(classes, descendantIds)
+    };
+  }
+
   async function askForScope({ candidates, allowReference, allowChange, purpose }) {
     if (!scopeApproval?.request) return { choice: 'original_scope', referenceIds: [], changeIds: [] };
     setStatus('needs_scope_approval');
@@ -433,7 +448,8 @@ export function createAssistantWorkflow({
         client: activeClient,
         planInput: buildPlanInput(state.request, currentCounts(), {
           instanceCount: currentCounts().instanceCount,
-          conversationContext: state.conversationContext
+          conversationContext: state.conversationContext,
+          scopeContext: currentPlanningScopeContext()
         }),
         hierarchyIndexAvailable,
         signal,
@@ -813,6 +829,7 @@ export function createAssistantWorkflow({
       const available = new Set(editor.getState().classes.map((item) => item.id));
       selectedClassIds = [...new Set(editor.selectedIds.filter((id) => available.has(id)))];
       selectedRootIds = [...selectedClassIds];
+      selectedRootSource = 'selection';
       selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
       hierarchyIndexAvailable = hierarchyIndexAvailable || selectedClassIds.some((id) =>
         editor.getState().classes.some((item) => item.id === id && ['top', 'middle'].includes(item.type)));
@@ -848,6 +865,7 @@ export function createAssistantWorkflow({
       }
       const rootId = root.id;
       selectedRootIds = [rootId];
+      selectedRootSource = namedRoots.length === 1 ? 'request' : 'selection';
       selectedClassIds = expandScopeDescendants(editor.getState().classes, editor.getState().relations, [rootId]);
       selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
       hierarchyIndexAvailable = true;
@@ -878,6 +896,7 @@ export function createAssistantWorkflow({
       }
       selectedClassIds = expandScopeDescendants(editor.getState().classes, editor.getState().relations, [namedRoots[0].id]);
       selectedRootIds = [namedRoots[0].id];
+      selectedRootSource = 'request';
       selectedClassIds.forEach((id) => { grants.reference.add(id); grants.change.add(id); });
       hierarchyIndexAvailable = true;
       const taskState = normalizeTaskState(state.taskState);
@@ -1137,11 +1156,13 @@ export function createAssistantWorkflow({
       selectedRootIds = Array.isArray(jobCheckpoint?.metadata?.rootAnchorIds)
         ? [...new Set(jobCheckpoint.metadata.rootAnchorIds.filter((id) => validClassIds.has(id)))]
         : [...selectedClassIds];
+      selectedRootSource = Array.isArray(jobCheckpoint?.metadata?.rootAnchorIds) ? 'checkpoint' : 'selection';
       let unresolvedTargetQuestion = null;
       if (!selectedClassIds.length && !jobCheckpoint && /クラス|分類|階層|配下|再編|整理/.test(String(request || ''))) {
         const namedRoots = resolveNamedHierarchyRoots(request, editorState.classes);
         if (namedRoots.length === 1) {
           selectedRootIds = [namedRoots[0].id];
+          selectedRootSource = 'request';
           selectedClassIds = expandScopeDescendants(editorState.classes, editorState.relations, [namedRoots[0].id]);
         } else {
           const names = namedRoots.map((item) => `「${item.label}」`).join('、');
