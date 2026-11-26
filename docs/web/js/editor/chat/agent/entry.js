@@ -1,5 +1,5 @@
 import { createEditorBridge } from './adapters/editor-bridge.js';
-import { createProgressView } from './features/progress/progress-view.js?v=20261126-split-progress-messages-v1';
+import { createProgressView } from './features/progress/progress-view.js?v=20261126-live-progress-focus-v1';
 import { buildPlanInput } from './features/planning/plan-input.js?v=20261126-reorg-intensity-confirm-v1';
 import { createOpenAIClient } from './adapters/openai-client.js?v=20261120-api-retries-v1';
 import { createDataIdCodec, createIdMaskedClient } from './adapters/data-id-codec.js?v=20261120-id-pseudonyms-v2';
@@ -240,6 +240,7 @@ if (window.classEditorAI && statusElement) {
           publishHistory();
         }
         if (summaries.length) addHistoryMessage('assistant', [...new Set(summaries)].join('\n'));
+        getChatUiBridge()?.appendAgentNotice?.('確認が完了しました。結果をまとめました。');
       } else if (event.type === 'error') {
         if (activeHistory && activeTurnStageIndex >= 0) {
           activeHistory.workflowMemory = finishConversationStage(activeHistory.workflowMemory, activeTurnStageIndex, {
@@ -433,7 +434,7 @@ if (window.classEditorAI && statusElement) {
             : `対象クラス${targetCount.toLocaleString('ja-JP')}件を確認します。`
           : reorganizationTurn ? '対象範囲と現在の階層を確認して案を整理します。'
             : '依頼内容を確認し、必要な情報を調べます。';
-        addHistoryMessage('assistant', `${startMessage}${scopeMessage}`);
+        getChatUiBridge()?.appendAgentNotice?.(`${startMessage}${scopeMessage}`);
       }
       activeTurnDataVersion = window.classEditorAssistant?.getDataVersion?.() || '';
       const turn = beginConversationStage(activeHistory.workflowMemory, {

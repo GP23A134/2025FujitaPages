@@ -11,7 +11,7 @@ import { createProposalFormatters } from './proposals/proposal-formatters.js?v=2
 import { reconcilePendingProposalAdditions } from '../domain/proposals/proposal-history-reconciler.js?v=20261126-proposal-history-reconciler-v1';
 import { createProposalView } from './proposals/proposal-view.js?v=20261112-conflict-alternatives-v1';
 import { createConversationRenderer } from './conversation/conversation-renderer.js?v=20261111-ai-chat-renderer-v1';
-import { createChatUiBridge } from '../integration/chat-ui-bridge.js?v=20261126-prompt-conversation-flow-v1';
+import { createChatUiBridge } from '../integration/chat-ui-bridge.js?v=20261126-typed-run-notices-v1';
 import { registerChatUiBridge } from '../integration/chat-ui-bridge-registry.js?v=20261126-chat-ui-bridge-v1';
 import { CHAT_EVENTS } from '../integration/chat-events.js?v=20261124-conversation-context-v1';
 

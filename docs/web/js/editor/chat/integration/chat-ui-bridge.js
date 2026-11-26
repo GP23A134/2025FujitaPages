@@ -30,6 +30,26 @@ export function createChatUiBridge({
   };
 
   return Object.freeze({
+    appendAgentNotice(text) {
+      if (typeof text !== 'string' || !text.trim()) return false;
+      const notice = document.createElement('p');
+      notice.className = 'assistant-run-notice';
+      notice.setAttribute('aria-live', 'polite');
+      const characters = typeof Intl.Segmenter === 'function'
+        ? [...new Intl.Segmenter('ja', { granularity: 'grapheme' }).segment(text.trim())].map((part) => part.segment)
+        : Array.from(text.trim());
+      let index = 0;
+      const revealNext = () => {
+        if (!notice.isConnected) return;
+        notice.textContent += characters[index++] || '';
+        const messages = document.getElementById('ai-chat-messages');
+        if (messages) messages.scrollTop = messages.scrollHeight;
+        if (index < characters.length) window.setTimeout(revealNext, 24);
+      };
+      document.getElementById('ai-chat-messages')?.append(notice);
+      revealNext();
+      return true;
+    },
     async previewProposal({ item, proposals = [item], alternativeGroups = [], selectedAlternatives = {}, onSelectAlternative, onApply, onDismiss }) {
       if (!item?.proposal || typeof onApply !== 'function') throw new TypeError('提案のプレビュー情報が不足しています。');
       const proposalPreview = getPreview();
