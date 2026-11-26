@@ -1,8 +1,9 @@
-import { createJobCheckpoint, normalizeJobCheckpoint, runJobLoop } from '../../application/job-loop.js';
+import { createJobCheckpoint, normalizeJobCheckpoint, runJobLoop } from '../../application/job-loop.js?v=20261126-bounded-batch-parallelism-v1';
 import { createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, authorizeTaskAction } from '../../application/task-state.js?v=20261125-design-destination-action-v1';
 import { sameIdSet } from '../../application/id-set.js?v=20261125-id-set-v1';
 
 const PAGE_BATCH_SIZE = 100;
+const MAX_PARALLEL_BATCHES = 3;
 const MAX_PLACEMENT_RETRIES = 2;
 const FAST_PATH_MAX_TARGETS = 100;
 const FAST_PATH_MAX_HIERARCHY = 150;
@@ -86,8 +87,25 @@ export function createHierarchyReorganizationJob({
   }
 
   function parseAI(response, code, message) {
-    try { return JSON.parse(responseText(response)); }
-    catch { throw Object.assign(new Error(message), { code }); }
+    const text = responseText(response);
+    const refusal = (response?.output || []).flatMap((item) => item.content || [])
+      .find((item) => item.type === 'refusal')?.refusal;
+    if (!text.trim()) {
+      const error = Object.assign(new Error(`${message} ${responseFailure(response)}`), {
+        code, retryable: !refusal
+      });
+      throw error;
+    }
+    try { return JSON.parse(text); }
+    catch {
+      const incompleteReason = response?.incomplete_details?.reason;
+      const reason = refusal
+        ? `モデルが応答を拒否しました（${response?.status || '状態不明'}）。`
+        : incompleteReason
+        ? `応答が未完了です（${incompleteReason}）。`
+        : `応答状態は${response?.status || '不明'}で、JSON本文を解析できませんでした。`;
+      throw Object.assign(new Error(`${message} ${reason}`), { code, retryable: !refusal });
+    }
   }
 
   const readResults = (phaseId) => activeJob?.phases.find((phase) => phase.id === phaseId)?.units.flatMap((unit) => unit.result || []) || [];
@@ -242,7 +260,7 @@ export function createHierarchyReorganizationJob({
       } } }, required: ['decisions']
     });
     const dispositionPhase = {
-      id: 'existing-class-disposition', units: dispositionBatches,
+      id: 'existing-class-disposition', units: dispositionBatches, concurrency: MAX_PARALLEL_BATCHES,
       async execute(unit) {
         onProgress({ stage: 'analyzing', note: `既存分類を${unit.items.length}件ずつ維持・削除判定しています` });
         return parseAI(await callAI([
@@ -318,7 +336,7 @@ export function createHierarchyReorganizationJob({
       }, required: ['summary', 'themes']
     };
     const structureEvidencePhase = {
-      id: 'structure-evidence', units: evidenceBatches,
+      id: 'structure-evidence', units: evidenceBatches, concurrency: MAX_PARALLEL_BATCHES,
       async execute(unit) {
         onProgress({ stage: 'analyzing', note: `${unit.items.length}件ずつ対象の傾向を要約しています` });
         return parseAI(await callAI([
@@ -403,7 +421,7 @@ export function createHierarchyReorganizationJob({
       return mandatory;
     };
     const destinationPhase = {
-      id: 'destination-shortlist', units: rootAnchor ? [] : destinationBatches,
+      id: 'destination-shortlist', units: rootAnchor ? [] : destinationBatches, concurrency: MAX_PARALLEL_BATCHES,
       async execute(unit, { checkpoint }) {
         const disposition = dispositionState(checkpoint);
         const eligible = unit.items.filter((item) => disposition.availableRecords.some((candidate) => candidate.key === item.key));
@@ -511,7 +529,20 @@ export function createHierarchyReorganizationJob({
         let repairInput = input;
         let result;
         for (let attempt = 0; attempt <= 2; attempt += 1) {
-          result = parseAI(await callAI(repairInput, 'reorganization_structure', structureSchema), 'INVALID_REORG_STRUCTURE', '再編構造の応答を読み取れませんでした。');
+          try {
+            result = parseAI(await callAI(repairInput, 'reorganization_structure', structureSchema), 'INVALID_REORG_STRUCTURE', '再編構造の応答を読み取れませんでした。');
+          } catch (error) {
+            if (error?.code !== 'INVALID_REORG_STRUCTURE' || error.retryable === false || attempt === 2) throw error;
+            onProgress({ stage: 'analyzing', note: '構造案の応答形式を確認し、JSON形式で再依頼しています' });
+            repairInput = [
+              ...input,
+              { role: 'user', content: JSON.stringify({
+                validationError: error.message,
+                instruction: '前回の応答をJSONとして読み取れませんでした。指定されたJSONスキーマに従う完全なJSONオブジェクトだけを返してください。分類候補や有効な親子関係は維持し、説明文やコードフェンスを付けないでください。'
+              }) }
+            ];
+            continue;
+          }
           const categories = Array.isArray(result?.categories) ? result.categories.map((item) => ({ ...item })) : [];
           if (rootAnchor) {
             const redundantAnchorKeys = new Set(categories.filter((item) => item.existingKey === rootAnchor.key).map((item) => item.key));
@@ -702,7 +733,7 @@ export function createHierarchyReorganizationJob({
       id: `batch-${index + 1}`, items: targets.slice(index * PAGE_BATCH_SIZE, (index + 1) * PAGE_BATCH_SIZE)
     }));
     const assignmentPhase = {
-      id: 'class-placement', units: assignmentBatches,
+      id: 'class-placement', units: assignmentBatches, concurrency: MAX_PARALLEL_BATCHES,
       async execute(unit, { checkpoint }) {
         const design = checkpoint.phases.find((phase) => phase.id === 'structure-design')?.units[0]?.result;
         if (!design) throw new Error('再編構造が保存されていません。');

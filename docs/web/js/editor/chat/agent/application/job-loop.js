@@ -122,90 +122,117 @@ export async function runJobLoop({ checkpoint, dataVersion = '', phases, signal,
     const saved = job.phases.find((item) => item.id === phase.id);
     if (saved.status === 'completed') continue;
     saved.status = 'running';
-    for (let index = 0; index < phase.units.length; index += 1) {
-      const unit = phase.units[index];
-      const savedUnit = saved.units[index];
-      if (savedUnit.status === 'completed') continue;
-      if (signal?.aborted) {
-        job.status = 'interrupted';
-        savedUnit.status = 'paused';
-        job.updatedAt = Date.now();
-        await onCheckpoint(job);
-        return { status: 'interrupted', checkpoint: job };
-      }
-      savedUnit.status = 'running';
-      job.updatedAt = Date.now();
-      onProgress({ phaseId: phase.id, unitId: unit.id, unitIndex: index + 1, unitCount: phase.units.length });
-      try {
-        const result = await phase.execute(unit, { checkpoint: job, phase, signal });
-        const validation = await phase.validate(unit, result, { checkpoint: job, phase });
-        if (validation !== true) {
-          const reason = typeof validation === 'string' ? validation : '作業結果の検証に失敗しました。';
-          throw Object.assign(new Error(reason), { code: 'JOB_UNIT_VALIDATION_FAILED' });
+    let nextIndex = 0;
+    let stopScheduling = false;
+    let unitFailure = null;
+    let checkpointQueue = Promise.resolve();
+    let checkpointFailure = null;
+    const saveCheckpoint = () => {
+      const snapshot = normalizeJobCheckpoint({ ...job, updatedAt: Date.now() });
+      checkpointQueue = checkpointQueue.then(() => onCheckpoint(snapshot)).catch((error) => {
+        checkpointFailure ||= error;
+      });
+      return checkpointQueue.then(() => {
+        if (checkpointFailure) throw checkpointFailure;
+      });
+    };
+    const worker = async () => {
+      while (!stopScheduling) {
+        const index = nextIndex++;
+        if (index >= phase.units.length) return;
+        const unit = phase.units[index];
+        const savedUnit = saved.units[index];
+        if (savedUnit.status === 'completed') continue;
+        if (signal?.aborted) {
+          unitFailure = { index, error: signal.reason || Object.assign(new Error('処理が中断されました。'), { name: 'AbortError' }) };
+          stopScheduling = true;
+          return;
         }
-        const normalizedResult = cloneResult(result);
-        const candidate = {
-          ...job,
-          phases: job.phases.map((savedPhase) => savedPhase.id !== phase.id ? savedPhase : {
-            ...savedPhase,
-            units: savedPhase.units.map((candidateUnit, candidateIndex) => candidateIndex !== index ? candidateUnit : {
-              ...candidateUnit, status: 'completed', result: normalizedResult
+        savedUnit.status = 'running';
+        job.updatedAt = Date.now();
+        onProgress({ phaseId: phase.id, unitId: unit.id, unitIndex: index + 1, unitCount: phase.units.length });
+        try {
+          const result = await phase.execute(unit, { checkpoint: job, phase, signal });
+          const validation = await phase.validate(unit, result, { checkpoint: job, phase });
+          if (validation !== true) {
+            const reason = typeof validation === 'string' ? validation : '作業結果の検証に失敗しました。';
+            throw Object.assign(new Error(reason), { code: 'JOB_UNIT_VALIDATION_FAILED' });
+          }
+          const normalizedResult = cloneResult(result);
+          const candidate = {
+            ...job,
+            phases: job.phases.map((savedPhase) => savedPhase.id !== phase.id ? savedPhase : {
+              ...savedPhase,
+              units: savedPhase.units.map((candidateUnit, candidateIndex) => candidateIndex !== index ? candidateUnit : {
+                ...candidateUnit, status: 'completed', result: normalizedResult
+              })
             })
-          })
-        };
-        if (JSON.stringify(candidate).length > MAX_CHECKPOINT_CHARACTERS) {
-          throw Object.assign(new Error('再開用チェックポイントの保存上限に達しました。結果を失わないため、ここで一時停止します。'), {
-            code: 'JOB_CHECKPOINT_TOO_LARGE', status: 'budget_exhausted'
-          });
-        }
-        savedUnit.result = normalizedResult;
-        savedUnit.status = 'completed';
-        completedSinceCheckpoint += 1;
-        job.updatedAt = Date.now();
-        if (completedSinceCheckpoint >= checkpointInterval || index === phase.units.length - 1) {
-          await onCheckpoint(job);
-          completedSinceCheckpoint = 0;
-        }
-      } catch (error) {
-        if (signal?.aborted || error?.name === 'AbortError') {
-          savedUnit.status = 'paused';
-          saved.status = 'paused';
-          job.status = 'interrupted';
+          };
+          if (JSON.stringify(candidate).length > MAX_CHECKPOINT_CHARACTERS) {
+            throw Object.assign(new Error('再開用チェックポイントの保存上限に達しました。結果を失わないため、ここで一時停止します。'), {
+              code: 'JOB_CHECKPOINT_TOO_LARGE', status: 'budget_exhausted'
+            });
+          }
+          savedUnit.result = normalizedResult;
+          savedUnit.status = 'completed';
+          completedSinceCheckpoint += 1;
           job.updatedAt = Date.now();
-          await onCheckpoint(job);
-          return { status: 'interrupted', checkpoint: job, error };
+          if (completedSinceCheckpoint >= checkpointInterval || index === phase.units.length - 1) {
+            completedSinceCheckpoint = 0;
+            await saveCheckpoint();
+          }
+        } catch (error) {
+          unitFailure ||= { index, error };
+          stopScheduling = true;
         }
-        if (pauseError(error)) {
-          savedUnit.status = 'paused';
-          saved.status = 'paused';
-          job.status = 'paused';
-          job.updatedAt = Date.now();
-          await onCheckpoint(job);
-          return { status: 'paused', checkpoint: job, error };
-        }
-        if (error?.scopeRequest) {
-          savedUnit.status = 'pending';
-          saved.status = 'paused';
-          job.status = 'paused';
-          job.updatedAt = Date.now();
-          await onCheckpoint(job);
-          return { status: 'needs_scope_approval', checkpoint: job, scopeRequest: error.scopeRequest };
-        }
-        if (error?.status === 'needs_user_input') {
-          savedUnit.status = 'pending';
-          saved.status = 'paused';
-          job.status = 'paused';
-          job.updatedAt = Date.now();
-          await onCheckpoint(job);
-          return { status: 'needs_user_input', checkpoint: job, error };
-        }
-        savedUnit.status = 'failed';
-        saved.status = 'failed';
-        job.status = 'failed';
+      }
+    };
+    const requestedConcurrency = Number.isSafeInteger(phase.concurrency) ? phase.concurrency : 1;
+    const concurrency = Math.max(1, Math.min(requestedConcurrency, phase.units.length || 1));
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    await checkpointQueue;
+    if (checkpointFailure) throw checkpointFailure;
+    if (unitFailure) {
+      const { index, error } = unitFailure;
+      const savedUnit = saved.units[index];
+      if (signal?.aborted || error?.name === 'AbortError') {
+        savedUnit.status = 'paused';
+        saved.status = 'paused';
+        job.status = 'interrupted';
         job.updatedAt = Date.now();
         await onCheckpoint(job);
-        throw error;
+        return { status: 'interrupted', checkpoint: job, error };
       }
+      if (pauseError(error)) {
+        savedUnit.status = 'paused';
+        saved.status = 'paused';
+        job.status = 'paused';
+        job.updatedAt = Date.now();
+        await onCheckpoint(job);
+        return { status: 'paused', checkpoint: job, error };
+      }
+      if (error?.scopeRequest) {
+        savedUnit.status = 'pending';
+        saved.status = 'paused';
+        job.status = 'paused';
+        job.updatedAt = Date.now();
+        await onCheckpoint(job);
+        return { status: 'needs_scope_approval', checkpoint: job, scopeRequest: error.scopeRequest };
+      }
+      if (error?.status === 'needs_user_input') {
+        savedUnit.status = 'pending';
+        saved.status = 'paused';
+        job.status = 'paused';
+        job.updatedAt = Date.now();
+        await onCheckpoint(job);
+        return { status: 'needs_user_input', checkpoint: job, error };
+      }
+      savedUnit.status = 'failed';
+      saved.status = 'failed';
+      job.status = 'failed';
+      job.updatedAt = Date.now();
+      await onCheckpoint(job);
+      throw error;
     }
     const phaseResults = saved.units.map((unit) => ({ id: unit.id, result: unit.result }));
     const phaseValidation = await phase.validatePhase?.(phaseResults, { checkpoint: job, phase });
