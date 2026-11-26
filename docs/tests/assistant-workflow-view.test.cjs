@@ -16,12 +16,12 @@ class Element {
   remove() { this.removed = true; }
   addEventListener() {}
   replaceChildren(...items) { this.children = items; }
-  querySelector(selector) { return selector === '[data-assistant-plan-message]' ? this.children.find((item) => item.dataset.assistantPlanMessage) || null : null; }
+  querySelector() { return null; }
   set textContent(value) { this._textContent = value; }
   get textContent() { return this._textContent || this.children.map((item) => item.textContent).join(''); }
 }
 
-test('workflow displays plan text as a chat message and creates no plan card', () => {
+test('workflow view does not render planning events as cards or chat messages', () => {
   const sandbox = {
     module: { exports: {} },
     document: { createElement: (tag) => new Element(tag) },
@@ -39,14 +39,11 @@ test('workflow displays plan text as a chat message and creates no plan card', (
   } });
 
   assert.equal(root.children.length, 0);
-  assert.equal(messages.children.length, 1);
-  assert.equal(messages.children[0].className, 'ai-message');
-  assert.equal(messages.children[0].dataset.assistantPlanMessage, 'true');
-  assert.equal(messages.children[0].textContent, '選択範囲のクラス配置を確認します。今回対応できない内容は「新設クラスへの配置案」です。クラス追加は未対応です。');
+  assert.equal(messages.children.length, 0);
 
   view.handle({ type: 'plan', plan: {
     summary: '選択範囲のクラス配置を確認します。', unsupportedParts: []
   } });
-  assert.equal(messages.children.length, 1);
-  assert.equal(messages.children[0].textContent, '選択範囲のクラス配置を確認します。');
+  assert.equal(messages.children.length, 0);
+  assert.equal(root.children.length, 0);
 });

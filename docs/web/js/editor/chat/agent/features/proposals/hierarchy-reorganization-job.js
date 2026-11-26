@@ -1,5 +1,5 @@
 import { createJobCheckpoint, normalizeJobCheckpoint, runJobLoop } from '../../application/job-loop.js';
-import { createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, authorizeTaskAction } from '../../application/task-state.js?v=20261125-task-state-v1';
+import { createTaskState, normalizeTaskState, recordTaskAction, recordTaskCriterion, stopTask, completeTask, resumeTask, authorizeTaskAction } from '../../application/task-state.js?v=20261125-design-destination-action-v1';
 import { sameIdSet } from '../../application/id-set.js?v=20261125-id-set-v1';
 
 const PAGE_BATCH_SIZE = 100;

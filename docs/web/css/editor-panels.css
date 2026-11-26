@@ -247,8 +247,8 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-scope-request-actions button { justify-self: start; }
 .ai-scope-request-summary[data-decision="allow"] { border-color: #86efac; background: #f0fdf4; }
 .ai-scope-request-summary[data-decision="original_scope"] { border-color: #cbd5e1; background: #f8fafc; }
-.assistant-plan-card, .assistant-proposal-card { padding: 0.7rem; border: 1px solid #dbe4ee; border-radius: 9px; background: #fff; }
-.assistant-plan-card h3, .assistant-proposal-card h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
+.assistant-proposal-card { padding: 0.7rem; border: 1px solid #dbe4ee; border-radius: 9px; background: #fff; }
+.assistant-proposal-card h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
 .assistant-proposal-card { display: grid; gap: 0.35rem; }
 .assistant-proposal-card p { margin: 0; }
 .assistant-proposal-card textarea, .assistant-question-dialog textarea { width: 100%; box-sizing: border-box; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 7px; font: inherit; }
@@ -417,7 +417,6 @@ body #edit-tree-panel .edit-tree-layout:has(.tree-filter[hidden]) .edit-tree-pan
 .ai-split-state { display: flex; flex-wrap: wrap; gap: 0.25rem 0.7rem; margin-top: 0.25rem; color: #64748b; font-size: 0.74rem; }
 .ai-split-state span { color: #9a6700; }
 .ai-message-body { display: grid; gap: 0.55rem; margin-top: 0.3rem; font-size: 1rem; line-height: 1.65; overflow-wrap: anywhere; }
-.ai-message-body.assistant-plan-message { white-space: pre-wrap; }
 .ai-message-body p { margin: 0; white-space: pre-wrap; }
 .ai-message-body ul, .ai-message-body ol { display: grid; gap: 0.25rem; margin: 0; padding-left: 1.35rem; }
 .ai-message-body li { padding-left: 0.1rem; }

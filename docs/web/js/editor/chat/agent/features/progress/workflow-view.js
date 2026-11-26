@@ -7,39 +7,11 @@ function appendText(parent, tag, text, className = '') {
 }
 
 export function createWorkflowView(root, questionView, proposalView, { onAnswerQuestions, onError = () => {}, messages }) {
-  function renderPlan(plan) {
-    root.replaceChildren();
-    if (!messages) return;
-    const children = [...messages.children];
-    const lastUserIndex = children.reduce((last, item, index) => item.className?.includes('is-user') ? index : last, -1);
-    const existing = children.slice(lastUserIndex + 1).reverse()
-      .find((item) => item.dataset?.assistantPlanMessage === 'true');
-    const message = existing || document.createElement('div');
-    message.className = 'ai-message';
-    message.dataset.assistantPlanMessage = 'true';
-    message.setAttribute('role', 'article');
-    const body = document.createElement('div');
-    body.className = 'ai-message-body assistant-plan-message';
-    appendText(body, 'p', plan.summary);
-    (plan.unsupportedParts || []).forEach((part) => {
-      appendText(body, 'p', `今回対応できない内容は「${part.description}」です。${part.reason}`);
-    });
-    message.replaceChildren(body);
-    if (!existing) messages.append(message);
-    const scrollToLatest = () => {
-      messages.scrollTo?.({ top: messages.scrollHeight, behavior: 'smooth' });
-      if (!messages.scrollTo) messages.scrollTop = messages.scrollHeight;
-    };
-    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(scrollToLatest);
-    else scrollToLatest();
-  }
-
   function handle(event) {
     if (event.type === 'settings_invalidated') {
       root.replaceChildren();
       appendText(root, 'p', '許可や取得上限を狭める設定が変更されたため、以前の提案とAIの参照状態を破棄し、許可された設定で再計画します。');
     }
-    if (event.type === 'plan') renderPlan(event.plan);
     if (event.type === 'questions') {
       questionView.ask(event.questions).then((answers) => {
         if (answers) return onAnswerQuestions(answers);
@@ -83,5 +55,5 @@ export function createWorkflowView(root, questionView, proposalView, { onAnswerQ
     }
     if (event.type === 'error') onError(event.error);
   }
-  return Object.freeze({ handle, renderPlan });
+  return Object.freeze({ handle });
 }
