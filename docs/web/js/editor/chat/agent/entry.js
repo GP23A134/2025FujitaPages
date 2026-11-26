@@ -13,7 +13,7 @@ import { createWorkflowView } from './features/progress/workflow-view.js?v=20261
 import { createProposalResultView } from './features/proposals/proposal-result-view.js?v=20261120-proposal-pagination-v1';
 import { createSettingsView } from './settings/settings-view.js?v=20261119-developer-settings-layout-v2';
 import { createHistoryService } from './conversations/history-service.js?v=20261124-conversation-context-v1';
-import { beginConversationStage, buildConversationContext, completeConversationMemory, detectReorganizationRequest, finishConversationStage, getConversationJobAction, isReorganizationFinalizationRequest, recordConversationUsage, recordJobCheckpoint, rememberConversationPolicy } from './conversations/conversation-memory.js?v=20261125-job-resume-v1';
+import { beginConversationStage, buildConversationContext, completeConversationMemory, detectReorganizationRequest, finishConversationStage, getConversationJobAction, isReorganizationFinalizationRequest, recordConversationUsage, recordJobCheckpoint, rememberConversationPolicy, shouldInheritConversationScope } from './conversations/conversation-memory.js?v=20261126-conversation-scope-continuity-v1';
 import { getChatUiBridge } from '../integration/chat-ui-bridge-registry.js?v=20261126-chat-ui-bridge-v1';
 import { CHAT_EVENTS, dispatchChatEvent } from '../integration/chat-events.js?v=20261124-conversation-context-v1';
 
@@ -385,14 +385,27 @@ if (window.classEditorAI && statusElement) {
       const finalizingReorganization = previousMemory?.kind === 'classification_reorganization'
         && isReorganizationFinalizationRequest(request);
       const visibleSelectedIds = [...(window.classEditorAI.selectedIds || [])];
-      const scopeRoots = finalizingReorganization && previousMemory.rootIds.length
+      let scopeRoots = finalizingReorganization && previousMemory.rootIds.length
         ? [...new Set([...previousMemory.rootIds, ...visibleSelectedIds])]
         : (resumeJob || resumeStage) && previousMemory.rootIds.length ? previousMemory.rootIds : visibleSelectedIds;
-      const selectedIds = resumeJob
+      let selectedIds = resumeJob
         ? reorganizationTurn ? expandSelectedHierarchy(scopeRoots)
           : [...new Set([...(previousMemory.rootIds || []), ...previousMemory.job.scopeIds])]
         : resumeStage && !reorganizationTurn ? previousStage.selectedIds
         : reorganizationTurn ? expandSelectedHierarchy(scopeRoots) : visibleSelectedIds;
+      if (!selectedIds.length && !resumeJob && !resumeStage && !jobCheckpoint
+        && shouldInheritConversationScope(request)) {
+        const currentClasses = window.classEditorAI.getState?.().classes || [];
+        const namedRoots = resolveNamedHierarchyRoots(request, currentClasses);
+        const previousStage = previousMemory?.stages?.at(-1);
+        const validClassIds = new Set(currentClasses.map((item) => item.id));
+        const previousScope = Array.isArray(previousStage?.selectedIds)
+          ? previousStage.selectedIds.filter((id) => validClassIds.has(id)) : [];
+        if (!namedRoots.length && ['completed', 'awaiting_user'].includes(previousStage?.status) && previousScope.length) {
+          selectedIds = previousScope;
+          scopeRoots = previousScope;
+        }
+      }
       const resumedReferenceIds = resumeJob && Array.isArray(previousMemory?.job?.metadata?.hierarchyIds)
         ? previousMemory.job.metadata.hierarchyIds : [];
       let priorContext = buildConversationContext(activeHistory.items, previousMemory, {
@@ -404,7 +417,7 @@ if (window.classEditorAI && statusElement) {
       const workflowRequest = resumeJob ? previousMemory.job.request : resumeStage ? previousStage.request : finalizingReorganization
         ? `${request}\n\n再編セッションの最終統合です。処理済み段階の希望と結果を踏まえ、対象ルート全体を現在のクラスデータで再確認して一貫した変更案を作成してください。現在の提案形式で提示し、編集データには適用しないでください。`
         : request;
-      activeHistory.selectedIds = visibleSelectedIds;
+      activeHistory.selectedIds = scopeRoots;
       activeHistory.items.push({ type: 'message', role: 'user', text: request });
       trimHistoryItems();
       activeTurnDataVersion = window.classEditorAssistant?.getDataVersion?.() || '';

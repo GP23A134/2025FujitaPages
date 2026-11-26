@@ -11,6 +11,14 @@ const ids = (value) => Array.isArray(value)
   ? [...new Set(value.filter((id) => typeof id === 'string' && id.length <= 256))].slice(0, MAX_SELECTED_IDS_PER_STAGE)
   : [];
 
+export function shouldInheritConversationScope(request) {
+  const value = String(request || '');
+  if (/(?:別件|別の(?:相談|依頼|作業|話題)|新しい(?:相談|依頼|作業)|話題を(?:変え|切り替え))/u.test(value)) return false;
+  if (/(?:全体|全範囲|全階層|全クラス|すべてのクラス|全部のクラス)/u.test(value)) return false;
+  if (/[「『][^」』]+[」』]\s*(?:の)?配下/u.test(value)) return false;
+  return /(?:さっき|先ほど|前の|前回|その(?:クラス|案|候補|提案|評価|階層|配下)|そのまま|それ|これ(?:を|で|なら|の)|この(?:クラス|案|候補|提案|評価|階層)|続き|続け|評価を踏まえ|候補|提案|削除案|追加案|移動案|改名案)/u.test(value);
+}
+
 export function normalizeConversationMemory(memory) {
   if (!memory || typeof memory !== 'object' || Array.isArray(memory) || memory.version !== 1) return null;
   const stages = Array.isArray(memory.stages) ? memory.stages.slice(-MAX_STAGE_COUNT).map((stage) => ({
