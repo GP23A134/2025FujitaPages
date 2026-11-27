@@ -1,5 +1,5 @@
 window.appData = {
-  "classDataVersion": "4986dc92c2e27febc2f4c3b69574cdbb51fb896d43deddb4b62a2cfb498e97da",
+  "classDataVersion": "83a8498bf493131a9a2532514439fb3b4b04cc1e6b3bc1d6118e2d141ff92a8d",
   "classData": {
     "classes": [
       {
@@ -12,7 +12,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_1",
-        "label": "教育・啓発・人材育成"
+        "label": "学習・啓発・研修・人材育成"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_2",
@@ -120,7 +120,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_24",
-        "label": "防災・災害対応"
+        "label": "防災・避難・災害対応"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_25",
@@ -148,7 +148,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_28",
-        "label": "行政計画・制度運営"
+        "label": "行政計画・制度・施策運営"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_29",
@@ -156,7 +156,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_30",
-        "label": "自然環境・生態系保全"
+        "label": "自然環境・生態系の保全管理"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_31",
@@ -164,7 +164,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_32",
-        "label": "環境影響評価・低減"
+        "label": "環境影響の評価・回避・低減"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/t_8",
@@ -408,23 +408,23 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_91",
-        "label": "感染症・衛生対策"
+        "label": "感染症予防・公衆衛生対策"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_92",
-        "label": "気候変動・脱炭素"
+        "label": "気候変動対策・脱炭素推進"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_93",
-        "label": "地域振興・生活支援"
+        "label": "地域振興・住民生活支援"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_94",
-        "label": "工事・施設整備"
+        "label": "建設工事・施設の整備改修"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_95",
-        "label": "交通安全・移動"
+        "label": "交通安全・移動利便性"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_96",
@@ -61580,7 +61580,7 @@ window.appData = {
     "classes": [
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_1",
-        "label": "教育・啓発・人材育成"
+        "label": "学習・啓発・研修・人材育成"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_2",
@@ -61672,7 +61672,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_24",
-        "label": "防災・災害対応"
+        "label": "防災・避難・災害対応"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_25",
@@ -61692,7 +61692,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_28",
-        "label": "行政計画・制度運営"
+        "label": "行政計画・制度・施策運営"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_29",
@@ -61700,7 +61700,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_30",
-        "label": "自然環境・生態系保全"
+        "label": "自然環境・生態系の保全管理"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_31",
@@ -61708,7 +61708,7 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_32",
-        "label": "環境影響評価・低減"
+        "label": "環境影響の評価・回避・低減"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_33",
@@ -61936,23 +61936,23 @@ window.appData = {
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_91",
-        "label": "感染症・衛生対策"
+        "label": "感染症予防・公衆衛生対策"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_92",
-        "label": "気候変動・脱炭素"
+        "label": "気候変動対策・脱炭素推進"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_93",
-        "label": "地域振興・生活支援"
+        "label": "地域振興・住民生活支援"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_94",
-        "label": "工事・施設整備"
+        "label": "建設工事・施設の整備改修"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_95",
-        "label": "交通安全・移動"
+        "label": "交通安全・移動利便性"
       },
       {
         "id": "https://kozaki-lab.jp/REFV-KG/class/m_96",
