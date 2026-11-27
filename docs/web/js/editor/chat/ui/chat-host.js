@@ -147,11 +147,12 @@ import { CHAT_EVENTS } from '../integration/chat-events.js?v=20261124-conversati
   };
   const isFullGraphScopeEnabled = () => fullGraphScopeToggle.getAttribute('aria-checked') === 'true';
   const defaultPromptExamples = [
-    { id: 'common-summary', category: '相談を始める', title: '選択範囲を要約', prompt: '選択範囲に含まれるクラスを要約してください。上位・中間・対象クラスのまとまりや分類の特徴を説明し、入力から判断できないことは推測で補わないでください。', showWhen: { always: true } },
-    { id: 'hierarchy-evaluate-conversation', category: '相談を始める', title: '選択範囲を評価', prompt: '選択範囲の上位クラスを中心に、配下の中間クラスと対象クラスを確認し、役割分担・重複・分類の抜けを評価してください。根拠となるクラス名と親子関係を挙げて説明してください。まずは評価にとどめて変更案を作らず、次に検討する判断があれば質問してください。入力から分からないことは推測で補わないでください。', showWhen: { always: true } },
-    { id: 'common-classification-check', category: '相談を始める', title: '分類先を見直す', prompt: '選択範囲のクラス名と現在の親子関係を確認し、既存の分類先を使って分類先を見直してください。まず相談として、役割のずれや重なり、移動を検討できるクラス・移動先・理由を示してください。名称や階層だけでは判断できない候補は不確かさと保留理由を説明してください。この最初の返答では実行用の変更案や操作を作らず、編集データも変更しないでください。最後に、どの候補を変更案にするか利用者に尋ねてください。後続の依頼では、会話で利用者が合意した候補だけを対象に、現在の親子関係を再確認して変更案を作成してください。合意が曖昧な候補は含めず、必要な点を質問してください。', showWhen: { always: true } },
-    { id: 'common-similar-classes', category: '相談を始める', title: '似た役割のクラスを探す', prompt: '選択範囲のクラス名と現在の親子関係を比べ、役割が似ているクラスや重なりの可能性がある組を示してください。似ている根拠と違いを説明し、名前が似ているだけで同じ意味だと決めつけないでください。', showWhen: { always: true } },
-    { id: 'common-next-review', category: '相談を始める', title: '次に見直す点を整理', prompt: '選択範囲を確認し、根拠から分かったことと判断できないことを分けて整理してください。そのうえで、次に確認するとよい論点を優先度順に示してください。編集案は作らず、入力にない情報は推測で補わないでください。', showWhen: { always: true } }
+    { id: 'common-summary', category: '相談を始める', title: '選択範囲を要約', prompt: '選択範囲のクラス構成と分類の特徴を、入力にある情報に基づいて要約してください。', showWhen: { always: true } },
+    { id: 'selected-target-move-proposal', category: '相談を始める', title: '対象クラスの移動案を出す', prompt: '選択中の対象クラスについて、現在の親子関係を踏まえた移動案を移動先ごとに理由付きで示してください。判断できないクラスは保留し、選択範囲外は含めず、変更案はプレビューにとどめてください。', showWhen: { always: true } },
+    { id: 'hierarchy-evaluate-conversation', category: '相談を始める', title: '選択範囲を評価', prompt: '選択範囲の役割分担・重複・分類漏れを、クラス名と親子関係を根拠に評価してください。変更案は作らず、判断できない点は質問してください。', showWhen: { always: true } },
+    { id: 'common-classification-check', category: '相談を始める', title: '分類先を見直す', prompt: '選択範囲の分類先を見直し、移動案・現状維持・保留に分けて理由を示してください。提案はプレビュー用とし、編集データは変更しないでください。', showWhen: { always: true } },
+    { id: 'common-similar-classes', category: '相談を始める', title: '似た役割のクラスを探す', prompt: '選択範囲から役割が似ているクラスを挙げ、親子関係を踏まえた共通点と違いを説明してください。', showWhen: { always: true } },
+    { id: 'common-next-review', category: '相談を始める', title: '次に見直す点を整理', prompt: '選択範囲から分かったことと未確認の点を整理し、次に確認する論点を優先順に示してください。編集案は作らないでください。', showWhen: { always: true } }
   ];
   let availablePromptExamples = defaultPromptExamples;
   let lastRenderedPromptExamples = null;

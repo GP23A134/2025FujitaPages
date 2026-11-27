@@ -185,7 +185,7 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selectio
     }
   }
   .held-panel-resize { display: none; }
-  .ai-preview-columns { grid-template-columns: minmax(0, 1fr); }
+  .ai-preview-columns { grid-template-columns: minmax(0, 1fr); margin-inline: 0; }
   .ai-preview-proposal { grid-template-columns: minmax(0, 1fr); }
   .ai-preview-uncertainties { grid-column: auto; }
   .ai-preview-dialog { padding: 0.75rem; }
@@ -202,6 +202,7 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selectio
 
 @media (max-width: 900px) {
   .ai-preview-dialog { width: calc(100vw - 1rem); }
+  .ai-preview-columns { margin-inline: 0; }
   .ai-preview-navigation { position: static; inset: auto; align-self: center; margin: 0.25rem 0 0.55rem; transform: none; pointer-events: auto; }
 }
 
