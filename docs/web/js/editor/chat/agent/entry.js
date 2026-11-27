@@ -50,6 +50,7 @@ if (window.classEditorAI && statusElement) {
     const saved = JSON.parse(localStorage.getItem(settingsStorageKey) || '{}');
     // Migrate the previous default so existing sessions can also process large selections.
     if (saved['runtime.inputTokenCap'] === 30000) saved['runtime.inputTokenCap'] = 300000;
+    if (saved['runtime.inputTokenCap'] === 300000) saved['runtime.inputTokenCap'] = 3000000;
     if (saved['runtime.maxRetrievalCalls'] === 50) saved['runtime.maxRetrievalCalls'] = 200;
     if (saved['runtime.maxOutputTokens'] === 5000) saved['runtime.maxOutputTokens'] = 8000;
     const candidate = { ...settings, ...Object.fromEntries(settingsRegistry.list()
@@ -330,6 +331,11 @@ if (window.classEditorAI && statusElement) {
       statusElement.textContent = !interactionDock.hidden
         ? '表示中の確認に回答してから、次の依頼を送信してください。'
         : '処理中です。完了してから次の依頼を送信してください。';
+      return false;
+    }
+    if (!apiKeyInput.value.trim()) {
+      showError('OpenAI APIキーを入力してください。');
+      document.getElementById('ai-open-settings')?.click();
       return false;
     }
     const request = requestInput.value.trim();

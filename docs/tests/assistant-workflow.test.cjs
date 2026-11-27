@@ -103,7 +103,7 @@ function harness(planSequence, { selectedIds = ['target-id'] } = {}) {
   agentProgressQueue.length = 0;
   const editor = { selectedIds, getState: () => classState };
   const settings = {
-    'runtime.inputTokenCap': 300000, 'runtime.maxResponseRounds': 30, 'runtime.maxRetrievalCalls': 200, 'runtime.maxReplans': 5,
+    'runtime.inputTokenCap': 3000000, 'runtime.maxResponseRounds': 30, 'runtime.maxRetrievalCalls': 200, 'runtime.maxReplans': 5,
     'runtime.maxOutputTokens': 5000, 'dataRetrieval.pageAndIdLimit': 100, 'validation.maxRepairRetries': 2,
     'instances.enabled': false, 'proposals.targetClassRenameEnabled': false
   };
