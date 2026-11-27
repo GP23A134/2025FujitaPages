@@ -189,6 +189,20 @@ body.edit-panes-pinned #edit-tree-panel .edit-tree-layout:has(.instance-selectio
   .ai-preview-proposal { grid-template-columns: minmax(0, 1fr); }
   .ai-preview-uncertainties { grid-column: auto; }
   .ai-preview-dialog { padding: 0.75rem; }
+  .ai-preview-header { gap: 0.55rem; }
+  .ai-preview-header h2 { font-size: 1rem; }
+  .ai-preview-title-row { gap: 0.45rem; }
+  .ai-preview-navigation { gap: 0.25rem; }
+  .ai-preview-navigation button { width: 2rem; height: 2rem; }
+  .ai-preview-navigation-icon { width: 1rem; height: 1rem; }
+  .ai-preview-position { font-size: 0.65rem; }
+  .ai-preview-page-navigation { flex-wrap: wrap; }
+  .ai-preview-page-navigation > span { order: -1; flex-basis: 100%; }
+}
+
+@media (max-width: 900px) {
+  .ai-preview-dialog { width: calc(100vw - 1rem); }
+  .ai-preview-navigation { position: static; inset: auto; align-self: center; margin: 0.25rem 0 0.55rem; transform: none; pointer-events: auto; }
 }
 
 @media (max-width: 720px) {

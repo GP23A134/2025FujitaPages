@@ -9,10 +9,10 @@
     <!-- CSSは元のカスケード順を保って読み込む。順序を変える場合は各モジュールの上書き関係を確認する。 -->
     <link rel="stylesheet" href="web/css/base.css?v=20261103-held-panel-parent-bound-v1" />
     <link rel="stylesheet" href="web/css/tree-structure.css?v=20261112-tree-action-buttons-v2" />
-    <link rel="stylesheet" href="web/css/editor-panels.css?v=20261126-preview-scroll-hidden-v1" />
+    <link rel="stylesheet" href="web/css/editor-panels.css?v=20261127-preview-fixed-navigation-v1" />
     <link rel="stylesheet" href="web/css/test-preferences.css?v=20261119-developer-settings-layout-v2" />
     <link rel="stylesheet" href="web/css/tree-appearance.css?v=20261113-target-connectors-v1" />
-    <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261119-held-panel-collapse-restored-v1" />
+    <link rel="stylesheet" href="web/css/browse-responsive.css?v=20261127-preview-fixed-navigation-v1" />
     <script data-app-script="web/data/generated/class-data.js"></script>
     <script data-app-script="web/data/generated/instance-data.js"></script>
     <script data-app-script="web/js/shared/class-types.js?v=20261112-class-type-normalization-v1"></script>
@@ -376,14 +376,15 @@
       <div class="ai-preview-header">
         <div class="ai-preview-title-row">
           <h2 id="ai-preview-title">変更案のプレビュー</h2>
-          <nav id="ai-preview-navigation" class="ai-preview-navigation" aria-label="提案の切り替え">
-            <button type="button" id="ai-preview-previous" aria-label="前の提案"><svg class="ai-preview-navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6" /></svg></button>
-            <button type="button" id="ai-preview-next" aria-label="次の提案"><svg class="ai-preview-navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>
-          </nav>
           <span id="ai-preview-position" class="ai-preview-position" aria-live="polite"></span>
         </div>
         <button type="button" id="ai-preview-close" class="target-instance-dialog-close" aria-label="閉じる">×</button>
       </div>
+      <nav id="ai-preview-navigation" class="ai-preview-navigation" aria-label="提案の切り替え">
+        <button type="button" id="ai-preview-previous" aria-label="前の提案"><svg class="ai-preview-navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6" /></svg></button>
+        <button type="button" id="ai-preview-next" aria-label="次の提案"><svg class="ai-preview-navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>
+      </nav>
+      <div class="ai-preview-scroll-region">
       <p id="ai-preview-impact" class="ai-preview-impact" role="status" aria-live="polite" hidden></p>
       <section id="ai-preview-proposal-choices" class="ai-preview-proposal-choices" aria-labelledby="ai-preview-proposal-choices-title" hidden>
         <div class="ai-preview-proposal-choices-heading">
@@ -476,6 +477,7 @@
         <ul id="ai-preview-final-change-list" class="ai-preview-change-list"></ul>
         <p class="ai-preview-note">適用する変更だけが編集データに反映されます。</p>
       </section>
+      </div>
       <div class="ai-preview-page-navigation">
         <button type="button" id="ai-preview-page-previous">前へ</button>
         <span id="ai-preview-page-position" aria-live="polite"></span>
@@ -533,7 +535,7 @@
     <!-- ダイアログDOMの後に、データ読み込みとAIチャットを初期化する。 -->
     <script data-app-script="web/js/shared/data-upload.js?v=20261112-shared-validation-v2"></script>
     <script data-app-script="web/js/editor/document-extraction.js?v=20261124-document-extraction-dev2-v78" data-app-type="module"></script>
-    <script data-app-script="web/js/editor/chat/ui/chat-host.js?v=20261126-isolated-top-reorg-prompt-v1" data-app-type="module"></script>
+    <script data-app-script="web/js/editor/chat/ui/chat-host.js?v=20261127-preview-fixed-navigation-v1" data-app-type="module"></script>
     <script data-app-script="web/js/editor/chat/agent/entry.js?v=20261126-detailed-output-v1" data-app-type="module"></script>
   </body>
 </html>
